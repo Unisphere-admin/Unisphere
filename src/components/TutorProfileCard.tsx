@@ -1,0 +1,136 @@
+import { Star } from "lucide-react";
+import Link from "next/link";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { TutorProfile, Review } from "@/types/supabaseTypes";
+import { getFullName, getInitials, getAvatarUrl } from "@/utils/nameUtils";
+import { Skeleton } from "@/components/ui/skeleton";
+
+interface TutorProfileCardProps {
+  tutor: TutorProfile;
+  reviews?: Review[];
+  loading?: boolean;
+}
+
+const TutorProfileCard = ({ tutor, reviews = [], loading = false }: TutorProfileCardProps) => {
+  if (loading) {
+    return (
+      <Card className="overflow-hidden">
+        <CardContent className="p-0">
+          <div className="p-6">
+            <div className="flex items-center gap-4 mb-4">
+              <Skeleton className="h-14 w-14 rounded-full" />
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-32" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+            </div>
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <Skeleton className="h-4 w-4/6" />
+            </div>
+            <div className="flex justify-between items-center mt-4">
+              <Skeleton className="h-5 w-24" />
+              <Skeleton className="h-9 w-20" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const fullName = getFullName(tutor);
+  const avatarUrl = getAvatarUrl(tutor);
+  const initials = getInitials(tutor);
+  
+  // Calculate average rating
+  const averageRating = reviews && reviews.length > 0
+    ? reviews.reduce((sum, review) => sum + (review.rating || 0), 0) / reviews.length
+    : 0;
+    
+  // Format subjects for display
+  let subjects: string[] = [];
+  if (typeof tutor.subjects === 'string') {
+    if (tutor.subjects.includes(',')) {
+      subjects = tutor.subjects.split(',').map(s => s.trim());
+    } else {
+      subjects = [tutor.subjects];
+    }
+  } else if (Array.isArray(tutor.subjects)) {
+    subjects = tutor.subjects;
+  }
+
+  return (
+    <Card className="overflow-hidden hover:shadow-md transition-shadow">
+      <CardContent className="p-0">
+        <div className="p-6">
+          <div className="flex items-center gap-4 mb-4">
+            <Avatar className="h-14 w-14 border">
+              <AvatarImage src={avatarUrl || "/placeholder.svg"} />
+              <AvatarFallback>{initials}</AvatarFallback>
+            </Avatar>
+            <div>
+              <h3 className="font-semibold text-lg">{fullName}</h3>
+              <p className="text-muted-foreground text-sm">
+                {tutor.current_education || "Tutor"}
+              </p>
+            </div>
+          </div>
+          
+          <p className="text-sm mb-4 line-clamp-3">
+            {tutor.description || "No description provided"}
+          </p>
+          
+          <div className="flex flex-wrap gap-1 mb-4">
+            {subjects && subjects.length > 0 ? (
+              subjects.slice(0, 3).map((subject, index) => (
+                <Badge key={index} variant="outline" className="bg-primary/5">
+                  {subject}
+                </Badge>
+              ))
+            ) : (
+              <Badge variant="outline" className="bg-primary/5">
+                General Tutoring
+              </Badge>
+            )}
+            
+            {subjects && subjects.length > 3 && (
+              <Badge variant="outline" className="bg-primary/5">
+                +{subjects.length - 3} more
+              </Badge>
+            )}
+          </div>
+          
+          <div className="flex justify-between items-center">
+            <div className="flex items-center">
+              <div className="flex">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star
+                    key={star}
+                    className={`h-4 w-4 ${
+                      star <= averageRating
+                        ? "text-amber-500 fill-amber-500"
+                        : "text-muted-foreground/30"
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="text-sm ml-2">
+                {averageRating > 0
+                  ? `${averageRating.toFixed(1)} (${reviews.length})`
+                  : "No reviews yet"}
+              </span>
+            </div>
+            <Link href={`/tutors/${tutor.search_id || tutor.id}`} className="text-primary font-medium text-sm hover:underline">
+              View Profile
+            </Link>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default TutorProfileCard;
