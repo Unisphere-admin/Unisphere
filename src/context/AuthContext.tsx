@@ -134,6 +134,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearAllCache();
       resetPrefetchStatus();
       
+      // Explicitly clear tutor cache 
+      try {
+        // Use dynamic import to avoid circular dependencies
+        const { invalidateTutorsCache } = await import('@/lib/tutorsCaching');
+        invalidateTutorsCache();
+      } catch (e) {
+        console.warn('Failed to explicitly invalidate tutor cache:', e);
+      }
+      
       // Clear any pending API requests
       try {
         localStorage.removeItem('pendingApiRequest');
@@ -147,6 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Important: Include credentials to ensure cookies are sent
       });
       
       if (!response.ok) {
@@ -158,11 +168,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setSession(null);
       
+      // Clear any Supabase client state
+      try {
+        // This helps to ensure client-side state is also cleared
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.warn('Error clearing client-side auth state:', err);
+        // Continue even if this fails since we've already logged out on the server
+      }
+      
       // Navigate to login page
       router.push('/login');
     } catch (error) {
       console.error('Error signing out:', error);
       setError(error instanceof Error ? error.message : 'Unknown error');
+      
+      // Even if there's an error, try to reset client state and redirect
+      setUser(null);
+      setSession(null);
+      router.push('/login');
     } finally {
       setLoading(false);
     }

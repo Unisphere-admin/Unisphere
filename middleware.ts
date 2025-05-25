@@ -119,21 +119,16 @@ export async function middleware(request: NextRequest) {
         },
         remove(name, options) {
           // If the cookie is removed, update the cookies for the request and response
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-          });
+          request.cookies.delete(name);
+          
           response = NextResponse.next({
             request: {
               headers: request.headers,
             },
           });
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          });
+          
+          // Also delete from response
+          response.cookies.delete(name);
         },
       },
     }

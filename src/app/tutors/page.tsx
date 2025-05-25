@@ -53,6 +53,64 @@ interface TutorProfile {
   subjects?: string | null;
   avatar_url?: string | null;
   location?: string | null;
+  age?: number | null;
+  major?: string | null;
+  current_education?: string | null;
+  year?: string | null;
+  previous_education?: string[] | null;
+  extracurriculars?: string[] | null;
+  gcse?: string[] | null;
+  "a-levels"?: string[] | null;
+  spm?: string | null;
+  search_id: string;
+}
+
+// Function to perform fuzzy search - handles misspellings
+function fuzzySearch(text: string | null | undefined, query: string): boolean {
+  if (!text || !query || query.length === 0) return false;
+  
+  // Convert both strings to lowercase for case-insensitive matching
+  const textLower = text.toLowerCase();
+  const queryLower = query.toLowerCase();
+  
+  // Exact match is always good
+  if (textLower.includes(queryLower)) return true;
+  
+  // Split the query into words for multi-word searching
+  const queryWords = queryLower.split(/\s+/).filter(word => word.length > 0);
+  
+  // For each word in the query, check if it matches with reasonable typos
+  for (const word of queryWords) {
+    if (word.length <= 2) {
+      // For very short words, require exact match
+      if (textLower.includes(word)) return true;
+    } else {
+      // For longer words, allow for some typos
+      
+      // Approach 1: Check if most of the characters are present in order
+      let matchCount = 0;
+      let lastIndex = -1;
+      
+      for (const char of word) {
+        const index = textLower.indexOf(char, lastIndex + 1);
+        if (index > lastIndex) {
+          matchCount++;
+          lastIndex = index;
+        }
+      }
+      
+      // If we matched most of the characters in order (allowing for 1-2 typos)
+      if (matchCount >= word.length - 2) return true;
+      
+      // Approach 2: Check for common prefixes (handles most misspellings)
+      if (word.length >= 4) {
+        const prefix = word.substring(0, Math.min(4, word.length - 1));
+        if (textLower.includes(prefix)) return true;
+      }
+    }
+  }
+  
+  return false;
 }
 
 // List of available subjects (will be populated dynamically)
@@ -130,6 +188,9 @@ export default function TutorsPage() {
   const { tutors: apiTutors, loading: tutorsLoading, error: tutorsError } = useApiTutorProfiles();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [selectedSchools, setSelectedSchools] = useState<string[]>([]);
+  const [isSubjectFilterOpen, setIsSubjectFilterOpen] = useState(false);
+  const [isSchoolFilterOpen, setIsSchoolFilterOpen] = useState(false);
   const [sortOrder, setSortOrder] = useState<"rating" | "name" | "popularity">("rating");
   // State for storing tutor ratings from API
   const [tutorRatings, setTutorRatings] = useState<{[key: string]: TutorRating}>({});
@@ -169,6 +230,25 @@ export default function TutorsPage() {
         tutor.subjects ? tutor.subjects.split(',').map((s: string) => s.trim()) : []
       )))
     : DEFAULT_SUBJECTS;
+    
+  // Extract all unique schools/educational institutions from tutor profiles
+  const allSchools = tutors.length > 0
+    ? Array.from(new Set(tutors.flatMap((tutor: TutorProfile) => {
+        const schools: string[] = [];
+        
+        // Add current education if available
+        if (tutor.current_education) {
+          schools.push(tutor.current_education);
+        }
+        
+        // Add previous education institutions if available
+        if (tutor.previous_education && Array.isArray(tutor.previous_education)) {
+          schools.push(...tutor.previous_education);
+        }
+        
+        return schools.filter(Boolean).map(s => s.trim());
+      })))
+    : [];
 
   // Function to fetch ratings for all tutors
   const fetchTutorRatings = async () => {
@@ -211,20 +291,46 @@ export default function TutorsPage() {
     }
   }, [tutors]);
 
-  // Filter tutors based on search term and selected subjects
+  // Filter tutors based on search term, selected subjects, and selected schools
   const filteredTutors = tutors.filter((tutor: TutorProfile) => {
-    const fullName = `${tutor.first_name || ''} ${tutor.last_name || ''}`.toLowerCase();
+    // Get tutor data for searching
+    const fullName = `${tutor.first_name || ''} ${tutor.last_name || ''}`;
     const tutorSubjects = tutor.subjects?.split(',').map((s: string) => s.trim()) || [];
     
-    const matchesSearch = 
-      fullName.includes(searchTerm.toLowerCase()) || 
-      (tutor.description && tutor.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      tutorSubjects.some((subject: string) => subject.toLowerCase().includes(searchTerm.toLowerCase()));
+    // Extract all education-related information
+    const tutorSchools: string[] = [];
+    if (tutor.current_education) tutorSchools.push(tutor.current_education);
+    if (tutor.previous_education && Array.isArray(tutor.previous_education)) {
+      tutorSchools.push(...tutor.previous_education);
+    }
     
+    // Collect all searchable keywords (excluding description)
+    const searchableKeywords = [
+      fullName,
+      ...tutorSubjects,
+      ...tutorSchools,
+      tutor.major || '',
+      tutor.year || '',
+      ...(tutor.gcse || []),
+      ...(tutor["a-levels"] || []),
+      tutor.spm || '',
+      ...(tutor.extracurriculars || []),
+      tutor.location || ''
+    ].filter(Boolean); // Remove empty strings
+    
+    // Check if any searchable field matches the search term using fuzzy search
+    const matchesSearch = searchTerm.length === 0 || 
+      searchableKeywords.some(keyword => fuzzySearch(keyword, searchTerm));
+    
+    // Check if tutor teaches any of the selected subjects
     const matchesSubjects = selectedSubjects.length === 0 || 
-      tutorSubjects.some((subject: string) => selectedSubjects.includes(subject));
+      tutorSubjects.some(subject => selectedSubjects.includes(subject));
+      
+    // Check if tutor is associated with any of the selected schools
+    const matchesSchools = selectedSchools.length === 0 ||
+      tutorSchools.some(school => selectedSchools.includes(school));
     
-    return matchesSearch && matchesSubjects;
+    return matchesSearch && matchesSubjects && matchesSchools;
   });
 
   // Sort tutors based on selected sort order
@@ -249,6 +355,14 @@ export default function TutorsPage() {
       setSelectedSubjects(selectedSubjects.filter(s => s !== subject));
     } else {
       setSelectedSubjects([...selectedSubjects, subject]);
+    }
+  };
+
+  const toggleSchool = (school: string) => {
+    if (selectedSchools.includes(school)) {
+      setSelectedSchools(selectedSchools.filter(s => s !== school));
+    } else {
+      setSelectedSchools([...selectedSchools, school]);
     }
   };
 
@@ -289,12 +403,96 @@ export default function TutorsPage() {
 
       {/* Main Content */}
       <section className="content-section">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              Filter by Subject
-            </Button>
+        <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Subject filter dropdown */}
+            <DropdownMenu open={isSubjectFilterOpen} onOpenChange={setIsSubjectFilterOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  Subjects {selectedSubjects.length > 0 && `(${selectedSubjects.length})`}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56 max-h-[60vh] overflow-auto">
+                <DropdownMenuLabel>Filter by Subject</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {allSubjects.sort().map((subject) => (
+                  <DropdownMenuCheckboxItem
+                    key={subject}
+                    checked={selectedSubjects.includes(subject)}
+                    onCheckedChange={() => toggleSubject(subject)}
+                  >
+                    {subject}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                {selectedSubjects.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-center"
+                      onClick={() => setSelectedSubjects([])}
+                    >
+                      Clear Subjects
+                    </Button>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* School filter dropdown - only show if we have schools */}
+            {allSchools.length > 0 && (
+              <DropdownMenu open={isSchoolFilterOpen} onOpenChange={setIsSchoolFilterOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    Schools {selectedSchools.length > 0 && `(${selectedSchools.length})`}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56 max-h-[60vh] overflow-auto">
+                  <DropdownMenuLabel>Filter by School</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {allSchools.sort().map((school) => (
+                    <DropdownMenuCheckboxItem
+                      key={school}
+                      checked={selectedSchools.includes(school)}
+                      onCheckedChange={() => toggleSchool(school)}
+                    >
+                      {school}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {selectedSchools.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-center"
+                        onClick={() => setSelectedSchools([])}
+                      >
+                        Clear Schools
+                      </Button>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            
+            {/* Clear all filters button */}
+            {(selectedSubjects.length > 0 || selectedSchools.length > 0 || searchTerm) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearchTerm("");
+                  setSelectedSubjects([]);
+                  setSelectedSchools([]);
+                }}
+              >
+                Clear All Filters
+              </Button>
+            )}
           </div>
           <div className="flex items-center gap-4">
             <p className="text-sm text-muted-foreground hidden md:block">
@@ -326,6 +524,7 @@ export default function TutorsPage() {
             <Button onClick={() => {
               setSearchTerm("");
               setSelectedSubjects([]);
+              setSelectedSchools([]);
             }}>
               Clear all filters
             </Button>

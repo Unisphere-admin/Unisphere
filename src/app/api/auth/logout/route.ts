@@ -17,27 +17,43 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Set cookie expiry headers to clear auth cookies on the client side
+    // Create a response with success message
     const response = NextResponse.json({ 
       success: true,
       message: 'Logged out successfully' 
     });
     
-    // Clear specific cookies to ensure proper logout
-    response.cookies.set('sb-access-token', '', { 
-      expires: new Date(0),
-      path: '/',
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production'
+    // List of all Supabase auth-related cookies to clear
+    const cookiesToClear = [
+      'sb-access-token',
+      'sb-refresh-token',
+      'supabase-auth-token',
+      '__session',
+      'sb-auth-token'
+    ];
+    
+    // Clear each cookie
+    cookiesToClear.forEach(cookieName => {
+      // First delete the cookie
+      response.cookies.delete(cookieName);
+      
+      // Then set an empty one with past expiration
+      response.cookies.set(cookieName, '', {
+        path: '/',
+        expires: new Date(0),
+        maxAge: 0,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax'
+      });
     });
     
-    response.cookies.set('sb-refresh-token', '', { 
-      expires: new Date(0),
-      path: '/',
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production'
-    });
+    // Set Cache-Control to prevent caching of this response
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
     
+    console.log('User successfully logged out, all auth cookies cleared');
     return response;
   } catch (error) {
     console.error('Error in logout API route:', error);

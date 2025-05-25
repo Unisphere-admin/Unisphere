@@ -49,8 +49,24 @@ export function useApiTutorProfiles() {
   const { data, error, isLoading } = useQuery({
     queryKey: ['tutors'],
     queryFn: async () => {
-      const data = await fetchApi<{tutors: TutorProfile[]}>('/api/tutors');
-      return data.tutors || [];
+      try {
+        const data = await fetchApi<{tutors: TutorProfile[]}>('/api/tutors');
+        return data.tutors || [];
+      } catch (err: any) {
+        // If the error is related to authentication, clear the tutor cache
+        if (err.message?.includes('unauthorized') || 
+            err.message?.includes('authentication') || 
+            err.message?.includes('unauthenticated') ||
+            err.status === 401 || 
+            err.status === 403) {
+          // Import and call invalidate function directly to avoid circular imports
+          import('@/lib/tutorsCaching').then(({ invalidateTutorsCache }) => {
+            console.log('Authentication error, clearing tutor cache');
+            invalidateTutorsCache();
+          });
+        }
+        throw err;
+      }
     },
     ...defaultQueryOptions
   });
@@ -63,6 +79,16 @@ export function useApiTutorProfiles() {
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive"
       });
+      
+      // If the error might be related to authentication, clear cache
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      if (errorMsg.toLowerCase().includes('auth') || 
+          errorMsg.toLowerCase().includes('login') || 
+          errorMsg.toLowerCase().includes('unauthorized')) {
+        import('@/lib/tutorsCaching').then(({ invalidateTutorsCache }) => {
+          invalidateTutorsCache();
+        });
+      }
     }
   }, [error, toast]);
 

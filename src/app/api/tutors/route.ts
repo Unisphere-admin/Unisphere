@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { AuthUser } from '@/lib/auth/protectResource';
+import { getAllTutors } from '@/lib/db/tutors';
 
 export const revalidate = 3600; // Revalidate at most once per hour
 
@@ -52,33 +52,13 @@ async function getTutorsHandler(
             );
         }
 
-        const supabase = await createRouteHandlerClientWithCookies();
-        
-        // Get query parameters
-        const url = new URL(request.url);
-        const subject = url.searchParams.get('subject');
-        const limit = parseInt(url.searchParams.get('limit') || '20', 10);
-        const offset = parseInt(url.searchParams.get('offset') || '0', 10);
-        
-        // Build query
-        let query = supabase
-            .from('tutor_profile')
-            .select('*')
-            .range(offset, offset + limit - 1);
-        
-        // Add subject filter if provided
-        if (subject) {
-            query = query.ilike('subjects', `%${subject}%`);
-        }
-        
-        // Execute query with retry
-        const queryFn = async () => await query;
-        const { data: tutors, error } = await executeQueryWithRetry(queryFn);
+        // Use the data access layer to get tutors
+        const { tutors, error } = await getAllTutors();
         
         if (error) {
             console.error('Error fetching tutors:', error);
             return NextResponse.json(
-                { error: error.message },
+                { error },
                 { status: 500 }
             );
         }

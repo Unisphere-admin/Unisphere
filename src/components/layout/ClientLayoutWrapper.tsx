@@ -8,6 +8,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { toast } from "@/components/ui/sonner";
 import { initPrefetching } from '@/lib/prefetch';
+import { setupAuthCacheCheck } from '@/utils/authUtils';
 
 interface ClientLayoutWrapperProps {
   children: ReactNode;
@@ -38,6 +39,12 @@ export default function ClientLayoutWrapper({ children }: ClientLayoutWrapperPro
       initPrefetching();
     }
   }, [user, initialLoad]);
+  
+  // Setup auth cache check on component mount
+  useEffect(() => {
+    console.log('Setting up auth cache check mechanism');
+    setupAuthCacheCheck();
+  }, []);
   
   // Only show loading screen on initial authentication load
   // Don't show loading for silent background refreshes

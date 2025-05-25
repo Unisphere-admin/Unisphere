@@ -44,6 +44,14 @@ export async function updateSession(request: NextRequest) {
             },
           })
           response.cookies.delete(name)
+          
+          // For backwards compatibility, also set an expired cookie
+          response.cookies.set({
+            name,
+            value: '',
+            ...options,
+            expires: new Date(0)
+          })
         },
       },
     }
