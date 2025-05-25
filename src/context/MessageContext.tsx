@@ -728,91 +728,13 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
           // Create temporary conversation objects only
           const tempConvs = createTemporaryConversationObjects();
           setConversations(tempConvs);
-          setLoading(false);
         }
       } catch (error) {
         console.error('Error fetching conversations:', error);
-        // Use mock conversations as fallback
-        const mockConversations: Conversation[] = [
-          {
-            id: "conv-1",
-            participants: [
-              {
-                user_id: user.id,
-                user: {
-                  id: user.id,
-                  display_name: user.name || 'You',
-                  is_tutor: user.role === 'tutor',
-                  avatar_url: user.avatar_url || user.profilePic || null,
-                },
-              },
-              {
-                user_id: "tutor-1",
-                user: {
-                  id: "tutor-1",
-                  display_name: "Sarah Johnson",
-                  avatar_url: "/placeholder.svg",
-                  is_tutor: true
-                }
-              }
-            ],
-            last_message: {
-              id: "msg-1",
-              content: "Hello! I can help with your calculus homework.",
-              created_at: new Date().toISOString(),
-              sender_id: "tutor-1"
-            },
-            last_message_at: new Date().toISOString(),
-            unreadCount: 1,
-            participant: {
-              id: "tutor-1",
-              display_name: "Sarah Johnson",
-              avatar_url: "/placeholder.svg",
-              is_tutor: true
-            }
-          },
-          {
-            id: "conv-2",
-            participants: [
-              {
-                user_id: user.id,
-                user: {
-                  id: user.id,
-                  display_name: user.name || 'You',
-                  is_tutor: user.role === 'tutor',
-                  avatar_url: user.avatar_url || user.profilePic || null,
-                },
-              },
-              {
-                user_id: "tutor-2",
-                user: {
-                  id: "tutor-2",
-                  display_name: "Michael Chen",
-                  avatar_url: "/placeholder.svg",
-                  is_tutor: true
-                }
-              }
-            ],
-            last_message: {
-              id: "msg-2",
-              content: "Looking forward to our physics session!",
-              created_at: new Date(Date.now() - 86400000).toISOString(),
-              sender_id: "tutor-2"
-            },
-            last_message_at: new Date(Date.now() - 86400000).toISOString(),
-            unreadCount: 0,
-            participant: {
-              id: "tutor-2",
-              display_name: "Michael Chen",
-              avatar_url: "/placeholder.svg",
-              is_tutor: true
-            }
-          }
-        ];
-        
-        // Merge temporary conversations with mock conversations
+        // Don't use mock conversations as fallback anymore
+        // Just use empty array or temporary conversations
         const tempConvs = createTemporaryConversationObjects();
-        setConversations([...tempConvs, ...mockConversations]);
+        setConversations(tempConvs);
       } finally {
         setLoading(false);
       }

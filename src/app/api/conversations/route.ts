@@ -7,6 +7,9 @@ import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 // Export runtime config to optimize API performance with Edge runtime
 export const runtime = 'edge';
 
+// Force dynamic to ensure conversations are never cached by Vercel
+export const dynamic = 'force-dynamic';
+
 interface MessageData {
   id: string;
   conversation_id: string;
@@ -121,7 +124,10 @@ async function getConversationsHandler(
     }
     
     if (conversations.length === 0) {
-      return NextResponse.json({ conversations: [] });
+      const response = NextResponse.json({ conversations: [] });
+      // Add cache tag for this user to enable proper invalidation on logout
+      response.headers.set('Cache-Tag', `user-${user.id}`);
+      return response;
     }
 
     // Transform conversations to the expected format - with optimized mapping
@@ -156,7 +162,12 @@ async function getConversationsHandler(
       };
     });
 
-    return NextResponse.json({ conversations: transformedConversations });
+    const response = NextResponse.json({ conversations: transformedConversations });
+    
+    // Add cache tag for this user to enable proper invalidation on logout
+    response.headers.set('Cache-Tag', `user-${user.id}`);
+    
+    return response;
   } catch (error) {
     console.error('API: Error fetching conversations:', error);
     return NextResponse.json(

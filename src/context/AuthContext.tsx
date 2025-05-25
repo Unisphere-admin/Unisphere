@@ -130,24 +130,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
       
-      // Clear all caches first before logout
-      clearAllCache();
-      resetPrefetchStatus();
+      // Get user ID before logout for cache clearing
+      const userId = user?.id;
       
-      // Explicitly clear tutor cache 
+      // Clear all caches with comprehensive approach
       try {
-        // Use dynamic import to avoid circular dependencies
-        const { invalidateTutorsCache } = await import('@/lib/tutorsCaching');
-        invalidateTutorsCache();
-      } catch (e) {
-        console.warn('Failed to explicitly invalidate tutor cache:', e);
-      }
-      
-      // Clear any pending API requests
-      try {
-        localStorage.removeItem('pendingApiRequest');
-      } catch (e) {
-        console.warn('Failed to clear pending API requests:', e);
+        console.log('Clearing application cache...');
+        
+        // Clear general cache
+        clearAllCache();
+        resetPrefetchStatus();
+        
+        // Explicitly clear tutor cache 
+        try {
+          // Use dynamic import to avoid circular dependencies
+          const { invalidateTutorsCache } = await import('@/lib/tutorsCaching');
+          invalidateTutorsCache();
+        } catch (e) {
+          console.warn('Failed to explicitly invalidate tutor cache:', e);
+        }
+        
+        // Clear localStorage items related to user data
+        try {
+          // Clear any pending API requests
+          localStorage.removeItem('pendingApiRequest');
+          
+          // Clear conversations cache
+          localStorage.removeItem('conversations');
+          
+          // Clear user-specific items using a prefix pattern
+          const localStorageKeys = Object.keys(localStorage);
+          localStorageKeys.forEach(key => {
+            // Clear items that might contain user data
+            if (
+              key.startsWith('messages:') || 
+              key.startsWith('conversation:') || 
+              key.startsWith('user:') ||
+              key.startsWith('session:') ||
+              key.startsWith('cache:') ||
+              key.includes('token') ||
+              key.includes('auth')
+            ) {
+              localStorage.removeItem(key);
+            }
+            
+            // Clear specific user items if we have the userId
+            if (userId && key.includes(userId)) {
+              localStorage.removeItem(key);
+            }
+          });
+        } catch (e) {
+          console.warn('Failed to clear localStorage items:', e);
+        }
+        
+        // Clear sessionStorage items
+        try {
+          // Clear all sessionStorage for simplicity
+          sessionStorage.clear();
+        } catch (e) {
+          console.warn('Failed to clear sessionStorage:', e);
+        }
+        
+        console.log('Application cache cleared successfully');
+      } catch (cacheError) {
+        console.error('Error clearing cache:', cacheError);
+        // Continue with logout even if cache clearing fails
       }
       
       // Call the API logout endpoint instead of using Supabase client directly
@@ -176,6 +223,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.warn('Error clearing client-side auth state:', err);
         // Continue even if this fails since we've already logged out on the server
       }
+      
+      console.log('Logout completed successfully');
       
       // Navigate to login page
       router.push('/login');

@@ -17,6 +17,9 @@ import { withRouteAuth } from '@/lib/auth/validateRequest';
 // Export runtime config for improved performance
 export const runtime = 'edge';
 
+// Force dynamic to ensure tutoring sessions are never cached by Vercel
+export const dynamic = 'force-dynamic';
+
 // Cache recent responses to reduce database load
 const responseCache = new Map<string, { data: any, timestamp: number }>();
 const CACHE_TTL = 900000; // 15 minutes TTL for cache (was 10 seconds)
@@ -191,7 +194,10 @@ async function getTutoringSessionsHandler(
         return NextResponse.json({ error }, { status: 500 });
       }
       
-      return NextResponse.json({ sessions });
+      const response = NextResponse.json({ sessions });
+      // Add cache tag for this user to enable proper invalidation on logout
+      response.headers.set('Cache-Tag', `user-${user.id}`);
+      return response;
     }
     
     // If session ID is provided, get a specific session
@@ -211,7 +217,10 @@ async function getTutoringSessionsHandler(
         return NextResponse.json({ error }, { status: 500 });
       }
       
-      return NextResponse.json({ session });
+      const response = NextResponse.json({ session });
+      // Add cache tag for this user to enable proper invalidation on logout
+      response.headers.set('Cache-Tag', `user-${user.id}`);
+      return response;
     }
     
     // If message ID is provided, get the session associated with that message
@@ -235,7 +244,10 @@ async function getTutoringSessionsHandler(
         
         // If not found, return empty rather than error
         if (sessionError.code === 'PGRST116') {  // "No rows returned" error
-          return NextResponse.json({ session: null });
+          const response = NextResponse.json({ session: null });
+          // Add cache tag for this user to enable proper invalidation on logout
+          response.headers.set('Cache-Tag', `user-${user.id}`);
+          return response;
         }
         
         return NextResponse.json({ error: 'Failed to fetch session' }, { status: 500 });
@@ -246,7 +258,10 @@ async function getTutoringSessionsHandler(
         return NextResponse.json({ error: 'Not authorized to access this session' }, { status: 403 });
       }
       
-      return NextResponse.json({ session: sessionData });
+      const response = NextResponse.json({ session: sessionData });
+      // Add cache tag for this user to enable proper invalidation on logout
+      response.headers.set('Cache-Tag', `user-${user.id}`);
+      return response;
     }
     
     // Otherwise, get sessions for a conversation
@@ -269,7 +284,10 @@ async function getTutoringSessionsHandler(
       return NextResponse.json({ error }, { status: 500 });
     }
     
-    return NextResponse.json({ sessions });
+    const response = NextResponse.json({ sessions });
+    // Add cache tag for this user to enable proper invalidation on logout
+    response.headers.set('Cache-Tag', `user-${user.id}`);
+    return response;
   } catch (error) {
     console.error("Error in GET tutoring sessions handler:", error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

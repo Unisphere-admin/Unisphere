@@ -7,6 +7,9 @@ import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 // Export runtime config for improved performance
 export const runtime = 'edge';
 
+// Force dynamic to ensure messages are never cached by Vercel
+export const dynamic = 'force-dynamic';
+
 // Cache recent responses to reduce database load
 const responseCache = new Map<string, { data: any, timestamp: number }>();
 const CACHE_TTL = 900000; // 15 minutes TTL for cache (was 10 seconds)
@@ -171,11 +174,17 @@ async function getMessagesHandler(
     
     console.log(`Successfully fetched ${result.transformedMessages?.length || 0} messages in ${processingTime}ms`);
     
-    return NextResponse.json({ 
+    // Create response with cache tag for user
+    const response = NextResponse.json({ 
       messages: result.transformedMessages, 
       has_more: false, // The DAL doesn't currently support pagination
       processing_time_ms: processingTime
     });
+    
+    // Add cache tag for this user to enable proper invalidation on logout
+    response.headers.set('Cache-Tag', `user-${user.id}`);
+    
+    return response;
   } catch (error) {
     const errorDetails = error instanceof Error 
       ? error.message + (error.stack ? '\n' + error.stack : '') 

@@ -5,6 +5,9 @@ import { getUserProfile, createUserProfileIfNeeded } from '@/lib/db/users';
 // Export runtime config to optimize API performance with Edge runtime
 export const runtime = 'edge';
 
+// Force dynamic to prevent caching of authentication data
+export const dynamic = 'force-dynamic';
+
 interface ClientUser {
     id: string;
     email?: string;
@@ -137,7 +140,12 @@ export async function GET(request: NextRequest) {
             hasProfile: true
         };
         
-        return NextResponse.json({ user: userResponse }, { headers });
+        const response = NextResponse.json({ user: userResponse }, { headers });
+        
+        // Add cache tag for this user to enable proper invalidation on logout
+        response.headers.set('Cache-Tag', `user-${userId}`);
+        
+        return response;
     } catch (error) {
         console.error('Error in session API route:', error);
         return NextResponse.json(

@@ -3,6 +3,10 @@ import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { AuthUser } from '@/lib/auth/protectResource';
 import { getAllTutors } from '@/lib/db/tutors';
 
+// Use edge runtime for better performance
+export const runtime = 'edge';
+
+// Use revalidation for better performance with Vercel edge caching (not global)
 export const revalidate = 3600; // Revalidate at most once per hour
 
 // Helper function for delayed retry
@@ -65,9 +69,24 @@ async function getTutorsHandler(
         
         console.log('Successfully fetched tutors:', tutors.length);
         
-        // Add cache control headers (24 hours)
+        // Add cache control headers specifically for edge caching (not global)
         const response = NextResponse.json({ tutors });
-        response.headers.set('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=43200');
+        
+        // Edge-only caching with stale-while-revalidate pattern
+        // CDN-Cache-Control is for Vercel's edge cache only (not global)
+        response.headers.set('CDN-Cache-Control', 'public, max-age=3600, stale-while-revalidate=1800');
+        
+        // Cache-Control for browsers, restricting to edge cache only
+        response.headers.set('Cache-Control', 'public, max-age=600, s-maxage=3600, stale-while-revalidate=1800');
+        
+        // Add Vercel-specific header to prevent global caching
+        response.headers.set('Vercel-CDN-Cache-Control', 'public, max-age=3600, stale-while-revalidate=1800');
+        
+        // Add Surrogate-Control to explicitly avoid global caching
+        response.headers.set('Surrogate-Control', 'max-age=3600');
+        
+        // Add cache tag for better invalidation
+        response.headers.set('Cache-Tag', `tutors`);
         
         return response;
     } catch (error) {
