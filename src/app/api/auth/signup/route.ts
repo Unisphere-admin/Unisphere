@@ -1,11 +1,9 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createRouteHandlerClientWithCookies } from "@/lib/db/client";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
     try {
         const url = new URL(req.url);
-        const cookieStore = await cookies();
         
         // Parse JSON body
         let body;
@@ -24,14 +22,22 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const { email, password, confirmPassword, userType } = body;
+        const { email, password, confirmPassword, userType, firstName, lastName } = body;
         const isTutor = userType === 'tutor';
 
         // Validate required fields
-        if (!email || !password || !confirmPassword || !userType) {
-            console.error('Missing required fields');
+        if (!email || !password || !confirmPassword || !userType || !firstName || !lastName) {
+            const missingFields = [];
+            if (!email) missingFields.push('email');
+            if (!password) missingFields.push('password');
+            if (!confirmPassword) missingFields.push('confirm password');
+            if (!userType) missingFields.push('user type');
+            if (!firstName) missingFields.push('first name');
+            if (!lastName) missingFields.push('last name');
+            
+            console.error(`Missing required fields: ${missingFields.join(', ')}`);
             return new NextResponse(
-                JSON.stringify({ error: "All fields are required" }),
+                JSON.stringify({ error: "All fields are required", missingFields }),
                 { 
                     status: 400,
                     headers: {
@@ -41,9 +47,7 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const supabase = createRouteHandlerClient({
-            cookies: () => cookieStore
-        });
+        const supabase = await createRouteHandlerClientWithCookies();
 
         if (password !== confirmPassword) {
             return new NextResponse(
@@ -66,7 +70,9 @@ export async function POST(req: NextRequest) {
             options: {
                 emailRedirectTo: `${url.origin}/api/auth/callback`,
                 data: {
-                    is_tutor: isTutor
+                    is_tutor: isTutor,
+                    first_name: firstName,
+                    last_name: lastName
                 }
             }
         });
@@ -100,13 +106,19 @@ export async function POST(req: NextRequest) {
         console.log(`${isTutor ? 'Tutor' : 'Student'} signup success:`, { 
             userId: data.user.id, 
             email: data.user.email,
-            userType: isTutor ? 'tutor' : 'student'
+            userType: isTutor ? 'tutor' : 'student',
+            name: `${firstName} ${lastName}`
         });
+
+        // Profile creation is now handled by session API on sign-in
+        // No need to create profile here, which was causing RLS errors
 
         return new NextResponse(
             JSON.stringify({
                 success: true,
-                redirectTo: `${url.origin}/signup/confirm`
+                userId: data.user.id,
+                email: data.user.email,
+                redirectTo: `${url.origin}/login?signup=success`
             }),
             {
                 status: 200,

@@ -1,4 +1,5 @@
-import { createRouteHandlerClientWithCookies, createAnonymousClient } from './client';
+import { createRouteHandlerClientWithCookies } from './client';
+import { createAnonymousClient } from '@/utils/supabase/client';
 import { AuthUser, withAuth } from '../auth/protectResource';
 import { securityCheck, verifyUserPermission } from './securityUtils';
 
@@ -19,6 +20,7 @@ export interface UserProfile {
   is_tutor: boolean;
   tokens?: number;
   subjects?: string;
+  has_access?: boolean;
 }
 
 // Fields for basic user info
@@ -35,8 +37,8 @@ async function _searchUsers(authUser: AuthUser, query: string): Promise<{
 }> {
   try {
     // Extra security check - verify authenticated user
-    const { isValid, error: securityError } = await securityCheck(authUser.id);
-    if (!isValid) {
+    const securityError = securityCheck(authUser);
+    if (securityError) {
       return { users: [], error: securityError };
     }
     
@@ -79,8 +81,8 @@ async function _getUserById(authUser: AuthUser, userId: string): Promise<{
 }> {
   try {
     // Extra security check - verify authenticated user
-    const { isValid, error: securityError } = await securityCheck(authUser.id);
-    if (!isValid) {
+    const securityError = securityCheck(authUser);
+    if (securityError) {
       return { user: null, error: securityError };
     }
     
@@ -142,14 +144,26 @@ export async function getUserProfile(
     
     // If requesting another user's profile, do permission check
     if (currentUser && userId !== currentUser.id) {
-      const hasPermission = await verifyUserPermission(currentUser.id, userId, "read_profile");
-      if (!hasPermission) {
+      const permissionError = await verifyUserPermission(currentUser, userId);
+      if (permissionError) {
         return { user: null, error: 'Permission denied' };
       }
     }
     
     try {
-      // First check if user is a tutor
+      // First get the main user data that includes tokens
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, email, is_tutor, tokens, has_access')
+        .eq('id', userId)
+        .single();
+      
+      if (userError) {
+        console.error('Error fetching user data:', userError);
+        return { user: null, error: 'Failed to fetch user data' };
+      }
+      
+      // Now check if user is a tutor
       const { data: tutorData, error: tutorError } = await supabase
         .from('tutor_profile')
         .select('*')
@@ -160,7 +174,9 @@ export async function getUserProfile(
         // User is a tutor
         return { 
           user: { 
-            ...tutorData, 
+            ...tutorData,
+            tokens: userData?.tokens || 0,
+            has_access: userData?.has_access || false,
             is_tutor: true 
           }, 
           error: null 
@@ -178,7 +194,9 @@ export async function getUserProfile(
         // User is a student
         return { 
           user: { 
-            ...studentData, 
+            ...studentData,
+            tokens: userData?.tokens || 0,
+            has_access: userData?.has_access || false,
             is_tutor: false 
           }, 
           error: null 
@@ -186,7 +204,14 @@ export async function getUserProfile(
       }
       
       // If not found in either table, user profile doesn't exist
-      return { user: null, error: 'User profile not found' };
+      return { 
+        user: userData ? { 
+          ...userData,
+          has_access: userData.has_access || false,
+          is_tutor: userData.is_tutor || false 
+        } : null, 
+        error: userData ? null : 'User profile not found' 
+      };
     } catch (dbError) {
       console.error('Error executing Supabase query for user profile:', dbError);
       return { user: null, error: 'Database query error' };
@@ -278,5 +303,92 @@ export async function getPublicUserById(userId: string): Promise<{
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Unexpected error fetching user:', errorMessage);
     return { user: null, error: errorMessage };
+  }
+} 
+
+/**
+ * Create a user profile if one doesn't exist
+ * This should be called after the user is authenticated
+ */
+export async function createUserProfileIfNeeded(
+  userId: string,
+  userData: { 
+    is_tutor: boolean;
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+  }
+): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  try {
+    if (!userId) {
+      return { success: false, error: 'User ID is required' };
+    }
+
+    // Create a server client for this request
+    const supabase = await createRouteHandlerClientWithCookies();
+    
+    // Check if profile already exists
+    const { exists, isStudent, isTutor } = await checkUserExists(userId);
+    
+    // If profile exists, nothing to do
+    if (exists) {
+      return { success: true, error: null };
+    }
+    
+    // Otherwise, create the appropriate profile
+    if (userData.is_tutor) {
+      // For tutors, we create a minimal profile
+      // They'll complete the rest of their profile in the onboarding flow
+      const { error } = await supabase
+        .from('tutor_profile')
+        .insert({
+          id: userId,
+          first_name: userData.first_name || userData.email?.split('@')[0] || 'Tutor',
+          last_name: userData.last_name || '',
+          description: ''
+        });
+      
+      if (error) {
+        // Duplicate key violation (23505) should be treated as a success
+        // This can happen due to race conditions when profile is created in parallel
+        if (error.code === '23505') {
+          console.log(`Tutor profile already exists for ${userId}, ignoring duplicate insertion`);
+          return { success: true, error: null };
+        }
+        
+        console.error('Error creating tutor profile:', error);
+        return { success: false, error: error.message };
+      }
+    } else {
+      // Create student profile
+      const { error } = await supabase
+        .from('student_profile')
+        .insert({
+          id: userId,
+          first_name: userData.first_name || userData.email?.split('@')[0] || 'Student',
+          last_name: userData.last_name || ''
+        });
+      
+      if (error) {
+        // Duplicate key violation (23505) should be treated as a success
+        // This can happen due to race conditions when profile is created in parallel
+        if (error.code === '23505') {
+          console.log(`Student profile already exists for ${userId}, ignoring duplicate insertion`);
+          return { success: true, error: null };
+        }
+        
+        console.error('Error creating student profile:', error);
+        return { success: false, error: error.message };
+      }
+    }
+    
+    return { success: true, error: null };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Unexpected error creating user profile:', errorMessage);
+    return { success: false, error: errorMessage };
   }
 } 

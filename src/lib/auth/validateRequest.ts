@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AuthUser } from './protectResource';
+import { AuthUser, requiresPremiumAccess } from './protectResource';
 import { createRouteHandlerClientWithCookies } from '../db/client';
 
 /**
@@ -44,13 +44,52 @@ export async function validateRequest(req: NextRequest): Promise<{
       }
     }
     
-    // Otherwise, return the authenticated user
+    // Fetch additional user data from the database
+    const { data: userData, error: userDataError } = await supabase
+      .from('users')
+      .select('is_tutor, tokens, has_access')
+      .eq('id', user.id)
+      .single();
+    
+    if (userDataError) {
+      console.warn('Error fetching user data:', userDataError);
+    }
+    
+    // Create the user object with all properties
+    const authUser: AuthUser = {
+      id: user.id,
+      email: user.email || '',
+      is_tutor: userData?.is_tutor || user.user_metadata?.is_tutor === true,
+      tokens: userData?.tokens,
+      has_access: userData?.has_access || false
+    };
+    
+    // Check if this path requires premium access
+    const path = req.nextUrl.pathname;
+    if (requiresPremiumAccess(path) && !authUser.is_tutor && !authUser.has_access) {
+      // Path requires premium access but user doesn't have it
+      const isApiRequest = path.startsWith('/api/');
+      
+      if (isApiRequest) {
+        return {
+          user: authUser,
+          errorResponse: NextResponse.json(
+            { error: 'Premium access required' }, 
+            { status: 403 }
+          )
+        };
+      } else {
+        // For page requests, redirect to paywall
+        return {
+          user: authUser,
+          errorResponse: NextResponse.redirect(new URL('/paywall', req.url))
+        };
+      }
+    }
+    
+    // Otherwise, return the authenticated user with access
     return { 
-      user: {
-        id: user.id,
-        email: user.email || '',
-        is_tutor: user.user_metadata?.is_tutor === true
-      }, 
+      user: authUser, 
       errorResponse: null 
     };
   } catch (error) {
@@ -78,21 +117,37 @@ export function withRouteAuth<Params = Record<string, string>>(
   handler: (req: NextRequest, user: AuthUser, params: Params) => Promise<NextResponse>
 ): (req: NextRequest, { params }: { params: Params }) => Promise<NextResponse> {
   return async (req: NextRequest, { params }) => {
-    const { user, errorResponse } = await validateRequest(req);
-    
-    if (errorResponse) {
-      return errorResponse;
-    }
-    
-    // If we get here, we have a valid user
-    if (!user) {
+    try {
+      const { user, errorResponse } = await validateRequest(req);
+      
+      if (errorResponse) {
+        return errorResponse;
+      }
+      
+      // If we get here, we have a valid user
+      if (!user) {
+        return NextResponse.json(
+          { error: 'Unexpected authentication error' }, 
+          { status: 401 }
+        );
+      }
+      
+      // Call the handler with the authenticated user
+      return await handler(req, user, params);
+    } catch (error) {
+      // Add better error handling for debugging
+      console.error('Error in route handler:', error);
+      const errorDetails = error instanceof Error 
+        ? { message: error.message, stack: error.stack }
+        : String(error);
+        
       return NextResponse.json(
-        { error: 'Unexpected authentication error' }, 
-        { status: 401 }
+        { 
+          error: 'Internal server error',
+          details: process.env.NODE_ENV === 'development' ? errorDetails : undefined
+        },
+        { status: 500 }
       );
     }
-    
-    // Call the handler with the authenticated user
-    return handler(req, user, params);
   };
 } 

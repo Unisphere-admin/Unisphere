@@ -1,0 +1,163 @@
+{
+  "version": 3,
+  "middleware": {},
+  "functions": {
+    "/api/reviews/route": {
+      "files": [
+        "server/server-reference-manifest.js",
+        "server/app/api/reviews/route_client-reference-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/app/api/reviews/route.js"
+      ],
+      "name": "app/api/reviews/route",
+      "page": "/api/reviews/route",
+      "matchers": [
+        {
+          "regexp": "^/api/reviews$",
+          "originalSource": "/api/reviews"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "development",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "mDykir660YX+eb3YxDTl1FlgAcyxGgb45BR2P4wJPdk="
+      }
+    },
+    "/api/auth/session/route": {
+      "files": [
+        "server/server-reference-manifest.js",
+        "server/app/api/auth/session/route_client-reference-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/app/api/auth/session/route.js"
+      ],
+      "name": "app/api/auth/session/route",
+      "page": "/api/auth/session/route",
+      "matchers": [
+        {
+          "regexp": "^/api/auth/session$",
+          "originalSource": "/api/auth/session"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "development",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "mDykir660YX+eb3YxDTl1FlgAcyxGgb45BR2P4wJPdk="
+      }
+    },
+    "/api/tutoring-sessions/route": {
+      "files": [
+        "server/server-reference-manifest.js",
+        "server/app/api/tutoring-sessions/route_client-reference-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/app/api/tutoring-sessions/route.js"
+      ],
+      "name": "app/api/tutoring-sessions/route",
+      "page": "/api/tutoring-sessions/route",
+      "matchers": [
+        {
+          "regexp": "^/api/tutoring\\-sessions$",
+          "originalSource": "/api/tutoring-sessions"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "development",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "mDykir660YX+eb3YxDTl1FlgAcyxGgb45BR2P4wJPdk="
+      }
+    },
+    "/api/conversations/route": {
+      "files": [
+        "server/server-reference-manifest.js",
+        "server/app/api/conversations/route_client-reference-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/app/api/conversations/route.js"
+      ],
+      "name": "app/api/conversations/route",
+      "page": "/api/conversations/route",
+      "matchers": [
+        {
+          "regexp": "^/api/conversations$",
+          "originalSource": "/api/conversations"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "development",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "mDykir660YX+eb3YxDTl1FlgAcyxGgb45BR2P4wJPdk="
+      }
+    },
+    "/api/messages/route": {
+      "files": [
+        "server/server-reference-manifest.js",
+        "server/app/api/messages/route_client-reference-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/app/api/messages/route.js"
+      ],
+      "name": "app/api/messages/route",
+      "page": "/api/messages/route",
+      "matchers": [
+        {
+          "regexp": "^/api/messages$",
+          "originalSource": "/api/messages"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "development",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "mDykir660YX+eb3YxDTl1FlgAcyxGgb45BR2P4wJPdk="
+      }
+    },
+    "/api/conversations/[id]/mark-read/route": {
+      "files": [
+        "server/server-reference-manifest.js",
+        "server/app/api/conversations/[id]/mark-read/route_client-reference-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/app/api/conversations/[id]/mark-read/route.js"
+      ],
+      "name": "app/api/conversations/[id]/mark-read/route",
+      "page": "/api/conversations/[id]/mark-read/route",
+      "matchers": [
+        {
+          "regexp": "^/api/conversations/(?<id>[^/]+?)/mark\\-read$",
+          "originalSource": "/api/conversations/[id]/mark-read"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "development",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "mDykir660YX+eb3YxDTl1FlgAcyxGgb45BR2P4wJPdk="
+      }
+    }
+  },
+  "sortedMiddleware": []
+}

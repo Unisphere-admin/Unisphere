@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
+import { withRouteAuth } from '@/lib/auth/validateRequest';
+import { AuthUser } from '@/lib/auth/protectResource';
 
 export const revalidate = 3600; // Revalidate at most once per hour
 
-export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
-  const params = await props.params;
+async function getTutorByIdHandler(
+  request: NextRequest, 
+  user: AuthUser, 
+  params: { id: string }
+): Promise<NextResponse> {
   try {
+    // Check premium access or tutor status
+    if (!user.is_tutor && !user.has_access) {
+      return NextResponse.json(
+        { error: 'Premium access required' },
+        { status: 403 }
+      );
+    }
+
     const { id } = params;
     
     if (!id) {
@@ -60,4 +73,7 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
       { status: 500 }
     );
   }
-} 
+}
+
+// Apply authentication middleware
+export const GET = withRouteAuth(getTutorByIdHandler); 

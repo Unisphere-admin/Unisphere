@@ -1,4 +1,3 @@
-
 // Custom type definitions for Supabase data
 // These types complement the auto-generated types from Supabase
 
@@ -60,6 +59,7 @@ export interface TutoringSession {
   tutor_ready: boolean;
   student_ready: boolean;
   cancelled_at?: string;
+  cost?: number;
 }
 
 export interface Conversation {

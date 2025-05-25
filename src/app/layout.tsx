@@ -7,11 +7,12 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { MessageProvider } from "@/context/MessageContext";
 import { SessionProvider } from "@/context/SessionContext";
+import { RealtimeProvider } from "@/context/RealtimeContext";
 import { QueryProvider } from "@/components/QueryProvider";
 import { Toaster } from "@/components/ui/toaster"
 import { Toaster as Sonner } from "@/components/ui/sonner"
-import Navbar from "@/components/layout/Navbar"
-import Footer from "@/components/layout/Footer"
+import ClientLayoutWrapper from "@/components/layout/ClientLayoutWrapper";
+import { MessageNotification } from '@/components/MessageNotification';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -27,6 +28,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning className="w-full">
+      <head>
+        <style>{`
+          /* Ensure Sonner toasts are above everything */
+          :root {
+            --sonner-z-index: 100;
+          }
+        `}</style>
+      </head>
       <body className={`${inter.className} min-h-screen bg-background w-full`}>
         <QueryProvider>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
@@ -35,15 +44,14 @@ export default function RootLayout({
                 <SidebarProvider>
                   <MessageProvider>
                     <SessionProvider>
-                      <Toaster />
-                      <Sonner position="bottom-right" />
-                      <div className="flex flex-col min-h-screen w-full">
-                        <Navbar />
-                        <main className="flex-1 w-full">
+                      <RealtimeProvider>
+                        <Toaster />
+                        <Sonner className="main-sonner-toaster" position="top-right" />
+                        <ClientLayoutWrapper>
                           {children}
-                        </main>
-                        <Footer />
-                      </div>
+                        </ClientLayoutWrapper>
+                        <MessageNotification />
+                      </RealtimeProvider>
                     </SessionProvider>
                   </MessageProvider>
                 </SidebarProvider>

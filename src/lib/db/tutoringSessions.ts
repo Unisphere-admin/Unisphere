@@ -1,8 +1,8 @@
-import { createServerClient, createRouteHandlerClientWithCookies } from './client';
+import { createRouteHandlerClientWithCookies } from './client';
 import { AuthUser, withAuth } from '../auth/protectResource';
 import { securityCheck, verifyUserPermission } from './securityUtils';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Database } from '../types/supabase';
+import { getUserProfile } from './users';
 
 // Define interfaces
 export interface TutoringSession {
@@ -31,6 +31,110 @@ export interface TutoringSession {
 }
 
 /**
+ * Create a new tutoring session request (for students)
+ */
+async function _createTutoringSessionRequest(
+  authUser: AuthUser,
+  conversationId: string,
+  messageId: string,
+  tutorId: string,
+  studentId: string,
+  options?: {
+    scheduled_for?: string;
+    name?: string;
+  },
+  studentTokens?: number
+): Promise<{
+  session: TutoringSession | null;
+  error: string | null;
+  authError?: string;
+}> {
+  try {
+    // Security check - verify authenticated user 
+    const securityError = securityCheck(authUser);
+    if (securityError) {
+      return { session: null, error: null, authError: securityError };
+    }
+    
+    // Allow both tutors and students to create session requests with appropriate checks
+    if (authUser.is_tutor) {
+      // Tutor is creating a request - verify they are the tutor in the request
+      if (authUser.id !== tutorId) {
+        return { session: null, error: 'Tutors can only create sessions for themselves' };
+      }
+      // Check student's tokens - use provided tokens if available, otherwise fetch them
+      if (studentTokens !== undefined) {
+        if (studentTokens <= 0) {
+          return { session: null, error: "Student does not have enough tokens to create this session." };
+        }
+      } else {
+      const { user: studentProfile, error: studentProfileError } = await getUserProfile(studentId);
+      if (studentProfileError || !studentProfile) {
+        return { session: null, error: "Could not retrieve student profile to check tokens." };
+      }
+      if (!studentProfile.tokens || studentProfile.tokens <= 0) {
+        return { session: null, error: "Student does not have enough tokens to create this session." };
+        }
+      }
+    } else {
+      // Student is creating a request - verify they are the student in the request
+      if (authUser.id !== studentId) {
+        return { session: null, error: 'Not authorized to create session request for this student' };
+      }
+      // Check student's (self) tokens - use provided tokens if available, otherwise use authUser tokens
+      const tokens = studentTokens !== undefined ? studentTokens : authUser.tokens || 0;
+      if (tokens <= 0) {
+        return { session: null, error: "You do not have enough tokens to request this session." };
+      }
+    }
+    
+    // Create client
+    const client = await createRouteHandlerClientWithCookies();
+    
+    // Prepare session data with required fields
+    const sessionData: any = {
+        conversation_id: conversationId,
+        message_id: messageId,
+        tutor_id: tutorId,
+        student_id: studentId,
+        status: 'requested', // Set to 'requested' since this is called when a student creates a request
+        tutor_ready: false,
+        student_ready: false
+    };
+    
+    // Add optional fields if provided
+    if (options?.scheduled_for) {
+      sessionData.scheduled_for = options.scheduled_for;
+    }
+    
+    if (options?.name) {
+      sessionData.name = options.name;
+    }
+    
+    // Create the session
+    console.log("Creating session request with data:", sessionData);
+    
+    const { data: session, error: sessionError } = await client
+      .from('tutoring_session')
+      .insert(sessionData)
+      .select()
+      .single();
+      
+    if (sessionError) {
+      console.error("Error creating session request:", sessionError);
+      return { session: null, error: 'Failed to create tutoring session request' };
+    }
+    
+    console.log("Session request created successfully:", session);
+    
+    return { session, error: null };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return { session: null, error: errorMessage };
+  }
+}
+
+/**
  * Create a new tutoring session
  */
 async function _createTutoringSession(
@@ -42,7 +146,8 @@ async function _createTutoringSession(
   options?: {
     scheduled_for?: string;
     name?: string;
-  }
+  },
+  studentTokens?: number
 ): Promise<{
   session: TutoringSession | null;
   error: string | null;
@@ -56,9 +161,24 @@ async function _createTutoringSession(
     }
     
     // Verify user is the tutor
-    const permissionError = verifyUserPermission(authUser, tutorId);
+    const permissionError = await verifyUserPermission(authUser, tutorId);
     if (permissionError) {
       return { session: null, error: permissionError };
+    }
+
+    // Check student's tokens - use provided tokens if available, otherwise fetch them
+    if (studentTokens !== undefined) {
+      if (studentTokens <= 0) {
+        return { session: null, error: "Student does not have enough tokens for this session." };
+      }
+    } else {
+    const { user: studentProfile, error: studentProfileError } = await getUserProfile(studentId);
+    if (studentProfileError || !studentProfile) {
+      return { session: null, error: "Could not retrieve student profile to check tokens." };
+    }
+    if (!studentProfile.tokens || studentProfile.tokens <= 0) {
+      return { session: null, error: "Student does not have enough tokens for this session." };
+      }
     }
     
     // Check if user is actually a tutor - ensure client is awaited
@@ -84,7 +204,7 @@ async function _createTutoringSession(
         message_id: messageId,
         tutor_id: tutorId,
         student_id: studentId,
-        status: 'requested',
+        status: 'accepted', // Set to 'accepted' since this is called when a tutor accepts a session request
         tutor_ready: false,
         student_ready: false
     };
@@ -99,6 +219,8 @@ async function _createTutoringSession(
     }
     
     // Create the session
+    console.log("Creating session with data:", sessionData);
+    
     const { data: session, error: sessionError } = await client
       .from('tutoring_session')
       .insert(sessionData)
@@ -106,8 +228,11 @@ async function _createTutoringSession(
       .single();
       
     if (sessionError) {
+      console.error("Error creating session:", sessionError);
       return { session: null, error: 'Failed to create tutoring session' };
     }
+    
+    console.log("Session created successfully:", session);
     
     return { session, error: null };
   } catch (error) {
@@ -119,76 +244,77 @@ async function _createTutoringSession(
 /**
  * Update a tutoring session status
  */
-async function _updateSessionStatus(
-  authUser: AuthUser,
+export async function updateSessionStatus(
   sessionId: string,
-  status: 'accepted' | 'started' | 'ended' | 'cancelled'
-): Promise<{
-  session: TutoringSession | null;
-  error: string | null;
-  authError?: string;
-}> {
+  status: 'requested' | 'accepted' | 'started' | 'ended' | 'cancelled',
+  studentTokens?: number
+) {
   try {
-    // Extra security check - verify authenticated user
-    const securityError = securityCheck(authUser);
-    if (securityError) {
-      return { session: null, error: null, authError: securityError };
-    }
+    const supabase = await createRouteHandlerClientWithCookies();
     
-    // Create the client
-    const client = await createRouteHandlerClientWithCookies();
-    
-    // Get the current session to check permissions
-    const { data: existingSession, error: getSessionError } = await client
+    // First get the session to make sure it exists
+    const { data: existingSession, error: fetchError } = await supabase
       .from('tutoring_session')
       .select('*')
       .eq('id', sessionId)
       .single();
-      
-    if (getSessionError) {
-      return { session: null, error: 'Failed to fetch tutoring session' };
+    
+    if (fetchError) {
+      return { error: 'Session not found' };
     }
     
-    if (!existingSession) {
-      return { session: null, error: 'Tutoring session not found' };
+    // If changing to accepted status, verify student has enough tokens
+    if (status === 'accepted' && existingSession.status === 'requested') {
+      if (studentTokens !== undefined) {
+        if (studentTokens <= 0) {
+          return { error: 'Student does not have enough tokens for this session' };
+        }
+      }
+      // No need for an else case here as token check should happen in the API route
     }
     
-    // Check if user is either the tutor or student in this session
-    if (existingSession.tutor_id !== authUser.id && existingSession.student_id !== authUser.id) {
-      return { session: null, error: 'You are not authorized to update this session' };
-    }
+    // Prepare the update data
+    const updateData: any = { 
+      status,
+      updated_at: new Date().toISOString() 
+    };
     
-    // Set timestamp fields based on status
-    const updates: any = { status, updated_at: new Date().toISOString() };
-    
-    if (status === 'started' && existingSession.status === 'accepted') {
-      updates.started_at = new Date().toISOString();
-    }
-    
-    if (status === 'ended' && existingSession.status === 'started') {
-      updates.ended_at = new Date().toISOString();
-    }
-    
-    if (status === 'cancelled') {
-      updates.ended_at = new Date().toISOString();
+    // Add timestamps for relevant status changes
+    if (status === 'accepted' && existingSession.status === 'requested') {
+      // No specific timestamp needed for accepting a request
+    } else if (status === 'started') {
+      // Set started_at timestamp if not already set
+      if (!existingSession.started_at) {
+      updateData.started_at = new Date().toISOString();
+      }
+    } else if (status === 'ended') {
+      // Always set ended_at timestamp when ending a session
+      updateData.ended_at = new Date().toISOString();
+      console.log(`Setting ended_at timestamp for session ${sessionId}: ${updateData.ended_at}`);
     }
     
     // Update the session
-    const { data: updatedSession, error: updateSessionError } = await client
+    const { data, error } = await supabase
       .from('tutoring_session')
-      .update(updates)
+      .update(updateData)
       .eq('id', sessionId)
-      .select()
+      .select(`
+        *,
+        tutor_profile:tutor_id(first_name, last_name),
+        student_profile:student_id(first_name, last_name)
+      `)
       .single();
-      
-    if (updateSessionError) {
-      return { session: null, error: 'Failed to update tutoring session' };
+    
+    if (error) {
+      console.error(`Error updating session ${sessionId} to ${status}:`, error);
+      return { error: error.message };
     }
     
-    return { session: updatedSession, error: null };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return { session: null, error: errorMessage };
+    console.log(`Successfully updated session ${sessionId} to ${status}`, data);
+    return { session: data as TutoringSession };
+  } catch (err) {
+    console.error(`Failed to update session ${sessionId} to ${status}:`, err);
+    return { error: 'Failed to update session status' };
   }
 }
 
@@ -380,6 +506,9 @@ export async function getSessionsByConversation(conversationId: string) {
   try {
     const supabase = await createRouteHandlerClientWithCookies();
     
+    // Log that we're fetching sessions, including cancelled ones
+    console.log(`Fetching all sessions for conversation ${conversationId}, including cancelled sessions`);
+    
     const { data, error } = await supabase
       .from('tutoring_session')
       .select(`
@@ -392,6 +521,12 @@ export async function getSessionsByConversation(conversationId: string) {
       
     if (error) {
       return { error: error.message };
+    }
+    
+    // Log the sessions found, specifically highlighting cancelled ones
+    if (data && data.length > 0) {
+      const cancelledSessions = data.filter(s => s.status === 'cancelled');
+      console.log(`Found ${data.length} total sessions, ${cancelledSessions.length} are cancelled`);
     }
     
     return { sessions: data as TutoringSession[] };
@@ -416,7 +551,6 @@ export async function getUserSessions(userId: string, userType: 'tutor' | 'stude
           student_profile:student_id(first_name, last_name)
         `)
         .eq('tutor_id', userId)
-        .not('status', 'in', '("cancelled")')
         .not('scheduled_for', 'is', null)
         .order('scheduled_for', { ascending: true });
     } else {
@@ -427,7 +561,6 @@ export async function getUserSessions(userId: string, userType: 'tutor' | 'stude
           tutor_profile:tutor_id(first_name, last_name)
         `)
         .eq('student_id', userId)
-        .not('status', 'in', '("cancelled")')
         .not('scheduled_for', 'is', null)
         .order('scheduled_for', { ascending: true });
     }
@@ -445,9 +578,40 @@ export async function getUserSessions(userId: string, userType: 'tutor' | 'stude
 }
 
 /**
- * Create a new tutoring session
+ * Create a tutoring session request (for both tutors and students)
+ */
+export const createTutoringSessionRequestAuth = withAuth(function _createTutoringSessionRequestWrapped(
+  authUser: AuthUser, 
+  conversationId: string, 
+  messageId: string, 
+  tutorId: string, 
+  studentId: string, 
+  options: { scheduled_for?: string; name?: string; } = {},
+  studentTokens?: number
+) {
+  return _createTutoringSessionRequest(authUser, conversationId, messageId, tutorId, studentId, options, studentTokens);
+});
+
+/**
+ * Create a tutoring session (for tutors)
+ */
+export const createTutoringSessionAuth = withAuth(function _createTutoringSessionWrapped(
+  authUser: AuthUser, 
+  conversationId: string, 
+  messageId: string, 
+  tutorId: string, 
+  studentId: string, 
+  options: { scheduled_for?: string; name?: string; } = {},
+  studentTokens?: number
+) {
+  return _createTutoringSession(authUser, conversationId, messageId, tutorId, studentId, options, studentTokens);
+});
+
+/**
+ * Client-side function for creating tutoring sessions (for tutors)
  */
 export async function createTutoringSession(
+  user: AuthUser,
   conversationId: string,
   messageId: string,
   tutorId: string,
@@ -455,95 +619,165 @@ export async function createTutoringSession(
   options: {
     scheduled_for?: string;
     name?: string;
-  } = {}
+  } = {},
+  studentTokens?: number
 ) {
   try {
-    const supabase = await createRouteHandlerClientWithCookies();
+    console.log('Creating tutoring session with auth user:', user.id);
     
-    const sessionData = {
-      conversation_id: conversationId,
-      message_id: messageId,
-      tutor_id: tutorId,
-      student_id: studentId,
-      status: 'requested',
-      tutor_ready: false,
-      student_ready: false,
-      scheduled_for: options.scheduled_for || null,
-      name: options.name || null
-    };
-    
-    const { data, error } = await supabase
-      .from('tutoring_session')
-      .insert(sessionData)
-      .select()
-      .single();
-    
-    if (error) {
-      return { error: error.message };
-    }
-    
-    return { session: data as TutoringSession };
+    // Simply pass through to the authenticated handler
+    return _createTutoringSession(
+      user,
+      conversationId,
+      messageId,
+      tutorId,
+      studentId,
+      options,
+      studentTokens
+    );
   } catch (err) {
-    return { error: 'Failed to create session' };
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    console.error('Exception in createTutoringSession wrapper:', errorMessage);
+    return { session: null, error: errorMessage };
   }
 }
 
 /**
- * Update a tutoring session's status
+ * Client-side function for creating tutoring session requests (for both tutors and students)
  */
-export async function updateSessionStatus(
-  sessionId: string,
-  status: 'requested' | 'accepted' | 'started' | 'ended' | 'cancelled'
+export async function createTutoringSessionRequest(
+  user: AuthUser,
+  conversationId: string,
+  messageId: string,
+  tutorId: string,
+  studentId: string,
+  options: {
+    scheduled_for?: string;
+    name?: string;
+  } = {},
+  studentTokens?: number
 ) {
   try {
-    const supabase = await createRouteHandlerClientWithCookies();
+    console.log('Creating tutoring session request with auth user:', user.id);
     
-    // First get the session to make sure it exists
-    const { data: existingSession, error: fetchError } = await supabase
-      .from('tutoring_session')
-      .select('*')
-      .eq('id', sessionId)
-      .single();
-    
-    if (fetchError) {
-      return { error: 'Session not found' };
-    }
-    
-    // Prepare the update data
-    const updateData: any = { status };
-    
-    // Add timestamps for relevant status changes
-    if (status === 'started') {
-      updateData.started_at = new Date().toISOString();
-    } else if (status === 'ended') {
-      updateData.ended_at = new Date().toISOString();
-    }
-    
-    // Update the session
-    const { data, error } = await supabase
-      .from('tutoring_session')
-      .update(updateData)
-      .eq('id', sessionId)
-      .select(`
-        *,
-        tutor_profile:tutor_id(first_name, last_name),
-        student_profile:student_id(first_name, last_name)
-      `)
-      .single();
-    
-    if (error) {
-      return { error: error.message };
-    }
-    
-    return { session: data as TutoringSession };
+    // Simply pass through to the authenticated handler
+    return _createTutoringSessionRequest(
+      user,
+      conversationId,
+      messageId,
+      tutorId,
+      studentId,
+      options,
+      studentTokens
+    );
   } catch (err) {
-    return { error: 'Failed to update session status' };
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    console.error('Exception in createTutoringSessionRequest wrapper:', errorMessage);
+    return { session: null, error: errorMessage };
   }
 }
 
 // Export the authenticated versions
-export const createTutoringSessionAuth = withAuth(_createTutoringSession);
-export const updateSessionStatusAuth = withAuth(_updateSessionStatus);
+export const updateSessionStatusAuth = withAuth(async function _updateSessionStatusWithAuth(
+  authUser: AuthUser, 
+  sessionId: string, 
+  status: 'requested' | 'accepted' | 'started' | 'ended' | 'cancelled',
+  studentTokens?: number
+) {
+  // Security check
+  const securityError = securityCheck(authUser);
+  if (securityError) {
+    return { session: null, error: null, authError: securityError };
+  }
+
+  const client = await createRouteHandlerClientWithCookies();
+
+  // Get the session to verify participants and student ID
+  const { data: existingSession, error: fetchError } = await client
+    .from('tutoring_session')
+    .select('id, student_id, tutor_id, status, conversation_id')
+    .eq('id', sessionId)
+    .single();
+
+  if (fetchError || !existingSession) {
+    return { session: null, error: 'Session not found' };
+  }
+
+  // If accepting the session, check student's tokens
+  if (status === 'accepted') {
+    // Allow either student or tutor to accept session
+    if (authUser.id !== existingSession.tutor_id && authUser.id !== existingSession.student_id) {
+      return { session: null, error: "Only session participants can accept this session."};
+    }
+    
+    // Check student tokens with provided value or fetch if needed
+    if (authUser.id === existingSession.student_id || studentTokens !== undefined) {
+      // Student is accepting or we're checking student tokens
+      const tokensToCheck = studentTokens !== undefined ? studentTokens : authUser.tokens;
+      
+      if (tokensToCheck === undefined || tokensToCheck <= 0) {
+        return { session: null, error: "Student does not have enough tokens for this session." };
+      }
+    } else {
+      // Tutor is accepting, check student tokens
+      const { user: studentProfile, error: studentProfileError } = await getUserProfile(existingSession.student_id);
+      if (studentProfileError || !studentProfile) {
+        return { session: null, error: "Could not retrieve student profile to check tokens." };
+      }
+      if (!studentProfile.tokens || studentProfile.tokens <= 0) {
+        return { session: null, error: "Student does not have enough tokens for this session." };
+      }
+    }
+  } else if (status === 'cancelled') {
+      // Allow either tutor or student to cancel
+      if (authUser.id !== existingSession.tutor_id && authUser.id !== existingSession.student_id) {
+          return { session: null, error: "Only session participants can cancel the session."};
+      }
+  } else if (status === 'started') {
+    // Only tutor can start
+     if (authUser.id !== existingSession.tutor_id) {
+          return { session: null, error: "Only the tutor can start the session."};
+      }
+  } else if (status === 'ended') {
+    // Only tutor can end
+     if (authUser.id !== existingSession.tutor_id) {
+          return { session: null, error: "Only the tutor can end the session."};
+      }
+  }
+
+  // Prepare the update data with status change
+  const updateData: any = { 
+    status,
+    updated_at: new Date().toISOString() 
+  };
+  
+  // Add timestamps for relevant status changes
+  if (status === 'started' && existingSession.status !== 'started') {
+    updateData.started_at = new Date().toISOString();
+  } else if (status === 'ended' && existingSession.status !== 'ended') {
+    updateData.ended_at = new Date().toISOString();
+    console.log(`Setting ended_at timestamp for session ${sessionId}: ${updateData.ended_at}`);
+  }
+
+  const { data, error } = await client
+    .from('tutoring_session')
+    .update(updateData)
+    .eq('id', sessionId)
+    .select(`
+      *,
+      tutor_profile:tutor_id(first_name, last_name),
+      student_profile:student_id(first_name, last_name)
+    `)
+    .single();
+
+  if (error) {
+    console.error(`Error updating session ${sessionId} to ${status}:`, error);
+    return { error: error.message };
+  }
+
+  console.log(`Successfully updated session ${sessionId} to ${status}`, data);
+  return { session: data as TutoringSession };
+});
 export const updateReadyStatusAuth = withAuth(function _updateReadyStatus(authUser: AuthUser, sessionId: string, isReady: boolean) {
   // This is a simple wrapper to forward to our updated function
   return updateReadyStatus(sessionId, isReady);

@@ -23,15 +23,16 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useApiTutorProfiles } from "@/hooks/useApiClient";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TutorProfile } from "@/types/supabaseTypes";
 
 export default function HomePage() {
-  const { tutors: featuredTutors, loading } = useApiTutorProfiles();
+  const { tutors: fetchedTutors, loading } = useApiTutorProfiles();
   
   // Take only the first 3 tutors for the featured section
-  const displayTutors = featuredTutors.slice(0, 3);
+  const displayTutors: TutorProfile[] = Array.isArray(fetchedTutors) ? fetchedTutors.slice(0, 3) : [];
 
   return (
-    <div className="w-full pt-16">
+    <div className="w-full with-navbar">
       {/* Hero Section */}
       <section className="hero-gradient py-16 md:py-24 w-full">
         <div className="container mx-auto px-4 md:px-6 max-w-screen-xl">
@@ -187,7 +188,7 @@ export default function HomePage() {
                 </Card>
               ))
             ) : displayTutors.length > 0 ? (
-              displayTutors.map((tutor) => (
+              displayTutors.map((tutor: TutorProfile) => (
                 <Card key={tutor.id} className="card-hover">
                   <CardHeader className="pb-4">
                     <div className="flex justify-between items-start">
@@ -212,7 +213,7 @@ export default function HomePage() {
                   <CardContent>
                     <div className="flex flex-wrap gap-2 mb-4">
                       {tutor.subjects && typeof tutor.subjects === 'string' ? 
-                        tutor.subjects.split(',').map((subject, i) => (
+                        tutor.subjects.split(',').map((subject: string, i: number) => (
                           <Badge key={i} variant="secondary" className="rounded-full">
                             {subject.trim()}
                           </Badge>

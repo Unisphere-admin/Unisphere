@@ -1,4 +1,3 @@
-
 import { TutorProfile, StudentProfile, User } from '@/types/supabaseTypes';
 
 export function getFullName(profile: TutorProfile | StudentProfile | User | null | undefined): string {
@@ -52,13 +51,24 @@ export function getInitials(profile: TutorProfile | StudentProfile | User | null
 }
 
 export function getAvatarUrl(profile: TutorProfile | StudentProfile | User | null | undefined): string {
-  if (!profile) return '';
+  if (!profile) return '/placeholder.svg';
   
-  // For tutor profiles with avatar_url
+  // For profiles with avatar_url
   if ('avatar_url' in profile && profile.avatar_url) {
-    return profile.avatar_url;
+    // Validate and format the URL
+    const avatarUrl = profile.avatar_url.trim();
+    
+    // If empty after trimming, return placeholder
+    if (!avatarUrl) return '/placeholder.svg';
+    
+    // If it's a relative path without leading slash, add one
+    if (!avatarUrl.startsWith('http') && !avatarUrl.startsWith('/') && !avatarUrl.startsWith('data:')) {
+      return `/${avatarUrl}`;
+    }
+    
+    return avatarUrl;
   }
   
   // No avatar URL found
-  return '';
+  return '/placeholder.svg';
 }

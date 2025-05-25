@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getConversationById, sendMessage, Message } from '@/lib/db/messages';
+import { getConversationById, sendMessage, Message, deleteMessage } from '@/lib/db/messages';
 import { AuthUser } from '@/lib/auth/protectResource';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
+import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 
 // Export runtime config for improved performance
 export const runtime = 'edge';
 
 // Cache recent responses to reduce database load
 const responseCache = new Map<string, { data: any, timestamp: number }>();
-const CACHE_TTL = 10000; // 10 seconds TTL for cache
+const CACHE_TTL = 900000; // 15 minutes TTL for cache (was 10 seconds)
 
 // Helper to get cached responses or fetch new ones
 const getCachedOrFresh = async <T>(
@@ -65,6 +66,8 @@ async function getMessagesHandler(
       return NextResponse.json({ error: 'Conversation ID is required' }, { status: 400 });
     }
 
+    console.log(`Getting messages for conversation: ${conversationId}, user: ${user.id}`);
+
     // Start a performance timer
     const startTime = performance.now();
 
@@ -77,13 +80,23 @@ async function getMessagesHandler(
         // Use the data access layer to get conversation and messages
         const { conversation, messages, error } = await getConversationById(user, conversationId);
         
-        if (error || !conversation) {
+        if (error) {
+          console.error(`Error fetching conversation data: ${error}`);
           return { conversation, messages: [], error };
+        }
+        
+        if (!conversation) {
+          console.error(`No conversation found with ID: ${conversationId}`);
+          return { conversation, messages: [], error: "Conversation not found" };
         }
         
         // Create a map of participants by user_id for faster lookups
         const participantsMap: Record<string, any> = {};
         conversation.participants?.forEach(participant => {
+          if (!participant.user_id) {
+            console.warn(`Participant without user_id found in conversation ${conversationId}`);
+            return;
+          }
           participantsMap[participant.user_id] = participant;
         });
         
@@ -121,6 +134,11 @@ async function getMessagesHandler(
         };
       } catch (innerError) {
         console.error("Error in message processing:", innerError);
+        const errorDetails = innerError instanceof Error 
+          ? innerError.message + (innerError.stack ? '\n' + innerError.stack : '') 
+          : JSON.stringify(innerError);
+        console.error(`Detailed error: ${errorDetails}`);
+        
         return {
           conversation: null,
           transformedMessages: [],
@@ -131,6 +149,7 @@ async function getMessagesHandler(
     
     // Handle errors
     if (result.error) {
+      console.error(`Error returning messages: ${result.error}`);
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
 
@@ -140,22 +159,62 @@ async function getMessagesHandler(
 
     // Check if user is a participant
     const isParticipant = result.conversation.participants?.some(p => p.user_id === user.id);
-    if (!isParticipant) {
+    
+    // Allow premium users or tutors to access any conversation even if not a participant
+    if (!isParticipant && !(user.is_tutor || user.has_access)) {
       return NextResponse.json({ error: 'Not authorized to access this conversation' }, { status: 403 });
     }
 
     // End the performance timer
     const endTime = performance.now();
+    const processingTime = Math.round(endTime - startTime);
+    
+    console.log(`Successfully fetched ${result.transformedMessages?.length || 0} messages in ${processingTime}ms`);
     
     return NextResponse.json({ 
       messages: result.transformedMessages, 
       has_more: false, // The DAL doesn't currently support pagination
-      processing_time_ms: Math.round(endTime - startTime)
+      processing_time_ms: processingTime
     });
   } catch (error) {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const errorDetails = error instanceof Error 
+      ? error.message + (error.stack ? '\n' + error.stack : '') 
+      : JSON.stringify(error);
+    console.error(`Unhandled error in getMessagesHandler: ${errorDetails}`);
+    
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      details: process.env.NODE_ENV === 'development' ? errorDetails : undefined 
+    }, { status: 500 });
   }
 }
+
+// Helper function to trigger a Supabase broadcast for new messages
+const broadcastMessage = async (message: Message, conversationId: string) => {
+  try {
+    // Use createRouteHandlerClientWithCookies to properly await cookies
+    const supabase = await createRouteHandlerClientWithCookies();
+    
+    // Use the same channel name format as in RealtimeContext
+    const channelName = `tutoring_session:conversation:${conversationId}`;
+    const channel = supabase.channel(channelName);
+    
+    // Subscribe to the channel before sending
+    await channel.subscribe();
+    
+    // Send the message broadcast
+    await channel.send({
+      type: 'broadcast',
+      event: 'message',
+      payload: message
+    });
+    
+    console.log(`Broadcasted message update for conversation ${conversationId}`);
+  } catch (error) {
+    console.error("Error broadcasting message:", error);
+    // Silently handle error - don't break API response for broadcast failures
+  }
+};
 
 // POST handler for messages
 async function postMessagesHandler(
@@ -221,12 +280,74 @@ async function postMessagesHandler(
       }
     };
     
+    // Broadcast the message via Supabase realtime
+    await broadcastMessage(transformedMessage, conversation_id);
+    
     return NextResponse.json(transformedMessage);
   } catch (error) {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const errorDetails = error instanceof Error 
+      ? error.message + (error.stack ? '\n' + error.stack : '') 
+      : JSON.stringify(error);
+    console.error(`Unhandled error in postMessagesHandler: ${errorDetails}`);
+    
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? errorDetails : undefined
+    }, { status: 500 });
   }
-} 
+}
+
+// Delete message handler
+async function deleteMessageHandler(
+  req: NextRequest, 
+  user: AuthUser
+): Promise<NextResponse> {
+  try {
+    const { searchParams } = new URL(req.url);
+    const messageId = searchParams.get('id');
+
+    if (!messageId) {
+      return NextResponse.json({ error: 'Message ID is required' }, { status: 400 });
+    }
+
+    console.log(`Deleting message: ${messageId}, user: ${user.id}`);
+
+    // Invalidate the messages cache
+    // This needs to be more generic since we don't know the conversation ID yet
+    Array.from(responseCache.entries()).forEach(([key, _]) => {
+      if (key.startsWith('messages:')) {
+        responseCache.delete(key);
+      }
+    });
+    
+    // Delete the message
+    const { success, error } = await deleteMessage(user, messageId);
+
+    if (error) {
+      const statusCode = error.includes('Not authorized') ? 403 : 
+                         error.includes('not found') ? 404 : 500;
+      return NextResponse.json({ error }, { status: statusCode });
+    }
+
+    if (!success) {
+      return NextResponse.json({ error: 'Failed to delete message' }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    const errorDetails = error instanceof Error 
+      ? error.message + (error.stack ? '\n' + error.stack : '') 
+      : JSON.stringify(error);
+    console.error(`Unhandled error in deleteMessageHandler: ${errorDetails}`);
+    
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      details: process.env.NODE_ENV === 'development' ? errorDetails : undefined 
+    }, { status: 500 });
+  }
+}
 
 // Export the wrapped route handlers
 export const GET = withRouteAuth(getMessagesHandler);
-export const POST = withRouteAuth(postMessagesHandler); 
+export const POST = withRouteAuth(postMessagesHandler);
+export const DELETE = withRouteAuth(deleteMessageHandler); 

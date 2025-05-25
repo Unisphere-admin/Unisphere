@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
-import { getUserProfile } from '@/lib/db/users';
+import { getUserProfile, createUserProfileIfNeeded } from '@/lib/db/users';
 
 // Export runtime config to optimize API performance with Edge runtime
 export const runtime = 'edge';
@@ -14,21 +14,96 @@ interface ClientUser {
 
 export async function GET(request: NextRequest) {
     try {
+        // Add cache control headers to the response to prevent caching
+        const headers: Record<string, string> = {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        };
+
         // Get supabase client with cookies
-        const supabase = createRouteHandlerClientWithCookies();
+        const supabase = await createRouteHandlerClientWithCookies();
         
-        // Get user directly instead of getting session first
-        const { data: { user }, error } = await supabase.auth.getUser();
-        
-        if (!user || error) {
+        // Check if the auth API is accessible
+        if (!supabase || !supabase.auth) {
+            console.error('Supabase client or auth API not available');
             return NextResponse.json(
-                { user: null },
-                { status: 401 }
+                { error: 'Authentication service unavailable' },
+                { status: 500, headers }
             );
         }
         
-        // Get the user ID from the user object
+        // Get authenticated user directly - safer than using getSession()
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError || !user) {
+            const errorMessage = userError?.message || 'No authenticated user found';
+            
+            // Handle specific AuthSessionMissingError with a cleaner message
+            const isSessionMissingError = 
+                userError?.name === 'AuthSessionMissingError' || 
+                errorMessage.includes('Auth session missing');
+        
+            if (isSessionMissingError) {
+                console.log('Auth session missing, redirecting to login');
+                // Clear session cookies on client side by returning specific header
+                headers['Set-Cookie'] = 'sb-access-token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax';
+            } else {
+                console.log('No authenticated user found:', errorMessage);
+            }
+            
+            return NextResponse.json(
+                { user: null, error: isSessionMissingError ? 'Session expired' : errorMessage },
+                { status: 401, headers }
+            );
+        }
+        
+        // Check if we need to refresh the session token
+        // Note: We use getSession() here ONLY for token refresh purposes, not for authentication
+        // Authentication is already handled via getUser() above
+        try {
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        // If session exists but might be expiring soon, refresh it
+            if (!sessionError && session && session.expires_at) {
+            const expiresAt = new Date(session.expires_at * 1000);
+            const now = new Date();
+            const timeLeft = expiresAt.getTime() - now.getTime();
+            
+            // If less than 10 minutes left, refresh the session
+            if (timeLeft < 10 * 60 * 1000) {
+                console.log('Session expiring soon, refreshing token');
+                await supabase.auth.refreshSession();
+            }
+        }
+        } catch (refreshError: any) {
+            // Better error handling for refresh failures
+            if (refreshError.name === 'AuthSessionMissingError' || 
+                refreshError.message?.includes('Auth session missing')) {
+                console.error('Session missing during refresh, but already authenticated with getUser()');
+            } else {
+                console.error('Error refreshing session token:', refreshError);
+            }
+            // We can continue as we already have the authenticated user
+        }
+        
+        // Get the user ID from the verified user object
         const userId = user.id;
+        const isTutor = user.user_metadata?.is_tutor === true;
+
+        // Try to create user profile if it doesn't exist
+        // This handles the first sign-in after registration
+        try {
+            await createUserProfileIfNeeded(userId, {
+                is_tutor: isTutor,
+                first_name: user.user_metadata?.first_name,
+                last_name: user.user_metadata?.last_name,
+                email: user.email
+            });
+        } catch (profileError) {
+            // Log but don't fail - we'll try to get the profile anyway
+            console.error('Error ensuring user profile exists:', profileError);
+        }
         
         // Fetch the user profile data
         const { user: profileUser, error: profileError } = await getUserProfile(userId);
@@ -41,11 +116,11 @@ export async function GET(request: NextRequest) {
                     id: userId,
                     name: user.email?.split('@')[0] || 'User',
                     email: user.email || '',
-                    role: 'user',
+                    role: isTutor ? 'tutor' : 'student',
                     tokens: 0,
                     hasProfile: false
                 }
-            });
+            }, { headers });
         }
         
         // Create a user object with the required format for the client
@@ -55,17 +130,26 @@ export async function GET(request: NextRequest) {
             email: user.email || '',
             role: profileUser.is_tutor ? 'tutor' : 'student',
             profilePic: profileUser.avatar_url || undefined,
+            avatar_url: profileUser.avatar_url || undefined,
             tokens: profileUser.tokens || 0,
             bio: profileUser.bio || undefined,
+            has_access: profileUser.has_access || false,
             hasProfile: true
         };
         
-        return NextResponse.json({ user: userResponse });
+        return NextResponse.json({ user: userResponse }, { headers });
     } catch (error) {
         console.error('Error in session API route:', error);
         return NextResponse.json(
             { error: error instanceof Error ? error.message : 'Internal server error' },
-            { status: 500 }
+            { 
+                status: 500,
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                } 
+            }
         );
     }
 }

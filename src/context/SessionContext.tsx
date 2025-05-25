@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, ReactNode, useCallback, useEffect } from "react";
 import { SessionRequest } from "./MessageContext";
 import { useAuth } from "./AuthContext";
+import { createClient } from "@/utils/supabase/client";
 
 interface Review {
   id: string | number;
@@ -14,7 +15,7 @@ interface Review {
   sessionId: string;
 }
 
-interface ActiveSession {
+export interface ActiveSession {
   id: string;
   tutor_id: string;
   student_id: string;
@@ -30,6 +31,7 @@ interface ActiveSession {
   message_id: string;
   tutor_ready: boolean;
   student_ready: boolean;
+  cost?: number | null;
   tutor_profile?: {
     first_name: string;
     last_name: string;
@@ -44,17 +46,19 @@ interface ActiveSession {
 interface SessionContextType {
   activeSession: ActiveSession | null;
   reviewHistory: Review[];
-  startSession: (sessionRequest: SessionRequest) => Promise<string>;
-  endSession: (sessionId: string) => Promise<void>;
+  startSession: (sessionId: string) => Promise<boolean>;
+  endSession: (sessionId: string) => Promise<boolean>;
   submitReview: (sessionId: string, tutorId: string, rating: number, comment: string) => Promise<void>;
   getReviewsForTutor: (tutorId: string) => Promise<Review[]>;
   getSessionById: (sessionId: string) => Promise<ActiveSession | null>;
   loading: boolean;
   sessions: ActiveSession[];
   loadingSessions: boolean;
+  refreshSessions: () => Promise<void>;
+  updateSession: (session: ActiveSession) => void;
 }
 
-const SessionContext = createContext<SessionContextType | undefined>(undefined);
+const SessionContext = createContext<SessionContextType | null>(null);
 
 export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
@@ -64,156 +68,96 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(false);
   
-  // Load reviews from API
+  // Check if user has premium access
+  const checkPremiumAccess = useCallback(async () => {
+    if (!user) {
+      return false;
+    }
+    
+    try {
+      // Use the API route instead of direct database access
+      const response = await fetch('/api/auth/session', {
+        credentials: 'include',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (!response.ok) {
+        console.error('Error checking user premium access:', response.statusText);
+        return false;
+      }
+      
+      const data = await response.json();
+      
+      // User has access if they are a tutor OR have premium access
+      return data.user?.role === 'tutor' || data.user?.has_access === true;
+    } catch (error) {
+      console.error('Error checking user premium access:', error);
+      return false;
+    }
+  }, [user]);
+  
+  // Fetch reviews for user
   useEffect(() => {
     const fetchReviews = async () => {
       try {
-        // This would be a real API call in a production app
-        // For now we'll use some mock data
-        const mockReviews = [
-          {
-            id: "1",
-            tutorId: "2",
-            studentId: "1",
-            rating: 5,
-            comment: "Amazing tutor! Explained complex math concepts in a simple way.",
-            date: new Date(2023, 4, 15),
-            sessionId: "past-1"
-          },
-          {
-            id: "2",
-            tutorId: "3",
-            studentId: "1",
-            rating: 4,
-            comment: "Very knowledgeable about literature. Would recommend!",
-            date: new Date(2023, 5, 2),
-            sessionId: "past-2"
-          },
-          {
-            id: "3", 
-            tutorId: "4",
-            studentId: "1",
-            rating: 5,
-            comment: "Excellent French tutor. Helped me prepare for my exam.",
-            date: new Date(2023, 5, 10),
-            sessionId: "past-3"
-          },
-          {
-            id: "4",
-            tutorId: "2",
-            studentId: "5",
-            rating: 5,
-            comment: "Sarah is excellent at explaining calculus concepts!",
-            date: new Date(2023, 4, 20),
-            sessionId: "past-4"
-          },
-          {
-            id: "5",
-            tutorId: "3",
-            studentId: "6",
-            rating: 4,
-            comment: "Michael helped me improve my essay writing significantly.",
-            date: new Date(2023, 5, 5),
-            sessionId: "past-5"
+        if (!user) return;
+        
+        // For tutors, we always fetch reviews (tutors have automatic premium access)
+        if (user.role === 'tutor') {
+          const response = await fetch(`/api/reviews?tutor_id=${user.id}`, {
+            credentials: 'include'
+          });
+          
+          if (!response.ok) {
+            console.error('Failed to fetch reviews');
+            return;
           }
-        ];
-        setReviewHistory(mockReviews);
+          
+          const data = await response.json();
+          if (data.reviews) {
+            // Transform reviews if needed to match our interface
+            const formattedReviews: Review[] = data.reviews.map((review: any) => ({
+              id: review.id,
+              tutorId: review.tutor_id,
+              studentId: review.student_id,
+              rating: review.rating,
+              comment: review.comment || '',
+              date: new Date(review.created_at),
+              sessionId: review.session_id || ''
+            }));
+            
+            setReviewHistory(formattedReviews);
+          } else {
+            setReviewHistory([]);
+          }
+        } else {
+          // For students, check premium access before fetching reviews
+          const hasPremiumAccess = await checkPremiumAccess();
+          if (!hasPremiumAccess) {
+            console.log('User does not have premium access, skipping reviews fetch');
+            setReviewHistory([]);
+            return;
+          }
+          
+          // For students with premium access, we could fetch their submitted reviews if needed
+          setReviewHistory([]);
+        }
       } catch (error) {
         console.error("Error loading reviews:", error);
+        setReviewHistory([]);
       }
     };
     
     fetchReviews();
-  }, []);
+  }, [user, checkPremiumAccess]);
   
   // Fetch user's sessions
   useEffect(() => {
-    const fetchSessions = async () => {
-      // Only attempt to fetch sessions if user is logged in
-      if (!user) {
-        setSessions([]);
-        setLoadingSessions(false);
-        return;
-      }
-      
-      try {
-        setLoadingSessions(true);
-        // We should make a real API call to fetch sessions for the current user
-        // We'd need to know if they're a student or tutor
-        const userType = user.role === 'tutor' ? 'tutor' : 'student';
-        
-        const response = await fetch(`/api/tutoring-sessions?userType=${userType}`, {
-          credentials: 'include' // Important for auth cookies
-        });
-        
-        if (response.status === 401) {
-          // Handle unauthorized - user might need to login again
-          console.log('Session expired or unauthorized. Redirecting to login...');
-          setSessions([]);
-          return;
-        }
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch sessions');
-        }
-        
-        const data = await response.json();
-        if (data.sessions) {
-          setSessions(data.sessions);
-          
-          // Find any active session
-          const active = data.sessions.find((s: any) => s.status === "started");
-          if (active) {
-            setActiveSession(active);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching sessions:", error);
-        // Use mock data as fallback
-        const mockSessions: ActiveSession[] = [
-          {
-            id: "session-1",
-            tutor_id: "2",
-            student_id: "1",
-            subject: "Mathematics",
-            name: "Mathematics Session",
-            status: "started" as const,
-            conversation_id: "conv-1",
-            message_id: "msg-1",
-            tutor_ready: true,
-            student_ready: true,
-            scheduled_for: new Date().toISOString(),
-            tutor_profile: {
-              first_name: "Sarah",
-              last_name: "Johnson"
-            }
-          },
-          {
-            id: "session-2",
-            tutor_id: "3",
-            student_id: "1",
-            subject: "Physics",
-            name: "Physics Homework Help",
-            status: "accepted" as const,
-            conversation_id: "conv-2",
-            message_id: "msg-2",
-            tutor_ready: false,
-            student_ready: false,
-            scheduled_for: new Date(Date.now() + 86400000).toISOString(),
-            tutor_profile: {
-              first_name: "Michael",
-              last_name: "Chen"
-            }
-          }
-        ];
-        setSessions(mockSessions);
-      } finally {
-        setLoadingSessions(false);
-      }
-    };
-    
-    fetchSessions();
-  }, [user]);
+    refreshSessions();
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
   
   // Get a session by ID
   const getSessionById = useCallback(async (sessionId: string): Promise<ActiveSession | null> => {
@@ -221,6 +165,13 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     try {
       // Only proceed if user is logged in
       if (!user) {
+        return null;
+      }
+      
+      // Check if user has premium access before making API calls
+      const hasPremiumAccess = await checkPremiumAccess();
+      if (!hasPremiumAccess && user.role !== 'tutor') {
+        console.log('User does not have premium access, skipping session fetch');
         return null;
       }
       
@@ -251,58 +202,72 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, checkPremiumAccess]);
 
   // Start a session 
-  const startSession = useCallback(async (sessionRequest: SessionRequest): Promise<string> => {
+  const startSession = useCallback(async (sessionId: string): Promise<boolean> => {
     setLoading(true);
     try {
-      // In a real app, this would make an API call to create a tutoring session
-      // For now, we'll simulate it
-      console.log("Starting session with request:", sessionRequest);
+      if (!user) {
+        throw new Error("You must be logged in to start a session");
+      }
       
-      // For real we'd make a POST request to create the session
-      // const response = await fetch('/api/tutoring-sessions', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json'
-      //   },
-      //   body: JSON.stringify({
-      //     conversation_id: sessionRequest.conversationId,
-      //     message_id: sessionRequest.messageId,
-      //     student_id: sessionRequest.studentId,
-      //     scheduled_for: sessionRequest.date.toISOString(),
-      //     name: sessionRequest.subject
-      //   })
-      // });
+      // Check if user has premium access before making API calls
+      const hasPremiumAccess = await checkPremiumAccess();
+      if (!hasPremiumAccess && user.role !== 'tutor') {
+        console.log('User does not have premium access, cannot start session');
+        throw new Error("Premium access required to start sessions");
+      }
       
-      // For mock purposes, we'll create a simulated session
-      const newSession: ActiveSession = {
-        id: sessionRequest.id,
-        tutor_id: "2", // Mock tutor ID
-        student_id: "1", // Mock student ID
-        subject: sessionRequest.subject,
-        status: "started",
-        conversation_id: "mock-conversation",
-        message_id: "mock-message",
-        tutor_ready: false,
-        student_ready: false,
-      };
+      // Make API call to start the session
+      const response = await fetch('/api/tutoring-sessions', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          action: 'update_status',
+          status: 'started'
+        }),
+        credentials: 'include'
+      });
       
-      setActiveSession(newSession);
-      return newSession.id;
+      if (response.status === 401) {
+        throw new Error('Unauthorized. Please login again.');
+      }
+      
+      if (!response.ok) {
+        throw new Error('Failed to start session');
+      }
+      
+      const data = await response.json();
+      
+      if (data.session) {
+        setActiveSession(data.session);
+        return true;
+      }
+      
+      return false;
     } catch (error) {
       console.error("Error starting session:", error);
       throw new Error("Failed to start session");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user, checkPremiumAccess]);
 
   // End a session
-  const endSession = useCallback(async (sessionId: string): Promise<void> => {
+  const endSession = useCallback(async (sessionId: string): Promise<boolean> => {
     if (!user) {
       throw new Error("You must be logged in to end a session");
+    }
+    
+    // Check if user has premium access before making API calls
+    const hasPremiumAccess = await checkPremiumAccess();
+    if (!hasPremiumAccess && user.role !== 'tutor') {
+      console.log('User does not have premium access, cannot end session');
+      throw new Error("Premium access required to end sessions");
     }
     
     setLoading(true);
@@ -332,51 +297,64 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       const data = await response.json();
       
       if (data.session) {
-        // If this was the active session, update it
+        const updatedSession = data.session;
+        console.log("Session ended successfully:", updatedSession);
+        
+        // If this was the active session, update it with server data
         if (activeSession && activeSession.id === sessionId) {
           setActiveSession({
             ...activeSession,
-            status: "ended",
-            ended_at: new Date().toISOString()
+            ...updatedSession // Use all updated fields from server
           });
         }
         
-        // Update in sessions list
+        // Update in sessions list with server data
         setSessions(prev => 
           prev.map(s => 
             s.id === sessionId 
-              ? { ...s, status: "ended", ended_at: new Date().toISOString() } 
+              ? { ...s, ...updatedSession } // Use all updated fields from server
               : s
           )
         );
+        
+        return true;
       }
+      
+      return false;
     } catch (error) {
-      console.error(`Error ending session ${sessionId}:`, error);
+      console.error("Error ending session:", error);
       throw new Error("Failed to end session");
     } finally {
       setLoading(false);
     }
-  }, [activeSession, user]);
+  }, [user, activeSession, checkPremiumAccess]);
 
-  // Submit a review
+  // Submit a review for a tutor
   const submitReview = useCallback(async (sessionId: string, tutorId: string, rating: number, comment: string): Promise<void> => {
-    if (!user) {
-      throw new Error("You must be logged in to submit a review");
-    }
-    
     setLoading(true);
     try {
-      // Make API call to create review
+      if (!user) {
+        throw new Error("You must be logged in to submit a review");
+      }
+      
+      // Check if user has premium access before making API calls
+      const hasPremiumAccess = await checkPremiumAccess();
+      if (!hasPremiumAccess && user.role !== 'tutor') {
+        console.log('User does not have premium access, cannot submit review');
+        throw new Error("Premium access required to submit reviews");
+      }
+      
+      // Make API call to submit review
       const response = await fetch('/api/reviews', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          session_id: sessionId,
           tutor_id: tutorId,
           rating,
-          review: comment,
-          session_id: sessionId
+          comment
         }),
         credentials: 'include'
       });
@@ -392,12 +370,13 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       const data = await response.json();
       
       if (data.review) {
+        // Add the new review to our history
         const newReview: Review = {
           id: data.review.id,
-          tutorId: tutorId,
-          studentId: data.review.student_id,
-          rating: rating,
-          comment: comment,
+          tutorId: data.review.tutor_id,
+          studentId: user.id,
+          rating: data.review.rating,
+          comment: data.review.comment,
           date: new Date(),
           sessionId: sessionId
         };
@@ -410,20 +389,15 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, checkPremiumAccess]);
 
-  // Get reviews for a tutor
+  // Fetch all reviews for a specific tutor
   const getReviewsForTutor = useCallback(async (tutorId: string): Promise<Review[]> => {
     try {
-      // Make API call to get tutor reviews
+      // Make API call to get reviews for a tutor
       const response = await fetch(`/api/reviews/tutor/${tutorId}`, {
         credentials: 'include'
       });
-      
-      if (response.status === 401) {
-        console.log('Unauthorized when fetching reviews.');
-        return [];
-      }
       
       if (!response.ok) {
         throw new Error('Failed to fetch tutor reviews');
@@ -431,26 +405,91 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       
       const data = await response.json();
       
-      if (data.reviews && Array.isArray(data.reviews)) {
-        // Transform API response to match our interface
-        return data.reviews.map((review: any) => ({
-          id: review.id,
-          tutorId: tutorId,
-          studentId: review.student_id,
-          rating: review.rating,
-          comment: review.review || '',
-          date: new Date(review.created_at),
-          sessionId: review.session_id || 'unknown'
-        }));
-      }
+      // Map API response to our Review interface
+      const reviews: Review[] = data.reviews.map((review: any) => ({
+        id: review.id,
+        tutorId: review.tutor_id,
+        studentId: review.student_id,
+        rating: review.rating,
+        comment: review.comment || '',
+        date: new Date(review.created_at),
+        sessionId: review.session_id || ''
+      }));
       
-      return reviewHistory.filter(review => review.tutorId === tutorId);
+      return reviews;
     } catch (error) {
       console.error(`Error fetching reviews for tutor ${tutorId}:`, error);
-      // Fall back to local data
-      return reviewHistory.filter(review => review.tutorId === tutorId);
+      return [];
     }
-  }, [reviewHistory]);
+  }, []);
+
+  // Refresh sessions list
+  const refreshSessions = useCallback(async (): Promise<void> => {
+    if (!user) {
+      setSessions([]);
+      return;
+    }
+    
+    // Check if user has premium access before making API calls
+    const hasPremiumAccess = await checkPremiumAccess();
+    if (!hasPremiumAccess && user.role !== 'tutor') {
+      console.log('User does not have premium access, skipping sessions fetch');
+      setSessions([]);
+      return;
+    }
+    
+    setLoadingSessions(true);
+    try {
+      // Include userType parameter to avoid "Required parameters missing" error
+      const userType = user.role === 'tutor' ? 'tutor' : 'student';
+      const response = await fetch(`/api/tutoring-sessions?userType=${userType}`, {
+        credentials: 'include'
+      });
+      
+      if (response.status === 401) {
+        console.log('Session expired or unauthorized for fetching sessions.');
+        return;
+      }
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(errorData.error || `Failed to fetch sessions: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.sessions) {
+        setSessions(data.sessions);
+        
+        // Check for active sessions
+        const activeSessionCandidate = data.sessions.find((s: ActiveSession) => 
+          s.status === 'started' || s.status === 'accepted'
+        );
+        
+        if (activeSessionCandidate) {
+          setActiveSession(activeSessionCandidate);
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing sessions:', error);
+      // Don't throw error here - handle it gracefully
+    } finally {
+      setLoadingSessions(false);
+    }
+  }, [user, checkPremiumAccess]);
+
+  // Update a specific session
+  const updateSession = useCallback((session: ActiveSession) => {
+    // Update in sessions list
+    setSessions(prev => 
+      prev.map(s => s.id === session.id ? session : s)
+    );
+    
+    // Update active session if it matches
+    if (activeSession && activeSession.id === session.id) {
+      setActiveSession(session);
+    }
+  }, [activeSession]);
 
   return (
     <SessionContext.Provider
@@ -464,7 +503,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         getSessionById,
         loading,
         sessions,
-        loadingSessions
+        loadingSessions,
+        refreshSessions,
+        updateSession
       }}
     >
       {children}
@@ -474,8 +515,10 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
 
 export const useSessions = () => {
   const context = useContext(SessionContext);
-  if (context === undefined) {
-    throw new Error("useSessions must be used within a SessionProvider");
+  
+  if (!context) {
+    throw new Error('useSessions must be used within a SessionProvider');
   }
+  
   return context;
 };

@@ -22,7 +22,7 @@ import {
 
 export default function AboutPage() {
   return (
-    <div className="container max-w-screen-xl mx-auto px-4 md:px-6 pt-16 w-full">
+    <div className="container max-w-screen-xl mx-auto px-4 md:px-6 with-navbar w-full">
       {/* Hero section */}
       <section className="py-16 md:py-24">
         <div className="grid md:grid-cols-2 gap-12 items-center">

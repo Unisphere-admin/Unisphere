@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createRouteHandlerClientWithCookies } from "@/lib/db/client";
 import { cookies } from "next/headers";
 
 export async function POST(req: NextRequest) {
@@ -13,11 +13,10 @@ export async function POST(req: NextRequest) {
         );
     }
     
-    const cookieStore = await cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    const supabase = await createRouteHandlerClientWithCookies();
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${req.nextUrl.origin}/api/authupdate-password`,
+        redirectTo: `${req.nextUrl.origin}/api/auth/update-password`,
     });
 
     if (error) {

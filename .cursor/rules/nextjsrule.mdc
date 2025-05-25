@@ -22,6 +22,8 @@ alwaysApply: true
     - Implement dynamic imports for code splitting and optimization.
     - Use responsive design with a mobile-first approach.
     - Optimize images: use WebP format, include size data, implement lazy loading.
+    - Do not use @supabase/auth-helpers-nextjs for authentication as it is depreciated
+    - Do not use supabase.auth.getSession() as it is unsafe
 
     ### Error Handling and Validation
     - Prioritize error handling and edge cases:

@@ -191,12 +191,13 @@ async function postConversationsHandler(
 
     if (!conversation) {
       return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 });
-      }
+    }
 
-    // Return the new conversation ID
+    // Return the new conversation ID and participant information for subscription
     return NextResponse.json({ 
       conversation_id: conversation.id,
-      success: true
+      success: true,
+      participants: [user.id, participant_id]
     });
   } catch (error) {
     console.error('Error creating conversation:', error);
@@ -207,54 +208,6 @@ async function postConversationsHandler(
   }
 }
 
-// Custom wrapper function - keeping for reference
-async function withAuthHandler(handler: (req: NextRequest, user: AuthUser) => Promise<NextResponse>) {
-  return async (req: NextRequest) => {
-    // Get authenticated user
-    const user = await getAuthenticatedUser(req);
-    
-    // If not authenticated, return 401
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-    
-    // Continue with handler
-    return handler(req, user);
-  };
-}
-
-// The proper way is:
-export async function GET(req: NextRequest) {
-  // Get authenticated user
-  const user = await getAuthenticatedUser(req);
-  
-  // If not authenticated, return 401
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Authentication required' },
-      { status: 401 }
-    );
-  }
-  
-  // Continue with handler
-  return getConversationsHandler(req, user);
-}
-
-export async function POST(req: NextRequest) {
-  // Get authenticated user
-  const user = await getAuthenticatedUser(req);
-  
-  // If not authenticated, return 401
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Authentication required' },
-      { status: 401 }
-    );
-  }
-  
-  // Continue with handler
-  return postConversationsHandler(req, user);
-} 
+// Use the withRouteAuth pattern for all API routes
+export const GET = withRouteAuth(getConversationsHandler);
+export const POST = withRouteAuth(postConversationsHandler); 

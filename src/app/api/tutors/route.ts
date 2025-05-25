@@ -1,10 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
+import { withRouteAuth } from '@/lib/auth/validateRequest';
+import { AuthUser } from '@/lib/auth/protectResource';
 
 export const revalidate = 3600; // Revalidate at most once per hour
 
-export async function GET(request: NextRequest) {
+// Helper function for delayed retry
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Helper function to execute query with retries
+async function executeQueryWithRetry(queryFn: () => Promise<any>, maxRetries = 3, baseDelay = 1000) {
+    let lastError;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            // Add timeout to the query
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Database query timeout')), 10000); // 10s timeout
+            });
+            
+            // Race between the query and timeout
+            const result = await Promise.race([queryFn(), timeoutPromise]);
+            return result;
+        } catch (error) {
+            lastError = error;
+            console.warn(`Attempt ${attempt + 1}/${maxRetries} failed:`, error);
+            
+            // Exponential backoff with jitter
+            if (attempt < maxRetries - 1) {
+                const jitter = Math.random() * 300;
+                const delayTime = baseDelay * Math.pow(2, attempt) + jitter;
+                console.log(`Retrying in ${Math.floor(delayTime)}ms...`);
+                await delay(delayTime);
+            }
+        }
+    }
+    
+    throw lastError;
+}
+
+// Wrapped handler with authentication
+async function getTutorsHandler(
+    request: NextRequest,
+    user: AuthUser
+): Promise<NextResponse> {
     try {
+        // Check premium access or tutor status
+        if (!user.is_tutor && !user.has_access) {
+            return NextResponse.json(
+                { error: 'Premium access required' },
+                { status: 403 }
+            );
+        }
+
         const supabase = await createRouteHandlerClientWithCookies();
         
         // Get query parameters
@@ -24,8 +71,9 @@ export async function GET(request: NextRequest) {
             query = query.ilike('subjects', `%${subject}%`);
         }
         
-        // Execute query
-        const { data: tutors, error } = await query;
+        // Execute query with retry
+        const queryFn = async () => await query;
+        const { data: tutors, error } = await executeQueryWithRetry(queryFn);
         
         if (error) {
             console.error('Error fetching tutors:', error);
@@ -45,8 +93,15 @@ export async function GET(request: NextRequest) {
     } catch (error) {
         console.error('Error in tutors API route:', error);
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Internal server error' },
+            { 
+                error: error instanceof Error ? error.message : 'Internal server error',
+                details: error instanceof Error ? error.stack : undefined,
+                hint: 'This may be a temporary network issue, please try again later.'
+            },
             { status: 500 }
         );
     }
-} 
+}
+
+// Apply authentication middleware
+export const GET = withRouteAuth(getTutorsHandler); 

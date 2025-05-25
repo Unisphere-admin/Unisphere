@@ -8,6 +8,8 @@ export interface AuthUser {
   id: string;
   email: string;
   is_tutor?: boolean;
+  tokens?: number;
+  has_access?: boolean;
 }
 
 /**
@@ -17,20 +19,55 @@ export interface AuthUser {
 export async function getAuthUser(): Promise<AuthUser | null> {
   try {
     const supabase = await createRouteHandlerClientWithCookies();
+    
+    // Add extra error handling and debug logging
+    if (!supabase) {
+      console.error('Failed to create Supabase client');
+      return null;
+    }
+    
+    // Check if the auth API is accessible
+    if (!supabase.auth) {
+      console.error('Supabase auth API not accessible');
+      return null;
+    }
+    
+    // Check for authenticated session
     const { data: { user }, error } = await supabase.auth.getUser();
     
-    if (error || !user) {
-      console.warn('Authentication check failed:', error?.message || 'No user found');
+    if (error) {
+      console.warn('Authentication check failed:', error.message);
       return null;
+    }
+    
+    if (!user) {
+      console.warn('No user found in authentication check');
+      return null;
+    }
+    
+    // Fetch user data including has_access flag from the users table
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('is_tutor, tokens, has_access')
+      .eq('id', user.id)
+      .single();
+    
+    if (userError) {
+      console.warn('Error fetching user data:', userError.message);
     }
     
     return {
       id: user.id,
       email: user.email || '',
-      is_tutor: user.user_metadata?.is_tutor === true
+      is_tutor: userData?.is_tutor || user.user_metadata?.is_tutor === true,
+      tokens: userData?.tokens,
+      has_access: userData?.has_access || false
     };
   } catch (error) {
-    console.error('Error checking authentication:', error);
+    const errorDetails = error instanceof Error 
+      ? `${error.message}\n${error.stack || ''}` 
+      : String(error);
+    console.error('Unexpected error checking authentication:', errorDetails);
     return null;
   }
 }
@@ -48,7 +85,12 @@ export function withAuth<T extends any[], R>(
       throw new Error('Authentication required');
     }
     
-    return handler(authUser, ...args);
+    try {
+      return await handler(authUser, ...args);
+    } catch (error) {
+      console.error('Error in authenticated handler:', error);
+      throw error;
+    }
   };
 }
 
@@ -66,7 +108,23 @@ export const PUBLIC_PATHS = [
   '/tutors',
   '/login',
   '/signup',
-  '/reset-password'
+  '/reset-password',
+  '/paywall'
+];
+
+/**
+ * List of paths that require premium access
+ */
+export const PREMIUM_PATHS = [
+  '/dashboard',
+  '/dashboard/',
+  '/tutors',
+  '/tutors/',
+  '/session',
+  '/api/conversations',
+  '/api/messages',
+  '/api/tutoring-sessions',
+  '/api/users',
 ];
 
 /**
@@ -78,6 +136,38 @@ export function shouldProtectRoute(path: string): boolean {
   return !PUBLIC_PATHS.some(publicPath => 
     path === publicPath || path.startsWith(publicPath + '/')
   );
+}
+
+/**
+ * Determines if a path requires premium access
+ */
+export function requiresPremiumAccess(path: string): boolean {
+  return PREMIUM_PATHS.some(premiumPath => 
+    path === premiumPath || path.startsWith(premiumPath + '/')
+  );
+}
+
+/**
+ * Check if the user should be redirected to the paywall
+ */
+export function shouldRedirectToPaywall(user: AuthUser | null, path: string): boolean {
+  // If it's not a premium path, don't redirect
+  if (!requiresPremiumAccess(path)) {
+    return false;
+  }
+  
+  // If user is a tutor, don't redirect
+  if (user?.is_tutor) {
+    return false;
+  }
+  
+  // If user has access, don't redirect
+  if (user?.has_access) {
+    return false;
+  }
+  
+  // Otherwise, redirect to paywall
+  return true;
 }
 
 /**
@@ -107,5 +197,17 @@ export function redirectToLogin(req: NextRequest): NextResponse {
     return NextResponse.redirect(new URL('/login?apiRedirect=true', req.url));
   } else {
     return NextResponse.redirect(new URL('/login', req.url));
+  }
+}
+
+/**
+ * Redirects to paywall page
+ */
+export function redirectToPaywall(req: NextRequest): NextResponse {
+  const isApiRequest = req.nextUrl.pathname.startsWith('/api/');
+  if (isApiRequest) {
+    return NextResponse.json({ error: 'Premium access required' }, { status: 403 });
+  } else {
+    return NextResponse.redirect(new URL('/paywall', req.url));
   }
 } 

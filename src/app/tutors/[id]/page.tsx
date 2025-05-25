@@ -1,10 +1,10 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { MOCK_USERS } from "@/context/AuthContext";
 import { useSessions } from "@/context/SessionContext";
 import { useMessages } from "@/context/MessageContext";
 import { useAuth } from "@/context/AuthContext";
+import { useRealtime } from "@/context/RealtimeContext";
 import { useTutorProfile, useTutorReviews } from "@/hooks/useSupabase";
 import Link from "next/link";
 import {
@@ -20,10 +20,11 @@ import {
   ThumbsUp,
   User,
   Languages,
-  Loader2,
+  Loader,
   GraduationCap,
   School,
-  Cake
+  Cake,
+  Send
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -44,45 +45,87 @@ import {
 } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "@/components/ui/use-toast";
-import { useMemo, use } from "react";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { useMemo, use, useState, useEffect, useCallback } from "react";
+import { createClient } from "@/utils/supabase/client";
+import { useRouter } from "next/navigation";
 
 // Define types for reviews
-type MockReview = {
-  id: string;
-  tutorId: string;
-  studentId: string;
-  rating: number;
-  comment: string;
-  date: string | Date;
-};
-
-type SupabaseReview = {
-  id: number;
+type Review = {
+  id: number | string;
   tutor_id?: string;
+  tutorId?: string;
   student_id?: string;
+  studentId?: string;
   review?: string;
+  comment?: string;
   rating?: number;
-  created_at: string;
+  created_at?: string;
+  date?: string | Date;
 };
 
-// Union type that can handle both the mock reviews and Supabase reviews
-type Review = MockReview | SupabaseReview;
+// Enhance Avatar component in the profile page to ensure it always has a fallback
+// Create a more robust function to handle tutor avatar
+const getTutorAvatarUrl = (tutor: any) => {
+  if (!tutor) return '/placeholder.svg';
+  
+  // Check if avatar_url exists and is not empty
+  if (tutor.avatar_url && tutor.avatar_url.trim() !== '') {
+    // If it's a relative path (no protocol), ensure it's properly formed
+    if (!tutor.avatar_url.startsWith('http') && !tutor.avatar_url.startsWith('/')) {
+      return `/${tutor.avatar_url}`;
+    }
+    return tutor.avatar_url;
+  }
+  
+  return '/placeholder.svg';
+};
 
 export default function TutorProfile(props: { params: Promise<{ id: string }> }) {
   const params = use(props.params);
   const id = params.id;
+  const router = useRouter();
   const { reviewHistory } = useSessions();
-  const { setSelectedConversationId } = useMessages();
-  const { user } = useAuth();
+  const messageContext = useMessages();
+  const { user, loading } = useAuth();
+  const { subscribeToConversation } = useRealtime();
 
-  // Use our new Supabase hooks
+  // Check for premium access
+  useEffect(() => {
+    if (!loading) {
+      const hasAccess = user?.role === 'tutor' || user?.has_access === true;
+      if (!user) {
+        router.replace('/login');
+      } else if (!hasAccess) {
+        console.log('User does not have premium access, redirecting to paywall');
+        router.replace('/paywall');
+      }
+    }
+  }, [user, loading, router]);
+
+  // If still loading auth or user doesn't have access, don't render the actual content
+  if (loading || !user || !(user.role === 'tutor' || user.has_access === true)) {
+    return (
+      <div className="flex items-center justify-center min-h-screen w-full">
+        <div className="text-center">
+          <Loader className="h-10 w-10 animate-spin mx-auto mb-4 text-primary" />
+          <h3 className="text-xl font-semibold">Loading...</h3>
+        </div>
+      </div>
+    );
+  }
+
+  // Dialog state
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [message, setMessage] = useState("");
+  const [isSending, setIsSending] = useState(false);
+
+  // Use our Supabase hooks
   const { tutor, loading: tutorLoading, error: tutorError } = useTutorProfile(id);
   const { reviews: supabaseReviews, loading: reviewsLoading, error: reviewsError } = useTutorReviews(id);
 
-  // Find tutor based on ID from URL params - fallback to mock data if needed
-  const mockTutor = useMemo(() => MOCK_USERS.find(user => user.id === id), [id]);
-
-  // Get reviews for this tutor - combine mock and Supabase data
+  // Get reviews for this tutor
   const tutorReviews = useMemo(() => {
     if (supabaseReviews && supabaseReviews.length > 0) {
       return supabaseReviews;
@@ -90,14 +133,32 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
     return reviewHistory.filter(review => review.tutorId === id);
   }, [reviewHistory, id, supabaseReviews]);
 
+  // Effect to fetch reviews if they're not already loaded
+  useEffect(() => {
+    if (!supabaseReviews || supabaseReviews.length === 0) {
+      const fetchReviews = async () => {
+        try {
+          const response = await fetch(`/api/reviews/tutor/${id}`);
+          if (response.ok) {
+            const data = await response.json();
+            // Reviews will be set through the useTutorReviews hook
+          }
+        } catch (error) {
+          console.error("Error fetching reviews:", error);
+        }
+      };
+      
+      fetchReviews();
+    }
+  }, [id, supabaseReviews]);
+
   // Calculate average rating
   const averageRating = useMemo(() => {
     if (tutorReviews.length > 0) {
       return tutorReviews.reduce((sum, review) => sum + (review.rating || 0), 0) / tutorReviews.length;
     }
-    // Fixed: Use optional chaining with mockTutor and removed nonexistent 'rating' property from tutor
-    return mockTutor?.rating || 4.5;
-  }, [tutorReviews, mockTutor]);
+    return 0; // Default to 0 instead of 4.5 when no reviews
+  }, [tutorReviews]);
 
   // Calculate rating distribution
   const ratingDistribution = useMemo(() => {
@@ -114,17 +175,157 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
     return distribution;
   }, [tutorReviews]);
 
-  // Handle navigating to message page
-  const handleMessage = () => {
-    if (mockTutor || tutor) {
-      setSelectedConversationId(id || "");
-      // Navigate to messages page using Next.js navigation
-      window.location.href = "/dashboard/messages";
+  // Listen for PostgreSQL changes about new conversations
+  useEffect(() => {
+    if (!user || !tutor?.search_id) return;
+
+    // Create Supabase client for realtime changes
+    const supabase = createClient();
+    
+    // If the current user is a tutor, they should listen to their own search_id channel
+    if (user.role === 'tutor' && user.id === id) {
+      console.log(`Tutor listening to their channel: ${tutor.search_id}`);
+      
+      // Tutors listen to their channel based on search_id
+      const channel = supabase
+        .channel(`tutor:${tutor.search_id}`)
+        .subscribe();
+      
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    } 
+    // For students, subscribe to conversations changes
+    else if (user.role !== 'tutor') {
+      // Students subscribe to changes in conversations table for this user
+      const channel = supabase
+        .channel('conversations-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'conversations',
+            filter: `created_by=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('New conversation created:', payload);
+            const conversationId = payload.new.id;
+            
+            // Subscribe to the new conversation's realtime channel using tutor's search_id
+            if (conversationId && tutor?.search_id) {
+              // Use tutor's search_id as the channel name
+              const channelName = `tutor:${tutor.search_id}`;
+              console.log(`Student subscribing to channel: ${channelName}`);
+              
+              // Subscribe to the tutor's channel
+              subscribeToConversation(channelName);
+              
+              // Toast notification
+              toast({
+                title: "Conversation created",
+                description: "You can now message the tutor",
+              });
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [user, tutor?.search_id, id, subscribeToConversation]);
+
+  // Handle sending a message to the tutor
+  // Check if conversation already exists between current user and tutor
+  const checkExistingConversation = async (): Promise<string | null> => {
+    try {
+      console.log(`Checking for existing conversation with tutor ID: ${id}`);
+      
+      // Fetch all user conversations
+      const response = await fetch('/api/conversations', {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error(`Failed to fetch conversations: ${response.status}`, errorText);
+        return null;
+      }
+      
+      const data = await response.json();
+      const conversations = data.conversations || [];
+      
+      console.log(`Found ${conversations.length} conversations for current user`);
+      
+      if (conversations.length === 0) return null;
+      
+      // Look for a conversation where the tutor is a participant
+      const existingConversation = conversations.find((conv: any) => 
+        conv.participants?.some((p: any) => p.user_id === id)
+      );
+      
+      if (existingConversation) {
+        console.log(`Found existing conversation: ${existingConversation.id}`);
+      } else {
+        console.log(`No existing conversations found with tutor ID: ${id}`);
+      }
+      
+      return existingConversation ? existingConversation.id : null;
+    } catch (error) {
+      console.error('Error checking existing conversations:', error);
+      // Return null instead of throwing to allow message sending to continue with new conversation
+      return null;
     }
   };
+  
+  const handleMessageTutor = useCallback(() => {
+    if (!user || !tutor) return;
+    
+    try {
+      // Create a temporary conversation
+      const tempConversationId = messageContext?.createTempConversation(
+        tutor.id,
+        `${tutor.first_name || ''} ${tutor.last_name || ''}`.trim(),
+        tutor.avatar_url
+      );
+            
+      if (!tempConversationId) {
+        throw new Error("Failed to create temporary conversation");
+            }
+      
+      console.log(`Created temporary conversation ${tempConversationId} with tutor ${tutor.id}`);
+      
+      // Navigate to the messages page with the temporary conversation selected
+      window.location.href = `/dashboard/messages?conversationId=${tempConversationId}`;
+    } catch (error) {
+      console.error('Error creating temporary conversation:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to start conversation",
+        variant: "destructive"
+      });
+    }
+  }, [user, tutor, messageContext]);
 
-  // Show error if both data sources failed
-  if ((tutorError || !mockTutor) && !tutor) {
+  // Show loading state
+  if (tutorLoading) {
+    return (
+      <div className="w-full py-24 text-center">
+        <Loader className="h-12 w-12 animate-spin mx-auto mb-4 text-primary" />
+        <h1 className="text-2xl font-medium">Loading Tutor Profile</h1>
+      </div>
+    );
+  }
+
+  // Only show error after loading is complete
+  if (!tutorLoading && (tutorError || !tutor)) {
     if (tutorError) {
       toast({
         title: "Error loading tutor profile",
@@ -134,7 +335,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
     }
     
     return (
-      <div className="container py-24 text-center">
+      <div className="w-full py-24 text-center">
         <h1 className="text-3xl font-bold mb-4">Tutor Not Found</h1>
         <p className="text-muted-foreground mb-6">
           The tutor you're looking for doesn't exist or has been removed.
@@ -146,56 +347,37 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
     );
   }
 
-  // Show loading state
-  if (tutorLoading) {
-    return (
-      <div className="container py-24 text-center">
-        <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-primary" />
-        <h1 className="text-2xl font-medium">Loading Tutor Profile</h1>
-      </div>
-    );
-  }
-
-  // Use real data if available, otherwise fall back to mock data
-  const displayTutor = tutor || mockTutor;
-
-  // Fixed: Type-safe access to first_name and last_name properties
-  const tutorName = displayTutor ? (
-    // For tutor profile
-    ('first_name' in displayTutor && displayTutor.first_name && 'last_name' in displayTutor && displayTutor.last_name ? // For mock data
-    `${displayTutor.first_name} ${displayTutor.last_name}` : mockTutor?.name || "Unknown Tutor")
-  ) : "Unknown Tutor";
-
-  const tutorSubjects = displayTutor && 'subjects' in displayTutor && displayTutor.subjects
-    ? typeof displayTutor.subjects === 'string' 
-      ? displayTutor.subjects.split(',').map(s => s.trim()) 
+  // Get tutor data with fallbacks
+  const tutorName = tutor ? `${tutor.first_name} ${tutor.last_name}`.trim() : 'Tutor Profile';
+  const tutorSubjects = tutor && tutor.subjects
+    ? typeof tutor.subjects === 'string' 
+      ? tutor.subjects.split(',').map(s => s.trim()) 
       : []
-    : mockTutor?.subjects || [];
+    : [];
+  const tutorBio = tutor?.description || "No bio information available for this tutor.";
+  const tutorAvatar = getTutorAvatarUrl(tutor);
 
-  // Fixed: Type-safe access to description
-  const tutorBio = displayTutor && 'description' in displayTutor ? displayTutor.description : mockTutor?.bio || "No bio information available for this tutor.";
-
-  // Fixed: Type-safe access to avatar_url
-  const tutorAvatar = displayTutor && 'avatar_url' in displayTutor ? displayTutor.avatar_url : mockTutor?.profilePic || "/placeholder.svg";
+  // Log for debugging
+  console.log(`Enhanced tutor avatar URL: ${tutorAvatar} for tutor: ${tutorName}`);
 
   // Access additional tutor profile fields
-  const tutorAge = displayTutor && 'age' in displayTutor ? displayTutor.age : undefined;
-  const tutorEducation = displayTutor && 'current_education' in displayTutor ? displayTutor.current_education : undefined;
-  const tutorMajor = displayTutor && 'major' in displayTutor ? displayTutor.major : undefined;
-  const tutorYear = displayTutor && 'year' in displayTutor ? displayTutor.year : undefined;
-  const tutorPreviousEducation = displayTutor && 'previous_education' in displayTutor && Array.isArray(displayTutor.previous_education) 
-    ? displayTutor.previous_education 
+  const tutorAge = tutor?.age;
+  const tutorEducation = tutor?.current_education;
+  const tutorMajor = tutor?.major;
+  const tutorYear = tutor?.year;
+  const tutorPreviousEducation = tutor?.previous_education && Array.isArray(tutor.previous_education) 
+    ? tutor.previous_education 
     : [];
-  const tutorExtracurriculars = displayTutor && 'extracurriculars' in displayTutor && Array.isArray(displayTutor.extracurriculars) 
-    ? displayTutor.extracurriculars 
+  const tutorExtracurriculars = tutor?.extracurriculars && Array.isArray(tutor.extracurriculars) 
+    ? tutor.extracurriculars 
     : [];
-  const tutorGcse = displayTutor && 'gcse' in displayTutor && Array.isArray(displayTutor.gcse) ? displayTutor.gcse : [];
-  const tutorALevels = displayTutor && 'a-levels' in displayTutor && Array.isArray(displayTutor['a-levels']) ? displayTutor['a-levels'] : [];
-  const tutorSpm = displayTutor && 'spm' in displayTutor ? displayTutor.spm : undefined;
+  const tutorGcse = tutor?.gcse && Array.isArray(tutor.gcse) ? tutor.gcse : [];
+  const tutorALevels = tutor?.['a-levels'] && Array.isArray(tutor['a-levels']) ? tutor['a-levels'] : [];
+  const tutorSpm = tutor?.spm;
 
   return (
-    <div className="min-h-screen bg-white pt-24 pb-8">
-      <div className="container mx-auto px-4">
+    <div className="page-content">
+      <div className="content-section">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Left Sidebar - Tutor Info */}
           <div className="md:col-span-1">
@@ -204,23 +386,57 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                 <div className="bg-gradient-to-r from-purple-100 to-blue-100 h-24"></div>
                 <div className="p-6 text-center relative">
                   <Avatar className="h-24 w-24 mx-auto mt-[-3rem] border-4 border-white shadow-sm">
-                    <AvatarImage src={tutorAvatar} alt={tutorName} />
-                    <AvatarFallback>{tutorName.charAt(0)}</AvatarFallback>
+                    <AvatarImage 
+                      src={tutorAvatar} 
+                      alt={tutorName}
+                      onError={(e) => {
+                        console.error(`Failed to load avatar image: ${tutorAvatar}`);
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                    <AvatarFallback>
+                      {tutor?.first_name ? tutor.first_name.charAt(0) : ''}
+                      {tutor?.last_name ? tutor.last_name.charAt(0) : 'T'}
+                    </AvatarFallback>
                   </Avatar>
                   <h2 className="text-2xl font-bold mt-3">{tutorName}</h2>
                   
                   <div className="flex items-center justify-center gap-1 mt-2">
-                    {[...Array(5)].map((_, i) => (
+                    {[...Array(5)].map((_, i) => {
+                      // Calculate if this should be a full, partial or empty star
+                      const starValue = i + 1;
+                      let starClass = 'text-muted-foreground'; // Empty star by default
+                      
+                      if (averageRating >= starValue) {
+                        // Full star
+                        starClass = 'text-amber-500 fill-amber-500';
+                      } else if (averageRating > i && averageRating < starValue) {
+                        // Partial star (more than i but less than i+1)
+                        return (
+                          <div key={i} className="relative">
+                            {/* Empty star background */}
+                            <Star className="h-5 w-5 text-muted-foreground" />
+                            {/* Filled overlay with a clip to the percentage */}
+                            <div 
+                              className="absolute inset-0 overflow-hidden" 
+                              style={{ width: `${(averageRating - i) * 100}%` }}
+                            >
+                              <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      return (
                       <Star
                         key={i}
-                        className={`h-5 w-5 ${
-                          i < Math.floor(averageRating) 
-                            ? 'text-amber-500 fill-amber-500' 
-                            : 'text-muted-foreground'
-                        }`}
+                          className={`h-5 w-5 ${starClass}`}
                       />
-                    ))}
-                    <span className="ml-2 font-medium">{averageRating.toFixed(1)}</span>
+                      );
+                    })}
+                    <span className="ml-2 font-medium">
+                      {tutorReviews.length > 0 ? averageRating.toFixed(1) : "0.0"}
+                    </span>
                     <span className="ml-1 text-muted-foreground">({tutorReviews.length})</span>
                   </div>
                   
@@ -265,12 +481,19 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                   </div>
                 </div>
                 
-                {/* Message Button */}
+                {/* Message Button - Only shown to students */}
                 <div className="p-6 pt-4">
-                  <Button className="w-full" onClick={handleMessage}>
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    Message Tutor
-                  </Button>
+                  {user && user.role !== 'tutor' ? (
+                    <Button className="w-full" onClick={handleMessageTutor}>
+                          <MessageSquare className="h-4 w-4 mr-2" />
+                          Message Tutor
+                        </Button>
+                  ) : (
+                    <Button className="w-full" disabled={true}>
+                      <User className="h-4 w-4 mr-2" />
+                      {user?.role === 'tutor' ? 'You are a tutor' : 'Login to message'}
+                    </Button>
+                  )}
                 </div>
               </Card>
             </div>
@@ -437,10 +660,9 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                     {tutorReviews.length > 0 ? (
                       <div className="space-y-6">
                         {tutorReviews.map((review, index) => {
-                          // Get review content safely based on the structure of the review object
+                          // Get review content safely based on the structure
                           let reviewContent = "No comment provided.";
                           
-                          // Handle Supabase reviews (review field) first, then fall back to mock reviews (comment field)
                           if ('review' in review && review.review) {
                             reviewContent = String(review.review);
                           } else if ('comment' in review && review.comment) {

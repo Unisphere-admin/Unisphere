@@ -1,16 +1,24 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getTutorBySearchId } from '@/lib/db/tutors';
+import { withRouteAuth } from '@/lib/auth/validateRequest';
+import { AuthUser } from '@/lib/auth/protectResource';
 
-interface Context {
-  params: Promise<{
-    search_id: string;
-  }>
-}
-
-export async function GET(request: Request, context: Context) {
+async function getTutorProfileHandler(
+  request: NextRequest, 
+  user: AuthUser, 
+  params: { search_id: string }
+): Promise<NextResponse> {
   try {
-    // Get search_id from context params
-    const searchId = (await context.params).search_id;
+    // Check premium access or tutor status
+    if (!user.is_tutor && !user.has_access) {
+      return NextResponse.json(
+        { error: 'Premium access required' },
+        { status: 403 }
+      );
+    }
+
+    // Get search_id from params
+    const searchId = params.search_id;
     
     if (!searchId) {
       console.error('No search parameter provided');
@@ -38,3 +46,6 @@ export async function GET(request: Request, context: Context) {
     );
   }
 }
+
+// Apply authentication middleware
+export const GET = withRouteAuth(getTutorProfileHandler);

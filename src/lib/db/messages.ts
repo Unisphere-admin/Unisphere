@@ -1,4 +1,4 @@
-import { createServerClient, createRouteHandlerClientWithCookies } from './client';
+import { createRouteHandlerClientWithCookies } from './client';
 import { AuthUser, withAuth } from '../auth/protectResource';
 import { securityCheck, verifyConversationParticipant, verifyUserPermission } from './securityUtils';
 
@@ -45,10 +45,10 @@ async function _getUserConversations(authUser: AuthUser, userId: string): Promis
   authError?: string | null;
 }> {
   try {
-    // Extra security check - verify authenticated user
-    const { isValid, error: securityError } = await securityCheck(userId);
-    if (!isValid) {
-      return { conversations: [], error: null, authError: securityError || 'Authentication error' };
+    // Security check - verify authenticated user
+    const securityError = securityCheck(authUser);
+    if (securityError) {
+      return { conversations: [], error: securityError, authError: securityError };
     }
     
     if (!userId) {
@@ -155,7 +155,7 @@ async function _getUserConversations(authUser: AuthUser, userId: string): Promis
       }
       
       // Extract participant user IDs
-      const participantUserIds = [...new Set(allParticipantsData.map(p => p.user_id))];
+      const participantUserIds = Array.from(new Set(allParticipantsData.map(p => p.user_id)));
       
       // Create maps for easy lookup
       const studentProfileMap: Record<string, any> = {};
@@ -305,23 +305,23 @@ async function _getConversationById(authUser: AuthUser, conversationId: string):
   error: string | null;
 }> {
   try {
-    // Extra security check - verify authenticated user
+    // Perform basic security checks first
     const securityError = securityCheck(authUser);
     if (securityError) {
-      return { conversation: null, messages: [], error: securityError };
+      return {
+        conversation: null,
+        messages: [],
+        error: securityError
+      };
     }
     
-    if (!conversationId) {
-      return { conversation: null, messages: [], error: 'Conversation ID is required' };
-    }
-    
-    // Verify user is a participant in this conversation
+    // Verify that the user is a participant in the conversation
     const participantError = await verifyConversationParticipant(authUser, conversationId);
     if (participantError) {
-      return { 
-        conversation: null, 
-        messages: [], 
-        error: participantError 
+      return {
+        conversation: null,
+        messages: [],
+        error: participantError
       };
     }
     
@@ -561,7 +561,7 @@ async function _sendMessage(authUser: AuthUser, conversationId: string, senderId
   error: string | null;
 }> {
   try {
-    // Extra security check - verify authenticated user
+    // Security check - verify authenticated user
     const securityError = securityCheck(authUser);
     if (securityError) {
       return { message: null, error: securityError };
@@ -575,7 +575,7 @@ async function _sendMessage(authUser: AuthUser, conversationId: string, senderId
     }
     
     // Verify user is the sender
-    const permissionError = verifyUserPermission(authUser, senderId);
+    const permissionError = await verifyUserPermission(authUser, senderId);
     if (permissionError) {
       return { message: null, error: permissionError };
     }
@@ -630,7 +630,7 @@ async function _createConversation(authUser: AuthUser, creatorId: string, partic
   error: string | null;
 }> {
   try {
-    // Extra security check - verify authenticated user
+    // Security check - verify authenticated user
     const securityError = securityCheck(authUser);
     if (securityError) {
       return { conversation: null, error: securityError };
@@ -644,13 +644,13 @@ async function _createConversation(authUser: AuthUser, creatorId: string, partic
     }
     
     // Verify creator ID matches authenticated user
-    const permissionError = verifyUserPermission(authUser, creatorId);
+    const permissionError = await verifyUserPermission(authUser, creatorId);
     if (permissionError) {
       return { conversation: null, error: permissionError };
     }
     
     // Make sure creator is included in participants
-    const allParticipantIds = [...new Set([creatorId, ...participantIds])];
+    const allParticipantIds = Array.from(new Set([creatorId, ...participantIds]));
     
     // Create a server client for this request
     const client = await createRouteHandlerClientWithCookies();
@@ -705,49 +705,152 @@ async function _markConversationAsRead(authUser: AuthUser, conversationId: strin
   error: string | null;
 }> {
   try {
-    // Extra security check - verify authenticated user
+    // Security check - verify authenticated user
     const securityError = securityCheck(authUser);
     if (securityError) {
+      console.log(`Security check failed for user ${authUser.id}: ${securityError}`);
       return { success: false, error: securityError };
     }
     
     if (!conversationId || !userId) {
+      console.log('Missing required parameters:', { conversationId, userId });
       return { success: false, error: 'Conversation ID and user ID are required' };
     }
     
     // Verify user ID matches authenticated user
-    const permissionError = verifyUserPermission(authUser, userId);
+    const permissionError = await verifyUserPermission(authUser, userId);
     if (permissionError) {
+      console.log(`Permission check failed for user ${userId}: ${permissionError}`);
       return { success: false, error: permissionError };
     }
     
     // Verify user is a participant in this conversation
     const participantError = await verifyConversationParticipant(authUser, conversationId);
     if (participantError) {
+      console.log(`Participant check failed for conversation ${conversationId}: ${participantError}`);
       return { success: false, error: participantError };
     }
     
+    console.log(`DB: Attempting to update last_viewed_at for user ${userId} in conversation ${conversationId}`);
+    
     const client = await createRouteHandlerClientWithCookies();
     
-    // Update the last_viewed_at timestamp for the user in this conversation
-    const { error } = await client
+    // First, check if the participant record exists
+    const { data: participant, error: checkError } = await client
       .from('conversation_participant')
-      .update({ last_viewed_at: new Date().toISOString() })
+      .select('id, last_viewed_at')
       .eq('conversation_id', conversationId)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .single();
+      
+    if (checkError) {
+      console.error('Error checking conversation participant:', checkError.message);
+      return { success: false, error: checkError.message };
+    }
+    
+    if (!participant) {
+      console.error(`No participant record found for user ${userId} in conversation ${conversationId}`);
+      return { success: false, error: 'Participant record not found' };
+    }
+    
+    console.log(`Found participant record: ${JSON.stringify(participant)}`);
+    
+    // Update the last_viewed_at timestamp for the user in this conversation
+    const timestamp = new Date().toISOString();
+    const { data: updateData, error } = await client
+      .from('conversation_participant')
+      .update({ last_viewed_at: timestamp })
+      .eq('conversation_id', conversationId)
+      .eq('user_id', userId)
+      .select();
+      
+    console.log('Update operation result:', { updateData, error: error?.message });
       
     if (error) {
       console.error('Error updating conversation last_viewed_at:', error.message);
       return { success: false, error: error.message };
     }
     
+    if (!updateData || updateData.length === 0) {
+      console.warn('Update succeeded but no rows were updated');
+    } else {
+      console.log(`Successfully updated last_viewed_at to ${timestamp}`);
+    }
+    
     return { success: true, error: null };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Unexpected error marking conversation as read:', errorMessage);
+    if (error instanceof Error && error.stack) {
+      console.error('Stack trace:', error.stack);
+    }
     return { success: false, error: errorMessage };
   }
 }
 
 // Export the authenticated version
-export const markConversationAsRead = withAuth(_markConversationAsRead); 
+export const markConversationAsRead = withAuth(_markConversationAsRead);
+
+/**
+ * Delete a message by ID
+ */
+async function _deleteMessage(authUser: AuthUser, messageId: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  try {
+    // Security check - verify authenticated user
+    const securityError = securityCheck(authUser);
+    if (securityError) {
+      return { success: false, error: securityError };
+    }
+    
+    if (!messageId) {
+      return { success: false, error: 'Message ID is required' };
+    }
+    
+    // Create a server client for this request
+    const client = await createRouteHandlerClientWithCookies();
+    
+    // First, get the message to check ownership and related conversation
+    const { data: messageData, error: messageError } = await client
+      .from('message')
+      .select('*')
+      .eq('id', messageId)
+      .single();
+      
+    if (messageError) {
+      console.error(`Error fetching message ${messageId}:`, messageError.message);
+      return { success: false, error: 'Message not found' };
+    }
+    
+    // Verify user has permission to delete this message
+    // Users can delete their own messages or messages in conversations they participate in
+    if (messageData.sender_id !== authUser.id) {
+      // Verify user is a participant in the conversation
+      const participantError = await verifyConversationParticipant(authUser, messageData.conversation_id);
+      if (participantError) {
+        return { success: false, error: 'Not authorized to delete this message' };
+      }
+    }
+    
+    // Delete the message
+    const { error: deleteError } = await client
+      .from('message')
+      .delete()
+      .eq('id', messageId);
+      
+    if (deleteError) {
+      console.error(`Error deleting message ${messageId}:`, deleteError.message);
+      return { success: false, error: 'Failed to delete message' };
+    }
+    
+    return { success: true, error: null };
+  } catch (error) {
+    console.error(`Error in deleteMessage:`, error);
+    return { success: false, error: 'Error deleting message' };
+  }
+}
+
+// Export the authenticated version
+export const deleteMessage = withAuth(_deleteMessage); 

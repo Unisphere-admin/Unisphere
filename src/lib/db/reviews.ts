@@ -1,4 +1,5 @@
-import { createRouteHandlerClientWithCookies, createAnonymousClient } from './client';
+import { createRouteHandlerClientWithCookies } from './client';
+import { createAnonymousClient } from '@/utils/supabase/client';
 import { securityCheck, verifyUserPermission } from './securityUtils';
 import { AuthUser } from '../auth/protectResource';
 

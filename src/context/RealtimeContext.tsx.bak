@@ -1,0 +1,385 @@
+"use client";
+
+import { createContext, useContext, useCallback, ReactNode, useState, useEffect, useRef } from "react";
+import { useAuth } from "./AuthContext";
+import { createClient } from "@/utils/supabase/client";
+import { useMessages } from "./MessageContext";
+import { useSessions, ActiveSession } from "./SessionContext";
+import { toast } from "@/components/ui/sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { X, MessageSquare, Calendar } from "lucide-react";
+import { useRouter } from "next/navigation";
+
+// Define types for realtime events
+interface RealtimeMessage {
+  id: string;
+  content: string;
+  created_at: string;
+  sender_id: string;
+  conversation_id: string;
+  sender?: {
+    id: string;
+    display_name: string;
+    avatar_url: string | null;
+    is_tutor: boolean;
+  };
+}
+
+// Add typing indicator payload interface
+interface TypingIndicatorPayload {
+  user_id: string;
+  conversation_id: string;
+  is_typing: boolean;
+  display_name?: string;
+  timestamp: number;
+}
+
+interface RealtimeSession {
+  id: string;
+  status: string;
+  conversation_id: string;
+  tutor_ready: boolean;
+  student_ready: boolean;
+  tutor_id?: string;
+  student_id?: string;
+  message_id?: string;
+  started_at?: string | null;
+  ended_at?: string | null;
+  scheduled_for?: string | null;
+  name?: string | null;
+  subject?: string | null;
+  cost?: number | null;
+  [key: string]: any; // Allow for additional properties
+}
+
+// Context interface
+interface RealtimeContextType {
+  subscribeToConversation: (conversationId: string) => any | null;
+  unsubscribeFromConversation: (conversationId: string) => void;
+  broadcastMessage: (message: RealtimeMessage) => void;
+  broadcastSessionUpdate: (session: RealtimeSession) => void;
+  broadcastTypingIndicator: (conversationId: string, isTyping: boolean) => void;
+  showNotification: (messageId: string, conversationId: string, senderName: string, senderAvatar: string | null, content: string, isSessionRequest: boolean) => void;
+  connected: boolean;
+  subscribedChannels: string[];
+}
+
+// Create the context
+const RealtimeContext = createContext<RealtimeContextType | undefined>(undefined);
+
+// Hook for using the realtime context
+export const useRealtime = () => {
+  const context = useContext(RealtimeContext);
+  if (context === undefined) {
+    throw new Error("useRealtime must be used within a RealtimeProvider");
+  }
+  return context;
+};
+
+// Provider component
+export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
+  const router = useRouter();
+  const messageContext = useMessages();
+  const sessionContext = useSessions();
+  const [connected, setConnected] = useState(false);
+  const [subscribedChannels, setSubscribedChannels] = useState<string[]>([]);
+  const [hasPremiumAccess, setHasPremiumAccess] = useState<boolean | null>(null);
+  
+  // Track active subscriptions
+  const channelsRef = useRef<{ [key: string]: any }>({});
+  const supabaseRef = useRef<any>(null);
+  
+  // Track recently shown notifications to prevent duplicates
+  const recentNotifications = useRef<Map<string, number>>(new Map());
+  const NOTIFICATION_DURATION = 15000; // 15 seconds
+  const DUPLICATE_CHECK_WINDOW = 60000; // 60 seconds (was 10 seconds)
+  
+  // Define the PostgreSQL change payload type
+  type PostgresChangePayload = {
+    new: {
+      id: string;
+      participants?: Array<{ user_id: string; [key: string]: any }>;
+      [key: string]: any;
+    };
+    old: Record<string, any> | null;
+    [key: string]: any;
+  };
+  
+  // Function to check if a notification has been shown recently
+  const hasRecentlyShown = useCallback((messageId: string, conversationId: string, content: string): boolean => {
+    const now = Date.now();
+    
+    // Create a more reliable notification key that includes all relevant info
+    const notificationKey = `${messageId}-${conversationId}-${content.substring(0, 30)}`;
+    const lastShown = recentNotifications.current.get(notificationKey);
+    
+    if (!lastShown) return false;
+    
+    // If shown within last check window, consider it a duplicate
+    if (now - lastShown < DUPLICATE_CHECK_WINDOW) {
+      console.log(`Duplicate notification detected: ${notificationKey}, last shown ${now - lastShown}ms ago`);
+      return true;
+    }
+    
+    // Clean up old entries to avoid memory leaks
+    Array.from(recentNotifications.current.entries()).forEach(([id, timestamp]) => {
+      if (now - timestamp > DUPLICATE_CHECK_WINDOW * 2) { // Remove entries older than double the window
+        recentNotifications.current.delete(id);
+      }
+    });
+    
+    return false;
+  }, [DUPLICATE_CHECK_WINDOW]);
+  
+  // Centralized notification function
+  const showNotification = useCallback((
+    messageId: string,
+    conversationId: string,
+    senderName: string,
+    senderAvatar: string | null | undefined,
+    content: string,
+    isSessionRequest: boolean
+  ) => {
+    // Skip notifications for the current user's messages
+    if (user && messageId.includes(user.id)) {
+      console.log(`Skipping notification for own message: ${messageId}`);
+      return false;
+    }
+    
+    // Skip if we've already shown this notification recently
+    if (hasRecentlyShown(messageId, conversationId, content)) {
+      console.log(`Skipping duplicate notification for message: ${messageId}`);
+      return false;
+    }
+    
+    // Check if we're already on the messages page for this conversation
+    const isOnMessagesPage = messageContext?.pageVisibility?.isOnMessagesPage || false;
+    const selectedConversationId = messageContext?.selectedConversationId || null;
+    const pageVisibility = messageContext?.pageVisibility || { isVisible: true, isFocused: true };
+    
+    // Only skip notifications if ALL of these conditions are true:
+    // 1. User is on the messages page
+    // 2. This specific conversation is selected
+    // 3. The page is visible (not backgrounded)
+    // 4. The page has focus (user is actively on this tab)
+    if (isOnMessagesPage && 
+        selectedConversationId === conversationId && 
+        pageVisibility.isVisible && 
+        pageVisibility.isFocused) {
+      console.log("Skipping notification - user is already viewing this conversation");
+      // Mark as read automatically
+      messageContext?.markConversationAsRead?.(conversationId);
+      return false;
+    }
+    
+    // Record this notification to prevent duplicates - use a compound key that includes the content
+    // This helps prevent functionally identical notifications
+    const notificationKey = `${messageId}-${conversationId}-${content.substring(0, 30)}`;
+    recentNotifications.current.set(notificationKey, Date.now());
+    console.log(`Recording notification with key: ${notificationKey}`);
+    
+    // Generate a unique ID for this notification to target it specifically
+    const toastId = `msg-${messageId}`;
+    
+    // Create the notification
+    toast(
+      <div 
+        className="flex items-start gap-3 w-full transition-all cursor-pointer"
+        onClick={() => {
+          // Dismiss the notification when clicked
+          toast.dismiss(toastId);
+          // Navigate to the conversation
+          router.push(`/dashboard/messages?conversationId=${conversationId}`);
+        }}
+      >
+        <Avatar className="h-9 w-9 shrink-0">
+          <AvatarImage src={senderAvatar || undefined} />
+          <AvatarFallback>
+            {senderName?.charAt(0) || 'U'}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1">
+          <p className="text-sm font-medium">{senderName}</p>
+          <p className="text-sm text-muted-foreground line-clamp-2">
+            {isSessionRequest ? 'Sent you a session request' : content}
+          </p>
+        </div>
+        <button 
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent navigation
+            toast.dismiss(toastId); // Dismiss only this notification
+          }} 
+          className="absolute top-1 right-1 p-1 rounded-full hover:bg-muted/60 z-50"
+          aria-label="Close notification"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>,
+      {
+        id: toastId,
+        duration: NOTIFICATION_DURATION,
+        position: "top-right",
+        className: "group-[.toaster]:bg-background group-[.toaster]:border-border group-[.toaster]:shadow-lg p-3",
+        icon: isSessionRequest ? <Calendar className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />,
+      }
+    );
+    
+    return true;
+  }, [hasRecentlyShown, messageContext, router, user]);
+  
+  // Check if user has premium access
+  const checkPremiumAccess = useCallback(async () => {
+    if (!user) {
+      setHasPremiumAccess(false);
+      return false;
+    }
+    
+    try {
+      const supabase = createClient();
+      
+      // Get user data including is_tutor and has_access flags
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('is_tutor, has_access')
+        .eq('id', user.id)
+        .single();
+      
+      if (error) {
+        console.error('Error checking user premium access:', error);
+        setHasPremiumAccess(false);
+        return false;
+      }
+      
+      // User has access if they are a tutor OR have premium access
+      const hasAccess = userData?.is_tutor === true || userData?.has_access === true;
+      setHasPremiumAccess(hasAccess);
+      return hasAccess;
+    } catch (error) {
+      console.error('Error checking user premium access:', error);
+      setHasPremiumAccess(false);
+      return false;
+    }
+  }, [user]);
+
+  // Initialize Supabase client once
+  useEffect(() => {
+    if (!user) return;
+    
+    // Check premium access first
+    checkPremiumAccess().then(hasAccess => {
+      // Only initialize Supabase realtime client if user has premium access
+      if (hasAccess) {
+        // Create Supabase client only once
+        if (!supabaseRef.current) {
+          supabaseRef.current = createClient();
+          setConnected(true);
+          console.log("Initialized Supabase realtime client");
+        }
+      } else {
+        console.log("User does not have premium access, skipping realtime client initialization");
+        // Clean up any existing channels when premium access is revoked
+        if (supabaseRef.current) {
+          // Unsubscribe from all channels
+          Object.keys(channelsRef.current).forEach(channelKey => {
+            try {
+              const channel = channelsRef.current[channelKey];
+              if (channel && typeof channel.unsubscribe === 'function') {
+                channel.unsubscribe();
+                console.log(`Unsubscribed from channel: ${channelKey}`);
+              }
+            } catch (error) {
+              console.error(`Error unsubscribing from channel ${channelKey}:`, error);
+            }
+          });
+          
+          // Reset channel references
+          channelsRef.current = {};
+          setSubscribedChannels([]);
+          
+          // Disconnect the client
+          supabaseRef.current = null;
+          setConnected(false);
+          console.log("Cleaned up realtime connections due to lack of premium access");
+        }
+      }
+    });
+    
+    return () => {
+      // Clean up all channels when unmounting
+      Object.values(channelsRef.current).forEach((channel: any) => {
+        if (channel?.unsubscribe) {
+          channel.unsubscribe();
+        }
+      });
+      
+      setSubscribedChannels([]);
+      channelsRef.current = {};
+    };
+  }, [user, checkPremiumAccess]);
+
+  // Handle realtime message events - separated from subscription logic
+  const handleRealtimeMessage = useCallback((payload: { payload: RealtimeMessage }) => {
+    if (!payload.payload) return;
+    
+    const message = payload.payload;
+    console.log('Received realtime message:', message);
+    
+    // Always handle message state updates regardless of sender
+    if (messageContext?.handleRealtimeMessage) {
+      const convertedMessage = {
+        ...message,
+        timestamp: new Date(message.created_at),
+        read: false // Assume unread for new realtime messages
+      };
+      messageContext.handleRealtimeMessage(convertedMessage);
+    }
+    
+    // Only show notifications for messages from other users
+    // Do this check after state update to ensure UI consistency
+    if (!user || message.sender_id === user.id) {
+      console.log('Skipping notification for own message:', message.id);
+      return;
+    }
+    
+    // Check if we're already on the messages page for this conversation
+    const isOnMessagesPage = messageContext?.pageVisibility?.isOnMessagesPage || false;
+    const selectedConversationId = messageContext?.selectedConversationId || null;
+    const pageVisibility = messageContext?.pageVisibility || { isVisible: true, isFocused: true };
+    
+    // Skip notification if user is on messages page, viewing this conversation and page is visible/focused
+    if (isOnMessagesPage && 
+        selectedConversationId === message.conversation_id && 
+        pageVisibility.isVisible && 
+        pageVisibility.isFocused) {
+      console.log("Skipping notification - user is already viewing this conversation");
+      // Mark as read automatically
+      messageContext?.markConversationAsRead?.(message.conversation_id);
+      return;
+    }
+    
+    // Check if we've already shown this notification recently using new parameters
+    if (message.id && message.conversation_id && message.content && 
+        hasRecentlyShown(message.id, message.conversation_id, message.content)) {
+      console.log(`Skipping duplicate notification via early check for message: ${message.id}`);
+      return;
+    }
+  }, [hasRecentlyShown, messageContext]);
+
+  return (
+    <RealtimeContext.Provider
+      value={{
+        subscribeToConversation,
+        unsubscribeFromConversation,
+        broadcastMessage,
+        broadcastSessionUpdate,
+        broadcastTypingIndicator,
+        showNotification,
+        connected,
+        subscribedChannels,
+      }}
+    >
+      {children}
+    </RealtimeContext.Provider>
+  );
+};

@@ -1,1153 +1,783 @@
-import { createContext, useContext, useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
-import { RealtimeChannel } from '@supabase/supabase-js';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Message } from '@/types/conversation';
-import { getFromCache, saveToCache, CACHE_CONFIG } from '@/lib/caching';
+"use client";
 
-// Define TutoringSession type
-interface TutoringSession {
+import { createContext, useContext, useCallback, ReactNode, useState, useEffect, useRef } from "react";
+import { useAuth } from "./AuthContext";
+import { createClient } from "@/utils/supabase/client";
+import { useMessages } from "./MessageContext";
+import { useSessions, ActiveSession } from "./SessionContext";
+import { toast } from "@/components/ui/sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { X, MessageSquare, Calendar } from "lucide-react";
+import { useRouter } from "next/navigation";
+
+// Define types for realtime events
+interface RealtimeMessage {
   id: string;
+  content: string;
   created_at: string;
-  updated_at: string;
+  sender_id: string;
   conversation_id: string;
-  message_id: string;
-  tutor_id: string;
-  student_id: string;
-  status: 'requested' | 'accepted' | 'started' | 'ended' | 'cancelled';
+  sender?: {
+    id: string;
+    display_name: string;
+    avatar_url: string | null;
+    is_tutor: boolean;
+  };
+}
+
+// Add typing indicator payload interface
+interface TypingIndicatorPayload {
+  user_id: string;
+  conversation_id: string;
+  is_typing: boolean;
+  display_name?: string;
+  timestamp: number;
+}
+
+interface RealtimeSession {
+  id: string;
+  status: string;
+  conversation_id: string;
   tutor_ready: boolean;
   student_ready: boolean;
-  started_at: string | null;
-  ended_at: string | null;
+  tutor_id?: string;
+  student_id?: string;
+  message_id?: string;
+  started_at?: string | null;
+  ended_at?: string | null;
+  scheduled_for?: string | null;
+  name?: string | null;
+  subject?: string | null;
+  cost?: number | null;
+  [key: string]: any; // Allow for additional properties
 }
 
+// Context interface
 interface RealtimeContextType {
-  sendMessage: (conversationId: string, message: Message) => Promise<void>;
-  messages: Record<string, Message[]>;
-  updateMessages: (conversationId: string, messages: Message[]) => void;
-  isTyping: Record<string, Set<string>>;
-  setTyping: (conversationId: string, typingStatus: string | null) => void;
-  subscribeToNewConversation: (conversationId: string) => Promise<void>;
-  subscribeToBroadcast: (event: string, callback: () => void) => () => void;
-  // Add tutoring session related functionality
-  tutoringSessions: Record<string, TutoringSession[]>;
-  activeTutoringSessions: Record<string, TutoringSession | null>;
-  tutoringSessionsByMessage: Record<string, TutoringSession>;
-  broadcastSessionUpdate: (session: TutoringSession) => Promise<void>;
+  subscribeToConversation: (conversationId: string) => any | null;
+  unsubscribeFromConversation: (conversationId: string) => void;
+  broadcastMessage: (message: RealtimeMessage) => void;
+  broadcastSessionUpdate: (session: RealtimeSession) => void;
+  broadcastTypingIndicator: (conversationId: string, isTyping: boolean) => void;
+  showNotification: (messageId: string, conversationId: string, senderName: string, senderAvatar: string | null, content: string, isSessionRequest: boolean) => void;
+  connected: boolean;
+  subscribedChannels: string[];
 }
 
-export const RealtimeContext = createContext<RealtimeContextType | null>(null);
+// Create the context
+const RealtimeContext = createContext<RealtimeContextType | undefined>(undefined);
 
-export function RealtimeProvider({ children }: { children: React.ReactNode }) {
-  const [channels, setChannels] = useState<Record<string, RealtimeChannel>>({});
-  const [messages, setMessages] = useState<Record<string, Message[]>>({});
-  const [isTyping, setIsTyping] = useState<Record<string, Set<string>>>({});
-  // Add state for tutoring sessions
-  const [tutoringSessions, setTutoringSessions] = useState<Record<string, TutoringSession[]>>({});
-  const [activeTutoringSessions, setActiveTutoringSessions] = useState<Record<string, TutoringSession | null>>({});
-  const [tutoringSessionsByMessage, setTutoringSessionsByMessage] = useState<Record<string, TutoringSession>>({});
+// Provider component
+export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
+  const router = useRouter();
+  const messageContext = useMessages();
+  const sessionContext = useSessions();
+  const [connected, setConnected] = useState(false);
+  const [subscribedChannels, setSubscribedChannels] = useState<string[]>([]);
+  const [hasPremiumAccess, setHasPremiumAccess] = useState<boolean | null>(null);
   
-  const typingTimeouts = useRef<Record<string, Record<string, NodeJS.Timeout>>>({});
-  const supabase = createClientComponentClient();
-  const broadcastSubscriptions = useRef<Record<string, Set<() => void>>>({});
-  const isMounted = useRef(true);
-  const lastBroadcastTime = useRef<Record<string, number>>({});
-  const pendingSubscriptions = useRef<Record<string, boolean>>({});
-  const lastApiCallTime = useRef<Record<string, number>>({});
-  const sessionUpdateQueue = useRef<Record<string, NodeJS.Timeout>>({});
-
-  // Define the broadcast function early so it can be used in other callbacks
-  const broadcast = useCallback((event: string) => {
-    if (!isMounted.current) return;
-    broadcastSubscriptions.current[event]?.forEach(callback => callback());
-  }, []);
-
-  // Function to update messages for a conversation
-  const updateMessages = useCallback((conversationId: string, newMessages: Message[]) => {
-    if (!isMounted.current) return;
+  // Track active subscriptions
+  const channelsRef = useRef<{ [key: string]: any }>({});
+  const supabaseRef = useRef<any>(null);
+  
+  // Track recently shown notifications to prevent duplicates
+  const recentNotifications = useRef<Map<string, number>>(new Map());
+  const NOTIFICATION_DURATION = 15000; // 15 seconds
+  const DUPLICATE_CHECK_WINDOW = 60000; // 60 seconds (was 10 seconds)
+  
+  // Define the PostgreSQL change payload type
+  type PostgresChangePayload = {
+    new: {
+      id: string;
+      participants?: Array<{ user_id: string; [key: string]: any }>;
+      [key: string]: any;
+    };
+    old: Record<string, any> | null;
+    [key: string]: any;
+  };
+  
+  // Function to check if a notification has been shown recently
+  const hasRecentlyShown = useCallback((messageId: string, conversationId: string, content: string): boolean => {
+    const now = Date.now();
     
-    setMessages(prev => {
-      const updatedMessages = {
-        ...prev,
-        [conversationId]: newMessages
-      };
-      
-      // Also update cache
-      const cacheKey = `${CACHE_CONFIG.MESSAGES_CACHE_PREFIX}${conversationId}`;
-      saveToCache(cacheKey, newMessages);
-      
-      return updatedMessages;
-    });
-  }, []);
-
-  // Function to clear typing state for a user
-  const clearTypingState = useCallback(async (conversationId: string, userId: string) => {
-    if (!isMounted.current) return;
-
-    // Clear the timeout
-    if (typingTimeouts.current[conversationId]?.[userId]) {
-      clearTimeout(typingTimeouts.current[conversationId][userId]);
-      delete typingTimeouts.current[conversationId][userId];
-    }
-
-    // Update typing state
-    setIsTyping(prev => {
-      const newTyping = { ...prev };
-      if (newTyping[conversationId]) {
-        newTyping[conversationId].delete(userId);
-        // If no one is typing anymore, remove the conversation entry
-        if (newTyping[conversationId].size === 0) {
-          delete newTyping[conversationId];
-        }
-      }
-      return newTyping;
-    });
-
-    // Broadcast typing end through channel
-    const channel = channels[conversationId];
-    if (channel) {
-      await channel.send({
-        type: 'broadcast',
-        event: 'typing',
-        payload: { userId: null, stoppedTypingUserId: userId }
-      });
-    }
-  }, [channels]);
-
-  // Function to set typing status
-  const setTyping = useCallback(async (conversationId: string, typingStatus: string | null) => {
-    if (!isMounted.current) return;
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // Initialize typing timeouts for this conversation if not exists
-    if (!typingTimeouts.current[conversationId]) {
-      typingTimeouts.current[conversationId] = {};
-    }
-
-    // Clear existing timeout for this user if exists
-    if (typingTimeouts.current[conversationId][user.id]) {
-      clearTimeout(typingTimeouts.current[conversationId][user.id]);
-      delete typingTimeouts.current[conversationId][user.id];
-    }
-
-    if (typingStatus) {
-      // Broadcast typing status through channel
-      const channel = channels[conversationId];
-      if (channel) {
-        await channel.send({
-          type: 'broadcast',
-          event: 'typing',
-          payload: { userId: user.id }
-        });
-      }
-
-      // Set new timeout for this user
-      typingTimeouts.current[conversationId][user.id] = setTimeout(() => {
-        clearTypingState(conversationId, user.id);
-      }, 3000);
-    } else {
-      // If typingStatus is null, clear typing state for the current user
-      clearTypingState(conversationId, user.id);
-    }
-  }, [channels, clearTypingState]);
-
-  // Channel subscription handler for typing events
-  const handleTypingEvent = useCallback(async ({ payload }: any, conversationId: string) => {
-    if (!isMounted.current) return;
+    // Create a more reliable notification key that includes all relevant info
+    const notificationKey = `${messageId}-${conversationId}-${content.substring(0, 30)}`;
+    const lastShown = recentNotifications.current.get(notificationKey);
     
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    if (payload.userId) {
-      // User started typing
-      if (payload.userId !== user.id) { // Don't show own typing indicator
-        setIsTyping(prev => {
-          const newTyping = { ...prev };
-          if (!newTyping[conversationId]) {
-            newTyping[conversationId] = new Set();
-          }
-          newTyping[conversationId].add(payload.userId);
-          return newTyping;
-        });
-
-        // Set timeout to clear typing state
-        if (!typingTimeouts.current[conversationId]) {
-          typingTimeouts.current[conversationId] = {};
-        }
-        if (typingTimeouts.current[conversationId][payload.userId]) {
-          clearTimeout(typingTimeouts.current[conversationId][payload.userId]);
-        }
-        typingTimeouts.current[conversationId][payload.userId] = setTimeout(() => {
-          clearTypingState(conversationId, payload.userId);
-        }, 3000);
-      }
-    } else if (payload.stoppedTypingUserId) {
-      // User stopped typing
-      if (payload.stoppedTypingUserId !== user.id) { // Don't handle own typing end
-        clearTypingState(conversationId, payload.stoppedTypingUserId);
-      }
-    }
-  }, [clearTypingState]);
-
-  // Add a cleanup function to remove old sessions
-  const cleanupStaleSessions = useCallback((conversationId: string) => {
-    if (!isMounted.current) return;
+    if (!lastShown) return false;
     
-    setTutoringSessions(prev => {
-      const currentSessions = [...(prev[conversationId] || [])];
-      
-      // KEEP ALL sessions by default - commenting out the cleanup logic
-      // Instead of removing, we'll just log that we found some old sessions but kept them
-      const now = Date.now();
-      const oneHourAgo = now - (60 * 60 * 1000);
-      
-      // Count old sessions but don't remove them
-      const oldSessions = currentSessions.filter(session => {
-        if (['cancelled', 'ended'].includes(session.status)) {
-        const updatedTime = new Date(session.updated_at).getTime();
-          return updatedTime <= oneHourAgo;
-        }
-        return false;
-      });
-      
-      if (oldSessions.length > 0) {
-        console.log(`Found ${oldSessions.length} historical sessions - keeping all for display purposes`);
-          }
-      
-      // Keep all sessions - don't filter anything out
-      return prev;
+    // If shown within last check window, consider it a duplicate
+    if (now - lastShown < DUPLICATE_CHECK_WINDOW) {
+      console.log(`Duplicate notification detected: ${notificationKey}, last shown ${now - lastShown}ms ago`);
+      return true;
+    }
+    
+    // Clean up old entries to avoid memory leaks
+    Array.from(recentNotifications.current.entries()).forEach(([id, timestamp]) => {
+      if (now - timestamp > DUPLICATE_CHECK_WINDOW * 2) { // Remove entries older than double the window
+        recentNotifications.current.delete(id);
+      }
     });
-  }, [isMounted]);
-
-  // Function to handle tutoring sessions for a conversation
-  const loadTutoringSessions = useCallback(async (conversationId: string) => {
+    
+    return false;
+  }, [DUPLICATE_CHECK_WINDOW]);
+  
+  // Centralized notification function
+  const showNotification = useCallback((
+    messageId: string,
+    conversationId: string,
+    senderName: string,
+    senderAvatar: string | null | undefined,
+    content: string,
+    isSessionRequest: boolean
+  ) => {
+    // Skip notifications for the current user's messages
+    if (user && messageId.includes(user.id)) {
+      console.log(`Skipping notification for own message: ${messageId}`);
+      return false;
+    }
+    
+    // Skip if we've already shown this notification recently
+    if (hasRecentlyShown(messageId, conversationId, content)) {
+      console.log(`Skipping duplicate notification for message: ${messageId}`);
+      return false;
+    }
+    
+    // Check if we're already on the messages page for this conversation
+    const isOnMessagesPage = messageContext?.pageVisibility?.isOnMessagesPage || false;
+    const selectedConversationId = messageContext?.selectedConversationId || null;
+    const pageVisibility = messageContext?.pageVisibility || { isVisible: true, isFocused: true };
+    
+    // Only skip notifications if ALL of these conditions are true:
+    // 1. User is on the messages page
+    // 2. This specific conversation is selected
+    // 3. The page is visible (not backgrounded)
+    // 4. The page has focus (user is actively on this tab)
+    if (isOnMessagesPage && 
+        selectedConversationId === conversationId && 
+        pageVisibility.isVisible && 
+        pageVisibility.isFocused) {
+      console.log("Skipping notification - user is already viewing this conversation");
+      // Mark as read automatically
+      messageContext?.markConversationAsRead?.(conversationId);
+      return false;
+    }
+    
+    // Record this notification to prevent duplicates - use a compound key that includes the content
+    // This helps prevent functionally identical notifications
+    const notificationKey = `${messageId}-${conversationId}-${content.substring(0, 30)}`;
+    recentNotifications.current.set(notificationKey, Date.now());
+    console.log(`Recording notification with key: ${notificationKey}`);
+    
+    // Generate a unique ID for this notification to target it specifically
+    const toastId = `msg-${messageId}`;
+    
+    // Create the notification
+    toast(
+      <div 
+        className="flex items-start gap-3 w-full transition-all cursor-pointer"
+        onClick={() => {
+          // Dismiss the notification when clicked
+          toast.dismiss(toastId);
+          // Navigate to the conversation
+          router.push(`/dashboard/messages?conversationId=${conversationId}`);
+        }}
+      >
+        <Avatar className="h-9 w-9 shrink-0">
+          <AvatarImage src={senderAvatar || undefined} />
+          <AvatarFallback>
+            {senderName?.charAt(0) || 'U'}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1">
+          <p className="text-sm font-medium">{senderName}</p>
+          <p className="text-sm text-muted-foreground line-clamp-2">
+            {isSessionRequest ? 'Sent you a session request' : content}
+          </p>
+        </div>
+        <button 
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent navigation
+            toast.dismiss(toastId); // Dismiss only this notification
+          }} 
+          className="absolute top-1 right-1 p-1 rounded-full hover:bg-muted/60 z-50"
+          aria-label="Close notification"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>,
+      {
+        id: toastId,
+        duration: NOTIFICATION_DURATION,
+        position: "top-right",
+        className: "group-[.toaster]:bg-background group-[.toaster]:border-border group-[.toaster]:shadow-lg p-3",
+        icon: isSessionRequest ? <Calendar className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />,
+      }
+    );
+    
+    return true;
+  }, [hasRecentlyShown, messageContext, router, user]);
+  
+  // Check if user has premium access
+  const checkPremiumAccess = useCallback(async () => {
+    if (!user) {
+      setHasPremiumAccess(false);
+      return false;
+    }
+    
     try {
-      if (!conversationId || !isMounted.current) return;
-      
-      // Clean up stale sessions first
-      cleanupStaleSessions(conversationId);
-      
-      // Use debouncing to prevent too many calls in quick succession
-      const now = Date.now();
-      const lastCall = lastApiCallTime.current[`tutoring_sessions_${conversationId}`];
-      
-      // Only allow a new API call if it's been at least 3 seconds since the last one
-      // unless it's the first call for this conversation
-      if (lastCall && (now - lastCall < 3000)) {
-        console.log(`Skipping loadTutoringSessions for ${conversationId} - called too recently`);
-        return;
-      }
-      
-      // Update the last call time
-      lastApiCallTime.current[`tutoring_sessions_${conversationId}`] = now;
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.error('No authenticated user found when loading sessions');
-        return;
-      }
-
-      console.log(`Loading tutoring sessions for conversation: ${conversationId}`);
-      
-      // Get conversation participants to ensure we only show relevant sessions
-      const { data: participants, error: participantsError } = await supabase
-        .from('conversation_participant')
-        .select('user_id')
-        .eq('conversation_id', conversationId);
-        
-      if (participantsError || !participants) {
-        console.error('Failed to fetch conversation participants:', participantsError);
-        return;
-      }
-      
-      // Create a set of participant IDs for this conversation
-      const conversationParticipantIds = new Set(participants.map(p => p.user_id));
-      
-      // Fetch tutoring sessions from the API
-      const response = await fetch(`/api/tutoring-sessions?conversation_id=${conversationId}`);
+      // Use the API route instead of direct database access
+      const response = await fetch('/api/auth/session', {
+        credentials: 'include',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
       
       if (!response.ok) {
-        console.error('Failed to fetch tutoring sessions:', response.statusText);
-        return;
+        console.error('Error checking user premium access:', response.statusText);
+        setHasPremiumAccess(false);
+        return false;
       }
       
       const data = await response.json();
-      const allSessions = data.sessions || [];
       
-      // First filter by conversation_id, then by participants
-      const sessions = allSessions.filter((session: TutoringSession) => 
-        session.conversation_id === conversationId &&
-        conversationParticipantIds.has(session.student_id) && 
-        conversationParticipantIds.has(session.tutor_id)
-      );
-      
-      console.log(`Found ${sessions.length} matching tutoring sessions for conversation ${conversationId} (filtered from ${allSessions.length} total)`, sessions);
-      
-      // Create a map of message_id to tutoring session
-      // If multiple sessions exist for the same message_id, prioritize active sessions
-      const sessionsMap: Record<string, TutoringSession> = {};
-      
-      // Group sessions by message_id
-      const sessionsByMessage: Record<string, TutoringSession[]> = {};
-      sessions.forEach((session: TutoringSession) => {
-        if (!sessionsByMessage[session.message_id]) {
-          sessionsByMessage[session.message_id] = [];
+      // User has access if they are a tutor OR have premium access
+      const hasAccess = data.user?.role === 'tutor' || data.user?.has_access === true;
+      setHasPremiumAccess(hasAccess);
+      return hasAccess;
+    } catch (error) {
+      console.error('Error checking user premium access:', error);
+      setHasPremiumAccess(false);
+      return false;
+    }
+  }, [user]);
+
+  // Initialize Supabase client once
+  useEffect(() => {
+    if (!user) return;
+    
+    // Check premium access first
+    checkPremiumAccess().then(hasAccess => {
+      // Only initialize Supabase realtime client if user has premium access
+      if (hasAccess) {
+        // Create Supabase client only once
+        if (!supabaseRef.current) {
+          supabaseRef.current = createClient();
+          setConnected(true);
+          console.log("Initialized Supabase realtime client");
         }
-        sessionsByMessage[session.message_id].push(session);
-      });
-      
-      // For each message_id, pick the appropriate session (prioritize active ones)
-      Object.entries(sessionsByMessage).forEach(([messageId, messageSessions]) => {
-        // Sort sessions: active first, then by most recent
-        messageSessions.sort((a, b) => {
-          // Active sessions (requested, accepted, started) have priority
-          const aActive = ['requested', 'accepted', 'started'].includes(a.status);
-          const bActive = ['requested', 'accepted', 'started'].includes(b.status);
-          
-          if (aActive && !bActive) return -1;
-          if (!aActive && bActive) return 1;
-          
-          // If both have same active status, sort by most recent
-          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-        });
-        
-        // Use the highest priority session for this message
-        const bestSession = messageSessions[0];
-        console.log(`Mapping message ${messageId} to session ${bestSession.id} (status: ${bestSession.status})`);
-        sessionsMap[messageId] = bestSession;
-      });
-      
-      // Properly prioritize sessions to determine which one should be active
-      // Step 1: Find all active sessions (requested, accepted, started)
-      const activeOnlySessions = sessions.filter(
-        (s: TutoringSession) => s.status === 'requested' || s.status === 'accepted' || s.status === 'started'
-      );
-      
-      // Step 2: Set the active session (most recent one if multiple active exist)
-      let activeSession: TutoringSession | null = null;
-      if (activeOnlySessions.length > 0) {
-        // Sort by updated_at descending to get the most recently updated active session
-        activeOnlySessions.sort((a: TutoringSession, b: TutoringSession) => 
-          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-        );
-        activeSession = activeOnlySessions[0];
-        console.log('Set active session (from active only):', activeSession);
       } else {
-        // If no active sessions exist, check if there's a recently cancelled/ended one to show temporarily
-        const recentlyChangedSessions = sessions.filter(
-          (s: TutoringSession) => {
-            if (s.status === 'cancelled' || s.status === 'ended') {
-              const updatedTime = new Date(s.updated_at).getTime();
-              const now = Date.now();
-              const thirtySecondsAgo = now - 30 * 1000; // Only show for 30 seconds
-              return updatedTime > thirtySecondsAgo;
-            }
-            return false;
-          }
-        );
-        
-        if (recentlyChangedSessions.length > 0) {
-          // Sort by updated_at descending
-          recentlyChangedSessions.sort((a: TutoringSession, b: TutoringSession) => 
-            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-          );
-          activeSession = recentlyChangedSessions[0];
-          console.log('Set active session (from recently changed):', activeSession);
-          
-          // Only auto-remove cancelled sessions (but keep ended sessions visible for review purposes)
-          if (activeSession && activeSession.status === 'cancelled') {
-            setTimeout(() => {
-              if (isMounted.current) {
-                setActiveTutoringSessions(prev => {
-                  const current = prev[conversationId];
-                  if (current && current.id === activeSession?.id && current.status === 'cancelled') {
-                    console.log(`Auto-removing cancelled session from active list after timeout`);
-                    return {
-                      ...prev,
-                      [conversationId]: null
-                    };
-                  }
-                  return prev;
-                });
+        console.log("User does not have premium access, skipping realtime client initialization");
+        // Clean up any existing channels when premium access is revoked
+        if (supabaseRef.current) {
+          // Unsubscribe from all channels
+          Object.keys(channelsRef.current).forEach(channelKey => {
+            try {
+              const channel = channelsRef.current[channelKey];
+              if (channel && typeof channel.unsubscribe === 'function') {
+                channel.unsubscribe();
+                console.log(`Unsubscribed from channel: ${channelKey}`);
               }
-            }, 5000);
-          }
-        }
-      }
-      
-      // Update state
-      if (isMounted.current) {
-        setTutoringSessions(prev => {
-          const updated = {
-            ...prev,
-            [conversationId]: sessions
-          };
-          console.log(`Updated tutoringSessions for conversation ${conversationId}:`, updated[conversationId]);
-          return updated;
-        });
-        
-        setActiveTutoringSessions(prev => {
-          console.log(`Setting active session for ${conversationId}:`, activeSession);
-          return {
-            ...prev,
-            [conversationId]: activeSession
-          };
-        });
-        
-        setTutoringSessionsByMessage(prev => {
-          // Create a new map with only sessions for the current conversation, 
-          // removing any sessions from other conversations that might be mapped to the same message IDs
-          const newSessionsMap = { ...prev };
-          
-          // First, remove any existing mappings for messages in this conversation
-          // to avoid keeping stale sessions from the same conversation
-          Object.keys(newSessionsMap).forEach(msgId => {
-            if (newSessionsMap[msgId]?.conversation_id === conversationId) {
-              delete newSessionsMap[msgId];
+            } catch (error) {
+              console.error(`Error unsubscribing from channel ${channelKey}:`, error);
             }
           });
           
-          // Now add the new session mappings
-          Object.entries(sessionsMap).forEach(([msgId, session]) => {
-            newSessionsMap[msgId] = session;
-          });
+          // Reset channel references
+          channelsRef.current = {};
+          setSubscribedChannels([]);
           
-          console.log('Updated tutoringSessionsByMessage for conversation:', conversationId, newSessionsMap);
-          return newSessionsMap;
-        });
-      }
-      
-      // Broadcast a tutoring session update event
-      broadcast('tutoring_session_update');
-      
-      return sessions;
-    } catch (error) {
-      console.error('Error loading tutoring sessions:', error);
-      return [];
-    }
-  }, [supabase, broadcast, cleanupStaleSessions]);
-
-  // Subscribe to tutoring session changes for a conversation
-  const subscribeTutoringSessionsForConversation = useCallback(async (conversationId: string) => {
-    try {
-      if (!conversationId || !isMounted.current) return;
-      
-      // Create a subscription channel for tutoring_session table
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      
-      console.log(`Setting up tutoring session subscription for conversation: ${conversationId}`);
-      
-      // Create a specific channel for the conversation's tutoring updates
-      const channelName = `tutoring_session:conversation:${conversationId}`;
-      console.log(`Creating channel with name: ${channelName}`);
-      
-      const sessionChannel = supabase.channel(channelName)
-        // Use broadcast for session updates instead of postgres changes
-        .on('broadcast', { event: 'session_update' }, async (payload) => {
-          console.log('Tutoring session update broadcast received:', payload);
-          
-          if (payload.payload?.session) {
-            const session = payload.payload.session as TutoringSession;
-            
-            if (!session || !isMounted.current) return;
-            
-            // First check if this session belongs to this conversation
-            if (session.conversation_id !== conversationId) {
-              console.log(`Session ${session.id} is for conversation ${session.conversation_id}, not ${conversationId}, ignoring update`);
-              return;
-            }
-            
-            // Get conversation participants to ensure the session involves users in this conversation
-            const { data: participants, error: participantsError } = await supabase
-              .from('conversation_participant')
-              .select('user_id')
-              .eq('conversation_id', conversationId);
-              
-            if (participantsError || !participants) {
-              console.error('Failed to fetch conversation participants for session update:', participantsError);
-              return;
-            }
-            
-            // Create a set of participant IDs for this conversation
-            const conversationParticipantIds = new Set(participants.map(p => p.user_id));
-            
-            // Only process this session if both tutor and student are participants in this conversation
-            const isSessionForThisConversation = 
-              conversationParticipantIds.has(session.student_id) && 
-              conversationParticipantIds.has(session.tutor_id);
-              
-                          if (!isSessionForThisConversation) {
-              console.log(`Session ${session.id} involves users not in conversation ${conversationId}, ignoring update`);
-              return;
-            }
-            
-            // Additional check to ensure session is for this conversation
-            if (session.conversation_id !== conversationId) {
-              console.log(`Session ${session.id} belongs to conversation ${session.conversation_id}, not ${conversationId}, ignoring update`);
-              return;
-            }
-            
-            // Update sessions list
-            setTutoringSessions(prev => {
-              const currentSessions = [...(prev[conversationId] || [])];
-              const index = currentSessions.findIndex(s => s.id === session.id);
-              
-              if (index >= 0) {
-                currentSessions[index] = session;
-                console.log(`Updated session in list: ${session.id}, status: ${session.status}`);
-              } else {
-                currentSessions.push(session);
-                console.log(`Added new session to list: ${session.id}, status: ${session.status}`);
-              }
-              
-              // Rebuild the message mapping to avoid conflicts
-              // Group sessions by message_id
-              const sessionsByMessage: Record<string, TutoringSession[]> = {};
-              currentSessions.forEach(s => {
-                if (!sessionsByMessage[s.message_id]) {
-                  sessionsByMessage[s.message_id] = [];
-                }
-                sessionsByMessage[s.message_id].push(s);
-              });
-              
-              // For each message_id, pick the most appropriate session
-              const updatedSessionsMap: Record<string, TutoringSession> = {};
-              Object.entries(sessionsByMessage).forEach(([messageId, messageSessions]) => {
-                // Sort sessions: active first, then by most recent
-                messageSessions.sort((a, b) => {
-                  const aActive = ['requested', 'accepted', 'started'].includes(a.status);
-                  const bActive = ['requested', 'accepted', 'started'].includes(b.status);
-                  
-                  if (aActive && !bActive) return -1;
-                  if (!aActive && bActive) return 1;
-                  
-                  return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-                });
-                
-                updatedSessionsMap[messageId] = messageSessions[0];
-              });
-              
-              // Update the message mapping
-              setTutoringSessionsByMessage(prev => {
-                console.log('Updating message mapping after broadcast update:', updatedSessionsMap);
-                return updatedSessionsMap;
-              });
-              
-              // After updating the session, determine which session should be active
-              let shouldUpdateActiveSession = false;
-              let newActiveSession: TutoringSession | null = null;
-              
-              // Find all active sessions (not ended or cancelled)
-              const activeSessions = currentSessions.filter(
-                s => s.status === 'requested' || s.status === 'accepted' || s.status === 'started'
-              );
-              
-              // If there are active sessions, pick the most recent one
-              if (activeSessions.length > 0) {
-                activeSessions.sort((a, b) => 
-                  new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-                );
-                newActiveSession = activeSessions[0];
-                shouldUpdateActiveSession = true;
-                console.log(`Setting active session to most recent active: ${newActiveSession.id}`);
-              } 
-              // If there are no active sessions but this update is for a cancelled/ended session
-              else if (session.status === 'cancelled' || session.status === 'ended') {
-                // Show it temporarily
-                newActiveSession = session;
-                shouldUpdateActiveSession = true;
-                console.log(`Setting temporarily active cancelled/ended session: ${session.id}`);
-                
-                // Auto-remove after 5 seconds
-                setTimeout(() => {
-                  if (isMounted.current) {
-                    setActiveTutoringSessions(current => {
-                      const activeNow = current[conversationId];
-                      if (activeNow && activeNow.id === session.id) {
-                        console.log(`Auto-removing ${session.status} session from active list after timeout`);
-                        return {
-                          ...current,
-                          [conversationId]: null
-                        };
-                      }
-                      return current;
-                    });
-                  }
-                }, 5000);
-              }
-              
-              // Update the active session if needed
-              if (shouldUpdateActiveSession) {
-                setActiveTutoringSessions(currentActive => ({
-                  ...currentActive,
-                  [conversationId]: newActiveSession
-                }));
-              }
-              
-              return {
-                ...prev,
-                [conversationId]: currentSessions
-              };
-            });
-            
-            // Broadcast an internal update event
-            broadcast('tutoring_session_update');
-          }
-        })
-        // Also subscribe to session_list_update event to refresh the full list
-        .on('broadcast', { event: 'session_list_update' }, (payload) => {
-          if (!isMounted.current) return;
-          
-          console.log('Session list update broadcast received, refreshing sessions');
-          
-          // Check if the update is for this conversation
-          if (payload.payload?.conversation_id && payload.payload.conversation_id !== conversationId) {
-            console.log(`Session list update is for conversation ${payload.payload.conversation_id}, not ${conversationId}, ignoring`);
-            return;
-          }
-          
-          // Add stronger debouncing to avoid multiple refreshes in rapid succession
-          const now = Date.now();
-          const lastUpdateTime = lastBroadcastTime.current[`session_list_${conversationId}`] || 0;
-          const timeSinceLastUpdate = now - lastUpdateTime;
-          
-          // Only refresh if it's been at least 5 seconds since the last refresh
-          if (timeSinceLastUpdate > 5000) {
-            lastBroadcastTime.current[`session_list_${conversationId}`] = now;
-            
-            // Add a small delay to allow multiple broadcasts to consolidate
-            const refreshDelay = sessionUpdateQueue.current[conversationId] ? 1000 : 300;
-            
-            // Clear any existing timeout for this conversation
-            if (sessionUpdateQueue.current[conversationId]) {
-              clearTimeout(sessionUpdateQueue.current[conversationId]);
-            }
-            
-            // Set a new timeout to refresh sessions
-            sessionUpdateQueue.current[conversationId] = setTimeout(() => {
-              if (isMounted.current) {
-                // Clear the queue entry
-                delete sessionUpdateQueue.current[conversationId];
-                // Load sessions
-                loadTutoringSessions(conversationId);
-              }
-            }, refreshDelay);
-          } else {
-            console.log(`Skipping session list refresh - last refresh was ${timeSinceLastUpdate}ms ago`);
-          }
-        })
-        .subscribe((status, err) => {
-          if (status === 'SUBSCRIBED') {
-            console.log(`Subscribed to tutoring session broadcasts for conversation ${conversationId}`);
-          } else if (err) {
-            console.error(`Error subscribing to tutoring session broadcasts for ${conversationId}:`, err);
-          }
-        });
-      
-      // Broadcast to all clients to ensure consistent state
-      sessionChannel.send({
-        type: 'broadcast',
-        event: 'session_list_update',
-        payload: { conversation_id: conversationId }
-      });
-      
-      // Initial load of tutoring sessions - wait for this to complete
-      try {
-        console.log(`Initial load of tutoring sessions for conversation ${conversationId}`);
-        await loadTutoringSessions(conversationId);
-        console.log(`Completed initial load of tutoring sessions for conversation ${conversationId}`);
-      } catch (err) {
-        console.error(`Error in initial load of tutoring sessions for conversation ${conversationId}:`, err);
-      }
-      
-    } catch (error) {
-      console.error('Error subscribing to tutoring sessions:', error);
-    }
-  }, [supabase, loadTutoringSessions, broadcast]);
-
-  // Helper to broadcast tutoring session updates
-  const broadcastSessionUpdate = useCallback(async (session: TutoringSession) => {
-    try {
-      if (!session || !isMounted.current) return;
-      
-      const channelName = `tutoring_session:conversation:${session.conversation_id}`;
-      const channel = supabase.channel(channelName);
-      
-      // Send the individual session update
-      await channel.send({
-        type: 'broadcast',
-        event: 'session_update',
-        payload: { 
-          session,
-          conversation_id: session.conversation_id // Explicitly include conversation_id for better filtering
+          // Disconnect the client
+          supabaseRef.current = null;
+          setConnected(false);
+          console.log("Cleaned up realtime connections due to lack of premium access");
         }
-      });
-      
-      // Also send a list update broadcast to ensure all clients refresh their full session lists
-      // This is especially important for newly created sessions
-      await channel.send({
-        type: 'broadcast',
-        event: 'session_list_update',
-        payload: { conversation_id: session.conversation_id }
-      });
-      
-      console.log(`Broadcast session update for session ${session.id} in conversation ${session.conversation_id}`);
-      
-      // Force immediate loading of updated session data
-      await loadTutoringSessions(session.conversation_id);
-    } catch (error) {
-      console.error('Error broadcasting session update:', error);
-    }
-  }, [supabase, loadTutoringSessions]);
-
-  // Channel subscription handler for message events
-  const handleMessageBroadcast = useCallback((payload: any, conversationId: string) => {
-    console.log('Received message broadcast:', payload);
-    if (!isMounted.current) return;
-    
-    // Check if the message is a test message (from old versions)
-    if (payload.message.id.startsWith('test-')) {
-      console.log('Ignoring test message:', payload.message.id);
-      return;
-    }
-    
-    // Update messages state
-    setMessages(prev => {
-      const currentMessages = prev[conversationId] || [];
-      const messageExists = currentMessages.some(msg => msg.id === payload.message.id);
-      
-      if (messageExists) {
-        console.log('Message already exists in state, skipping update');
-        return prev;
       }
-      
-      console.log('Adding new message to state:', payload.message);
-      const updatedMessages = [...currentMessages, payload.message];
-      
-      // Update cache
-      const cacheKey = `${CACHE_CONFIG.MESSAGES_CACHE_PREFIX}${conversationId}`;
-      saveToCache(cacheKey, updatedMessages);
-      
-      return {
-        ...prev,
-        [conversationId]: updatedMessages
-      };
     });
-  }, []);
-
-  // Function to subscribe to a conversation channel with retry
-  const subscribeToConversation = useCallback(async (conversationId: string, retryCount = 0) => {
-    console.log('subscribeToConversation called with:', conversationId, 'retryCount:', retryCount);
     
-    // Skip if already subscribed or not mounted
-    if (!isMounted.current || channels[conversationId]) {
-      console.log('Already subscribed or not mounted, skipping subscription');
+    return () => {
+      // Clean up all channels when unmounting
+      Object.values(channelsRef.current).forEach((channel: any) => {
+        if (channel?.unsubscribe) {
+          channel.unsubscribe();
+        }
+      });
+      
+      setSubscribedChannels([]);
+      channelsRef.current = {};
+    };
+  }, [user, checkPremiumAccess]);
+
+  // Handle realtime message events - separated from subscription logic
+  const handleRealtimeMessage = useCallback((payload: { payload: RealtimeMessage }) => {
+    if (!payload.payload) return;
+    
+    const message = payload.payload;
+    console.log('Received realtime message:', message);
+    
+    // Always handle message state updates regardless of sender
+    if (messageContext?.handleRealtimeMessage) {
+      const convertedMessage = {
+        ...message,
+        timestamp: new Date(message.created_at),
+        read: false // Assume unread for new realtime messages
+      };
+      messageContext.handleRealtimeMessage(convertedMessage);
+    }
+    
+    // Only show notifications for messages from other users
+    // Do this check after state update to ensure UI consistency
+    if (!user || message.sender_id === user.id) {
+      console.log('Skipping notification for own message:', message.id);
       return;
     }
-
+    
+    // Check if we're already on the messages page for this conversation
+    const isOnMessagesPage = messageContext?.pageVisibility?.isOnMessagesPage || false;
+    const selectedConversationId = messageContext?.selectedConversationId || null;
+    const pageVisibility = messageContext?.pageVisibility || { isVisible: true, isFocused: true };
+    
+    // Skip notification if user is on messages page, viewing this conversation and page is visible/focused
+    if (isOnMessagesPage && 
+        selectedConversationId === message.conversation_id && 
+        pageVisibility.isVisible && 
+        pageVisibility.isFocused) {
+      console.log("Skipping notification - user is already viewing this conversation");
+      // Mark as read automatically
+      messageContext?.markConversationAsRead?.(message.conversation_id);
+      return;
+    }
+    
+    // Check if we've already shown this notification recently using new parameters
+    if (message.id && message.conversation_id && message.content && 
+        hasRecentlyShown(message.id, message.conversation_id, message.content)) {
+      console.log(`Skipping duplicate notification via early check for message: ${message.id}`);
+      return;
+    }
+    
+    // Process the message for notification
     try {
-      // Ensure we have a valid session before subscribing
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.error('No valid session found');
-        return;
+      // Only store if it's a valid message with required fields
+      if (message.id && message.conversation_id) {
+        // Update localStorage with latest message to trigger notification in other tabs
+        localStorage.setItem('latest_message', JSON.stringify({
+          ...message,
+          // Add a timestamp to help with duplicate detection across tabs
+          _notificationTimestamp: Date.now()
+        }));
+        console.log('Stored message in localStorage for notifications');
+        
+        // Show notification in current tab
+        const isSessionRequest = message.content?.startsWith('Session Request:') || false;
+        showNotification(
+          message.id,
+          message.conversation_id,
+          message.sender?.display_name || 'Someone',
+          message.sender?.avatar_url || null,
+          message.content || '',
+          isSessionRequest
+        );
       }
+    } catch (error) {
+      console.error('Error processing notification:', error);
+    }
+  }, [messageContext, user, showNotification, hasRecentlyShown]);
 
-      console.log('Got valid session, proceeding with subscription');
-
-      // Keep track of subscription attempts
-      const newChannels = { ...channels };
-      newChannels[conversationId] = 'pending' as any;
-      setChannels(newChannels);
+  // Handle realtime session update events
+  const handleSessionUpdate = useCallback((payload: { payload: { session: RealtimeSession } }) => {
+    if (!payload.payload?.session || !sessionContext) return;
+    
+    const updatedSession = payload.payload.session;
+    console.log('Received session update:', updatedSession);
+    
+    // Show notification for certain session status changes
+    if (updatedSession.status && user) {
+      const isForCurrentUser = 
+        updatedSession.tutor_id === user.id || 
+        updatedSession.student_id === user.id;
       
-      // Verify user has access to the conversation
-      const { data: participant, error: participantError } = await supabase
-        .from('conversation_participant')
-        .select('user_id')
-        .eq('conversation_id', conversationId)
-        .eq('user_id', user.id)
-        .single();
-
-      if (participantError) {
-        console.error('Error checking participant access:', participantError);
+      // Only show notification if this session is for current user and they didn't trigger the update
+      if (isForCurrentUser) {
+        // Disabled all notifications for session updates as requested
+        const shouldShowNotification = false;
         
-        // Remove pending status
-        const updatedChannels = { ...channels };
-        delete updatedChannels[conversationId];
-        setChannels(updatedChannels);
+        // Code below is kept but not executed due to shouldShowNotification being false
+        const sessionName = updatedSession.name || 'Session';
+        let notificationContent = '';
         
-        // Retry subscription if we haven't exceeded max retries
-        if (retryCount < 3) {
-          console.log('Retrying subscription in 2 seconds...');
-          setTimeout(() => {
-            subscribeToConversation(conversationId, retryCount + 1);
-          }, 2000);
-        }
-        return;
-      }
-
-      if (!participant) {
-        console.error('User does not have access to this conversation');
-        // Remove pending status
-        const updatedChannels = { ...channels };
-        delete updatedChannels[conversationId];
-        setChannels(updatedChannels);
-        return;
-      }
-
-      console.log('User has access to conversation, creating channel');
-      const channel = supabase.channel(conversationId, {
-        config: {
-          broadcast: { self: true },
-          presence: { key: user.id },
-          // Enable Realtime Authorization to enforce RLS policies
-          private: true
-        }
-      })
-        .on('broadcast', { event: 'message' }, ({ payload }) => {
-          handleMessageBroadcast(payload, conversationId);
-
-          // Send delivery confirmation
-          channel.send({
-            type: 'broadcast',
-            event: 'delivery',
-            payload: { messageId: payload.message.id }
-          });
-
-          // Broadcast conversation update for UI refresh with debounce
-          const now = Date.now();
-          if (!lastBroadcastTime.current[conversationId] || now - lastBroadcastTime.current[conversationId] > 1000) {
-            lastBroadcastTime.current[conversationId] = now;
-            broadcast('conversation_update');
-          }
-        })
-        .on('broadcast', { event: 'delivery' }, ({ payload }) => {
-          console.log('Received delivery confirmation:', payload);
-          if (!isMounted.current) return;
-          setMessages(prev => ({
-            ...prev,
-            [conversationId]: (prev[conversationId] || []).map(msg => 
-              msg.id === payload.messageId ? { ...msg, delivered: true } : msg
-            )
-          }));
-        })
-        .on('broadcast', { event: 'typing' }, (payload) => {
-          // Call the extracted typing handler
-          handleTypingEvent(payload, conversationId);
-        })
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'message',
-          filter: `conversation_id=eq.${conversationId}`
-        }, (payload) => {
-          // Handle new messages from database
-          console.log('Received postgres change for message:', payload);
-          
-          // Only process if this is a new message and we're mounted
-          if (!isMounted.current) return;
-          
-          const newMessage = payload.new as Message;
-          
-          // Update messages state if not already exists
-          setMessages(prev => {
-            const currentMessages = prev[conversationId] || [];
-            const messageExists = currentMessages.some(msg => msg.id === newMessage.id);
-            
-            if (messageExists) {
-              return prev;
+        // Determine notification content based on session status
+        switch(updatedSession.status) {
+          case 'accepted':
+            if (user.id === updatedSession.student_id) {
+              const costDisplay = updatedSession.cost ? ` (${updatedSession.cost} tokens)` : '';
+              notificationContent = `Your session "${sessionName}"${costDisplay} has been accepted`;
             }
-            
-            return {
-              ...prev,
-              [conversationId]: [...currentMessages, newMessage]
-            };
-          });
-        })
-        .subscribe((status, err) => {
+            break;
+          case 'started':
+            notificationContent = `Session "${sessionName}" has started`;
+            break;
+          case 'ended':
+            notificationContent = `Session "${sessionName}" has ended`;
+            break;
+          case 'cancelled':
+            notificationContent = `Session "${sessionName}" has been cancelled`;
+            break;
+        }
+        
+        if (shouldShowNotification) {
+          showNotification(
+            `session-${updatedSession.id}-${updatedSession.status}`,
+            updatedSession.conversation_id,
+            'Session Update',
+            null,
+            notificationContent,
+            true // Treat session notifications like session requests
+          );
+        }
+      }
+    }
+    
+    // Update the session directly in session context if available
+    if (sessionContext.updateSession) {
+      // Convert RealtimeSession to ActiveSession - we need to ensure all required properties are present
+      const convertedSession = {
+        // Include all existing properties
+        ...updatedSession,
+        // Ensure required properties exist
+        tutor_id: updatedSession.tutor_id || '',
+        student_id: updatedSession.student_id || '',
+        message_id: updatedSession.message_id || '',
+        // Explicitly include cost to ensure it's passed through
+        cost: updatedSession.cost
+      } as ActiveSession;
+      
+      sessionContext.updateSession(convertedSession);
+      } else {
+      // Fall back to refreshing all sessions
+      if (sessionContext.refreshSessions) {
+        sessionContext.refreshSessions();
+      }
+    }
+  }, [sessionContext, user, showNotification]);
+
+  // Handle session list update events  
+  const handleSessionListUpdate = useCallback(() => {
+    console.log('Session list needs updating');
+    
+    // We no longer need to refresh the entire session list
+    // Individual session updates are already handled by handleSessionUpdate
+    // This reduces unnecessary API calls
+  }, []);
+  
+  // Handle typing indicator events
+  const handleTypingIndicator = useCallback((payload: { payload: TypingIndicatorPayload }) => {
+    if (!payload.payload || !messageContext) return;
+    
+    const { user_id, conversation_id, is_typing, display_name, timestamp } = payload.payload;
+    console.log('Received typing indicator:', is_typing ? 'typing' : 'stopped typing', 'from', user_id);
+    
+    // Update the typing state in the message context
+    (messageContext as any).handleTypingState?.({
+      userId: user_id,
+      conversationId: conversation_id,
+      isTyping: is_typing,
+      displayName: display_name
+    });
+  }, [messageContext]);
+  
+  // Subscribe to a conversation channel
+  const subscribeToConversation = useCallback(async (conversationId: string) => {
+    // First check if user has premium access
+    if (!hasPremiumAccess && hasPremiumAccess !== null) {
+      console.log("User does not have premium access, skipping conversation subscription");
+      return null;
+    }
+    
+    // If hasPremiumAccess is null (not yet checked), check it now
+    if (hasPremiumAccess === null) {
+      const hasAccess = await checkPremiumAccess();
+      if (!hasAccess) {
+        console.log("User does not have premium access (checked on demand), skipping conversation subscription");
+        return null;
+      }
+    }
+    
+    if (!supabaseRef.current || !user || !conversationId) return null;
+    
+    // Skip if already subscribed - return the existing channel instead of resubscribing
+    if (channelsRef.current[conversationId]) {
+      console.log(`Already subscribed to conversation: ${conversationId}`);
+      return channelsRef.current[conversationId];
+    }
+    
+    // Create channel name based on conversation ID
+    const channelName = `tutoring_session:conversation:${conversationId}`;
+    console.log(`Creating new subscription for conversation: ${conversationId}`);
+    
+    try {
+      // Create and subscribe to the channel
+      const channel = supabaseRef.current.channel(channelName)
+        .on('broadcast', { event: 'message' }, handleRealtimeMessage)
+        .on('broadcast', { event: 'session_update' }, handleSessionUpdate)
+        .on('broadcast', { event: 'session_list_update' }, handleSessionListUpdate)
+        .on('broadcast', { event: 'typing' }, handleTypingIndicator)
+        .subscribe((status: string) => {
+          console.log(`Subscription to ${channelName} status:`, status);
+          
+          // Update subscribed channels list for UI
           if (status === 'SUBSCRIBED') {
-            console.log(`Successfully subscribed to channel ${conversationId}`);
-            
-            // Also subscribe to tutoring sessions for this conversation
-            subscribeTutoringSessionsForConversation(conversationId);
-            
-            // Get all participants in the conversation
-            supabase
-              .from('conversation_participant')
-              .select('user_id')
-              .eq('conversation_id', conversationId)
-              .then(({ data: participants, error: participantsError }) => {
-                if (participantsError) {
-                  console.error('Error fetching participants:', participantsError);
-                  return;
-                }
-
-                console.log('Conversation participants:', participants);
-                
-                // No need to send test messages, it causes duplicates
-                // Just log a success message
-                console.log(`Successfully subscribed to conversation ${conversationId} with ${participants.length} participants`);
-              });
-          } else if (err) {
-            console.error(`Error subscribing to channel ${conversationId}:`, err.message);
-            // Retry subscription if we haven't exceeded max retries
-            if (retryCount < 3) {
-              console.log('Retrying subscription in 2 seconds...');
-              setTimeout(() => {
-                subscribeToConversation(conversationId, retryCount + 1);
-              }, 2000);
-            }
+            setSubscribedChannels(prev => 
+              prev.includes(conversationId) ? prev : [...prev, conversationId]
+            );
           }
         });
-
-      if (isMounted.current) {
-        console.log('Setting channel in state');
-        setChannels(prev => ({
-          ...prev,
-          [conversationId]: channel
-        }));
-      }
-
-      // When subscribing to a new conversation, attempt to load cached messages first
-      const loadCachedMessagesForConversation = () => {
-        try {
-          const cacheKey = `${CACHE_CONFIG.MESSAGES_CACHE_PREFIX}${conversationId}`;
-          const cachedMessages = getFromCache<Message[]>(cacheKey);
-          
-          if (cachedMessages && cachedMessages.length > 0) {
-            console.log(`Loaded ${cachedMessages.length} cached messages for conversation ${conversationId}`);
-            setMessages(prev => ({
-              ...prev,
-              [conversationId]: cachedMessages
-            }));
-          }
-        } catch (error) {
-          console.error('Error loading cached messages:', error);
-        }
-      };
       
-      // Try to load cached messages
-      loadCachedMessagesForConversation();
-    } catch (error) {
-      console.error('Error in subscribeToConversation:', error);
-    }
-  }, [channels, clearTypingState, handleTypingEvent, subscribeTutoringSessionsForConversation, handleMessageBroadcast]);
-
-  const subscribeToBroadcast = useCallback((event: string, callback: () => void) => {
-    if (!isMounted.current) return () => {};
-    if (!broadcastSubscriptions.current[event]) {
-      broadcastSubscriptions.current[event] = new Set();
-    }
-    broadcastSubscriptions.current[event].add(callback);
-
-    return () => {
-      broadcastSubscriptions.current[event]?.delete(callback);
-    };
-  }, []);
-
-  const sendMessage = useCallback(async (conversationId: string, message: Message) => {
-    if (!isMounted.current) return;
-    try {
-      console.log('Sending realtime message:', { conversationId, message });
+      // Save the channel reference
+      channelsRef.current[conversationId] = channel;
       
-      // Update messages
-      const currentMessages = messages[conversationId] || [];
-      if (isMounted.current) {
-        console.log('Updating local messages state');
-        setMessages(prev => ({
-          ...prev,
-          [conversationId]: [...currentMessages, message]
-        }));
-      }
-
-      // Broadcast message through channel
-      const channel = channels[conversationId];
-      if (channel) {
-        console.log('Broadcasting message through channel');
-        try {
-          const broadcastResult = await channel.send({
-            type: 'broadcast',
-            event: 'message',
-            payload: { message }
-          });
-          console.log('Broadcast result:', broadcastResult);
-          
-          // Verify the broadcast was successful
-          if (broadcastResult === 'ok') {
-            console.log('Broadcast successful');
-          } else {
-            console.error('Broadcast failed:', broadcastResult);
-            // Try to resubscribe to the channel
-            console.log('Attempting to resubscribe to channel');
-            await subscribeToConversation(conversationId);
-          }
-        } catch (error) {
-          console.error('Error during broadcast:', error);
-          throw error;
-        }
-      } else {
-        console.error('No channel found for conversation:', conversationId);
-        // Try to resubscribe to the channel
-        console.log('Attempting to resubscribe to channel');
-        await subscribeToConversation(conversationId);
-      }
-
-      // Only broadcast conversation update if it's been more than 1 second since the last update
-      const now = Date.now();
-      if (!lastBroadcastTime.current[conversationId] || now - lastBroadcastTime.current[conversationId] > 1000) {
-        lastBroadcastTime.current[conversationId] = now;
-        broadcast('conversation_update');
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      throw error;
-    }
-  }, [channels, messages, broadcast, subscribeToConversation]);
-
-  // Function to subscribe to a new conversation
-  const subscribeToNewConversation = useCallback(async (conversationId: string) => {
-    // Don't resubscribe if already subscribed
-    if (channels[conversationId]) {
-      console.log(`Already subscribed to conversation ${conversationId}, skipping subscription`);
-      return;
-    }
-    
-    // Add a check for potential pending subscriptions
-    if (pendingSubscriptions.current[conversationId]) {
-      console.log(`Subscription already pending for conversation ${conversationId}, skipping duplicate subscription`);
-      return;
-    }
-    
-    try {
-      // Mark this subscription as pending to prevent duplicate subscriptions
-      pendingSubscriptions.current[conversationId] = true;
-      console.log(`Subscribing to new conversation ${conversationId}`);
-      await subscribeToConversation(conversationId);
+      // Return the channel so it can be used for unsubscription
+      return channel;
     } catch (error) {
       console.error(`Error subscribing to conversation ${conversationId}:`, error);
-    } finally {
-      // Clear the pending flag when done, whether successful or not
-      pendingSubscriptions.current[conversationId] = false;
+      return null;
     }
-  }, [channels, subscribeToConversation]);
+  }, [user, handleRealtimeMessage, handleSessionUpdate, handleSessionListUpdate, handleTypingIndicator, hasPremiumAccess, checkPremiumAccess]);
 
-  // Initialize subscriptions for all conversations the user is part of
-  useEffect(() => {
-    let isInitialized = false;
-    const initializeSubscriptions = async () => {
-      if (!isMounted.current || isInitialized) return;
-      try {
-        console.log('Initializing subscriptions for all conversations');
-        isInitialized = true;
-
-        // First, ensure we have the user data
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError || !user) {
-          console.error('Error getting user:', userError);
-          return;
-        }
-
-        console.log(`RealtimeContext: User authenticated: ${user.id}`);
-
-        // Get the session to ensure we have a valid token
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError || !session) {
-          console.error('Error getting session:', sessionError);
-          return;
-        }
-
-        // Explicitly set the auth token
-        supabase.realtime.setAuth(session.access_token);
-
-        // Get all conversations the user is part of - use the right user ID field
-        console.log(`RealtimeContext: Querying conversations for user_id = ${user.id}`);
-        const { data: conversations, error } = await supabase
-          .from('conversation_participant')
-          .select('conversation_id')
-          .eq('user_id', user.id);
-
-        if (error) {
-          console.error('Error fetching conversations:', error);
-          return;
-        }
-
-        if (!conversations || conversations.length === 0) {
-          console.log('RealtimeContext: No conversations found for user');
-          return;
-        }
-
-        console.log(`RealtimeContext: Found ${conversations.length} conversations to subscribe to:`, conversations);
-
-        // Subscribe to each conversation using subscribeToNewConversation to avoid duplicates
-        for (const conv of conversations) {
-          await subscribeToNewConversation(conv.conversation_id);
-        }
-      } catch (error) {
-        console.error('Error in initializeSubscriptions:', error);
+  // Listen for PostgreSQL changes about new conversations
+  const listenForNewConversations = useCallback(async () => {
+    // First check if user has premium access
+    if (!hasPremiumAccess && hasPremiumAccess !== null) {
+      console.log("User does not have premium access, skipping PostgreSQL subscription");
+      return;
+    }
+    
+    // If hasPremiumAccess is null (not yet checked), check it now
+    if (hasPremiumAccess === null) {
+      const hasAccess = await checkPremiumAccess();
+      if (!hasAccess) {
+        console.log("User does not have premium access (checked on demand), skipping PostgreSQL subscription");
+        return;
       }
-    };
+    }
+    
+    if (!user || !supabaseRef.current) return;
 
-    initializeSubscriptions();
+    console.log("Setting up listener for new conversations in PostgreSQL");
+    
+    // Subscribe to changes in conversations table for this user
+    const channel = supabaseRef.current
+      .channel('conversation-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'conversations'
+        },
+        (payload: PostgresChangePayload) => {
+          console.log('New conversation detected via PostgreSQL changes:', payload);
+          
+          // Get the conversation ID
+          const conversationId = payload.new.id;
+          
+          // Check if this conversation involves the current user
+          const participants = payload.new.participants || [];
+          const isParticipant = participants.some((p) => p.user_id === user.id);
 
-    // Cleanup subscriptions and timeouts on unmount
+          // Subscribe to the conversation if it's for the current user
+          if (isParticipant && conversationId) {
+            console.log(`Subscribing to new conversation: ${conversationId}`);
+            subscribeToConversation(conversationId);
+          }
+        }
+      )
+      .subscribe();
+    
+    // Store the channel for cleanup
+    channelsRef.current['conversation-changes'] = channel;
+    
     return () => {
-      console.log('Cleaning up all subscriptions');
-      isMounted.current = false;
-      Object.values(channels).forEach(channel => {
-        channel.unsubscribe();
-      });
-      // Clear all typing timeouts
-      Object.entries(typingTimeouts.current).forEach(([conversationId, timeouts]) => {
-        Object.values(timeouts).forEach(timeout => clearTimeout(timeout));
-      });
-      // Clear all typing states
-      setIsTyping({});
+      channel.unsubscribe();
     };
-  }, []); // Empty dependency array to run only once on mount
+  }, [user, subscribeToConversation, hasPremiumAccess, checkPremiumAccess]);
 
-  // Update context value to include tutoring session data
-  const contextValue = useMemo(() => ({
-    sendMessage,
-    messages,
-    updateMessages,
-    isTyping,
-    setTyping,
-    subscribeToNewConversation,
-    subscribeToBroadcast,
-    // Add tutoring session data
-    tutoringSessions,
-    activeTutoringSessions,
-    tutoringSessionsByMessage,
-    broadcastSessionUpdate,
-  }), [
-    sendMessage,
-    messages,
-    updateMessages,
-    isTyping,
-    setTyping,
-    subscribeToNewConversation,
-    subscribeToBroadcast,
-    // Add tutoring session dependencies
-    tutoringSessions,
-    activeTutoringSessions,
-    tutoringSessionsByMessage,
-    broadcastSessionUpdate,
-  ]);
+  // Subscribe to user's conversations automatically
+  useEffect(() => {
+    if (!user || !supabaseRef.current || !messageContext?.conversations || !messageContext.conversations.length) return;
+    
+    // Only continue if user has premium access
+    if (hasPremiumAccess === false) {
+      console.log("User does not have premium access, skipping automatic conversation subscriptions");
+      return;
+    }
+    
+    // If hasPremiumAccess is null (not yet checked), we'll let subscribeToConversation handle the check
+    
+    // Subscribe to all user conversations
+    messageContext.conversations.forEach(conversation => {
+      subscribeToConversation(conversation.id);
+    });
+    
+    // Listen for new conversations created in PostgreSQL
+    listenForNewConversations();
+    
+  }, [user, messageContext?.conversations, subscribeToConversation, listenForNewConversations, hasPremiumAccess]);
 
+  // Unsubscribe from a conversation channel
+  const unsubscribeFromConversation = useCallback((conversationId: string) => {
+    const channel = channelsRef.current[conversationId];
+    if (channel) {
+      try {
+        // Only unsubscribe if the channel exists and has an active subscription
+        if (channel.state === 'SUBSCRIBED' || channel.state === 'JOINED') {
+          channel.unsubscribe();
+          console.log(`Unsubscribed from conversation: ${conversationId}`);
+        } else {
+          console.log(`Skipping unsubscribe for conversation ${conversationId} - channel not in SUBSCRIBED state (${channel.state})`);
+        }
+        
+        // Remove from our channel references
+        delete channelsRef.current[conversationId];
+        
+        // Update subscribed channels list for UI
+        setSubscribedChannels(prev => prev.filter(id => id !== conversationId));
+      } catch (error) {
+        console.error(`Error unsubscribing from conversation ${conversationId}:`, error);
+      }
+    }
+  }, []);
+  
+  // Broadcast a message to all subscribers
+  const broadcastMessage = useCallback((message: RealtimeMessage) => {
+    if (!supabaseRef.current || !message.conversation_id) return;
+    
+    const conversationId = message.conversation_id;
+    const channelName = `tutoring_session:conversation:${conversationId}`;
+    
+    try {
+      // Get existing channel or create a new one
+      let channel = channelsRef.current[conversationId];
+      
+      // If no existing channel, create and subscribe to a new one
+      if (!channel) {
+        channel = supabaseRef.current.channel(channelName);
+        channel.subscribe((status: string) => {
+          console.log(`New broadcast channel subscription status:`, status);
+        });
+        channelsRef.current[conversationId] = channel;
+      }
+      
+      // Send the broadcast
+      channel.send({
+        type: 'broadcast',
+        event: 'message',
+        payload: message
+      });
+      
+      console.log(`Broadcasting message to conversation ${conversationId}`);
+    } catch (error) {
+      console.error(`Error broadcasting message to conversation ${conversationId}:`, error);
+    }
+  }, []);
+
+  // Broadcast a session update
+  const broadcastSessionUpdate = useCallback((session: RealtimeSession) => {
+    if (!supabaseRef.current || !session.conversation_id) return;
+    
+    const conversationId = session.conversation_id;
+    const channelName = `tutoring_session:conversation:${conversationId}`;
+    
+    try {
+      // Get existing channel or create a new one
+      let channel = channelsRef.current[conversationId];
+      
+      // If no existing channel, create and subscribe to a new one
+      if (!channel) {
+        channel = supabaseRef.current.channel(channelName);
+        channel.subscribe((status: string) => {
+          console.log(`New broadcast channel subscription status:`, status);
+        });
+        channelsRef.current[conversationId] = channel;
+      }
+      
+      // Send the broadcast
+          channel.send({
+            type: 'broadcast',
+        event: 'session_update',
+        payload: { session }
+      });
+      
+      console.log(`Broadcasting session update for session ${session.id}`);
+    } catch (error) {
+      console.error(`Error broadcasting session update:`, error);
+    }
+  }, []);
+
+  // Broadcast a typing indicator
+  const broadcastTypingIndicator = useCallback((conversationId: string, isTyping: boolean) => {
+    if (!supabaseRef.current || !conversationId || !user) return;
+    
+    const channelName = `tutoring_session:conversation:${conversationId}`;
+    
+    try {
+      // Get existing channel or create a new one
+      let channel = channelsRef.current[conversationId];
+      
+      // If no existing channel, create and subscribe to a new one
+      if (!channel) {
+        channel = supabaseRef.current.channel(channelName);
+        channel.subscribe((status: string) => {
+          console.log(`New broadcast channel subscription status:`, status);
+        });
+        channelsRef.current[conversationId] = channel;
+      }
+      
+      // Send the broadcast
+      channel.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: {
+          user_id: user.id,
+          conversation_id: conversationId,
+          is_typing: isTyping,
+          display_name: user.name,
+          timestamp: Date.now()
+        }
+      });
+      
+      console.log(`Broadcasting typing status: ${isTyping ? 'typing' : 'not typing'}`);
+    } catch (error) {
+      console.error(`Error broadcasting typing status:`, error);
+    }
+  }, [user]);
+
+  // Provide the realtime context
   return (
-    <RealtimeContext.Provider value={contextValue}>
+    <RealtimeContext.Provider
+      value={{
+        subscribeToConversation,
+        unsubscribeFromConversation,
+        broadcastMessage,
+        broadcastSessionUpdate,
+        broadcastTypingIndicator,
+        showNotification,
+        connected,
+        subscribedChannels
+      }}
+    >
       {children}
     </RealtimeContext.Provider>
   );
-}
+};
 
-export function useRealtime() {
+// Hook for using the realtime context
+export const useRealtime = () => {
   const context = useContext(RealtimeContext);
-  if (!context) {
-    throw new Error('useRealtime must be used within a RealtimeProvider');
+  if (context === undefined) {
+    throw new Error("useRealtime must be used within a RealtimeProvider");
   }
   return context;
-} 
+}; 
