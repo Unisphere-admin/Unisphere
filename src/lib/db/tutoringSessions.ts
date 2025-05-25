@@ -720,11 +720,11 @@ export const updateSessionStatusAuth = withAuth(async function _updateSessionSta
       }
     } else {
       // Tutor is accepting, check student tokens
-      const { user: studentProfile, error: studentProfileError } = await getUserProfile(existingSession.student_id);
-      if (studentProfileError || !studentProfile) {
-        return { session: null, error: "Could not retrieve student profile to check tokens." };
-      }
-      if (!studentProfile.tokens || studentProfile.tokens <= 0) {
+    const { user: studentProfile, error: studentProfileError } = await getUserProfile(existingSession.student_id);
+    if (studentProfileError || !studentProfile) {
+      return { session: null, error: "Could not retrieve student profile to check tokens." };
+    }
+    if (!studentProfile.tokens || studentProfile.tokens <= 0) {
         return { session: null, error: "Student does not have enough tokens for this session." };
       }
     }

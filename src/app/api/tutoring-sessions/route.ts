@@ -8,7 +8,7 @@ import {
   getSessionByIdAuth as getSessionById, 
   getSessionsByConversationAuth as getSessionsByConversation,
   getUserSessions,
-  TutoringSession
+  TutoringSession 
 } from '@/lib/db/tutoringSessions';
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 import { createClient } from '@supabase/supabase-js';
@@ -437,24 +437,24 @@ async function patchTutoringSessionsHandler(
               }
               response = await updateSessionStatus(user, session_id, status);
             } else if (user.id === sessionData.tutor_id) {
-              // Tutor is accepting - check student tokens via edge function
-              const studentTokens = await getUserTokens(sessionData.student_id);
+            // Tutor is accepting - check student tokens via edge function
+            const studentTokens = await getUserTokens(sessionData.student_id);
               if (studentTokens < sessionCost) {
-                return NextResponse.json({ 
+              return NextResponse.json({ 
                   error: `Student does not have enough tokens for this session. Required: ${sessionCost}, Available: ${studentTokens}` 
-                }, { status: 400 });
-              }
-              
-              // Pass the tokens to the updateSessionStatus function
-              response = await updateSessionStatus(user, session_id, status, studentTokens);
-            } else {
+              }, { status: 400 });
+            }
+            
+            // Pass the tokens to the updateSessionStatus function
+            response = await updateSessionStatus(user, session_id, status, studentTokens);
+          } else {
               return NextResponse.json({ error: 'Not authorized to update this session' }, { status: 403 });
             }
           } else {
             return NextResponse.json({ error: 'Session not found' }, { status: 404 });
           }
         } else {
-          response = await updateSessionStatus(user, session_id, status);
+        response = await updateSessionStatus(user, session_id, status);
         }
         break;
         

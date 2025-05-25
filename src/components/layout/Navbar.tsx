@@ -13,13 +13,42 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Menu, X, User, LogOut, MessageSquare, Home, BookOpen, Users, LayoutDashboard, Lock } from "lucide-react";
+import { Menu, X, User, LogOut, MessageSquare, Home, BookOpen, Users, LayoutDashboard, Lock, Bell, Settings, ChevronDown } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { BadgeIndicator } from "@/components/ui/badge-indicator";
 
+// Create a separate LogoutButton component to encapsulate the signOut functionality
+const LogoutButton = ({ 
+  variant = "outline", 
+  className = "", 
+  onLogout = () => {}
+}: { 
+  variant?: "outline" | "default" | "destructive" | "ghost" | "link" | "secondary"; 
+  className?: string;
+  onLogout?: () => void;
+}) => {
+  const { signOut } = useAuth();
+  
+  const handleSignOut = async () => {
+    await signOut();
+    if (onLogout) onLogout();
+  };
+  
+  return (
+    <Button 
+      variant={variant}
+      onClick={handleSignOut}
+      className={className}
+    >
+      <LogOut className="mr-2 h-4 w-4" strokeWidth={2} />
+      Logout
+    </Button>
+  );
+};
+
 const Navbar = () => {
-  const { user, signOut, loading } = useAuth();
+  const { user, loading } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const unreadCount = useUnreadCount();
 
@@ -31,50 +60,55 @@ const Navbar = () => {
   const isTutor = user?.role === 'tutor';
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 w-full border-b bg-background/95 backdrop-blur h-[var(--navbar-height)]">
-      <div className="w-full h-full px-4 md:px-8 flex items-center justify-between">
+    <header className="fixed top-0 left-0 right-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur-md shadow-sm h-[var(--navbar-height)]">
+      <div className="w-full h-full px-4 md:px-8 flex items-center justify-between max-w-screen-xl mx-auto">
         <div className="flex items-center gap-4">
-          <Link href="/" className="flex items-center space-x-2">
-            <BookOpen className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold">TutorMatch</span>
+          <Link href="/" className="flex items-center space-x-2 group">
+            <div className="bg-primary/10 p-1.5 rounded-md group-hover:bg-primary/15 transition-colors">
+              <BookOpen className="h-5 w-5 text-primary" strokeWidth={2} />
+            </div>
+            <span className="text-xl font-bold tracking-tight">TutorMatch</span>
           </Link>
           
-          <nav className="hidden md:flex items-center gap-6 text-sm">
-            <Link href="/" className="transition-colors hover:text-primary">
+          <nav className="hidden md:flex items-center gap-8 text-sm ml-6">
+            <Link href="/" className="font-medium text-muted-foreground hover:text-foreground transition-colors">
               Home
             </Link>
-            <Link href="/about" className="transition-colors hover:text-primary">
+            <Link href="/about" className="font-medium text-muted-foreground hover:text-foreground transition-colors">
               About
             </Link>
             {user && (
-              <Link href={hasAccess ? "/tutors" : "/paywall"} className="transition-colors hover:text-primary group relative">
+              <Link 
+                href={hasAccess ? "/tutors" : "/paywall"} 
+                className="font-medium text-muted-foreground hover:text-foreground transition-colors group relative flex items-center"
+              >
                 Find Tutors
                 {user && !hasAccess && (
-                  <Lock className="h-3 w-3 inline-block ml-1 text-muted-foreground group-hover:text-primary" />
+                  <Lock className="h-3.5 w-3.5 ml-1.5 text-muted-foreground group-hover:text-foreground" />
                 )}
               </Link>
             )}
           </nav>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {user && (
-            <div className="hidden md:flex items-center gap-2 mr-2">
-              <Button variant="outline" asChild>
-                <Link href={hasAccess ? "/dashboard" : "/paywall"} className="flex items-center gap-2">
-                  <LayoutDashboard className="h-4 w-4" />
+            <div className="hidden md:flex items-center gap-3 mr-1">
+              <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground hover:bg-muted">
+                <Link href={hasAccess ? "/dashboard" : "/paywall"} className="flex items-center gap-1.5 font-medium">
+                  <LayoutDashboard className="h-4 w-4" strokeWidth={2} />
                   Dashboard
-                  {!hasAccess && <Lock className="h-3 w-3 ml-1 text-muted-foreground" />}
+                  {!hasAccess && <Lock className="h-3 w-3 ml-0.5 text-muted-foreground" strokeWidth={2.5} />}
                 </Link>
               </Button>
-              <Button variant="outline" asChild>
-                <Link href={hasAccess ? "/dashboard/messages" : "/paywall"} className="flex items-center gap-2 relative">
-                  <MessageSquare className="h-4 w-4" />
+              <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground hover:bg-muted relative">
+                <Link href={hasAccess ? "/dashboard/messages" : "/paywall"} className="flex items-center gap-1.5 font-medium">
+                  <MessageSquare className="h-4 w-4" strokeWidth={2} />
                   Messages
                   {!hasAccess ? (
-                    <Lock className="h-3 w-3 ml-1 text-muted-foreground" />
+                    <Lock className="h-3 w-3 ml-0.5 text-muted-foreground" strokeWidth={2.5} />
                   ) : unreadCount > 0 ? (
-                    <span className="absolute -top-2 -right-2">
+                    <span className="absolute -top-1 -right-1">
                       <BadgeIndicator count={unreadCount} size="sm" />
                     </span>
                   ) : null}
@@ -86,66 +120,81 @@ const Navbar = () => {
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                  <Avatar>
+                <Button variant="ghost" size="sm" className="rounded-full h-9 pl-2 pr-2.5 gap-1 text-sm">
+                  <Avatar className="h-7 w-7 border border-border/40">
                     <AvatarImage src={user.avatar_url || user.profilePic || "/placeholder.svg"} alt={user.name || ''} />
-                    <AvatarFallback>
+                    <AvatarFallback className="bg-primary/10 text-primary text-xs">
                       {user.name && user.name.includes(' ') ? 
                         `${user.name.split(' ')[0][0]}${user.name.split(' ')[1][0]}` : 
                         user.name ? user.name.charAt(0) : 'U'}
                     </AvatarFallback>
                   </Avatar>
+                  <span className="font-medium ml-1 hidden sm:inline-block max-w-[100px] truncate">
+                    {user.name?.split(' ')[0] || 'User'}
+                  </span>
+                  <ChevronDown className="h-4 w-4 opacity-50" strokeWidth={2} />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="w-56 shadow-md border-border/40">
                 <DropdownMenuLabel>
-                  <div>
-                    <p>{user.name || 'User'}</p>
+                  <div className="flex flex-col">
+                    <p className="font-medium">{user.name || 'User'}</p>
                     <p className="text-xs text-muted-foreground">{user.email}</p>
                     {!hasAccess && !isTutor && (
-                      <div className="mt-1 text-xs px-1.5 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 rounded-sm inline-flex items-center">
-                        <Lock className="h-3 w-3 mr-1" /> Free account
+                      <div className="mt-1.5 text-xs px-1.5 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 rounded-md inline-flex items-center w-fit">
+                        <Lock className="h-3 w-3 mr-1" strokeWidth={2} /> Free account
                       </div>
                     )}
                   </div>
                 </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="flex items-center">
-                  <LayoutDashboard className="mr-2 h-4 w-4" />
-                  <Link href={hasAccess ? "/dashboard" : "/paywall"}>Dashboard</Link>
-                  {!hasAccess && <Lock className="ml-auto h-3 w-3 text-muted-foreground" />}
+                <DropdownMenuSeparator className="bg-border/40" />
+                <DropdownMenuItem className="focus:bg-muted">
+                  <Link href={hasAccess ? "/dashboard" : "/paywall"} className="flex items-center w-full">
+                    <LayoutDashboard className="mr-2 h-4 w-4 text-primary/80" strokeWidth={2} />
+                    Dashboard
+                    {!hasAccess && <Lock className="ml-auto h-3 w-3 text-muted-foreground" strokeWidth={2} />}
+                  </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="flex items-center relative">
-                  <MessageSquare className="mr-2 h-4 w-4" />
-                  <Link href={hasAccess ? "/dashboard/messages" : "/paywall"}>Messages</Link>
-                  {!hasAccess ? (
-                    <Lock className="ml-auto h-3 w-3 text-muted-foreground" />
-                  ) : unreadCount > 0 ? (
-                    <BadgeIndicator count={unreadCount} size="sm" className="ml-2" />
-                  ) : null}
+                <DropdownMenuItem className="focus:bg-muted">
+                  <Link href={hasAccess ? "/dashboard/messages" : "/paywall"} className="flex items-center w-full">
+                    <MessageSquare className="mr-2 h-4 w-4 text-primary/80" strokeWidth={2} />
+                    Messages
+                    {!hasAccess ? (
+                      <Lock className="ml-auto h-3 w-3 text-muted-foreground" strokeWidth={2} />
+                    ) : unreadCount > 0 ? (
+                      <BadgeIndicator count={unreadCount} size="sm" className="ml-auto" />
+                    ) : null}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="focus:bg-muted">
+                  <Link href="/dashboard/settings" className="flex items-center w-full">
+                    <Settings className="mr-2 h-4 w-4 text-primary/80" strokeWidth={2} />
+                    Settings
+                  </Link>
                 </DropdownMenuItem>
                 {!hasAccess && !isTutor && (
                   <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="flex items-center text-primary">
+                    <DropdownMenuSeparator className="bg-border/40" />
+                    <DropdownMenuItem className="focus:bg-primary/10 text-primary">
                       <Link href="/paywall" className="flex items-center w-full">
-                        <Lock className="mr-2 h-4 w-4" />
+                        <Lock className="mr-2 h-4 w-4" strokeWidth={2} />
                         Upgrade to Premium
                       </Link>
                     </DropdownMenuItem>
                   </>
                 )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={signOut} className="flex items-center">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Logout
+                <DropdownMenuSeparator className="bg-border/40" />
+                <DropdownMenuItem asChild className="focus:bg-destructive/10 text-destructive">
+                  <div className="w-full">
+                    <LogoutButton variant="ghost" className="w-full justify-start p-0 h-auto font-normal text-destructive bg-transparent" />
+                  </div>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : showLoginButton ? (
-            <Button asChild>
-              <Link href="/login">
-                <User className="mr-2 h-4 w-4" />
+            <Button asChild size="sm" className="bg-primary hover:bg-primary/90 shadow-sm font-medium">
+              <Link href="/login" className="flex items-center gap-1.5">
+                <User className="h-4 w-4" strokeWidth={2} />
                 Login
               </Link>
             </Button>
@@ -153,73 +202,84 @@ const Navbar = () => {
           
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
             <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="md:hidden">
-                <Menu className="h-5 w-5" />
+              <Button variant="outline" size="icon" className="md:hidden h-9 w-9 shadow-sm border-border/40">
+                <Menu className="h-5 w-5" strokeWidth={1.5} />
                 <span className="sr-only">Toggle menu</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[80%] sm:w-[350px]">
-              <nav className="flex flex-col gap-4 text-lg">
-                <div className="flex items-center justify-between">
+            <SheetContent side="right" className="w-[80%] sm:w-[350px] border-l border-border/40 pr-0">
+              <nav className="flex flex-col gap-4 text-base pr-6">
+                <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <BookOpen className="h-6 w-6 text-primary" />
-                    <span className="font-bold">TutorMatch</span>
+                    <div className="bg-primary/10 p-1.5 rounded-md">
+                      <BookOpen className="h-5 w-5 text-primary" strokeWidth={2} />
+                    </div>
+                    <span className="font-bold tracking-tight">TutorMatch</span>
                   </div>
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => setIsMobileMenuOpen(false)}
+                    className="h-8 w-8"
                   >
-                    <X className="h-5 w-5" />
+                    <X className="h-5 w-5" strokeWidth={1.5} />
                   </Button>
                 </div>
                 
                 <Link 
                   href="/" 
-                  className="flex items-center gap-2 p-2 hover:bg-muted rounded-md"
+                  className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  <Home className="h-5 w-5" /> Home
+                  <Home className="h-5 w-5 text-primary/70" strokeWidth={1.5} /> Home
                 </Link>
                 <Link 
                   href="/about" 
-                  className="flex items-center gap-2 p-2 hover:bg-muted rounded-md"
+                  className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  <BookOpen className="h-5 w-5" /> About
+                  <BookOpen className="h-5 w-5 text-primary/70" strokeWidth={1.5} /> About
                 </Link>
                 {user && (
                   <Link 
                     href={hasAccess ? "/tutors" : "/paywall"}
-                    className="flex items-center gap-2 p-2 hover:bg-muted rounded-md"
+                    className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
-                    <Users className="h-5 w-5" /> Find Tutors
-                    {user && !hasAccess && <Lock className="h-3 w-3 ml-1 text-muted-foreground" />}
+                    <Users className="h-5 w-5 text-primary/70" strokeWidth={1.5} /> Find Tutors
+                    {user && !hasAccess && <Lock className="h-3.5 w-3.5 ml-1.5 text-muted-foreground" strokeWidth={2} />}
                   </Link>
                 )}
                 
                 {user && (
                   <>
+                    <div className="h-px bg-border/40 my-2"></div>
                     <Link 
                       href={hasAccess ? "/dashboard" : "/paywall"}
-                      className="flex items-center gap-2 p-2 hover:bg-muted rounded-md mt-4"
+                      className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
-                      <LayoutDashboard className="h-5 w-5" /> Dashboard
-                      {!hasAccess && <Lock className="h-3 w-3 ml-1 text-muted-foreground" />}
+                      <LayoutDashboard className="h-5 w-5 text-primary/70" strokeWidth={1.5} /> Dashboard
+                      {!hasAccess && <Lock className="h-3.5 w-3.5 ml-1.5 text-muted-foreground" strokeWidth={2} />}
                     </Link>
                     <Link 
                       href={hasAccess ? "/dashboard/messages" : "/paywall"}
-                      className="flex items-center gap-2 p-2 hover:bg-muted rounded-md relative"
+                      className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors relative"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
-                      <MessageSquare className="h-5 w-5" /> Messages
+                      <MessageSquare className="h-5 w-5 text-primary/70" strokeWidth={1.5} /> Messages
                       {!hasAccess ? (
-                        <Lock className="h-3 w-3 ml-1 text-muted-foreground" />
+                        <Lock className="h-3.5 w-3.5 ml-1.5 text-muted-foreground" strokeWidth={2} />
                       ) : unreadCount > 0 ? (
                         <BadgeIndicator count={unreadCount} size="sm" className="ml-2" />
                       ) : null}
+                    </Link>
+                    <Link 
+                      href="/dashboard/settings"
+                      className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      <Settings className="h-5 w-5 text-primary/70" strokeWidth={1.5} /> Settings
                     </Link>
                   </>
                 )}
@@ -227,23 +287,30 @@ const Navbar = () => {
                 {user && !hasAccess && !isTutor && (
                   <Link 
                     href="/paywall"
-                    className="flex items-center gap-2 p-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-md mt-2"
+                    className="flex items-center gap-3 p-2.5 bg-primary/10 text-primary hover:bg-primary/15 rounded-md mt-2"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
-                    <Lock className="h-5 w-5" /> Upgrade to Premium
+                    <Lock className="h-5 w-5" strokeWidth={1.5} /> Upgrade to Premium
                   </Link>
                 )}
                 
                 {showLoginButton && (
                   <Button 
                     asChild
-                    className="mt-4"
+                    className="mt-4 bg-primary hover:bg-primary/90 shadow-sm font-medium"
                   >
-                    <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
-                      <User className="mr-2 h-4 w-4" />
+                    <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2">
+                      <User className="h-4 w-4" strokeWidth={2} />
                       Login
                     </Link>
                   </Button>
+                )}
+                
+                {user && (
+                  <LogoutButton
+                    className="mt-4 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onLogout={() => setIsMobileMenuOpen(false)}
+                  />
                 )}
               </nav>
             </SheetContent>

@@ -138,9 +138,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('Clearing application cache...');
         
         // Clear general cache
-        clearAllCache();
-        resetPrefetchStatus();
-        
+      clearAllCache();
+      resetPrefetchStatus();
+      
         // Explicitly clear tutor cache 
         try {
           // Use dynamic import to avoid circular dependencies
@@ -152,7 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // Clear localStorage items related to user data
         try {
-          // Clear any pending API requests
+      // Clear any pending API requests
           localStorage.removeItem('pendingApiRequest');
           
           // Clear conversations cache
@@ -187,7 +187,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           // Clear all sessionStorage for simplicity
           sessionStorage.clear();
-        } catch (e) {
+      } catch (e) {
           console.warn('Failed to clear sessionStorage:', e);
         }
         

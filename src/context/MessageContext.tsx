@@ -1323,8 +1323,38 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
               localStorage.setItem('first_message', JSON.stringify(optimisticMessageWithRealId));
               console.log('Stored first message for notification after successful send');
             }
+            
+            // Remove the temporary conversation from storage since we now have a real conversation
+            setTempConversations(prev => {
+              const newTempConversations = { ...prev };
+              delete newTempConversations[conversationId];
+              
+              // Update localStorage to remove the temp conversation
+              try {
+                localStorage.setItem('tempConversations', JSON.stringify(newTempConversations));
+              } catch (e) {
+                console.error('Failed to update temporary conversations in localStorage:', e);
+              }
+              
+              return newTempConversations;
+            });
+            
+            // Change the selected conversation to the real conversation
+            setSelectedConversationId(actualConversationId);
+            
+            // Redirect to the real conversation if we're in the messages page
+            if (typeof window !== 'undefined' && window.location.pathname.includes('/dashboard/messages')) {
+              // Use history.replaceState to update the URL without a full page reload
+              window.history.replaceState(
+                {}, 
+                '', 
+                `/dashboard/messages?conversation=${actualConversationId}`
+              );
+            }
+            
+            console.log(`Removed temporary conversation ${conversationId} and redirected to ${actualConversationId}`);
           } catch (error) {
-            console.error('Error storing first message for notification:', error);
+            console.error('Error handling conversation redirection:', error);
           }
         }
         

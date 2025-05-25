@@ -11,7 +11,7 @@ import {
 export async function middleware(req: NextRequest) {
   // Skip static assets and API routes
   const path = req.nextUrl.pathname;
-  
+
   // Special cache revalidation route
   if (path.startsWith('/api/revalidate-cache')) {
     // Check for the revalidation secret
@@ -22,8 +22,8 @@ export async function middleware(req: NextRequest) {
     // Verify the secret matches environment variable
     if (secret !== process.env.REVALIDATION_SECRET) {
       return NextResponse.json({ error: 'Invalid revalidation secret' }, { status: 401 });
-    }
-    
+}
+
     // If a specific tag is provided, revalidate just that tag
     if (tag) {
       // This will use Vercel's tag-based revalidation feature
@@ -51,20 +51,20 @@ export async function middleware(req: NextRequest) {
   if (!shouldProtectRoute(path)) {
     return NextResponse.next();
   }
-  
+
   // Check if user is authenticated
   const user = await getAuthUser();
-  
+    
   // If not authenticated, redirect to login
   if (!user) {
     return redirectToLogin(req);
-  }
-  
+    }
+
   // Check if user should be redirected to paywall
   if (shouldRedirectToPaywall(user, path)) {
     return redirectToPaywall(req);
-  }
-  
+    }
+
   // User is authenticated and has access, continue
   return NextResponse.next();
 }
@@ -81,4 +81,4 @@ export const config = {
      */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
-} 
+}

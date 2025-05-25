@@ -3,13 +3,13 @@ import { createRouteHandlerClientWithCookies } from "@/lib/db/client";
 
 export async function GET(req: NextRequest) {
     try {
-        const url = new URL(req.url);
-        const code = url.searchParams.get('code');
+    const url = new URL(req.url);
+    const code = url.searchParams.get('code');
 
-        if (!code) {
+    if (!code) {
             console.error('No code provided for password reset');
             return NextResponse.redirect(new URL('/login?error=missing-code', req.url));
-        }
+    }
 
         const supabase = await createRouteHandlerClientWithCookies();
 
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     try {
         const formData = await req.formData();
         const password = String(formData.get('password'));
-        
+
         if (!password || password.length < 6) {
             return NextResponse.json({ 
                 error: 'Password must be at least 6 characters long' 

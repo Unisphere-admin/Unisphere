@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BookOpen, ArrowRight, Loader2, X } from "lucide-react";
+import { BookOpen, ArrowRight, Loader2, X, LockKeyhole, Mail, User, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Alert,
@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertCircle } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { handleApiRedirect } from "@/lib/auth/apiRedirect";
+import { Separator } from "@/components/ui/separator";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -281,7 +282,7 @@ export default function LoginPage() {
     switch (errorType) {
       case "profile":
         return (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="mt-4 animate-in fade-in-50">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Profile Error</AlertTitle>
             <AlertDescription>
@@ -295,54 +296,73 @@ export default function LoginPage() {
           </Alert>
         );
       case "auth":
-        return <div className="text-red-500 text-sm">{error}</div>;
+        return (
+          <Alert variant="destructive" className="mt-4 animate-in fade-in-50">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Authentication Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        );
       default:
-        return <div className="text-red-500 text-sm">{error}</div>;
+        return (
+          <Alert variant="destructive" className="mt-4 animate-in fade-in-50">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        );
     }
   };
 
   return (
-    <div className="min-h-screen with-navbar flex items-center justify-center bg-muted/30">
-      <div className="max-w-md w-full px-4 py-8">
-        <div className="flex justify-center mb-6">
-          <div className="flex items-center gap-2">
-            <Link href="/">
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-10 w-10 text-primary" />
-                <h1 className="text-3xl font-bold">TutorMatch</h1>
-              </div>
-            </Link>
-          </div>
+    <div className="min-h-screen with-navbar flex flex-col items-center justify-center bg-gradient-to-b from-background via-background/95 to-muted/20 p-4">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 right-[20%] w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl opacity-70 animate-pulse" style={{animationDuration: '8s'}}></div>
+        <div className="absolute -bottom-20 left-[10%] w-[600px] h-[600px] bg-secondary/5 rounded-full blur-3xl opacity-60" style={{animationDuration: '12s'}}></div>
+      </div>
+      
+      <div className="relative z-10 max-w-md w-full">
+        <div className="mb-8 text-center">
+          <Link href="/" className="inline-flex items-center gap-2 transition hover:opacity-80">
+            <div className="bg-primary/10 p-2 rounded-md">
+              <BookOpen className="h-6 w-6 text-primary" strokeWidth={2} />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight">TutorMatch</h1>
+          </Link>
+          <p className="mt-2 text-muted-foreground text-sm">Learn from the best, anytime, anywhere</p>
         </div>
         
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "login" | "signup")} className="w-full">
-          <TabsList className="grid grid-cols-2 w-full mb-6">
-            <TabsTrigger value="login">Login</TabsTrigger>
-            <TabsTrigger value="signup">Sign Up</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="login">
-            <Card>
-              <CardHeader>
-                <CardTitle>Welcome back</CardTitle>
+        <Card className="border-border/40 shadow-xl backdrop-blur-sm bg-card/95">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "login" | "signup")} className="w-full">
+            <TabsList className="grid grid-cols-2 w-full mb-2 bg-muted/50">
+              <TabsTrigger value="login" className="rounded-md data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm">Login</TabsTrigger>
+              <TabsTrigger value="signup" className="rounded-md data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm">Sign Up</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="login" className="mt-0 pt-4">
+              <CardHeader className="px-6 pb-2">
+                <CardTitle className="text-xl">Welcome back</CardTitle>
                 <CardDescription>Enter your credentials to access your account</CardDescription>
               </CardHeader>
               <form onSubmit={handleLogin}>
-                <CardContent className="space-y-4">
+                <CardContent className="px-6 space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      placeholder="name@example.com" 
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
+                    <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        id="email" 
+                        type="email" 
+                        placeholder="name@example.com" 
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
+                        required
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="password">Password</Label>
+                      <Label htmlFor="password" className="text-sm font-medium">Password</Label>
                       <button
                         type="button" 
                         onClick={(e) => {
@@ -355,20 +375,28 @@ export default function LoginPage() {
                         Forgot password?
                       </button>
                     </div>
-                    <Input 
-                      id="password" 
-                      type="password" 
-                      placeholder="••••••••" 
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
+                    <div className="relative">
+                      <LockKeyhole className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        id="password" 
+                        type="password" 
+                        placeholder="••••••••" 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
+                        required
+                      />
+                    </div>
                   </div>
                   
                   {renderError()}
                 </CardContent>
-                <CardFooter>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
+                <CardFooter className="px-6 pt-2">
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow-md transition-all"
+                    disabled={isLoading}
+                  >
                     {isLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -383,79 +411,98 @@ export default function LoginPage() {
                   </Button>
                 </CardFooter>
               </form>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="signup">
-            <Card>
-              <CardHeader>
-                <CardTitle>Create an account</CardTitle>
+            </TabsContent>
+            
+            <TabsContent value="signup" className="mt-0 pt-4">
+              <CardHeader className="px-6 pb-2">
+                <CardTitle className="text-xl">Create an account</CardTitle>
                 <CardDescription>Enter your details to create a new account</CardDescription>
               </CardHeader>
               <form onSubmit={handleSignup}>
-                <CardContent className="space-y-4">
+                <CardContent className="px-6 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="first-name">First Name</Label>
-                      <Input 
-                        id="first-name" 
-                        type="text" 
-                        placeholder="John" 
-                        value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                        required
-                      />
+                      <Label htmlFor="first-name" className="text-sm font-medium">First Name</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                          id="first-name" 
+                          type="text" 
+                          placeholder="John" 
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                          className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
+                          required
+                        />
+                      </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="last-name">Last Name</Label>
+                      <Label htmlFor="last-name" className="text-sm font-medium">Last Name</Label>
                       <Input 
                         id="last-name" 
                         type="text" 
                         placeholder="Doe" 
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
+                        className="border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
                         required
                       />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <Input 
-                      id="signup-email" 
-                      type="email" 
-                      placeholder="name@example.com" 
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
+                    <Label htmlFor="signup-email" className="text-sm font-medium">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        id="signup-email" 
+                        type="email" 
+                        placeholder="name@example.com" 
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
+                        required
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
-                    <Input 
-                      id="signup-password" 
-                      type="password" 
-                      placeholder="••••••••" 
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
+                    <Label htmlFor="signup-password" className="text-sm font-medium">Password</Label>
+                    <div className="relative">
+                      <LockKeyhole className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        id="signup-password" 
+                        type="password" 
+                        placeholder="••••••••" 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
+                        required
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="confirm-password">Confirm Password</Label>
-                    <Input 
-                      id="confirm-password" 
-                      type="password" 
-                      placeholder="••••••••" 
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      required
-                    />
+                    <Label htmlFor="confirm-password" className="text-sm font-medium">Confirm Password</Label>
+                    <div className="relative">
+                      <Shield className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        id="confirm-password" 
+                        type="password" 
+                        placeholder="••••••••" 
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
+                        required
+                      />
+                    </div>
                   </div>
                   
                   {renderError()}
                 </CardContent>
-                <CardFooter>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
+                <CardFooter className="px-6 pt-2">
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow-md transition-all"
+                    disabled={isLoading}
+                  >
                     {isLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -470,19 +517,21 @@ export default function LoginPage() {
                   </Button>
                 </CardFooter>
               </form>
-            </Card>
-          </TabsContent>
-        </Tabs>
+            </TabsContent>
+          </Tabs>
+        </Card>
         
         <div className="mt-6 text-center text-sm text-muted-foreground">
-          By continuing, you agree to our
-          <Link href="#" className="mx-1 text-primary hover:underline">
-            Terms of Service
-          </Link>
-          and
-          <Link href="#" className="ml-1 text-primary hover:underline">
-            Privacy Policy
-          </Link>
+          <p className="backdrop-blur-sm bg-background/40 p-3 rounded-lg shadow-sm border border-border/20">
+            By continuing, you agree to our
+            <Link href="#" className="mx-1 text-primary hover:underline font-medium">
+              Terms of Service
+            </Link>
+            and
+            <Link href="#" className="ml-1 text-primary hover:underline font-medium">
+              Privacy Policy
+            </Link>
+          </p>
         </div>
       </div>
       
@@ -495,13 +544,17 @@ export default function LoginPage() {
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="reset-email">Email</Label>
-              <Input 
-                id="reset-email" 
-                type="email" 
-                placeholder="name@example.com" 
-                value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value)}
-              />
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  id="reset-email" 
+                  type="email" 
+                  placeholder="name@example.com" 
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
+                />
+              </div>
             </div>
             {error && <div className="text-red-500 text-sm">{error}</div>}
           </div>
@@ -511,6 +564,7 @@ export default function LoginPage() {
               variant="outline"
               onClick={() => setShowResetPasswordForm(false)}
               disabled={isLoading}
+              className="border-primary/20 hover:border-primary/50 hover:bg-primary/5 transition-all"
             >
               Cancel
             </Button>
@@ -518,6 +572,7 @@ export default function LoginPage() {
               type="button"
               onClick={() => resetPassword(resetEmail)}
               disabled={isLoading || !resetEmail}
+              className="bg-primary hover:bg-primary/90 shadow-sm hover:shadow-md transition-all"
             >
               {isLoading ? (
                 <>

@@ -8,13 +8,13 @@ import ProtectedPageWrapper from "@/components/layout/ProtectedPageWrapper";
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <ProtectedPageWrapper>
-      <div className="page-container flex min-h-screen w-full">
+      <div className="flex min-h-screen bg-gradient-to-b from-muted/80 to-background/95">
         <SessionLinkHandler />
         <DashboardSidebar />
-        <div className="flex-1 overflow-auto">
-          <div className="content-section">
+        <div className="flex-1 overflow-auto bg-muted/30">
+          <main className="container mx-auto py-6 px-4 md:px-6 lg:px-8 max-w-7xl">
             {children}
-          </div>
+          </main>
         </div>
       </div>
     </ProtectedPageWrapper>

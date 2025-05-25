@@ -607,7 +607,10 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="container max-w-3xl py-8">
+    <div className="container max-w-3xl py-8 relative">
+      {/* Add subtle background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background pointer-events-none -z-10"></div>
+      
       <div className="space-y-0.5 mb-6">
         <h2 className="text-2xl font-bold">Settings</h2>
         <p className="text-muted-foreground">
@@ -615,10 +618,10 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <Separator className="my-6" />
+      <Separator className="my-6 opacity-70" />
 
       {/* Profile Picture Card */}
-      <Card className="mb-8">
+      <Card className="mb-8 bg-card/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-lg transition-all">
         <CardHeader>
           <CardTitle>Profile Picture</CardTitle>
           <CardDescription>
@@ -635,7 +638,7 @@ export default function SettingsPage() {
           ) : (
             <div className="flex flex-col items-center sm:flex-row sm:items-start gap-6">
               {/* Current Avatar Display */}
-              <div className="relative h-32 w-32 rounded-full overflow-hidden bg-muted flex items-center justify-center border">
+              <div className="relative h-32 w-32 rounded-full overflow-hidden bg-muted flex items-center justify-center border border-border/40 shadow-md group-hover:shadow-lg transition-all">
                 {avatarPreview ? (
                   <Image 
                     src={avatarPreview} 
@@ -653,6 +656,7 @@ export default function SettingsPage() {
                 ) : (
                   <User className="h-16 w-16 text-muted-foreground" />
                 )}
+                <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors"></div>
               </div>
               
               {/* Upload Controls */}
@@ -667,7 +671,7 @@ export default function SettingsPage() {
                 
                 {avatarFile && avatarPreview && !isEditingAvatar ? (
                   <div className="space-y-2">
-                    <div className="flex items-center">
+                    <div className="flex items-center p-2 rounded-md bg-muted/50 border border-border/30">
                       <span className="text-sm font-medium flex-grow truncate mr-2">
                         {avatarFile.name}
                       </span>
@@ -676,6 +680,7 @@ export default function SettingsPage() {
                         variant="ghost"
                         size="sm"
                         onClick={clearAvatarSelection}
+                        className="h-8 w-8 p-0"
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -686,8 +691,9 @@ export default function SettingsPage() {
                         type="button"
                         variant="outline"
                         onClick={() => setIsEditingAvatar(true)}
-                        className="flex-1 sm:flex-none"
+                        className="flex-1 sm:flex-none shadow-sm border-border/40 hover:bg-muted hover:border-primary/30 transition-all"
                       >
+                        <Camera className="mr-2 h-4 w-4" />
                         Edit Image
                       </Button>
                       
@@ -695,7 +701,7 @@ export default function SettingsPage() {
                         type="button"
                         onClick={handleAvatarUpload}
                         disabled={avatarLoading}
-                        className="flex-1 sm:flex-none"
+                        className="flex-1 sm:flex-none shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]"
                       >
                         {avatarLoading ? (
                           <>
@@ -717,7 +723,7 @@ export default function SettingsPage() {
                       type="button"
                       variant="outline"
                       onClick={triggerFileInput}
-                      className="w-full sm:w-auto"
+                      className="w-full sm:w-auto shadow-sm border-border/40 hover:bg-muted hover:border-primary/30 transition-all"
                     >
                       <Camera className="mr-2 h-4 w-4" />
                       Choose Image
@@ -727,7 +733,7 @@ export default function SettingsPage() {
                       <Button
                         type="button"
                         variant="outline"
-                        className="w-full sm:w-auto"
+                        className="w-full sm:w-auto shadow-sm border-border/40 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-all"
                         onClick={async () => {
                           // Update profile to remove avatar URL
                           const isSessionValid = await ensureAuthSession();
@@ -774,7 +780,7 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card className="mb-8">
+      <Card className="mb-8 bg-card/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-lg transition-all">
         <CardHeader>
           <CardTitle>Profile Settings</CardTitle>
           <CardDescription>
@@ -794,7 +800,7 @@ export default function SettingsPage() {
                       <FormItem>
                         <FormLabel>First Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="John" {...field} />
+                          <Input placeholder="John" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -807,7 +813,7 @@ export default function SettingsPage() {
                       <FormItem>
                         <FormLabel>Last Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="Doe" {...field} />
+                          <Input placeholder="Doe" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -822,7 +828,7 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel>Age</FormLabel>
                       <FormControl>
-                        <Input type="number" placeholder="25" {...field} />
+                        <Input type="number" placeholder="25" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -837,7 +843,7 @@ export default function SettingsPage() {
                       <FormLabel>Bio</FormLabel>
                       <FormControl>
                         <textarea 
-                          className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="flex min-h-[120px] w-full rounded-md border border-input bg-background/80 backdrop-blur-sm px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm focus-visible:border-primary/30 transition-all"
                           placeholder="Tell students about yourself..."
                           {...field}
                         />
@@ -848,7 +854,7 @@ export default function SettingsPage() {
                 />
 
                 <div className="flex justify-end">
-                  <Button type="submit" disabled={profileLoading}>
+                  <Button type="submit" disabled={profileLoading} className="shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]">
                     {profileLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -876,7 +882,7 @@ export default function SettingsPage() {
                       <FormItem>
                         <FormLabel>First Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="John" {...field} />
+                          <Input placeholder="John" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -889,7 +895,7 @@ export default function SettingsPage() {
                       <FormItem>
                         <FormLabel>Last Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="Doe" {...field} />
+                          <Input placeholder="Doe" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -898,7 +904,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="flex justify-end">
-                  <Button type="submit" disabled={profileLoading}>
+                  <Button type="submit" disabled={profileLoading} className="shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]">
                     {profileLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -918,7 +924,7 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card className="mb-6">
+      <Card className="mb-6 bg-card/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-lg transition-all">
         <CardHeader>
           <CardTitle>Email Settings</CardTitle>
           <CardDescription>
@@ -935,6 +941,7 @@ export default function SettingsPage() {
                 type="email" 
                 value={user?.email || ""} 
                 disabled 
+                className="bg-muted/50 border-border/40"
               />
               <p className="text-sm text-muted-foreground">
                 Email updates for tutors are not currently supported through this interface.
@@ -956,6 +963,7 @@ export default function SettingsPage() {
                           type="email" 
                           placeholder="your@email.com" 
                           {...field} 
+                          className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
                         />
                       </FormControl>
                       <FormMessage />
@@ -985,6 +993,7 @@ export default function SettingsPage() {
                     type="submit" 
                     variant="outline"
                     disabled={emailLoading}
+                    className="shadow-sm border-border/40 hover:bg-primary/5 hover:border-primary/30 transition-all"
                   >
                     {emailLoading ? (
                       <>

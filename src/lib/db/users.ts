@@ -392,3 +392,125 @@ export async function createUserProfileIfNeeded(
     return { success: false, error: errorMessage };
   }
 } 
+
+export async function getUserProfileById(
+  userId: string, 
+  authUser: AuthUser
+): Promise<{
+  profile: any;
+  error: string | null;
+}> {
+  try {
+    // For security, users can only access their own profile unless they have elevated permissions
+    if (userId !== authUser.id && !authUser.is_tutor) {  // Assuming tutors can view student profiles
+      return { profile: null, error: 'Access denied' };
+    }
+    
+    const supabase = await createRouteHandlerClientWithCookies();
+    
+    // First check if user exists and get their role
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, is_tutor')
+      .eq('id', userId)
+      .single();
+      
+    if (userError || !userData) {
+      console.error('Error fetching user:', userError);
+      return { profile: null, error: 'User not found' };
+    }
+    
+    // Fetch profile based on user role
+    const isTutor = userData.is_tutor;
+    const profileTable = isTutor ? 'tutor_profile' : 'student_profile';
+    
+    const { data: profileData, error: profileError } = await supabase
+      .from(profileTable)
+      .select('*')
+      .eq('id', userId)
+      .single();
+    
+    if (profileError) {
+      console.error('Error fetching profile:', profileError);
+      return { profile: null, error: 'Profile not found' };
+    }
+    
+    return { profile: profileData, error: null };
+  } catch (error) {
+    console.error('Profile fetch error:', error);
+    return { profile: null, error: 'Internal server error' };
+  }
+} 
+
+export async function updateUserProfile(
+  userId: string,
+  authUser: AuthUser,
+  updateData: Record<string, any>
+): Promise<{
+  profile: any;
+  error: string | null;
+}> {
+  try {
+    // For security, users can only update their own profile
+    if (userId !== authUser.id) {
+      return { profile: null, error: 'Access denied' };
+    }
+    
+    const supabase = await createRouteHandlerClientWithCookies();
+    
+    // First check if user exists and get their role
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('is_tutor')
+      .eq('id', userId)
+      .single();
+      
+    if (userError || !userData) {
+      console.error('Error fetching user:', userError);
+      return { profile: null, error: 'User not found' };
+    }
+    
+    // Define allowed fields based on role
+    const isTutor = userData.is_tutor;
+    let profileTable = isTutor ? 'tutor_profile' : 'student_profile';
+    let filteredUpdateData: Record<string, any> = {};
+    
+    // Filter fields based on role
+    if (isTutor) {
+      // Tutor profile fields that can be updated
+      if (updateData.first_name !== undefined) filteredUpdateData.first_name = updateData.first_name;
+      if (updateData.last_name !== undefined) filteredUpdateData.last_name = updateData.last_name;
+      if (updateData.age !== undefined) filteredUpdateData.age = updateData.age;
+      if (updateData.bio !== undefined) filteredUpdateData.bio = updateData.bio;
+      if (updateData.avatar_url !== undefined) filteredUpdateData.avatar_url = updateData.avatar_url;
+    } else {
+      // Student profile fields that can be updated
+      if (updateData.first_name !== undefined) filteredUpdateData.first_name = updateData.first_name;
+      if (updateData.last_name !== undefined) filteredUpdateData.last_name = updateData.last_name;
+      if (updateData.avatar_url !== undefined) filteredUpdateData.avatar_url = updateData.avatar_url;
+    }
+    
+    // Only proceed if there are fields to update
+    if (Object.keys(filteredUpdateData).length === 0) {
+      return { profile: null, error: 'No valid fields to update' };
+    }
+    
+    // Update the profile
+    const { data, error } = await supabase
+      .from(profileTable)
+      .update(filteredUpdateData)
+      .eq('id', userId)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error updating profile:', error);
+      return { profile: null, error: 'Failed to update profile' };
+    }
+    
+    return { profile: data, error: null };
+  } catch (error) {
+    console.error('Profile update error:', error);
+    return { profile: null, error: 'Internal server error' };
+  }
+} 

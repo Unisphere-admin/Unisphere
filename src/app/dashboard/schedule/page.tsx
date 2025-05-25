@@ -509,7 +509,10 @@ export default function SchedulePage() {
   };
 
   return (
-    <div className="container mx-auto py-4 px-2" ref={contentRef}>
+    <div className="space-y-8 relative">
+      {/* Add subtle background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background pointer-events-none -z-10"></div>
+      
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6">
         <h1 className="text-2xl font-bold mb-2 sm:mb-0">Upcoming Sessions</h1>
         <div className="flex items-center text-sm text-muted-foreground">
@@ -518,7 +521,7 @@ export default function SchedulePage() {
         </div>
       </div>
       
-      <Card className="mb-6">
+      <Card className="mb-6 bg-card/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-lg transition-all">
         <CardHeader className="pb-3">
           <CardTitle>Your Scheduled Sessions</CardTitle>
           <CardDescription>Manage your upcoming tutoring sessions</CardDescription>
@@ -526,9 +529,12 @@ export default function SchedulePage() {
         <CardContent>
           {upcomingSessions.length === 0 ? (
             <div className="text-center py-8">
+              <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5 shadow-sm">
+                <Calendar className="h-8 w-8 text-primary/80" strokeWidth={1.5} />
+              </div>
               <h3 className="text-xl font-medium mb-3">No upcoming sessions</h3>
               <p className="text-muted-foreground mb-6">You don't have any tutoring sessions scheduled</p>
-              <Button asChild>
+              <Button asChild className="shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]">
                 <Link href="/tutors">Find a Tutor</Link>
               </Button>
             </div>
@@ -541,7 +547,7 @@ export default function SchedulePage() {
                 const bothReady = session.tutor_ready && session.student_ready;
                 
                 return (
-                  <div key={session.id} className="border rounded-lg p-4">
+                  <div key={session.id} className="border rounded-lg p-4 bg-card/40 backdrop-blur-sm border-border/40 shadow-sm hover:shadow transition-all hover:bg-card/60 group">
                     <div className="flex flex-col md:flex-row md:items-center justify-between mb-2">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
@@ -572,7 +578,7 @@ export default function SchedulePage() {
                       </div>
                       <div className="mt-2 md:mt-0 flex items-center text-sm">
                         <Clock className="mr-1 h-4 w-4 text-muted-foreground" />
-                        <span className="bg-muted px-2.5 py-1 rounded-full">
+                        <span className="bg-muted/70 backdrop-blur-sm px-2.5 py-1 rounded-full">
                           {formatSessionDate(session.scheduled_for)}
                         </span>
                       </div>
@@ -589,6 +595,7 @@ export default function SchedulePage() {
                               size="sm"
                               variant="destructive"
                               disabled={actionLoading === session.id}
+                              className="shadow-sm hover:shadow transition-all"
                               onClick={() => handleEndSession(session.id)}
                             >
                               {actionLoading === session.id ? (
@@ -606,6 +613,7 @@ export default function SchedulePage() {
                             variant={isCurrentUserReady ? "outline" : "default"}
                             onClick={() => handleReadyToggle(session.id, !!isCurrentUserReady)}
                             disabled={actionLoading === session.id}
+                            className={`shadow-sm hover:shadow ${isCurrentUserReady ? 'border-border/40 hover:bg-muted hover:border-primary/30' : 'hover:translate-y-[-1px]'} transition-all`}
                           >
                             {actionLoading === session.id ? (
                               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -617,7 +625,7 @@ export default function SchedulePage() {
                           
                           {isTutor && bothReady && (
                             <Button
-                              className="bg-green-600 hover:bg-green-700"
+                              className="bg-green-600 hover:bg-green-700 shadow-md hover:shadow-lg transition-all hover:translate-y-[-1px]"
                               onClick={() => handleStartSession(session.id)}
                               disabled={actionLoading === session.id}
                             >
@@ -630,7 +638,7 @@ export default function SchedulePage() {
                             </Button>
                           )}
                           
-                          <Button variant="outline" asChild>
+                          <Button variant="outline" asChild className="shadow-sm border-border/40 hover:bg-muted hover:border-primary/30 transition-all">
                             <Link href={`/dashboard/messages?conversationId=${session.conversation_id}`}>
                               <MessageCircle className="h-4 w-4 mr-2" />
                               Message
@@ -639,7 +647,7 @@ export default function SchedulePage() {
                           
                           <Button 
                             variant="outline" 
-                            className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                            className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 shadow-sm transition-all"
                             disabled={cancelingSession === session.id || actionLoading === session.id}
                             onClick={() => {
                               setSessionToCancel({
@@ -663,6 +671,7 @@ export default function SchedulePage() {
                               size="sm"
                               onClick={() => handleAcceptSession(session.id)}
                               disabled={actionLoading === session.id}
+                              className="shadow-sm border-border/40 hover:bg-primary/5 hover:border-primary/30 transition-all"
                             >
                               {actionLoading === session.id ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -672,7 +681,7 @@ export default function SchedulePage() {
                               Accept
                             </Button>
                           )}
-                          <Button variant="outline" size="sm" asChild>
+                          <Button variant="outline" size="sm" asChild className="shadow-sm border-border/40 hover:bg-muted hover:border-primary/30 transition-all">
                             <Link href={`/dashboard/messages?conversationId=${session.conversation_id}`}>
                               <MessageCircle className="mr-2 h-4 w-4" />
                               View Details
@@ -681,7 +690,7 @@ export default function SchedulePage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 shadow-sm transition-all"
                             onClick={() => {
                               setSessionToCancel({ id: session.id, message_id: session.message_id });
                               setShowCancelDialog(true);
@@ -708,7 +717,7 @@ export default function SchedulePage() {
 
       {/* Confirmation Dialog */}
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-background/95 backdrop-blur-sm border-border/40 shadow-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Tutoring Session</AlertDialogTitle>
             <AlertDialogDescription>
@@ -716,11 +725,11 @@ export default function SchedulePage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setSessionToCancel(null)}>
+            <AlertDialogCancel onClick={() => setSessionToCancel(null)} className="border-border/40 hover:bg-muted hover:border-primary/30 transition-all">
               Keep Session
             </AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-red-600 hover:bg-red-700 shadow-md hover:shadow-lg transition-all hover:translate-y-[-1px]"
               onClick={handleCancelSession}
             >
               {cancelingSession ? (

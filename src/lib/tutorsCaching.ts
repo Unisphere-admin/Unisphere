@@ -116,9 +116,9 @@ export async function fetchTutorsFromAPI(isBackgroundRefresh = false) {
     // Verify user is still authenticated before saving to cache
     const isStillAuthenticated = await isAuthenticated();
     if (isStillAuthenticated) {
-      // Save to cache with the longer TTL
-      saveToCache(CACHE_CONFIG.TUTORS_CACHE_KEY, tutors, CACHE_CONFIG.TUTORS_CACHE_TTL);
-      console.log(`${isBackgroundRefresh ? 'Background refresh' : 'Fetched'} and cached ${tutors.length} tutors`);
+    // Save to cache with the longer TTL
+    saveToCache(CACHE_CONFIG.TUTORS_CACHE_KEY, tutors, CACHE_CONFIG.TUTORS_CACHE_TTL);
+    console.log(`${isBackgroundRefresh ? 'Background refresh' : 'Fetched'} and cached ${tutors.length} tutors`);
     } else {
       console.log('User no longer authenticated, not caching tutor data');
     }

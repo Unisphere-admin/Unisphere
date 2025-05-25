@@ -9,7 +9,8 @@ import {
   Users,
   Calendar,
   MessageCircle,
-  ArrowRight
+  ArrowRight,
+  Star
 } from "lucide-react";
 import {
   Card,
@@ -21,77 +22,106 @@ import {
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { useApiTutorProfiles } from "@/hooks/useApiClient";
-import { Skeleton } from "@/components/ui/skeleton";
-import { TutorProfile } from "@/types/supabaseTypes";
+import { Separator } from "@/components/ui/separator";
 
 export default function HomePage() {
-  const { tutors: fetchedTutors, loading } = useApiTutorProfiles();
-  
-  // Take only the first 3 tutors for the featured section
-  const displayTutors: TutorProfile[] = Array.isArray(fetchedTutors) ? fetchedTutors.slice(0, 3) : [];
-
   return (
-    <div className="w-full with-navbar">
+    <div className="flex flex-col w-full with-navbar">
       {/* Hero Section */}
-      <section className="hero-gradient py-16 md:py-24 w-full">
-        <div className="container mx-auto px-4 md:px-6 max-w-screen-xl">
-          <div className="flex flex-col md:flex-row gap-8 items-center">
-            <div className="flex-1 space-y-4">
-              <h1 className="font-bold tracking-tighter text-4xl md:text-5xl lg:text-6xl">
-                Expert Tutoring,<br />
+      <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-b from-background via-background/95 to-muted/20">
+        <div className="absolute inset-0 z-0">
+          <div className="absolute top-20 right-[20%] w-72 h-72 bg-primary/5 rounded-full blur-3xl opacity-70 animate-pulse" style={{animationDuration: '8s'}}></div>
+          <div className="absolute bottom-10 left-[10%] w-80 h-80 bg-secondary/5 rounded-full blur-3xl opacity-60 animate-pulse" style={{animationDuration: '12s'}}></div>
+        </div>
+        <div className="container relative z-10 mx-auto px-4 md:px-6 max-w-screen-xl">
+          <div className="flex flex-col md:flex-row gap-12 items-center">
+            <div className="flex-1 space-y-6">
+              <Badge variant="outline" className="px-3 py-1 mb-2 text-sm bg-background/80 backdrop-blur-sm border-primary/20">
+                <span className="text-primary font-medium">New</span> - Instant learning now available
+              </Badge>
+              <h1 className="font-bold tracking-tight text-4xl md:text-5xl lg:text-6xl">
+                Quality Education,<br />
                 <span className="text-primary">Anytime, Anywhere</span>
               </h1>
               <p className="text-xl text-muted-foreground md:text-2xl max-w-[600px]">
-                Connect with top-rated tutors for personalized learning sessions in any subject
+                Connect with personalized learning experiences to achieve your academic goals
               </p>
               <div className="flex flex-col sm:flex-row gap-4 mt-8">
-                <Button size="lg" className="button-glow">
-                  <Link href="/tutors">Find a Tutor</Link>
+                <Button size="lg" className="shadow-md bg-primary hover:bg-primary/90 transition-all hover:shadow-lg hover:translate-y-[-2px] group">
+                  <Link href="/tutors" className="flex items-center gap-2">
+                    Start Learning <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
+                  </Link>
                 </Button>
-                <Button size="lg" variant="outline">
+                <Button size="lg" variant="outline" className="border-border/40 hover:border-primary/40 hover:bg-primary/5 transition-all">
                   <Link href="/about">Learn More</Link>
                 </Button>
               </div>
               <div className="flex items-center gap-4 mt-6">
-                <div className="flex -space-x-2">
-                  <Avatar className="border-2 border-background h-8 w-8">
-                    <AvatarImage src="/placeholder.svg" alt="User" />
-                    <AvatarFallback>U1</AvatarFallback>
+                <div className="flex -space-x-3">
+                  <Avatar className="border-2 border-background h-9 w-9 ring-2 ring-background">
+                    <AvatarImage src="https://randomuser.me/api/portraits/women/32.jpg" alt="User" />
+                    <AvatarFallback>JS</AvatarFallback>
                   </Avatar>
-                  <Avatar className="border-2 border-background h-8 w-8">
-                    <AvatarImage src="/placeholder.svg" alt="User" />
-                    <AvatarFallback>U2</AvatarFallback>
+                  <Avatar className="border-2 border-background h-9 w-9 ring-2 ring-background">
+                    <AvatarImage src="https://randomuser.me/api/portraits/men/42.jpg" alt="User" />
+                    <AvatarFallback>MR</AvatarFallback>
                   </Avatar>
-                  <Avatar className="border-2 border-background h-8 w-8">
-                    <AvatarImage src="/placeholder.svg" alt="User" />
-                    <AvatarFallback>U3</AvatarFallback>
+                  <Avatar className="border-2 border-background h-9 w-9 ring-2 ring-background">
+                    <AvatarImage src="https://randomuser.me/api/portraits/women/22.jpg" alt="User" />
+                    <AvatarFallback>KL</AvatarFallback>
                   </Avatar>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  <span className="font-medium">1000+</span> students already learning
+                  <span className="font-medium">1,000+</span> students already learning
                 </p>
               </div>
             </div>
             <div className="flex-1 relative">
               <div className="relative w-full max-w-md mx-auto">
-                <div className="absolute -top-6 -left-6 w-24 h-24 bg-primary/20 rounded-full blur-2xl animate-pulse-soft"></div>
-                <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-secondary/20 rounded-full blur-3xl animate-pulse-soft"></div>
-                <img
-                  src="/placeholder.svg"
-                  alt="Online Tutoring"
-                  className="relative z-10 w-full rounded-2xl shadow-xl"
-                />
-                <div className="absolute top-5 -right-10 bg-white p-4 rounded-xl shadow-lg animate-float z-20">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5 text-primary" />
-                    <span className="text-sm font-medium">Instant Matching</span>
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-secondary/5 to-primary/10 rounded-2xl blur-xl transform -translate-y-4 translate-x-4 animate-pulse" style={{animationDuration: '10s'}}></div>
+                <div className="relative z-10 bg-card/95 border border-border/40 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden hover:shadow-2xl transition-all duration-300 hover:translate-y-[-3px] group">
+                  <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  <img
+                    src="https://images.unsplash.com/photo-1546521343-4eb2c01aa44b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1035&q=80"
+                    alt="Online Learning"
+                    className="w-full rounded-t-xl object-cover h-64 group-hover:scale-105 transition-transform duration-700"
+                  />
+                  <div className="p-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Badge className="px-3 py-1 bg-primary/10 text-primary hover:bg-primary/20 transition-colors border-primary/20">
+                          Featured
+                        </Badge>
+                        <Badge className="px-3 py-1 bg-secondary/10 text-secondary hover:bg-secondary/20 transition-colors border-secondary/20">
+                          Popular
+                        </Badge>
+                      </div>
+                    </div>
+                    <h3 className="text-lg font-semibold">Mathematics & Sciences</h3>
+                    <p className="text-sm text-muted-foreground">Master complex concepts with our interactive learning platform</p>
+                    <Separator />
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <span>Flexible scheduling</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                        <span>Personalized support</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="absolute -bottom-10 -left-8 bg-white p-4 rounded-xl shadow-lg animate-float z-20" style={{ animationDelay: "1s" }}>
+                <div className="absolute top-5 -right-10 bg-card/80 backdrop-blur-sm p-4 rounded-xl shadow-md border border-border/40 animate-in slide-in-from-right-5 duration-500">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-primary" />
+                    <span className="text-sm font-medium">Interactive Learning</span>
+                  </div>
+                </div>
+                <div className="absolute -bottom-6 -left-8 bg-card/80 backdrop-blur-sm p-4 rounded-xl shadow-md border border-border/40 animate-in slide-in-from-left-5 duration-500">
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-primary" />
-                    <span className="text-sm font-medium">Expert Tutors</span>
+                    <span className="text-sm font-medium">Top-Rated Platform</span>
                   </div>
                 </div>
               </div>
@@ -101,172 +131,88 @@ export default function HomePage() {
       </section>
 
       {/* Features Section */}
-      <section className="py-16 md:py-24 w-full">
+      <section className="py-20 md:py-32 w-full bg-card/80 backdrop-blur-sm border-y border-border/20">
         <div className="container mx-auto px-4 md:px-6 max-w-screen-xl">
-          <div className="text-center max-w-2xl mx-auto mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">How It Works</h2>
-            <p className="text-xl text-muted-foreground">
-              Our platform makes it easy to connect with tutors and start learning
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <Badge className="mb-4 bg-secondary/10 text-secondary hover:bg-secondary/20 border-none">How It Works</Badge>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Simple Steps to Start Learning</h2>
+            <p className="text-lg text-muted-foreground">
+              Our platform makes it easy to transform your learning journey
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 mt-12">
-            <div className="flex flex-col items-center text-center">
-              <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-                <Users className="h-8 w-8 text-primary" />
-              </div>
-              <h3 className="text-xl font-semibold mb-3">Find Your Tutor</h3>
-              <p className="text-muted-foreground">
-                Browse profiles of qualified tutors specialized in your subject
-              </p>
-            </div>
+          <div className="grid md:grid-cols-3 gap-8 lg:gap-12 mt-12">
+            <Card className="bg-background/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px]">
+              <CardContent className="pt-8 px-6">
+                <div className="h-14 w-14 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mb-6 shadow-sm">
+                  <Users className="h-7 w-7 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">Find Your Path</h3>
+                <p className="text-muted-foreground">
+                  Browse subjects and learning resources tailored to your academic needs
+                </p>
+              </CardContent>
+            </Card>
 
-            <div className="flex flex-col items-center text-center">
-              <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-                <MessageCircle className="h-8 w-8 text-primary" />
-              </div>
-              <h3 className="text-xl font-semibold mb-3">Schedule a Session</h3>
-              <p className="text-muted-foreground">
-                Message tutors to arrange a time that works for your schedule
-              </p>
-            </div>
+            <Card className="bg-background/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px]">
+              <CardContent className="pt-8 px-6">
+                <div className="h-14 w-14 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mb-6 shadow-sm">
+                  <MessageCircle className="h-7 w-7 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">Schedule Sessions</h3>
+                <p className="text-muted-foreground">
+                  Arrange learning sessions at times that fit your schedule and learning goals
+                </p>
+              </CardContent>
+            </Card>
 
-            <div className="flex flex-col items-center text-center">
-              <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-                <GraduationCap className="h-8 w-8 text-primary" />
-              </div>
-              <h3 className="text-xl font-semibold mb-3">Learn & Succeed</h3>
-              <p className="text-muted-foreground">
-                Connect for personalized learning sessions using our token system
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Featured Tutors Section */}
-      <section className="py-16 md:py-24 bg-muted/30 w-full">
-        <div className="container mx-auto px-4 md:px-6 max-w-screen-xl">
-          <div className="flex flex-col md:flex-row justify-between items-center mb-12">
-            <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">Featured Tutors</h2>
-              <p className="text-xl text-muted-foreground">
-                Meet our top-rated tutoring professionals
-              </p>
-            </div>
-            <Button className="mt-4 md:mt-0" asChild>
-              <Link href="/tutors">
-                View All Tutors
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {loading ? (
-              // Show skeletons while loading
-              Array(3).fill(0).map((_, index) => (
-                <Card key={index} className="card-hover">
-                  <CardHeader className="pb-4">
-                    <div className="flex justify-between items-start">
-                      <Skeleton className="h-14 w-14 rounded-full" />
-                      <Skeleton className="h-5 w-10" />
-                    </div>
-                    <Skeleton className="h-6 w-32 mt-4" />
-                    <Skeleton className="h-4 w-full mt-2" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      <Skeleton className="h-6 w-20 rounded-full" />
-                      <Skeleton className="h-6 w-16 rounded-full" />
-                      <Skeleton className="h-6 w-24 rounded-full" />
-                    </div>
-                  </CardContent>
-                  <CardFooter>
-                    <Skeleton className="h-10 w-full" />
-                  </CardFooter>
-                </Card>
-              ))
-            ) : displayTutors.length > 0 ? (
-              displayTutors.map((tutor: TutorProfile) => (
-                <Card key={tutor.id} className="card-hover">
-                  <CardHeader className="pb-4">
-                    <div className="flex justify-between items-start">
-                      <Avatar className="h-14 w-14">
-                        <AvatarImage src={tutor.avatar_url ?? "/placeholder.svg"} alt={tutor.first_name || "Tutor"} />
-                        <AvatarFallback>
-                          {tutor.first_name?.charAt(0) || "T"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex items-center">
-                        <span className="text-amber-500 mr-1">★</span>
-                        <span className="font-medium">4.8</span>
-                      </div>
-                    </div>
-                    <CardTitle className="mt-4">
-                      {tutor.first_name} {tutor.last_name}
-                    </CardTitle>
-                    <CardDescription className="line-clamp-2">
-                      {tutor.description || 'Experienced tutor ready to help you succeed.'}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {tutor.subjects && typeof tutor.subjects === 'string' ? 
-                        tutor.subjects.split(',').map((subject: string, i: number) => (
-                          <Badge key={i} variant="secondary" className="rounded-full">
-                            {subject.trim()}
-                          </Badge>
-                        )) : 
-                        <Badge variant="secondary" className="rounded-full">
-                          General Tutoring
-                        </Badge>
-                      }
-                    </div>
-                  </CardContent>
-                  <CardFooter>
-                    <Button className="w-full" variant="outline" asChild>
-                      <Link href={`/tutors/${tutor.search_id || tutor.id}`}>View Profile</Link>
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))
-            ) : (
-              <div className="text-center col-span-3 py-8">
-                <p className="text-muted-foreground">No tutors found. Check back soon!</p>
-              </div>
-            )}
+            <Card className="bg-background/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px]">
+              <CardContent className="pt-8 px-6">
+                <div className="h-14 w-14 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mb-6 shadow-sm">
+                  <GraduationCap className="h-7 w-7 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">Learn & Succeed</h3>
+                <p className="text-muted-foreground">
+                  Engage in personalized learning experiences and track your progress
+                </p>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
 
       {/* Testimonials */}
-      <section className="py-16 md:py-24 w-full">
-        <div className="container mx-auto px-4 md:px-6 max-w-screen-xl">
-          <div className="text-center max-w-2xl mx-auto mb-12">
+      <section className="py-20 md:py-32 w-full bg-gradient-to-b from-background via-background/95 to-muted/20 relative overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <div className="absolute top-40 right-[30%] w-72 h-72 bg-primary/5 rounded-full blur-3xl opacity-60 animate-pulse" style={{animationDuration: '10s'}}></div>
+          <div className="absolute bottom-20 left-[20%] w-80 h-80 bg-secondary/5 rounded-full blur-3xl opacity-50 animate-pulse" style={{animationDuration: '15s'}}></div>
+        </div>
+        <div className="container mx-auto px-4 md:px-6 max-w-screen-xl relative z-10">
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <Badge className="mb-4 bg-secondary/10 text-secondary hover:bg-secondary/20 border-none">Testimonials</Badge>
             <h2 className="text-3xl md:text-4xl font-bold mb-4">What Our Students Say</h2>
-            <p className="text-xl text-muted-foreground">
-              Real stories from students who achieved their goals with TutorMatch
+            <p className="text-lg text-muted-foreground">
+              Real stories from students who achieved their goals with our platform
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            <Card className="bg-primary/5">
-              <CardContent className="pt-6">
-                <div className="flex mb-4 text-amber-500">
-                  <span>★</span>
-                  <span>★</span>
-                  <span>★</span>
-                  <span>★</span>
-                  <span>★</span>
+          <div className="grid md:grid-cols-3 gap-6 lg:gap-10">
+            <Card className="bg-card/50 backdrop-blur-sm border-border/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px]">
+              <CardHeader className="pb-2">
+                <div className="flex text-amber-500 mb-1">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="h-4 w-4 fill-amber-500" />
+                  ))}
                 </div>
-                <p className="mb-6 italic">
-                  "My tutor helped me raise my calculus grade from a C to an A. 
+              </CardHeader>
+              <CardContent>
+                <p className="mb-6 text-foreground/90 leading-relaxed">
+                  "This platform helped me raise my calculus grade from a C to an A. 
                   The personalized approach made all the difference."
                 </p>
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src="/placeholder.svg" />
+                  <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+                    <AvatarImage src="https://randomuser.me/api/portraits/women/32.jpg" />
                     <AvatarFallback>JS</AvatarFallback>
                   </Avatar>
                   <div>
@@ -277,22 +223,22 @@ export default function HomePage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-secondary/5">
-              <CardContent className="pt-6">
-                <div className="flex mb-4 text-amber-500">
-                  <span>★</span>
-                  <span>★</span>
-                  <span>★</span>
-                  <span>★</span>
-                  <span>★</span>
+            <Card className="bg-card/50 backdrop-blur-sm border-border/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px]">
+              <CardHeader className="pb-2">
+                <div className="flex text-amber-500 mb-1">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="h-4 w-4 fill-amber-500" />
+                  ))}
                 </div>
-                <p className="mb-6 italic">
-                  "I needed help with my Spanish course, and my tutor was amazing. 
+              </CardHeader>
+              <CardContent>
+                <p className="mb-6 text-foreground/90 leading-relaxed">
+                  "I needed help with my Spanish course, and this platform was amazing. 
                   I can now confidently hold conversations in Spanish!"
                 </p>
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src="/placeholder.svg" />
+                  <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+                    <AvatarImage src="https://randomuser.me/api/portraits/men/42.jpg" />
                     <AvatarFallback>AP</AvatarFallback>
                   </Avatar>
                   <div>
@@ -303,22 +249,22 @@ export default function HomePage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-primary/5">
-              <CardContent className="pt-6">
-                <div className="flex mb-4 text-amber-500">
-                  <span>★</span>
-                  <span>★</span>
-                  <span>★</span>
-                  <span>★</span>
-                  <span>★</span>
+            <Card className="bg-card/50 backdrop-blur-sm border-border/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px]">
+              <CardHeader className="pb-2">
+                <div className="flex text-amber-500 mb-1">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="h-4 w-4 fill-amber-500" />
+                  ))}
                 </div>
-                <p className="mb-6 italic">
-                  "The flexible scheduling options made it possible for me to fit tutoring
+              </CardHeader>
+              <CardContent>
+                <p className="mb-6 text-foreground/90 leading-relaxed">
+                  "The flexible scheduling options made it possible for me to fit learning
                   around my busy work schedule. Highly recommend!"
                 </p>
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src="/placeholder.svg" />
+                  <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+                    <AvatarImage src="https://randomuser.me/api/portraits/women/22.jpg" />
                     <AvatarFallback>MJ</AvatarFallback>
                   </Avatar>
                   <div>
@@ -328,6 +274,14 @@ export default function HomePage() {
                 </div>
               </CardContent>
             </Card>
+          </div>
+
+          <div className="mt-16 text-center">
+            <Button size="lg" className="bg-primary/10 text-primary hover:bg-primary/20 hover:shadow-md transition-all border-border/40 hover:translate-y-[-2px] group">
+              <Link href="/tutors" className="flex items-center gap-2">
+                Start Learning Today <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
+              </Link>
+            </Button>
           </div>
         </div>
       </section>

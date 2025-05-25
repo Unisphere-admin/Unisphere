@@ -10,13 +10,17 @@ import {
   Calendar, 
   Clock, 
   Wallet,
+  ArrowRight,
+  ArrowUpRight,
+  Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { SessionLink } from "@/components/SessionLink";
+import { Separator } from "@/components/ui/separator";
 
 // Import Recharts components
 import {
@@ -294,19 +298,39 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="page-content">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">
-          Welcome, {user?.name}!
-        </h1>
+    <div className="space-y-8 relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background pointer-events-none -z-10"></div>
+      
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
+          <p className="text-muted-foreground mt-1">
+            {user?.name ? user.name.split(' ')[0] : 'User'}, here's an overview of your learning journey
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Button variant="outline" className="shadow-sm border-border/40 hover:border-primary/30 hover:bg-primary/5 transition-all" size="sm" asChild>
+            <Link href="/dashboard/schedule">
+              <Calendar className="h-4 w-4 mr-2" />
+              Schedule
+            </Link>
+          </Button>
+          <Button className="shadow-md hover:shadow-lg transition-all bg-primary hover:bg-primary/90" size="sm" asChild>
+            <Link href="/dashboard/messages">
+              <ArrowRight className="h-4 w-4 mr-2" />
+              Messages
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <Card className="bg-primary text-primary-foreground">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="bg-gradient-to-br from-primary to-primary/90 text-primary-foreground shadow-lg border-primary/20 hover:shadow-xl transition-all hover:translate-y-[-2px]">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Wallet className="h-5 w-5" />
+              <Wallet className="h-5 w-5" strokeWidth={1.5} />
               Available Tokens
             </CardTitle>
             <CardDescription className="text-primary-foreground/80">
@@ -314,7 +338,7 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{user?.tokens || 0}</div>
+            <div className="text-4xl font-bold">{user?.tokens || 0}</div>
             <p className="text-sm mt-2 text-primary-foreground/80">
               {isStudent 
                 ? "Tokens are used to book tutoring sessions"
@@ -323,10 +347,10 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-card/80 backdrop-blur-sm shadow-md border-border/40 hover:shadow-xl transition-all hover:translate-y-[-2px]">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Clock className="h-5 w-5" />
+              <Clock className="h-5 w-5 text-primary/80" strokeWidth={1.5} />
               Session Hours
             </CardTitle>
             <CardDescription>
@@ -334,7 +358,7 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{totalHours}</div>
+            <div className="text-4xl font-bold">{totalHours}</div>
             <p className="text-sm mt-2 text-muted-foreground">
               {isStudent
                 ? `${completedSessions.length} completed sessions`
@@ -343,10 +367,10 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-card/80 backdrop-blur-sm shadow-md border-border/40 hover:shadow-xl transition-all hover:translate-y-[-2px]">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
+              <Calendar className="h-5 w-5 text-primary/80" strokeWidth={1.5} />
               Upcoming Sessions
             </CardTitle>
             <CardDescription>
@@ -354,7 +378,7 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{upcomingSessions ? upcomingSessions.length : 0}</div>
+            <div className="text-4xl font-bold">{upcomingSessions ? upcomingSessions.length : 0}</div>
             <p className="text-sm mt-2 text-muted-foreground">
               Next session: {getNextSessionTime()}
             </p>
@@ -364,18 +388,23 @@ export default function DashboardPage() {
 
       {/* Weekly Activity and Upcoming Sessions side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChartIcon className="h-5 w-5 text-muted-foreground" />
-              Completed Sessions
-            </CardTitle>
+        <Card className="bg-card/80 backdrop-blur-sm shadow-md border-border/40 hover:shadow-xl transition-all">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <BarChartIcon className="h-5 w-5 text-primary/80" strokeWidth={1.5} />
+                Completed Sessions
+              </CardTitle>
+              <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
+                Last 7 Days
+              </Badge>
+            </div>
             <CardDescription>
-              Sessions completed in the last 7 days
+              Your session activity over time
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[280px]">
               <ResponsiveContainer width="100%" height="100%">
                 <RechartsBarChart
                   data={activityData}
@@ -386,25 +415,35 @@ export default function DashboardPage() {
                     bottom: 0,
                   }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <defs>
+                    <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.6} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.4} />
                   <XAxis 
                     dataKey="name"
-                    // Ensure proper ordering by using the sortOrder
                     tickFormatter={(value, index) => {
                       const item = activityData[index];
                       return item ? item.name : value;
                     }}
+                    axisLine={{ stroke: 'var(--border)', strokeOpacity: 0.4 }}
+                    tick={{ fill: 'var(--muted-foreground)' }}
                   />
-                  <YAxis allowDecimals={false} />
+                  <YAxis 
+                    allowDecimals={false}
+                    axisLine={{ stroke: 'var(--border)', strokeOpacity: 0.4 }}
+                    tick={{ fill: 'var(--muted-foreground)' }}
+                  />
                   <Tooltip 
                     formatter={(value) => [`${value} sessions`, 'Sessions']}
                     contentStyle={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                      backgroundColor: 'var(--card)',
                       borderRadius: '0.5rem',
-                      border: '1px solid #e2e8f0',
+                      border: '1px solid var(--border)',
                       boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
                     }}
-                    // Add date to tooltip
                     labelFormatter={(label, payload) => {
                       if (payload && payload[0]) {
                         const item = activityData.find(d => d.name === label);
@@ -417,8 +456,10 @@ export default function DashboardPage() {
                   />
                   <Bar 
                     dataKey="sessions" 
-                    fill="var(--primary)" 
+                    fill="url(#barGradient)" 
                     radius={[4, 4, 0, 0]} 
+                    opacity={0.9}
+                    animationDuration={1500}
                   />
                 </RechartsBarChart>
               </ResponsiveContainer>
@@ -426,26 +467,32 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <Card className="bg-card/80 backdrop-blur-sm shadow-md border-border/40 hover:shadow-xl transition-all">
+          <CardHeader className="flex flex-row items-center justify-between pb-4">
             <div className="space-y-1">
-              <CardTitle>Upcoming Sessions</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-primary/80" strokeWidth={1.5} />
+                Upcoming Sessions
+              </CardTitle>
               <CardDescription>Your scheduled learning sessions</CardDescription>
             </div>
-            <Button asChild variant="ghost" size="sm" className="ml-auto">
-              <Link href="/dashboard/schedule">View All</Link>
+            <Button asChild variant="outline" size="sm" className="ml-auto shadow-sm border-border/40 hover:bg-primary/5 hover:border-primary/30 transition-all">
+              <Link href="/dashboard/schedule" className="flex items-center gap-1">
+                View All
+                <ArrowUpRight className="h-3.5 w-3.5 ml-1" />
+              </Link>
             </Button>
           </CardHeader>
           <CardContent>
             {upcomingSessions && upcomingSessions.length > 0 ? (
               <div className="space-y-4">
                 {upcomingSessions.slice(0, 3).map((session, index) => (
-                  <div key={session.id || index} className="bg-muted/40 p-4 rounded-lg border">
+                  <div key={session.id || index} className="bg-card/40 backdrop-blur-sm p-4 rounded-lg border border-border/40 shadow-sm hover:shadow transition-all hover:bg-card/60 group">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10">
+                        <Avatar className="h-10 w-10 border border-border/40 shadow-sm group-hover:shadow transition-all">
                           <AvatarImage src={session.tutor_profile?.avatar_url} />
-                          <AvatarFallback>
+                          <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/5 text-primary font-medium">
                             {session.tutor_profile?.first_name?.charAt(0) || 'T'}
                             {session.tutor_profile?.last_name?.charAt(0) || ''}
                           </AvatarFallback>
@@ -463,60 +510,78 @@ export default function DashboardPage() {
                           <div className="text-sm text-muted-foreground">{session.name || "General Tutoring"}</div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium">
-                          {session.scheduled_for 
-                            ? new Date(session.scheduled_for).toLocaleDateString([], {
-                                weekday: 'short',
-                                month: 'short',
-                                day: 'numeric'
-                              })
-                            : "Scheduled"}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {session.scheduled_for 
-                            ? new Date(session.scheduled_for).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })
-                            : ""}
-                        </div>
-                      </div>
+                      <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
+                        {session.scheduled_for 
+                          ? new Date(session.scheduled_for).toLocaleDateString([], {
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric'
+                            })
+                          : "Scheduled"}
+                      </Badge>
                     </div>
-                    <div className="flex justify-end gap-2">
-                      {session.conversation_id && (
-                        <Button variant="outline" size="sm" asChild>
-                          <SessionLink 
-                            sessionId={session.id}
-                            conversationId={session.conversation_id}
-                          >
-                            Message
-                          </SessionLink>
+                    <Separator className="my-3 opacity-40" />
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-muted-foreground">
+                        {session.scheduled_for 
+                          ? new Date(session.scheduled_for).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })
+                          : "Time TBD"}
+                      </div>
+                      <div className="flex gap-2">
+                        {session.conversation_id && (
+                          <Button variant="outline" size="sm" asChild className="h-8 shadow-sm border-border/40 hover:bg-muted hover:border-primary/30 transition-all">
+                            <SessionLink 
+                              sessionId={session.id}
+                              conversationId={session.conversation_id}
+                            >
+                              Message
+                            </SessionLink>
+                          </Button>
+                        )}
+                        <Button size="sm" asChild className="h-8 shadow-sm bg-primary hover:bg-primary/90 transition-all">
+                          <Link href="/dashboard/schedule">View Details</Link>
                         </Button>
-                      )}
-                      <Button size="sm" asChild>
-                        <Link href="/dashboard/schedule">View Schedule</Link>
-                      </Button>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-10">
+              <div className="text-center py-10 px-4 bg-muted/30 rounded-lg border border-border/20">
+                <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5 shadow-sm">
+                  <Calendar className="h-8 w-8 text-primary/80" strokeWidth={1.5} />
+                </div>
                 <h3 className="text-lg font-medium mb-2">No upcoming sessions</h3>
-                <p className="text-muted-foreground mb-6">
+                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
                   {isStudent 
-                    ? "Browse tutors to book your first session"
-                    : "Students will book sessions with you soon"}
+                    ? "Browse tutors to book your first session and start your learning journey"
+                    : "Students will book sessions with you soon. Complete your profile to increase visibility"}
                 </p>
                 {isStudent && (
-                  <Button asChild>
-                    <Link href="/tutors">Find a Tutor</Link>
+                  <Button asChild className="shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]">
+                    <Link href="/tutors" className="flex items-center gap-1">
+                      <Sparkles className="h-4 w-4 mr-1" />
+                      Find a Tutor
+                      <ArrowRight className="h-4 w-4 ml-1" />
+                    </Link>
                   </Button>
                 )}
               </div>
             )}
           </CardContent>
+          {upcomingSessions && upcomingSessions.length > 0 && (
+            <CardFooter className="pt-0 pb-4 px-6">
+              <Button variant="ghost" size="sm" asChild className="w-full border-t border-border/20 pt-3 text-primary/80 hover:text-primary hover:bg-primary/5 transition-colors">
+                <Link href="/dashboard/schedule" className="flex items-center justify-center gap-1">
+                  View all scheduled sessions
+                  <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                </Link>
+              </Button>
+            </CardFooter>
+          )}
         </Card>
       </div>
     </div>

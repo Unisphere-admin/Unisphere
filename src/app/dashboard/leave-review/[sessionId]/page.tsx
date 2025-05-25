@@ -172,16 +172,24 @@ export default function LeaveReviewPage() {
   }
 
   return (
-    <div className="container max-w-3xl py-8">
-      <Link href="/dashboard" className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6">
+    <div className="container max-w-3xl py-8 relative">
+      {/* Add subtle background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background pointer-events-none -z-10"></div>
+      
+      <Link href="/dashboard" className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6 transition-colors">
         <ArrowLeft className="w-4 h-4 mr-2" />
         Back to dashboard
       </Link>
       
-      <Card className="mb-8">
+      <Card className="mb-8 bg-card/80 backdrop-blur-sm border-border/40 shadow-lg hover:shadow-xl transition-all">
         <CardHeader>
-          <CardTitle>Leave a Review</CardTitle>
-          <CardDescription>
+          <div className="flex justify-center mb-4">
+            <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 shadow-md">
+              <StarIcon className="h-6 w-6 text-primary fill-primary/20" />
+            </div>
+          </div>
+          <CardTitle className="text-center">Leave a Review</CardTitle>
+          <CardDescription className="text-center">
             {session.tutor_profile ? 
               `Share your experience with ${session.tutor_profile.first_name} ${session.tutor_profile.last_name}` :
               'Share your experience with this tutor'}
@@ -189,7 +197,7 @@ export default function LeaveReviewPage() {
         </CardHeader>
         
         <CardContent className="space-y-4">
-          <div className="mb-6">
+          <div className="mb-6 p-3 rounded-lg bg-muted/50 border border-border/30">
             <div className="text-sm font-medium mb-2">Session Details</div>
             <p className="text-sm text-muted-foreground">
               {session.name || "Tutoring Session"} - {session.scheduled_for ? 
@@ -211,12 +219,14 @@ export default function LeaveReviewPage() {
                   key={star}
                   type="button"
                   onClick={() => setRating(star)}
-                  className="p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                  className="p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary transition-transform hover:scale-110"
                 >
                   <StarIcon 
                     className={cn(
-                      "h-8 w-8", 
-                      rating >= star ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"
+                      "h-8 w-8 transition-colors", 
+                      rating >= star 
+                        ? "text-yellow-500 fill-yellow-500" 
+                        : "text-muted-foreground hover:text-yellow-400 hover:fill-yellow-100"
                     )} 
                   />
                 </button>
@@ -231,7 +241,7 @@ export default function LeaveReviewPage() {
             <div className="text-sm font-medium mb-2">Your Comments (Optional)</div>
             <Textarea
               placeholder="Share details about your experience with this tutor..."
-              className="min-h-[120px] resize-y"
+              className="min-h-[120px] resize-y bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               maxLength={1000}
@@ -242,17 +252,19 @@ export default function LeaveReviewPage() {
           </div>
         </CardContent>
         
-        <CardFooter className="flex flex-col gap-2 sm:flex-row sm:justify-between">
+        <CardFooter className="flex flex-col gap-2 sm:flex-row sm:justify-between pt-2">
           <Button
             variant="outline"
             onClick={() => router.back()}
             disabled={submitting}
+            className="shadow-sm border-border/40 hover:bg-muted hover:border-primary/30 transition-all"
           >
             Cancel
           </Button>
           <Button 
             onClick={handleSubmitReview}
             disabled={rating === 0 || submitting}
+            className="shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]"
           >
             {submitting ? (
               <>

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, ArrowRight, Loader2, Lock } from "lucide-react";
+import { BookOpen, ArrowRight, Loader2, Lock, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/context/AuthContext";
@@ -112,8 +112,12 @@ export default function ResetPasswordPage() {
   
   if (!hasSession) {
     return (
-      <div className="min-h-screen with-navbar flex items-center justify-center bg-muted/30">
-        <div className="text-center">
+      <div className="min-h-screen with-navbar flex items-center justify-center bg-gradient-to-b from-primary/5 via-background to-background">
+        <div className="absolute inset-0 z-0">
+          <div className="absolute top-20 right-[20%] w-72 h-72 bg-primary/5 rounded-full blur-3xl opacity-70 animate-pulse" style={{animationDuration: '8s'}}></div>
+          <div className="absolute bottom-10 left-[10%] w-80 h-80 bg-secondary/5 rounded-full blur-3xl opacity-60 animate-pulse" style={{animationDuration: '12s'}}></div>
+        </div>
+        <div className="text-center relative z-10">
           <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary" />
           <p className="mt-2">Verifying your reset link...</p>
         </div>
@@ -122,12 +126,17 @@ export default function ResetPasswordPage() {
   }
   
   return (
-    <div className="min-h-screen with-navbar flex items-center justify-center bg-muted/30">
-      <div className="max-w-md w-full px-4 py-8">
+    <div className="min-h-screen with-navbar flex items-center justify-center bg-gradient-to-b from-primary/5 via-background to-background">
+      <div className="absolute inset-0 z-0">
+        <div className="absolute top-20 right-[20%] w-72 h-72 bg-primary/5 rounded-full blur-3xl opacity-70 animate-pulse" style={{animationDuration: '8s'}}></div>
+        <div className="absolute bottom-10 left-[10%] w-80 h-80 bg-secondary/5 rounded-full blur-3xl opacity-60 animate-pulse" style={{animationDuration: '12s'}}></div>
+      </div>
+      
+      <div className="max-w-md w-full px-4 py-8 relative z-10">
         <div className="flex justify-center mb-6">
           <div className="flex items-center gap-2">
             <Link href="/">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                 <BookOpen className="h-10 w-10 text-primary" />
                 <h1 className="text-3xl font-bold">TutorMatch</h1>
               </div>
@@ -135,11 +144,11 @@ export default function ResetPasswordPage() {
           </div>
         </div>
         
-        <Card>
+        <Card className="bg-card/80 backdrop-blur-sm border-border/40 shadow-xl hover:shadow-2xl transition-all">
           <CardHeader className="space-y-1">
             <div className="flex justify-center mb-2">
-              <div className="p-2 rounded-full bg-primary/10">
-                <Lock className="h-6 w-6 text-primary" />
+              <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 shadow-md">
+                <ShieldCheck className="h-6 w-6 text-primary" />
               </div>
             </div>
             <CardTitle className="text-2xl text-center">Reset Password</CardTitle>
@@ -160,6 +169,7 @@ export default function ResetPasswordPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={8}
+                  className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
                 />
               </div>
               
@@ -172,6 +182,7 @@ export default function ResetPasswordPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
+                  className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
                 />
               </div>
               
@@ -184,7 +195,7 @@ export default function ResetPasswordPage() {
             </CardContent>
             
             <CardFooter>
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" className="w-full shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]" disabled={isLoading}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -193,7 +204,7 @@ export default function ResetPasswordPage() {
                 ) : (
                   <>
                     Reset Password
-                    <ArrowRight className="ml-2 h-4 w-4" />
+                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                   </>
                 )}
               </Button>
@@ -202,7 +213,7 @@ export default function ResetPasswordPage() {
         </Card>
         
         <div className="mt-6 text-center">
-          <Link href="/login" className="text-sm text-primary hover:underline">
+          <Link href="/login" className="text-sm text-primary hover:text-primary/80 hover:underline transition-colors">
             Back to Login
           </Link>
         </div>

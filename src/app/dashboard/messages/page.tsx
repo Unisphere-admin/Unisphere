@@ -131,7 +131,7 @@ const UnreadBadge = ({ conversation, messages, userId, selectedConversationId }:
   
   return (
     <div className="flex items-center ml-auto" data-testid={`unread-badge-count-${unreadCount}`}>
-      <div className="bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs font-medium shadow-sm">
+      <div className="bg-primary text-primary-foreground rounded-full min-w-6 h-6 flex items-center justify-center text-xs font-medium shadow-md px-1.5 border border-primary/20 animate-in fade-in">
         {unreadCount > 99 ? '99+' : unreadCount}
       </div>
     </div>
@@ -1093,43 +1093,53 @@ export default function MessagesPage() {
     isTempConversation(selectedConversationId) : false;
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] w-full">
-      <div className="flex h-full max-h-[calc(100vh-4rem)]">
+    <div className="min-h-[calc(100vh-4rem)] w-full bg-background/60 relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-muted/10 pointer-events-none"></div>
+      <div className="flex h-full max-h-[calc(100vh-4rem)] relative z-10 rounded-2xl border border-border/30 overflow-hidden shadow-md">
         {/* Left sidebar - dashboard navigation has been removed */}
         
         {/* Middle column - conversations list */}
-        <div className={`w-full md:w-1/3 border-r border-gray-200 dark:border-gray-800 flex flex-col ${selectedConversationId ? 'hidden md:flex' : 'flex'}`}>
-          <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-2">
+        <div className={`w-full md:w-1/3 border-r border-border/40 flex flex-col ${selectedConversationId ? 'hidden md:flex' : 'flex'} rounded-l-2xl overflow-hidden`}>
+          <div className="p-4 border-b border-border/40 flex items-center gap-2 bg-card/40 backdrop-blur-sm">
             <div className="relative w-full">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" />
+              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search conversations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9"
+                className="w-full pl-9 bg-background/60 backdrop-blur-sm border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-lg"
               />
             </div>
           </div>
           
           <div className="flex-grow overflow-auto">
             {loading && isInitialLoad ? (
-              <div className="flex items-center justify-center h-full">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                <Loader2 className="mr-2 h-5 w-5 animate-spin text-primary" />
                 <span>Loading conversations...</span>
               </div>
             ) : filteredConversations.length === 0 ? (
-              <div className="p-4 text-center">
-                <p className="text-gray-500">No conversations yet</p>
+              <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center rounded-full bg-primary/10">
+                  <MessageSquare className="h-8 w-8 text-primary/80" strokeWidth={1.5} />
+                </div>
+                <h3 className="text-lg font-medium mb-2">No conversations yet</h3>
+                <p className="text-sm text-muted-foreground/70 mt-1 mb-6 max-w-[240px]">
+                  When you message a tutor, your conversations will appear here
+                </p>
+                <Button asChild size="sm" className="bg-primary hover:bg-primary/90 shadow-sm">
+                  <Link href="/tutors">Find Tutors</Link>
+                </Button>
               </div>
             ) : (
-              <div className="divide-y divide-gray-200 dark:divide-gray-800">
+              <div className="divide-y divide-border/30">
                 {filteredConversations.map((convo: any) => (
                   <div
                     key={convo.id}
-                    className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition ${
+                    className={`p-4 cursor-pointer hover:bg-muted/50 transition-all ${
                       selectedConversationId === convo.id
-                        ? "bg-gray-100 dark:bg-gray-800/80"
-                        : ""
+                        ? "bg-muted/70 border-l-2 border-primary shadow-sm"
+                        : "border-l-2 border-transparent"
                     }`}
                     onClick={() => {
                       // Only mark as read and set selected conversation if it changes
@@ -1156,9 +1166,9 @@ export default function MessagesPage() {
                     }}
                   >
                     <div className="flex items-start space-x-4">
-                      <Avatar className="h-10 w-10">
+                      <Avatar className="h-10 w-10 border border-border/40 shadow-sm">
                         <AvatarImage src={convo.participant?.avatar_url || undefined} alt={convo.participant?.display_name || 'User'} />
-                        <AvatarFallback>
+                        <AvatarFallback className="bg-primary/10 text-primary">
                           {convo.participant?.display_name?.charAt(0) || 'U'}
                         </AvatarFallback>
                       </Avatar>
@@ -1167,32 +1177,36 @@ export default function MessagesPage() {
                           <p className="text-sm font-medium truncate">
                             {convo.participant?.display_name || "Unknown user"}
                             {convo.participant?.is_tutor && (
-                              <span className="ml-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-1.5 py-0.5 rounded">
+                              <Badge variant="outline" className="ml-1.5 py-0 h-4 bg-primary/5 text-primary border-primary/20 text-[10px] font-normal">
                                 Tutor
-                              </span>
+                              </Badge>
                             )}
                           </p>
-                          <p className="text-xs text-gray-500 whitespace-nowrap ml-1">
+                          <p className="text-xs text-muted-foreground whitespace-nowrap ml-1">
                             {formatMessageTime(convo.last_message_at || convo.last_message?.created_at)}
                           </p>
                         </div>
-                        <div>
-                          <div className="flex justify-between items-center">
-                            <p className="text-xs text-gray-500 truncate">
-                              {formatMessagePreview(convo.last_message)}
-                            </p>
-                            {isUserTyping(convo.id) && (
-                              <p className="text-xs text-primary">
-                                Typing...
-                              </p>
-                            )}
+                        <div className="flex justify-between items-center mt-1">
+                          <p className="text-xs text-muted-foreground truncate max-w-[160px]">
+                            {formatMessagePreview(convo.last_message)}
+                          </p>
+                          {isUserTyping(convo.id) ? (
+                            <span className="text-xs text-primary flex items-center gap-1">
+                              <span className="flex space-x-1">
+                                <span className="h-1 w-1 bg-primary/70 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                                <span className="h-1 w-1 bg-primary/70 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                                <span className="h-1 w-1 bg-primary/70 rounded-full animate-bounce"></span>
+                              </span>
+                              <span>Typing</span>
+                            </span>
+                          ) : (
                             <UnreadBadge 
                               conversation={convo} 
                               messages={messages[convo.id] || []} 
                               userId={user?.id || ''} 
                               selectedConversationId={selectedConversationId}
                             />
-                          </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1204,22 +1218,48 @@ export default function MessagesPage() {
         </div>
         
         {/* Right column - chat area */}
-        <div className="hidden sm:flex flex-col flex-1 h-[calc(100vh-4rem)]">
+        <div className="hidden sm:flex flex-col flex-1 h-[calc(100vh-4rem)] bg-gradient-to-b from-background to-muted/10 rounded-r-2xl overflow-hidden">
           {selectedConversationId && currentConversation ? (
             <>
               {/* Chat header */}
-              <div className="p-4 border-b flex items-center justify-between">
+              <div className="p-4 border-b border-border/40 flex items-center justify-between bg-card/40 backdrop-blur-sm shadow-sm rounded-tr-2xl">
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-12 w-12">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="md:hidden" 
+                    onClick={() => setSelectedConversationId("")}
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </Button>
+                  <Avatar className="h-10 w-10 border border-border/40 shadow-sm">
                     <AvatarImage src={currentConversation?.participant?.avatar_url || undefined} />
-                    <AvatarFallback>
+                    <AvatarFallback className="bg-primary/10 text-primary">
                       {currentConversation?.participant?.display_name?.charAt(0) || '?'}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <h2 className="text-xl font-semibold">{currentConversation?.participant?.display_name}</h2>
-                    <p className="text-sm text-muted-foreground">
-                      French, Spanish, ESL {/* Replace with actual subjects */}
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-medium">{currentConversation?.participant?.display_name}</h2>
+                      {currentConversation?.participant?.is_tutor && (
+                        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-xs font-normal">
+                          Tutor
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {isUserTyping(selectedConversationId) ? (
+                        <span className="text-primary animate-pulse flex items-center gap-1">
+                          <span className="flex space-x-1">
+                            <span className="h-1.5 w-1.5 bg-primary/70 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                            <span className="h-1.5 w-1.5 bg-primary/70 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                            <span className="h-1.5 w-1.5 bg-primary/70 rounded-full animate-bounce"></span>
+                          </span>
+                          <span>Typing</span>
+                        </span>
+                      ) : (
+                        "Online"
+                      )}
                     </p>
                   </div>
                 </div>
@@ -1228,8 +1268,8 @@ export default function MessagesPage() {
                 {user?.role === 'tutor' && (
                 <Dialog open={showSessionDialog} onOpenChange={setShowSessionDialog}>
                   <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" onClick={() => setShowSessionDialog(true)}>
-                      <Calendar className="h-4 w-4 mr-2" />
+                    <Button variant="outline" size="sm" onClick={() => setShowSessionDialog(true)} className="shadow-sm border-border/40 hover:bg-muted transition-colors">
+                      <Calendar className="h-4 w-4 mr-2 text-primary/80" strokeWidth={1.5} />
                       Schedule Session
                     </Button>
                   </DialogTrigger>
@@ -1247,6 +1287,7 @@ export default function MessagesPage() {
                           placeholder="e.g., Spanish Vocabulary Review"
                           value={sessionTitle}
                           onChange={(e) => setSessionTitle(e.target.value)}
+                          className="border-border/40"
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
@@ -1259,6 +1300,7 @@ export default function MessagesPage() {
                             type="date"
                             value={sessionDate}
                             onChange={(e) => setSessionDate(e.target.value)}
+                            className="border-border/40"
                           />
                         </div>
                         <div className="grid gap-2">
@@ -1270,6 +1312,7 @@ export default function MessagesPage() {
                             type="time"
                             value={sessionTime}
                             onChange={(e) => setSessionTime(e.target.value)}
+                            className="border-border/40"
                           />
                         </div>
                       </div>
@@ -1287,6 +1330,7 @@ export default function MessagesPage() {
                             const value = parseInt(e.target.value);
                             setSessionCost(isNaN(value) || value < 1 ? 1 : value);
                           }}
+                          className="border-border/40"
                         />
                         <p className="text-xs text-muted-foreground">
                           Students will need this many tokens to accept the session
@@ -1294,13 +1338,14 @@ export default function MessagesPage() {
                       </div>
                     </div>
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => setShowSessionDialog(false)}>
+                      <Button variant="outline" onClick={() => setShowSessionDialog(false)} className="border-border/40">
                         Cancel
                       </Button>
                       <Button 
                         type="submit" 
                         onClick={handleScheduleSession}
                         disabled={isSchedulingSession || !sessionTitle || !sessionDate || !sessionTime}
+                        className="bg-primary hover:bg-primary/90"
                       >
                         {isSchedulingSession && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Schedule
@@ -1313,7 +1358,7 @@ export default function MessagesPage() {
 
               {/* Temporary conversation alert - Make it more compact and fixed position */}
               {isCurrentConversationTemp && (
-                <Alert className="mx-4 mt-4 py-1.5 flex items-center bg-blue-50 dark:bg-blue-950/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800">
+                <Alert className="mx-4 mt-4 py-2 flex items-center bg-blue-50 dark:bg-blue-950/30 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800/50 shadow-sm rounded-xl">
                   <Info className="h-4 w-4 flex-shrink-0" />
                   <div className="ml-2 flex-grow">
                     <AlertTitle className="text-xs font-medium">Draft conversation</AlertTitle>
@@ -1338,12 +1383,12 @@ export default function MessagesPage() {
                   getStableMessages(selectedConversationId).length === 0 ? (
                     <div className="flex items-center justify-center h-full flex-grow">
                       <div className="text-center">
-                        <div className="flex justify-center mb-3">
-                          <MessageSquare className="h-10 w-10 text-primary opacity-70" />
+                        <div className="w-20 h-20 mx-auto mb-5 flex items-center justify-center rounded-full bg-gradient-to-br from-primary/10 to-secondary/10 shadow-sm">
+                          <MessageSquare className="h-10 w-10 text-primary/80" strokeWidth={1.5} />
                         </div>
-                        <h3 className="text-lg font-medium mb-1">Start a conversation!</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Send a message below to begin chatting
+                        <h3 className="text-xl font-semibold mb-2">Start a conversation!</h3>
+                        <p className="text-sm text-muted-foreground max-w-xs mx-auto mb-6">
+                          Send a message below to begin chatting with {currentConversation?.participant?.display_name}
                         </p>
                       </div>
                     </div>
@@ -1399,141 +1444,111 @@ export default function MessagesPage() {
                             messageElementRefs.current[message.id] = el;
                           }
                         };
-                        
+
                         return (
-                          <React.Fragment key={uniqueMessageKey}>
+                          <div key={uniqueMessageKey} ref={setMessageRef}>
+                            {/* Date header shown when date changes */}
                             {showDateHeader && (
-                              <div className="flex justify-center my-4" key={`date-header-${message.id}`}>
-                                <div className="bg-muted px-3 py-1 rounded-full text-xs">
+                              <div className="flex justify-center my-4">
+                                <div className="bg-muted/70 backdrop-blur-sm px-3 py-1 rounded-full text-xs text-muted-foreground shadow-sm border border-border/20">
                                   {formatFullDate(currentDate)}
                                 </div>
                               </div>
                             )}
                             
-                            {/* Render session request UI if there's an associated session */}
-                            {(sessionData || isSessionRequest) ? (
-                              <div
-                                ref={setMessageRef}
-                                className={`flex ${isFromMe ? "justify-end" : "justify-start"} w-full transition-colors duration-500`}
-                                id={`message-container-${message.id}`}
-                              >
-                                {!isFromMe && (
-                                  <Avatar className="h-10 w-10 mr-2 mt-1 flex-shrink-0">
-                                    <AvatarImage src={currentConversation?.participant?.avatar_url || undefined} />
-                                    <AvatarFallback>
-                                      {currentConversation?.participant?.display_name?.charAt(0) || '?'}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                )}
-                                <div className="max-w-[85%] w-full">
+                            {/* Message */}
+                            <div className={`flex ${isFromMe ? "justify-end" : "justify-start"} mb-4`}>
+                              {/* For normal messages */}
+                              {!isSessionRequest && !associatedSession && (
+                                <div className="flex items-end gap-2 max-w-[85%]">
+                                  {!isFromMe && (
+                                    <Avatar className="h-7 w-7 border border-border/40 shadow-sm">
+                                      <AvatarImage src={message.sender?.avatar_url || undefined} alt={message.sender?.display_name || 'User'} />
+                                      <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                                        {message.sender?.display_name?.charAt(0) || '?'}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                  )}
+                                  <div>
+                                    <div 
+                                      className={`px-4 py-2.5 rounded-2xl ${
+                                        isFromMe 
+                                          ? "bg-primary text-primary-foreground shadow-sm hover:shadow-md transition-shadow" 
+                                          : "bg-card dark:bg-card/80 border border-border/40 shadow-sm hover:shadow-md hover:bg-card/90 dark:hover:bg-card/90 transition-all"
+                                      }`}
+                                    >
+                                      {message.content}
+                                    </div>
+                                    <div className={`flex items-center text-xs text-muted-foreground mt-1 ${isFromMe ? 'justify-end pr-1' : 'justify-start pl-1'}`}>
+                                      {formatMessageTime(message.created_at)}
+                                      {isFromMe && (
+                                        <span className="ml-1">{renderMessageStatus(message.status)}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {isFromMe && (
+                                    <Avatar className="h-7 w-7 border border-border/40 shadow-sm">
+                                      <AvatarImage src={user.profilePic || undefined} alt={user.name || 'User'} />
+                                      <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                                        {user.name?.charAt(0) || 'U'}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                  )}
+                                </div>
+                              )}
+                            
+                              {/* Special handling for session request messages */}
+                              {sessionData && (
+                                <div className="max-w-md w-full">
                                   <SessionRequestCard 
                                     messageId={message.id}
                                     conversationId={selectedConversationId}
-                                    sessionId={sessionData?.id}
-                                    title={sessionData?.name || 'Untitled Session'}
-                                    scheduledFor={sessionData?.scheduled_for || new Date().toISOString()}
-                                    status={(sessionData?.status as "requested" | "accepted" | "started" | "ended" | "cancelled") || 'requested'}
-                                    tutorReady={sessionData?.tutor_ready || false}
-                                    studentReady={sessionData?.student_ready || false}
-                                    cost={sessionData?.cost || 1}
+                                    sessionId={sessionData.id}
+                                    title={sessionData.name || "Tutoring Session"}
+                                    scheduledFor={sessionData.scheduled_for || new Date().toISOString()}
+                                    status={sessionData.status as "requested" | "accepted" | "started" | "ended" | "cancelled"}
+                                    tutorReady={sessionData.tutor_ready}
+                                    studentReady={sessionData.student_ready}
+                                    cost={sessionData.cost ?? undefined}
                                   />
-                                  <p className="text-xs text-muted-foreground mt-1 px-1">
-                                    {message.created_at ? new Date(message.created_at).toLocaleTimeString() : 'Unknown time'}
-                                  </p>
-                                </div>
-                                {isFromMe && (
-                                  <Avatar className="h-10 w-10 ml-2 mt-1 flex-shrink-0">
-                                    <AvatarImage src={user.avatar_url || "/placeholder.svg"} />
-                                    <AvatarFallback>{user.name?.charAt(0)}</AvatarFallback>
-                                  </Avatar>
-                                )}
-                              </div>
-                            ) : (
-                              <div
-                                ref={setMessageRef}
-                                className={`flex ${isFromMe ? "justify-end" : "justify-start"} transition-colors duration-500`}
-                                id={`message-container-${message.id}`}
-                              >
-                                {!isFromMe && (
-                                  <Avatar className="h-10 w-10 mr-2 mt-1 flex-shrink-0">
-                                    <AvatarImage src={currentConversation?.participant?.avatar_url || undefined} />
-                                    <AvatarFallback>
-                                      {currentConversation?.participant?.display_name?.charAt(0) || '?'}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                )}
-                                <div className="max-w-[70%]">
-                                  <div
-                                    className={`px-4 py-2 rounded-lg ${
-                                      isFromMe
-                                        ? "bg-primary text-primary-foreground"
-                                        : "bg-muted"
-                                    }`}
-                                  >
-                                    <p className="break-words whitespace-pre-line">{message.content}</p>
-                                  </div>
-                                  <div className="flex items-center text-xs text-muted-foreground mt-1 px-1">
-                                    <span>
-                                      {message.created_at ? new Date(message.created_at).toLocaleTimeString() : 'Unknown time'}
-                                    </span>
-                                    {isFromMe && renderMessageStatus(message.status)}
+                                  <div className={`flex items-center text-xs text-muted-foreground mt-1 ${isFromMe ? 'justify-end' : 'justify-start'}`}>
+                                    {formatMessageTime(message.created_at)}
+                                    {isFromMe && message.status && (
+                                      <span className="ml-1">{renderMessageStatus(message.status)}</span>
+                                    )}
                                   </div>
                                 </div>
-                                {isFromMe && (
-                                  <Avatar className="h-10 w-10 ml-2 mt-1 flex-shrink-0">
-                                    <AvatarImage src={user.avatar_url || "/placeholder.svg"} />
-                                    <AvatarFallback>{user.name?.charAt(0)}</AvatarFallback>
-                                  </Avatar>
-                                )}
-                              </div>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-
-                      {/* Typing indicator */}
-                      {someoneIsTyping() && (
-                        <div className="flex items-start">
-                          <Avatar className="h-10 w-10 mr-2 mt-1 flex-shrink-0">
-                            <AvatarImage src={currentConversation?.participant?.avatar_url || undefined} />
-                            <AvatarFallback>
-                              {currentConversation?.participant?.display_name?.charAt(0) || '?'}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="bg-muted px-4 py-2 rounded-lg">
-                            <div className="flex items-center space-x-1">
-                              <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                              <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '200ms' }}></div>
-                              <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '400ms' }}></div>
+                              )}
                             </div>
                           </div>
-                          <p className="text-xs text-muted-foreground mt-1 ml-2">
-                            {getTypingDisplayName()} is typing...
-                          </p>
-                        </div>
-                      )}
-
+                        );
+                      })}
                       <div ref={messagesEndRef} />
                     </div>
                   )
                 ) : (
-                  <div className="flex items-center justify-center h-full flex-grow">
+                  <div className="flex items-center justify-center h-full">
                     <div className="text-center">
-                      <h3 className="font-medium mb-1">Select a conversation</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Choose a conversation from the list to start chatting
+                      <div className="w-20 h-20 mx-auto mb-5 flex items-center justify-center rounded-full bg-gradient-to-br from-primary/10 to-secondary/10 shadow-sm">
+                        <MessageSquare className="h-10 w-10 text-primary/80" strokeWidth={1.5} />
+                      </div>
+                      <h3 className="text-2xl font-semibold mb-3">Your Messages</h3>
+                      <p className="text-muted-foreground max-w-xs mx-auto mb-6">
+                        Select a conversation from the sidebar to view your messages
                       </p>
+                      <Button asChild size="sm" className="bg-primary hover:bg-primary/90 shadow-sm">
+                        <Link href="/tutors">Find Tutors</Link>
+                      </Button>
                     </div>
                   </div>
                 )}
               </ScrollArea>
 
               {/* Message input */}
-              <div className="p-4 border-t">
+              <div className="p-3 border-t border-border/40 bg-card/40 backdrop-blur-sm rounded-br-2xl">
                 <div className="flex items-center gap-2">
-                  <Input 
-                    placeholder="Type a message..." 
-                    className="flex-1"
+                  <Input
+                    placeholder="Type a message..."
                     value={messageText}
                     onChange={handleInputChange}
                     onKeyDown={(e) => {
@@ -1542,12 +1557,13 @@ export default function MessagesPage() {
                         handleSendMessage();
                       }
                     }}
+                    className="border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 bg-background/80 backdrop-blur-sm transition-all rounded-full"
                   />
                   <Button 
+                    onClick={handleSendMessage} 
+                    disabled={!messageText.trim() || isCurrentConversationTemp && messageText.trim().length < 2}
+                    className="bg-primary hover:bg-primary/90 shadow-sm hover:shadow-md transition-all rounded-full"
                     size="icon"
-                    onClick={handleSendMessage}
-                    disabled={!messageText.trim()}
-                    className="rounded-full h-10 w-10 bg-primary hover:bg-primary/90"
                   >
                     <Send className="h-4 w-4" />
                   </Button>
@@ -1557,10 +1573,16 @@ export default function MessagesPage() {
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
-                <h3 className="font-medium mb-1">Select a conversation</h3>
-                <p className="text-sm text-muted-foreground">
-                  Choose a conversation from the list to start chatting
+                <div className="w-20 h-20 mx-auto mb-5 flex items-center justify-center rounded-full bg-gradient-to-br from-primary/10 to-secondary/10 shadow-sm">
+                  <MessageSquare className="h-10 w-10 text-primary/80" strokeWidth={1.5} />
+                </div>
+                <h3 className="text-2xl font-semibold mb-3">Your Messages</h3>
+                <p className="text-muted-foreground max-w-xs mx-auto mb-6">
+                  Select a conversation from the sidebar to view your messages
                 </p>
+                <Button asChild size="sm" className="bg-primary hover:bg-primary/90 shadow-sm">
+                  <Link href="/tutors">Find Tutors</Link>
+                </Button>
               </div>
             </div>
           )}
