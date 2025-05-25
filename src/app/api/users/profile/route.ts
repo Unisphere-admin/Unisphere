@@ -5,6 +5,7 @@ import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 
 // Set edge runtime for better performance
 export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
 
 // PATCH handler to update user profile
 async function updateUserProfileHandler(

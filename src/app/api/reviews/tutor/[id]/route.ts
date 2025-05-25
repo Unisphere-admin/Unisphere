@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getReviewsByTutorId } from '@/lib/db/reviews';
 
 export const revalidate = 3600; // Revalidate at most once per hour
-
+export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {

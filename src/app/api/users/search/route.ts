@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { searchUsers } from '@/lib/db/users';
 import { AuthUser } from '@/lib/auth/protectResource';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
-
+export const dynamic = 'force-dynamic';
 async function searchUsersHandler(
   req: NextRequest, 
   user: AuthUser

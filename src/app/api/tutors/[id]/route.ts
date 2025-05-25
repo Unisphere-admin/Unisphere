@@ -6,8 +6,8 @@ import { AuthUser } from '@/lib/auth/protectResource';
 // Use edge runtime for better performance
 export const runtime = 'edge';
 
-// Use revalidation for better performance with Vercel edge caching (not global)
-export const revalidate = 3600; // Revalidate at most once per hour
+// Use dynamic to prevent caching for this authenticated endpoint
+export const dynamic = 'force-dynamic';
 
 async function getTutorByIdHandler(
   request: NextRequest, 
@@ -65,24 +65,13 @@ async function getTutorByIdHandler(
       );
     }
     
-    // Create response with tutor data
+    // Create response with no-cache headers to prevent authentication leakage
     const response = NextResponse.json({ tutor });
     
-    // Edge-only caching with stale-while-revalidate pattern
-    // CDN-Cache-Control is for Vercel's edge cache only (not global)
-    response.headers.set('CDN-Cache-Control', 'public, max-age=3600, stale-while-revalidate=1800');
-    
-    // Cache-Control for browsers, restricting to edge cache only
-    response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=1800');
-    
-    // Add Vercel-specific header to prevent global caching
-    response.headers.set('Vercel-CDN-Cache-Control', 'public, max-age=3600, stale-while-revalidate=1800');
-    
-    // Add Surrogate-Control to explicitly avoid global caching
-    response.headers.set('Surrogate-Control', 'max-age=3600');
-    
-    // Add cache tag for better invalidation
-    response.headers.set('Cache-Tag', `tutor-${id}`);
+    // Set no-cache headers to prevent authenticated data from being cached
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
     
     return response;
   } catch (error) {

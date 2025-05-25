@@ -9,7 +9,7 @@ import {
 
 // Export runtime config for improved performance
 export const runtime = 'edge';
-
+export const dynamic = 'force-dynamic';
 // Ensure consistent JSON response format with headers
 const jsonHeaders = {
   'Content-Type': 'application/json',

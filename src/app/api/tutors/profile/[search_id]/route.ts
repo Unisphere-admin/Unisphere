@@ -3,6 +3,12 @@ import { getTutorBySearchId } from '@/lib/db/tutors';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { AuthUser } from '@/lib/auth/protectResource';
 
+// Set edge runtime for better performance
+export const runtime = 'edge';
+
+// Use dynamic to prevent caching for this authenticated endpoint
+export const dynamic = 'force-dynamic';
+
 async function getTutorProfileHandler(
   request: NextRequest, 
   user: AuthUser, 
@@ -37,7 +43,16 @@ async function getTutorProfileHandler(
     }
 
     console.log(`[TUTOR API] Successfully fetched tutor: ${tutor.first_name} ${tutor.last_name}`);
-    return NextResponse.json({ tutor });
+    
+    // Create response with no-cache headers to prevent authentication leakage
+    const response = NextResponse.json({ tutor });
+    
+    // Set no-cache headers to prevent authenticated data from being cached
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    
+    return response;
   } catch (error) {
     console.error('Unexpected error in tutor profile API:', error);
     return NextResponse.json(

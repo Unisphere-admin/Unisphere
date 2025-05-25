@@ -5,7 +5,7 @@ import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 
 // Set edge runtime for better performance
 export const runtime = 'edge';
-
+export const dynamic = 'force-dynamic';
 // GET handler to retrieve a user's profile
 async function getUserProfileHandler(
   req: NextRequest,
