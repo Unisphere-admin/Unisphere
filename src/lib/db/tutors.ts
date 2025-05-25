@@ -1,4 +1,4 @@
-import { supabase, createServerClient } from './client';
+import { createServerClientWithCookies } from './client';
 
 // Define interfaces
 export interface TutorBasic {
@@ -43,7 +43,7 @@ export async function getAllTutors(): Promise<{
 }> {
   try {
     // Create a server client for this request
-    const client = createServerClient();
+    const client = await createServerClientWithCookies();
     
     const { data, error } = await client
       .from('tutor_profile')
@@ -82,7 +82,7 @@ export async function getTutorBySearchId(searchId: string): Promise<{
     }
     
     // Create a server client for this request
-    const client = createServerClient();
+    const client = await createServerClientWithCookies();
     
     // Search by search_id only
     const { data, error } = await client

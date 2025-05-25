@@ -37,23 +37,13 @@ export async function updateSession(request: NextRequest) {
         },
         remove(name, options) {
           // If the cookie is removed, update the cookies for the request and response
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-            maxAge: 0,
-          })
+          request.cookies.delete(name)
           response = NextResponse.next({
             request: {
               headers: request.headers,
             },
           })
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-            maxAge: 0,
-          })
+          response.cookies.delete(name)
         },
       },
     }

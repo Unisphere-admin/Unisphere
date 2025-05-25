@@ -27,7 +27,15 @@ export function useTutorProfiles() {
           .select('*');
 
         if (error) throw error;
-        setTutors(data || []);
+        setTutors(data ? data.map((tutor: any) => ({
+          ...tutor,
+          first_name: tutor.first_name || undefined,
+          last_name: tutor.last_name || undefined,
+          description: tutor.description || undefined,
+          subjects: tutor.subjects || undefined,
+          avatar_url: tutor.avatar_url || undefined,
+          search_id: tutor.search_id || '',
+        })) as TutorProfile[] : []);
       } catch (err) {
         console.error('Error fetching tutors:', err);
         setError(err instanceof Error ? err : new Error(String(err)));
@@ -305,7 +313,7 @@ export function useReviewMutation() {
             rating: review.rating,
             // Don't update created_at for existing reviews
           })
-          .eq('id', review.id);
+          .eq('id', review.id!);
       } else {
         // Insert new review
         result = await supabase

@@ -1,27 +1,31 @@
+"use client";
 
-import { Outlet } from "react-router-dom";
+import React from "react";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
-import { useLocation } from "react-router-dom";
 import DashboardSidebar from "./DashboardSidebar";
 import { useAuth } from "@/context/AuthContext";
+import { usePathname } from "next/navigation";
 
-const Layout = () => {
-  const location = useLocation();
+interface LayoutProps {
+  children: React.ReactNode;
+}
+
+const Layout = ({ children }: LayoutProps) => {
+  const pathname = usePathname();
   const { user } = useAuth();
   
-  const isDashboard = location.pathname.startsWith("/dashboard");
- 
+  const isDashboard = pathname?.startsWith("/dashboard");
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <div className="flex-1 flex">
-        {(isDashboard ) && user && (
+        {isDashboard && user && (
           <DashboardSidebar />
         )}
-        <main className={`flex-1 ${(isDashboard) ? 'ml-0 sm:ml-64' : ''}`}>
-          <Outlet />
+        <main className={`flex-1 ${isDashboard ? 'ml-0 sm:ml-64' : ''}`}>
+          {children}
         </main>
       </div>
       <Footer />

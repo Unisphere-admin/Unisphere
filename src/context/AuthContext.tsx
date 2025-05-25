@@ -141,8 +141,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.warn('Failed to clear pending API requests:', e);
       }
       
-      // Sign out from Supabase
-      await supabase.auth.signOut();
+      // Call the API logout endpoint instead of using Supabase client directly
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Logout failed');
+      }
       
       // Clear user state
       setUser(null);

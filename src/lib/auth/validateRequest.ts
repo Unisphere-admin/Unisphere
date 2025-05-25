@@ -115,7 +115,7 @@ export async function validateRequest(req: NextRequest): Promise<{
  */
 export function withRouteAuth<Params = Record<string, string>>(
   handler: (req: NextRequest, user: AuthUser, params: Params) => Promise<NextResponse>
-): (req: NextRequest, { params }: { params: Params }) => Promise<NextResponse> {
+): (req: NextRequest, props: { params: Promise<Params> }) => Promise<NextResponse> {
   return async (req: NextRequest, { params }) => {
     try {
       const { user, errorResponse } = await validateRequest(req);
@@ -132,8 +132,11 @@ export function withRouteAuth<Params = Record<string, string>>(
         );
       }
       
-      // Call the handler with the authenticated user
-      return await handler(req, user, params);
+      // Resolve the params Promise for Next.js 15
+      const resolvedParams = await params;
+      
+      // Call the handler with the authenticated user and resolved params
+      return await handler(req, user, resolvedParams);
     } catch (error) {
       // Add better error handling for debugging
       console.error('Error in route handler:', error);

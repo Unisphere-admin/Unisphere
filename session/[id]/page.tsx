@@ -239,7 +239,7 @@ export default function SessionPage() {
           student: {
             name: studentName,
             id: fetchedSession.student_id,
-            avatar_url: fetchedSession.student_profile?.avatar_url || undefined,
+            avatar_url: (fetchedSession.student_profile as any)?.avatar_url || undefined,
             role: 'student'
           }
         });

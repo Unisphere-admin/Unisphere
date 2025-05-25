@@ -3,83 +3,83 @@
 
 export interface TutorProfile {
   id: string;
-  first_name?: string;
-  last_name?: string;
-  description?: string;
-  subjects?: string;
-  avatar_url?: string;
-  age?: number;
-  major?: string;
-  current_education?: string;
-  year?: string;
-  previous_education?: string[];
-  extracurriculars?: string[];
-  gcse?: string[];
-  "a-levels"?: string[];
-  spm?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  description?: string | null;
+  subjects?: string | null;
+  avatar_url?: string | null;
+  age?: number | null;
+  major?: string | null;
+  current_education?: string | null;
+  year?: string | null;
+  previous_education?: string[] | null;
+  extracurriculars?: string[] | null;
+  gcse?: string[] | null;
+  "a-levels"?: string[] | null;
+  spm?: string | null;
   search_id: string;
 }
 
 export interface StudentProfile {
   id: string;
-  first_name?: string;
-  last_name?: string;
+  first_name?: string | null;
+  last_name?: string | null;
 }
 
 export interface Review {
   id: number;
-  tutor_id?: string;
-  student_id?: string;
-  review?: string;
-  rating?: number;
+  tutor_id?: string | null;
+  student_id?: string | null;
+  review?: string | null;
+  rating?: number | null;
   created_at: string;
 }
 
 export interface User {
   id: string;
   email: string;
-  is_tutor?: boolean;
-  email_confirmed_at?: string;
-  conversation?: string[];
+  is_tutor?: boolean | null;
+  email_confirmed_at?: string | null;
+  conversation?: string[] | null;
 }
 
 export interface TutoringSession {
   id: string;
   tutor_id: string;
   student_id: string;
-  name?: string;
+  name?: string | null;
   status: string;
-  started_at?: string;
-  ended_at?: string;
-  scheduled_for?: string;
+  started_at?: string | null;
+  ended_at?: string | null;
+  scheduled_for?: string | null;
   created_at: string;
   updated_at: string;
   conversation_id: string;
   message_id: string;
   tutor_ready: boolean;
   student_ready: boolean;
-  cancelled_at?: string;
-  cost?: number;
+  cancelled_at?: string | null;
+  cost?: number | null;
 }
 
 export interface Conversation {
   id: string;
   created_at: string;
-  created_by?: string;
-  updated_at?: string;
+  created_by?: string | null;
+  updated_at?: string | null;
 }
 
 export interface ConversationParticipant {
   id: string;
   user_id: string;
-  conversation_id?: string;
-  last_viewed_at?: string;
+  conversation_id?: string | null;
+  last_viewed_at?: string | null;
 }
 
 export interface Message {
   id: string;
-  content?: string;
-  sender_id?: string;
-  conversation_id?: string;
+  content?: string | null;
+  sender_id?: string | null;
+  conversation_id?: string | null;
   created_at: string;
 }

@@ -16,12 +16,7 @@ async function searchUsersHandler(
     }
 
     // Use the data access layer to search users
-    const { users, error, authError } = await searchUsers(query);
-
-    // Handle authentication error
-    if (authError) {
-      return NextResponse.json({ error: authError }, { status: 401 });
-    }
+    const { users, error } = await searchUsers(user, query);
 
     if (error) {
       console.error('Error searching users:', error);

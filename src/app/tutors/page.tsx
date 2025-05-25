@@ -47,12 +47,12 @@ import {
 // Define tutor profile type
 interface TutorProfile {
   id: string;
-  first_name?: string;
-  last_name?: string;
-  description?: string;
-  subjects?: string;
-  avatar_url?: string;
-  location?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  description?: string | null;
+  subjects?: string | null;
+  avatar_url?: string | null;
+  location?: string | null;
 }
 
 // List of available subjects (will be populated dynamically)

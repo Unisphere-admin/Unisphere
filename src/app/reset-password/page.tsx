@@ -10,11 +10,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { BookOpen, ArrowRight, Loader2, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { createClient } from "@/utils/supabase/client";
+import { useAuth } from "@/context/AuthContext";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -24,18 +25,34 @@ export default function ResetPasswordPage() {
   // Check if user has a valid session
   useEffect(() => {
     const checkSession = async () => {
-      const supabase = createClient();
-      const { data: { session }} = await supabase.auth.getSession();
-      
-      if (!session) {
+      try {
+        // Use our auth API to check session status
+        const response = await fetch('/api/auth/session', {
+          method: 'GET',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Invalid session');
+        }
+        
+        const data = await response.json();
+        if (!data.user) {
+          throw new Error('No active session');
+        }
+        
+        setHasSession(true);
+      } catch (error) {
+        console.error('Session check error:', error);
         toast({
           title: "Invalid reset link",
           description: "Your password reset link is invalid or has expired.",
           variant: "destructive"
         });
         router.push("/login");
-      } else {
-        setHasSession(true);
       }
     };
     

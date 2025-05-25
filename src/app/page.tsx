@@ -193,7 +193,7 @@ export default function HomePage() {
                   <CardHeader className="pb-4">
                     <div className="flex justify-between items-start">
                       <Avatar className="h-14 w-14">
-                        <AvatarImage src={tutor.avatar_url || "/placeholder.svg"} alt={tutor.first_name} />
+                        <AvatarImage src={tutor.avatar_url ?? "/placeholder.svg"} alt={tutor.first_name || "Tutor"} />
                         <AvatarFallback>
                           {tutor.first_name?.charAt(0) || "T"}
                         </AvatarFallback>

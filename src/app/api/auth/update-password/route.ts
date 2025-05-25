@@ -1,64 +1,67 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { createRouteHandlerClientWithCookies } from "@/lib/db/client";
 
 export async function GET(req: NextRequest) {
-    const url = new URL(req.url);
-    const code = url.searchParams.get('code');
-
-    if (!code) {
-        return NextResponse.redirect(new URL('/login', url.origin));
-    }
-
-    const cookieStore = await cookies();
-
-    const supabase = createRouteHandlerClient({
-        cookies: () => cookieStore
-    });
-
     try {
+        const url = new URL(req.url);
+        const code = url.searchParams.get('code');
+
+        if (!code) {
+            console.error('No code provided for password reset');
+            return NextResponse.redirect(new URL('/login?error=missing-code', req.url));
+        }
+
+        const supabase = await createRouteHandlerClientWithCookies();
+
         const { error } = await supabase.auth.exchangeCodeForSession(code);
 
         if (error) {
-            return NextResponse.redirect(new URL('/login?error=invalid-code', url.origin));
+            console.error('Error exchanging code for session:', error);
+            return NextResponse.redirect(new URL('/login?error=invalid-code', req.url));
         }
 
-        return NextResponse.redirect(new URL('/reset-password', url.origin));
+        return NextResponse.redirect(new URL('/reset-password', req.url));
     } catch (error) {
         console.error('Error exchanging code for session:', error);
-        return NextResponse.redirect(new URL('/login?error=server-error', url.origin));
+        return NextResponse.redirect(new URL('/login?error=server-error', req.url));
     }
 }
 
 export async function POST(req: NextRequest) {
-    const url = new URL(req.url);
-    const cookieStore = await cookies();
-
-    const supabase = createRouteHandlerClient({
-        cookies: () => cookieStore
-    });
-    
     try {
         const formData = await req.formData();
         const password = String(formData.get('password'));
-
-        const {data : {user}} = await supabase.auth.getUser();
-
-        if (!user) {
-            return NextResponse.redirect(new URL('/login?error=no-session', url.origin));
+        
+        if (!password || password.length < 6) {
+            return NextResponse.json({ 
+                error: 'Password must be at least 6 characters long' 
+            }, { status: 400 });
         }
 
+        const supabase = await createRouteHandlerClientWithCookies();
+        
+        // Get the current user
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+            console.error('No authenticated user found:', userError);
+            return NextResponse.redirect(new URL('/login?error=no-session', req.url));
+        }
+
+        // Update the user's password
         const { error } = await supabase.auth.updateUser({
             password
         });
 
         if (error) {
+            console.error('Error updating password:', error);
             return NextResponse.json({ error: 'Failed to update password' }, { status: 500 });
         }
 
-        return NextResponse.redirect(new URL('/login?success=password-updated', url.origin));
+        // Success - redirect to login with success message
+        return NextResponse.redirect(new URL('/login?success=password-updated', req.url));
     } catch (error) {
         console.error('Error updating password:', error);
-        return NextResponse.redirect(new URL('/login?error=server-error', url.origin));
+        return NextResponse.redirect(new URL('/login?error=server-error', req.url));
     }
 }

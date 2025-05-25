@@ -1,4 +1,3 @@
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { saveToCache, getFromCache, CACHE_CONFIG } from './caching';
 
 /**

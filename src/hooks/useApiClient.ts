@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useToast } from './use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import { 
   TutorProfile, 
   StudentProfile, 
@@ -12,36 +12,37 @@ import {
   ConversationParticipant,
   Message
 } from '@/types/supabaseTypes';
+import { useEffect } from 'react';
 
 // Base API fetcher with error handling
 async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, options);
-  
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...options?.headers,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  const data = await response.json();
+
   if (!response.ok) {
-    // Try to parse error message from response
-    let errorMessage = `Request failed with status ${response.status}`;
-    try {
-      const errorData = await response.json();
-      if (errorData.error) {
-        errorMessage = errorData.error;
-      }
-    } catch (e) {
-      // Could not parse error JSON
-    }
-    throw new Error(errorMessage);
+    throw new Error(data.error || 'An error occurred with the API request');
   }
-  
-  return response.json();
+
+  return data;
 }
 
-// Common query options
+// Default Query Options
 const defaultQueryOptions = {
   staleTime: 1000 * 60 * 5, // 5 minutes
-  refetchOnWindowFocus: false,
+  refetchOnWindowFocus: true,
+  refetchOnMount: true,
+  refetchOnReconnect: true,
   retry: 1,
 };
 
-// Hook for fetching tutor profiles with React Query
+// Hook for fetching tutors with React Query
 export function useApiTutorProfiles() {
   const { toast } = useToast();
   
@@ -51,15 +52,19 @@ export function useApiTutorProfiles() {
       const data = await fetchApi<{tutors: TutorProfile[]}>('/api/tutors');
       return data.tutors || [];
     },
-    ...defaultQueryOptions,
-    onError: (err) => {
+    ...defaultQueryOptions
+  });
+
+  // Handle errors separately 
+  useEffect(() => {
+    if (error) {
       toast({
         title: "Error loading tutors",
-        description: err instanceof Error ? err.message : String(err),
+        description: error instanceof Error ? error.message : String(error),
         variant: "destructive"
       });
     }
-  });
+  }, [error, toast]);
 
   return { 
     tutors: data || [], 
@@ -80,15 +85,19 @@ export function useApiTutorProfile(id: string | undefined) {
       return data.tutor;
     },
     enabled: !!id,
-    ...defaultQueryOptions,
-    onError: (err) => {
+    ...defaultQueryOptions
+  });
+
+  // Handle errors separately
+  useEffect(() => {
+    if (error) {
       toast({
         title: "Error loading tutor profile",
-        description: err instanceof Error ? err.message : String(err),
+        description: error instanceof Error ? error.message : String(error),
         variant: "destructive"
       });
     }
-  });
+  }, [error, toast]);
 
   return { 
     tutor: data || null, 
@@ -109,15 +118,19 @@ export function useApiTutorReviews(tutorId: string | undefined) {
       return data.reviews || [];
     },
     enabled: !!tutorId,
-    ...defaultQueryOptions,
-    onError: (err) => {
+    ...defaultQueryOptions
+  });
+
+  // Handle errors separately
+  useEffect(() => {
+    if (error) {
       toast({
         title: "Error loading reviews",
-        description: err instanceof Error ? err.message : String(err),
+        description: error instanceof Error ? error.message : String(error),
         variant: "destructive"
       });
     }
-  });
+  }, [error, toast]);
 
   return { 
     reviews: data || [], 
@@ -142,15 +155,19 @@ export function useApiTutoringSessions(userId: string | undefined, isForTutor = 
       return data.sessions || [];
     },
     enabled: !!userId,
-    ...defaultQueryOptions,
-    onError: (err) => {
+    ...defaultQueryOptions
+  });
+
+  // Handle errors separately
+  useEffect(() => {
+    if (error) {
       toast({
         title: "Error loading sessions",
-        description: err instanceof Error ? err.message : String(err),
+        description: error instanceof Error ? error.message : String(error),
         variant: "destructive"
       });
     }
-  });
+  }, [error, toast]);
 
   return { 
     sessions: data || [], 
@@ -189,15 +206,19 @@ export function useApiCreateSession() {
       // Invalidate related queries
       queryClient.invalidateQueries({ queryKey: ['sessions', variables.student_id, 'student'] });
       queryClient.invalidateQueries({ queryKey: ['sessions', variables.tutor_id, 'tutor'] });
-    },
-    onError: (err) => {
+    }
+  });
+
+  // Handle errors separately
+  useEffect(() => {
+    if (mutation.error) {
       toast({
         title: "Error scheduling session",
-        description: err instanceof Error ? err.message : String(err),
+        description: mutation.error instanceof Error ? mutation.error.message : String(mutation.error),
         variant: "destructive"
       });
     }
-  });
+  }, [mutation.error, toast]);
 
   return { 
     createSession: mutation.mutate, 
@@ -220,15 +241,19 @@ export function useApiConversationMessages(conversationId: string | undefined) {
     },
     enabled: !!conversationId,
     refetchInterval: 5000, // Poll every 5 seconds for new messages
-    ...defaultQueryOptions,
-    onError: (err) => {
+    ...defaultQueryOptions
+  });
+
+  // Handle errors separately
+  useEffect(() => {
+    if (error) {
       toast({
         title: "Error loading messages",
-        description: err instanceof Error ? err.message : String(err),
+        description: error instanceof Error ? error.message : String(error),
         variant: "destructive"
       });
     }
-  });
+  }, [error, toast]);
 
   return { 
     messages: data || [], 

@@ -2,28 +2,43 @@ import js from "@eslint/js";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
-import tseslint from "typescript-eslint";
+import { FlatCompat } from "@eslint/eslintrc";
+import path from "path";
+import { fileURLToPath } from "url";
 
-export default tseslint.config(
-  { ignores: ["dist"] },
-  {
-    extends: [js.configs.recommended, ...tseslint.configs.recommended],
-    files: ["**/*.{ts,tsx}"],
-    languageOptions: {
-      ecmaVersion: 2020,
-      globals: globals.browser,
-    },
-    plugins: {
-      "react-hooks": reactHooks,
-      "react-refresh": reactRefresh,
-    },
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const compat = new FlatCompat({
+  baseDirectory: __dirname,
+  recommendedConfig: js.configs.recommended,
+});
+
+export default [
+  { ignores: ["dist/**/*", ".next/**/*"] },
+  js.configs.recommended,
+  ...compat.config({
+    extends: [
+      "eslint:recommended",
+      "plugin:@next/next/recommended",
+      "plugin:react/recommended",
+      "plugin:react-hooks/recommended",
+    ],
+    plugins: ["react", "react-hooks", "react-refresh"],
     rules: {
-      ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": [
         "warn",
         { allowConstantExport: true },
       ],
-      "@typescript-eslint/no-unused-vars": "off",
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
+      "react/prop-types": "off",
+      "react/react-in-jsx-scope": "off",
     },
-  }
-);
+    settings: {
+      react: {
+        version: "detect",
+      },
+    },
+  }),
+];

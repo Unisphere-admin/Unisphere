@@ -1,9 +1,8 @@
-
 import { useState, useEffect } from 'react';
 import { useConversationMessages } from './useSupabase';
 import { Message, User } from '@/types/supabaseTypes';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from './use-toast';
+import { useToast } from '@/components/ui/use-toast';
 
 export interface EnhancedMessage extends Message {
   sender?: User | null;
@@ -26,8 +25,9 @@ export function useEnhancedMessages(conversationId: string | undefined) {
 
     const enhanceMessages = async () => {
       try {
-        // Get unique sender IDs
-        const senderIds = [...new Set(messages.map(m => m.sender_id).filter(Boolean))];
+        // Get unique sender IDs - use Array.from instead of spread for better compatibility
+        const messageIds = messages.map(m => m.sender_id).filter(Boolean) as string[];
+        const senderIds = Array.from(new Set(messageIds));
         
         if (senderIds.length === 0) {
           setEnhancedMessages(messages.map(m => ({ ...m, sender: null })));
@@ -51,11 +51,11 @@ export function useEnhancedMessages(conversationId: string | undefined) {
           
           return {
             ...message,
-            sender
+            sender: sender as User | null
           };
         });
 
-        setEnhancedMessages(enhanced);
+        setEnhancedMessages(enhanced as EnhancedMessage[]);
       } catch (err) {
         console.error('Error enhancing messages with user data:', err);
         setError(err instanceof Error ? err : new Error(String(err)));

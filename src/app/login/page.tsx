@@ -128,12 +128,20 @@ export default function LoginPage() {
     setIsLoading(true);
     
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+      // Create a FormData instance for the request
+      const formData = new FormData();
+      formData.append("email", email);
+      
+      // Call the API route using fetch
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        body: formData
       });
       
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send reset email');
+      }
       
       toast({
         title: "Password reset email sent",
