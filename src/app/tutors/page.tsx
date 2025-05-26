@@ -50,6 +50,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import React from "react";
+import { validateSearchInput, sanitizeInput } from "@/lib/validation";
+import { toast } from "@/components/ui/use-toast";
 
 // Define tutor profile type with more precise types
 interface TutorProfile {
@@ -596,22 +598,50 @@ export default function TutorsPage() {
     }
   });
 
-  // Toggle subject selection
-  const toggleSubject = (subject: string) => {
-    if (selectedSubjects.includes(subject)) {
-      setSelectedSubjects(selectedSubjects.filter(s => s !== subject));
+  // Update the handler for search inputs
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target.value;
+    
+    // Validate and sanitize the search input
+    const { valid, value, error } = validateSearchInput(input);
+    
+    if (valid) {
+      setSearchTerm(value);
     } else {
-      setSelectedSubjects([...selectedSubjects, subject]);
+      // If invalid, truncate or use last valid value
+      setSearchTerm(value); // using the sanitized version
+      
+      if (error) {
+        toast({
+          variant: "destructive",
+          title: "Search error",
+          description: error
+        });
+      }
     }
   };
 
-  // Toggle school selection
+  // Update the toggle functions for subjects and schools to include validation
+  const toggleSubject = (subject: string) => {
+    // Sanitize the subject value
+    const sanitizedSubject = sanitizeInput(subject);
+    
+    setSelectedSubjects(prev => 
+      prev.includes(sanitizedSubject) 
+        ? prev.filter(s => s !== sanitizedSubject) 
+        : [...prev, sanitizedSubject]
+    );
+  };
+
   const toggleSchool = (school: string) => {
-    if (selectedSchools.includes(school)) {
-      setSelectedSchools(selectedSchools.filter(s => s !== school));
-    } else {
-      setSelectedSchools([...selectedSchools, school]);
-    }
+    // Sanitize the school value
+    const sanitizedSchool = sanitizeInput(school);
+    
+    setSelectedSchools(prev => 
+      prev.includes(sanitizedSchool) 
+        ? prev.filter(s => s !== sanitizedSchool) 
+        : [...prev, sanitizedSchool]
+    );
   };
 
   // Show loading indicator while fetching tutors
@@ -653,7 +683,7 @@ export default function TutorsPage() {
                 className="pl-10 h-12 bg-background/80 backdrop-blur-sm border-border/40 shadow-md focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
                 placeholder="Search by name, subject, or keyword"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={handleSearchChange}
               />
             </div>
           </div>
@@ -859,12 +889,8 @@ export default function TutorsPage() {
                   <div className="p-6 relative">
                     <Avatar className="h-20 w-20 border-4 border-background absolute -top-10 left-6 shadow-md group-hover:shadow-lg transition-all">
                       <AvatarImage 
-                        src={tutorImage} 
+                        src={tutorImage || '/placeholder.svg'} 
                         alt={tutorName}
-                        onError={(e) => {
-                          console.error(`Failed to load avatar image: ${tutorImage}`);
-                          e.currentTarget.style.display = 'none';
-                        }}
                       />
                       <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/5 text-primary font-medium">
                         {tutor.first_name ? tutor.first_name.charAt(0) : ''}

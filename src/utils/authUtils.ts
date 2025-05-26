@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from './supabase/client';
 import { invalidateCache, CACHE_CONFIG } from '@/lib/caching';
 
 /**
@@ -7,11 +7,8 @@ import { invalidateCache, CACHE_CONFIG } from '@/lib/caching';
  */
 export async function checkAuthAndClearCacheIfNeeded(): Promise<boolean> {
   try {
-    // Create Supabase client
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-    );
+    // Use the singleton client instead of creating a new one
+    const supabase = createClient();
     
     // Check authentication status
     const { data, error } = await supabase.auth.getUser();

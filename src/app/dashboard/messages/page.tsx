@@ -47,6 +47,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { SessionRequestCard, parseSessionRequest } from "@/components/SessionRequestCard";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { validateText, sanitizeInput, checkForMaliciousContent, messageSchema } from "@/lib/validation";
 
 // Define interface for messages returned from API
 interface Message {
@@ -417,11 +418,42 @@ export default function MessagesPage() {
 
   // Handle sending a new message
   const handleSendMessage = async () => {
-    if (!messageText.trim() || !selectedConversationId || !user) return;
+    if (!selectedConversationId || !user) return;
 
+    // Validate message content
     try {
+      // First pass validation with basic sanitization
+      const validationResult = validateText(messageText, { 
+        min: 1, 
+        max: 5000,
+        allowHtml: false,
+        trim: true 
+      });
+
+      if (!validationResult.valid) {
+        toast({
+          variant: "destructive",
+          title: "Invalid message",
+          description: validationResult.error || "Please enter a valid message"
+        });
+        return;
+      }
+
+      // Check for potentially malicious content
+      if (checkForMaliciousContent(validationResult.value)) {
+        toast({
+          variant: "destructive",
+          title: "Invalid content",
+          description: "Your message contains invalid content"
+        });
+        return;
+      }
+
+      const sanitizedMessage = validationResult.value;
+      
+      // Continue with sending the message
       setMessageText('');
-      const content = messageText.trim();
+      const content = sanitizedMessage;
       
       console.log(`Sending message to conversation ${selectedConversationId}: ${content}`);
       
@@ -466,7 +498,52 @@ export default function MessagesPage() {
 
   // Schedule a session
   const handleScheduleSession = async () => {
-    if (!selectedConversationId || !sessionTitle || !sessionDate || !sessionTime || !user || !currentConversation) {
+    if (!selectedConversationId || !user || !currentConversation) {
+      return;
+    }
+
+    // Validate input fields
+    // Title validation
+    const titleValidation = validateText(sessionTitle, { min: 3, max: 100 });
+    if (!titleValidation.valid) {
+      toast({
+        title: "Invalid title",
+        description: titleValidation.error || "Please enter a valid session title (3-100 characters)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Date validation
+    if (!sessionDate) {
+      toast({
+        title: "Missing date",
+        description: "Please select a session date",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Time validation
+    if (!sessionTime) {
+      toast({
+        title: "Missing time",
+        description: "Please select a session time",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Sanitize inputs
+    const sanitizedTitle = sanitizeInput(titleValidation.value);
+
+    // Check for malicious content
+    if (checkForMaliciousContent(sanitizedTitle)) {
+      toast({
+        title: "Invalid content",
+        description: "Your session title contains invalid content",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -493,7 +570,7 @@ export default function MessagesPage() {
 
     // Combine date and time
     const dateTime = `${sessionDate}T${sessionTime}:00`;
-    const formattedMessage = formatSessionRequest(sessionTitle, dateTime);
+    const formattedMessage = formatSessionRequest(sanitizedTitle, dateTime);
     
     // Validate that the session is not scheduled in the past
     const scheduledDateTime = new Date(dateTime);
@@ -538,7 +615,7 @@ export default function MessagesPage() {
         conversation_id: selectedConversationId,
         tutor_id: tutorId,
         student_id: studentId,
-        name: sessionTitle,
+        name: sanitizedTitle,
         scheduled_for: dateTime,
         status: "requested",
         cost: sessionCost

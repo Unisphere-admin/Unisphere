@@ -21,6 +21,8 @@ import { AlertCircle } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { handleApiRedirect } from "@/lib/auth/apiRedirect";
 import { Separator } from "@/components/ui/separator";
+import { emailSchema, passwordSchema, nameSchema, sanitizeInput, checkForMaliciousContent } from "@/lib/validation";
+import { useCsrfToken, addCsrfToken } from "@/lib/csrf/client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -32,6 +34,9 @@ export default function LoginPage() {
   // Extract redirectTo from URL if present
   const searchParams = useSearchParams();
   const redirectTo = searchParams?.get('redirectTo') || null;
+  
+  // Update to use the new hook correctly
+  const { csrfToken, fetchCsrfToken } = useCsrfToken();
   
   // Form states
   const [email, setEmail] = useState("");
@@ -85,27 +90,74 @@ export default function LoginPage() {
     }
   }, [searchParams, toast]);
 
+  // Fetch CSRF token when the component mounts
+  useEffect(() => {
+    // Make sure we have a CSRF token for forms
+    const getCsrfTokenSafely = async () => {
+      try {
+        if (!csrfToken) {
+          // On the login page, CSRF token fetch is expected to fail when not logged in
+          // This is normal and shouldn't be treated as an error
+          console.log('Attempting to fetch CSRF token (normal to fail on login page)');
+          
+          // Try to fetch but don't show errors if it fails due to auth
+          await fetchCsrfToken().catch((err: any) => {
+            // This is expected behavior - just log it quietly
+            console.log('Note: CSRF token not available before login (expected behavior)');
+          });
+        }
+      } catch (error) {
+        // Silently handle errors - don't affect login page functionality
+        console.log('CSRF token fetch skipped - will retry after login');
+      }
+    };
+    
+    getCsrfTokenSafely();
+  }, [csrfToken, fetchCsrfToken]);
+
   // Handle login function that uses the Auth API
   const signIn = async (email: string, password: string, redirectPath?: string) => {
     try {
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Only add CSRF token if it exists
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+      
       const response = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ email, password }),
+        credentials: 'include', // Important for cookies
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Login failed');
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Login failed with status ${response.status}`);
+        } else {
+          throw new Error(`Login failed with status ${response.status}`);
+        }
       }
 
       const data = await response.json();
       
       if (data.user) {
+        // Once logged in, try to fetch a CSRF token for subsequent operations
+        try {
+          await fetchCsrfToken();
+        } catch (csrfError) {
+          console.error('Failed to fetch CSRF token after login, will try again later:', csrfError);
+          // Don't fail the login process if CSRF token fetch fails
+        }
+        
         // Refresh user data in the context
-        await refreshUser();
+        await refreshUser(true);
         
         // Navigate to redirect path or dashboard
         router.push(redirectPath || '/dashboard');
@@ -119,10 +171,21 @@ export default function LoginPage() {
     }
   };
 
-  // Reset password function
+  // Reset password function - updated with validation
   const resetPassword = async (email: string) => {
-    if (!email) {
-      setError("Please enter your email address");
+    const sanitizedEmail = sanitizeInput(email);
+    
+    try {
+      // Validate email
+      emailSchema.parse(sanitizedEmail);
+    } catch (err: any) {
+      setError(err.errors?.[0]?.message || "Invalid email address");
+      return;
+    }
+    
+    // Check for malicious content
+    if (checkForMaliciousContent(sanitizedEmail)) {
+      setError("Invalid input detected");
       return;
     }
     
@@ -131,12 +194,26 @@ export default function LoginPage() {
     try {
       // Create a FormData instance for the request
       const formData = new FormData();
-      formData.append("email", email);
+      formData.append("email", sanitizedEmail);
       
-      // Call the API route using fetch
+      // Only add CSRF token if it exists
+      if (csrfToken) {
+        formData.append("csrfToken", csrfToken);
+      }
+      
+      const headers: HeadersInit = {};
+      
+      // Only add CSRF token if it exists
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+      
+      // Call the API route using fetch with CSRF token
       const response = await fetch('/api/auth/reset-password', {
         method: 'POST',
-        body: formData
+        headers,
+        body: formData,
+        credentials: 'include',
       });
       
       if (!response.ok) {
@@ -177,16 +254,34 @@ export default function LoginPage() {
     setError("");
     setErrorType("general");
     
-    if (!email || !password) {
-      setError("Please enter both email and password");
+    // Sanitize inputs
+    const sanitizedEmail = sanitizeInput(email);
+    
+    // Email validation
+    try {
+      emailSchema.parse(sanitizedEmail);
+    } catch (err: any) {
+      setError(err.errors?.[0]?.message || "Invalid email address");
+      return;
+    }
+    
+    // Password validation - basic check only for login
+    if (!password) {
+      setError("Please enter your password");
+      return;
+    }
+    
+    // Check for malicious content
+    if (checkForMaliciousContent(sanitizedEmail) || checkForMaliciousContent(password)) {
+      setError("Invalid input detected");
       return;
     }
     
     setIsLoading(true);
     
     try {
-      // Use the redirectTo from URL params, converting null to undefined
-      const success = await signIn(email, password, redirectTo || undefined);
+      // Use sanitized email
+      const success = await signIn(sanitizedEmail, password, redirectTo || undefined);
       
       if (success) {
         // Toast is shown in AuthContext after successful login
@@ -198,18 +293,8 @@ export default function LoginPage() {
     } catch (err) {
       console.error("Login error:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to login";
-      
-      // Check if the error is related to profile not found
-      if (errorMessage.includes("profile not found") || errorMessage.includes("User profile not found")) {
-        setError("Your account exists but your profile is incomplete. Please contact support.");
-        setErrorType("profile");
-      } else if (errorMessage.includes("401") || errorMessage.includes("unauthorized")) {
-        setError("Invalid email or password");
-        setErrorType("auth");
-      } else {
-        setError(`Login failed: ${errorMessage}`);
-        setErrorType("general");
-      }
+      setError(errorMessage);
+      setErrorType("auth");
     } finally {
       setIsLoading(false);
     }
@@ -220,48 +305,96 @@ export default function LoginPage() {
     setError("");
     setErrorType("general");
     
-    if (!email || !password || !confirmPassword || !firstName || !lastName) {
-      setError("Please fill in all fields");
+    // Sanitize inputs
+    const sanitizedEmail = sanitizeInput(email);
+    const sanitizedFirstName = sanitizeInput(firstName);
+    const sanitizedLastName = sanitizeInput(lastName);
+    
+    // Email validation
+    try {
+      emailSchema.parse(sanitizedEmail);
+    } catch (err: any) {
+      setError(err.errors?.[0]?.message || "Invalid email address");
       return;
     }
     
+    // Name validation
+    try {
+      nameSchema.parse(sanitizedFirstName);
+      nameSchema.parse(sanitizedLastName);
+    } catch (err: any) {
+      setError(err.errors?.[0]?.message || "Invalid name format");
+      return;
+    }
+    
+    // Password validation
+    try {
+      passwordSchema.parse(password);
+    } catch (err: any) {
+      setError(err.errors?.[0]?.message || "Password does not meet requirements");
+      return;
+    }
+    
+    // Password match check
     if (password !== confirmPassword) {
-      setError("Passwords don't match");
+      setError("Passwords do not match");
+      return;
+    }
+    
+    // Check for malicious content
+    if (
+      checkForMaliciousContent(sanitizedEmail) || 
+      checkForMaliciousContent(password) ||
+      checkForMaliciousContent(sanitizedFirstName) ||
+      checkForMaliciousContent(sanitizedLastName)
+    ) {
+      setError("Invalid input detected");
       return;
     }
     
     setIsLoading(true);
     
     try {
-      // Use API route for signup instead of direct supabase client
-      const response = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-        email,
-        password,
-          confirmPassword,
-          userType: 'student', // Default to student signup
-          firstName,
-          lastName
-        }),
-      });
-
-      const result = await response.json();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
       
-      if (!response.ok) {
-        throw new Error(result.error || 'Signup failed');
+      // Only add CSRF token if it exists
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
       }
       
+      // Use the API route for signup with CSRF token
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ 
+          email: sanitizedEmail, 
+          password, 
+          first_name: sanitizedFirstName, 
+          last_name: sanitizedLastName 
+        }),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Signup failed');
+      }
+
+      const data = await response.json();
+      
+      // Show success message
       toast({
-        title: "Account created",
-        description: "Please check your email to verify your account."
+        title: "Account created successfully",
+        description: "Please check your email to verify your account.",
       });
       
-      // After successful signup, let's switch to login tab
+      // Switch to login tab
       setActiveTab("login");
+      
+      // Clear the form
+      setEmail(sanitizedEmail); // Keep email for convenience
       setPassword("");
       setConfirmPassword("");
       setFirstName("");
@@ -269,7 +402,9 @@ export default function LoginPage() {
       
     } catch (err) {
       console.error("Signup error:", err);
-      setError(err instanceof Error ? err.message : "Failed to create account");
+      const errorMessage = err instanceof Error ? err.message : "Failed to create account";
+      setError(errorMessage);
+      setErrorType("auth");
     } finally {
       setIsLoading(false);
     }

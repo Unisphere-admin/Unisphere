@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AuthUser, requiresPremiumAccess } from './protectResource';
+import { 
+  AuthUser, 
+  requiresPremiumAccess, 
+  getAuthUser, 
+  shouldProtectRoute, 
+  shouldRedirectToPaywall, 
+  redirectToLogin, 
+  redirectToPaywall,
+  isStaticAssetPath
+} from './protectResource';
 import { createRouteHandlerClientWithCookies } from '../db/client';
+import { csrfMiddleware } from "@/lib/csrf/server";
 
 /**
  * Validates a request to ensure it has a valid authenticated user.
@@ -14,100 +24,53 @@ export async function validateRequest(req: NextRequest): Promise<{
   errorResponse: NextResponse | null;
 }> {
   try {
-    // Get supabase client with cookie management
-    const supabase = await createRouteHandlerClientWithCookies();
-    
-    // Check for authenticated session
-    const { data: { user }, error } = await supabase.auth.getUser();
-
-    // If there's no user, return an appropriate error response
-    if (error || !user) {
-      const errorMessage = error?.message || 'Authentication required';
-      
-      // Determine if this is an API request or a page request
-      const isApiRequest = req.nextUrl.pathname.startsWith('/api/');
-      
-      if (isApiRequest) {
-        return {
-          user: null,
-          errorResponse: NextResponse.json(
-            { error: errorMessage }, 
-            { status: 401 }
-          )
-        };
-      } else {
-        // For page requests, redirect to login
-        return {
-          user: null,
-          errorResponse: NextResponse.redirect(new URL('/login', req.url))
-        };
-      }
-    }
-    
-    // Fetch additional user data from the database
-    const { data: userData, error: userDataError } = await supabase
-      .from('users')
-      .select('is_tutor, tokens, has_access')
-      .eq('id', user.id)
-      .single();
-    
-    if (userDataError) {
-      console.warn('Error fetching user data:', userDataError);
-    }
-    
-    // Create the user object with all properties
-    const authUser: AuthUser = {
-      id: user.id,
-      email: user.email || '',
-      is_tutor: userData?.is_tutor || user.user_metadata?.is_tutor === true,
-      tokens: userData?.tokens,
-      has_access: userData?.has_access || false
-    };
-    
-    // Check if this path requires premium access
+    // Check if the route should be protected
     const path = req.nextUrl.pathname;
     
-    // Allow users to access their own profile data regardless of premium status
-    const isAccessingOwnProfile = path.startsWith('/api/users/profile/') && 
-                               path.includes(`/${authUser.id}`) ||
-                               path === '/api/users/update-email';
+    // Skip protection for static assets
+    if (isStaticAssetPath(path)) {
+      return { user: null, errorResponse: null };
+    }
     
-    if (requiresPremiumAccess(path) && !authUser.is_tutor && !authUser.has_access && !isAccessingOwnProfile) {
-      // Path requires premium access but user doesn't have it
-      const isApiRequest = path.startsWith('/api/');
+    // First check if the user is authenticated
+    let authUser = await getAuthUser();
+    
+    // Check if this path requires protection
+    if (shouldProtectRoute(path)) {
+      // If no user is logged in, redirect to login
+      if (!authUser) {
+        return { user: null, errorResponse: redirectToLogin(req) };
+      }
       
-      if (isApiRequest) {
-        return {
-          user: authUser,
-          errorResponse: NextResponse.json(
-            { error: 'Premium access required' }, 
-            { status: 403 }
-          )
-        };
-      } else {
-        // For page requests, redirect to paywall
-        return {
-          user: authUser,
-          errorResponse: NextResponse.redirect(new URL('/paywall', req.url))
-        };
+      // Check if this path requires premium access
+      if (requiresPremiumAccess(path) && shouldRedirectToPaywall(authUser, path)) {
+        return { user: null, errorResponse: redirectToPaywall(req) };
       }
     }
     
-    // Otherwise, return the authenticated user with access
-    return { 
-      user: authUser, 
-      errorResponse: null 
-    };
-  } catch (error) {
-    // For unexpected errors, return a generic error response
-    console.error('Authentication validation error:', error);
+    // If we have a user and this is not a GET request, validate CSRF token
+    // Skip CSRF validation for auth-related endpoints
+    if (authUser && req.method !== "GET" && !path.startsWith("/api/auth/") && !path.startsWith("/api/csrf")) {
+      // Apply CSRF validation
+      const csrfResponse = await csrfMiddleware(req, authUser);
+      
+      // If CSRF validation fails, return the error response
+      if (csrfResponse) {
+        return { user: authUser, errorResponse: csrfResponse };
+      }
+    }
     
+    // All validations passed
+    return { user: authUser, errorResponse: null };
+  } catch (error) {
+    console.error("Error in validateRequest:", error);
+    // Return a generic error response
     return {
       user: null,
       errorResponse: NextResponse.json(
-        { error: 'Authentication error' }, 
-        { status: 401 }
-      )
+        { error: "Internal server error" },
+        { status: 500 }
+      ),
     };
   }
 }
@@ -122,39 +85,33 @@ export async function validateRequest(req: NextRequest): Promise<{
 export function withRouteAuth<Params = Record<string, string>>(
   handler: (req: NextRequest, user: AuthUser, params: Params) => Promise<NextResponse>
 ): (req: NextRequest, props: { params: Promise<Params> }) => Promise<NextResponse> {
-  return async (req: NextRequest, { params }) => {
-    try {
-      const { user, errorResponse } = await validateRequest(req);
-      
-      if (errorResponse) {
-        return errorResponse;
-      }
-      
-      // If we get here, we have a valid user
-      if (!user) {
-        return NextResponse.json(
-          { error: 'Unexpected authentication error' }, 
-          { status: 401 }
-        );
-      }
-      
-      // Resolve the params Promise for Next.js 15
-      const resolvedParams = await params;
-      
-      // Call the handler with the authenticated user and resolved params
-      return await handler(req, user, resolvedParams);
-    } catch (error) {
-      // Add better error handling for debugging
-      console.error('Error in route handler:', error);
-      const errorDetails = error instanceof Error 
-        ? { message: error.message, stack: error.stack }
-        : String(error);
-        
+  return async (req: NextRequest, props: { params: Promise<Params> }) => {
+    // Validate the request
+    const { user, errorResponse } = await validateRequest(req);
+    
+    // If there's an error response, return it
+    if (errorResponse) {
+      return errorResponse;
+    }
+    
+    // If no user is returned, it's an unexpected error
+    if (!user) {
       return NextResponse.json(
-        { 
-          error: 'Internal server error',
-          details: process.env.NODE_ENV === 'development' ? errorDetails : undefined
-        },
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    
+    try {
+      // Otherwise, call the handler with the authenticated user
+      const params = await props.params;
+      return await handler(req, user, params);
+    } catch (error) {
+      console.error('Error in route handler:', error);
+      
+      // Return a generic error response
+      return NextResponse.json(
+        { error: 'Internal server error' },
         { status: 500 }
       );
     }

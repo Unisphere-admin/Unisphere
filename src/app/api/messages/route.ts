@@ -3,6 +3,8 @@ import { getConversationById, sendMessage, Message, deleteMessage } from '@/lib/
 import { AuthUser } from '@/lib/auth/protectResource';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
+import { validateText, sanitizeInput, checkForMaliciousContent } from "@/lib/validation";
+import { withCsrfProtection } from "@/lib/csrf/server";
 
 // Export runtime config for improved performance
 export const runtime = 'edge';
@@ -225,84 +227,100 @@ const broadcastMessage = async (message: Message, conversationId: string) => {
   }
 };
 
-// POST handler for messages
+// POST handler for messages - updated with CSRF protection
 async function postMessagesHandler(
   req: NextRequest, 
   user: AuthUser
 ): Promise<NextResponse> {
   try {
+    // Parse request body
     const body = await req.json();
-    const { conversation_id, content } = body;
+    const { conversationId, content, options } = body;
+    
+    // Validate required parameters
+    if (!conversationId) {
+      return NextResponse.json({ error: "Conversation ID is required" }, { status: 400 });
+    }
+    
+    // Validate and sanitize message content
+    const validationResult = validateText(content, { 
+      min: 1, 
+      max: 5000,
+      allowHtml: false,
+      trim: true 
+    });
 
-    if (!conversation_id || !content) {
-      return NextResponse.json({ error: 'Conversation ID and content are required' }, { status: 400 });
+    if (!validationResult.valid) {
+      return NextResponse.json({ 
+        error: validationResult.error || "Invalid message content" 
+      }, { status: 400 });
     }
 
-    // Invalidate the messages cache for this conversation
-    // Use Array.from to avoid TS iterator errors
-    Array.from(responseCache.entries()).forEach(([key, _]) => {
-      if (key.startsWith(`messages:${conversation_id}`)) {
-        responseCache.delete(key);
-      }
-    });
-    
-    // Use the data access layer to send a message
-    const { message, error } = await sendMessage(user, conversation_id, user.id, content);
+    // Check for potentially malicious content
+    if (checkForMaliciousContent(validationResult.value)) {
+      return NextResponse.json({ 
+        error: "Message contains invalid content" 
+      }, { status: 400 });
+    }
 
-    // Handle error
+    const sanitizedContent = validationResult.value;
+    
+    // Set the sender ID to the authenticated user's ID
+    const senderId = user.id;
+    
+    // Set options defaults if not provided
+    const messageOptions = options || { maxRetries: 1 };
+    
+    // Track retries for robust error handling
+    let retryCount = 0;
+    const maxRetries = messageOptions.maxRetries || 1;
+    
+    let message = null;
+    let error = null;
+    
+    // Retry loop for better resilience
+    while (retryCount <= maxRetries) {
+      try {
+        // Send the message
+        const result = await sendMessage(user, conversationId, senderId, sanitizedContent);
+        message = result.message;
+        error = result.error;
+        
+        // If successful or error is not retryable, break the loop
+        if (message || (error && !error.includes("network") && !error.includes("timeout"))) {
+          break;
+        }
+      } catch (err) {
+        console.error(`Message send attempt ${retryCount + 1} failed:`, err);
+      }
+      
+      retryCount++;
+      if (retryCount <= maxRetries) {
+        // Wait before retrying (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, retryCount - 1)));
+      }
+    }
+    
+    // Handle errors after retries
     if (error) {
+      console.error(`Failed to send message after ${retryCount} attempts:`, error);
       return NextResponse.json({ error }, { status: 500 });
     }
-
+    
     if (!message) {
-      return NextResponse.json({ error: 'Failed to send message' }, { status: 500 });
+      return NextResponse.json({ error: "Failed to send message" }, { status: 500 });
     }
-
-    // Get the conversation to access user profile information
-    // getConversationById expects authUser and conversationId
-    const { conversation } = await getConversationById(user, conversation_id);
     
-    // Find the sender in participants list
-    const senderParticipant = conversation?.participants?.find(p => p.user_id === user.id);
+    // Broadcast message to realtime subscribers
+    await broadcastMessage(message, conversationId);
     
-    // Get display name and profile information
-    let displayName = user.email || 'Unknown User';
-    let avatarUrl = null;
-    let isTutor = user.is_tutor || false;
-    
-    // Use the participant user data if available
-    if (senderParticipant?.user) {
-      const userData = senderParticipant.user as any;
-      displayName = userData.display_name || userData.email || user.email || 'Unknown User';
-      avatarUrl = userData.avatar_url || null;
-      isTutor = userData.is_tutor || user.is_tutor || false;
-    }
-
-    // Transform the message to include sender display name
-    const transformedMessage: TransformedMessage = {
-      ...message,
-      sender: {
-        id: user.id,
-        display_name: displayName,
-        avatar_url: avatarUrl,
-        is_tutor: isTutor
-      }
-    };
-    
-    // Broadcast the message via Supabase realtime
-    await broadcastMessage(transformedMessage, conversation_id);
-    
-    return NextResponse.json(transformedMessage);
+    return NextResponse.json(message);
   } catch (error) {
-    const errorDetails = error instanceof Error 
-      ? error.message + (error.stack ? '\n' + error.stack : '') 
-      : JSON.stringify(error);
-    console.error(`Unhandled error in postMessagesHandler: ${errorDetails}`);
-    
-    return NextResponse.json({ 
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? errorDetails : undefined
-    }, { status: 500 });
+    console.error("Error in POST /api/messages:", error);
+    return NextResponse.json(
+      { error: "An unexpected error occurred" },
+      { status: 500 }
+    );
   }
 }
 
@@ -356,7 +374,7 @@ async function deleteMessageHandler(
   }
 }
 
-// Export the wrapped route handlers
+// Export the wrapped route handlers with added CSRF protection
 export const GET = withRouteAuth(getMessagesHandler);
-export const POST = withRouteAuth(postMessagesHandler);
-export const DELETE = withRouteAuth(deleteMessageHandler); 
+export const POST = withRouteAuth(withCsrfProtection(postMessagesHandler));
+export const DELETE = withRouteAuth(withCsrfProtection(deleteMessageHandler)); 

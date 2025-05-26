@@ -1,5 +1,11 @@
 import { saveApiRequestForRetry } from './apiRedirect';
 import { createClient } from "@/utils/supabase/client";
+import { 
+  addCsrfToken, 
+  getCsrfTokenFromStorage as getTokenFromStorage,
+  storeCsrfToken as storeToken,
+  clearStoredCsrfToken as clearToken
+} from "@/lib/csrf/client";
 
 /**
  * Interface for fetch options with optional body
@@ -108,6 +114,30 @@ async function refreshAuthToken(): Promise<boolean> {
 }
 
 /**
+ * Get CSRF token from cookies or local storage
+ * @deprecated Use getTokenFromStorage from csrf/client directly
+ */
+function getCsrfTokenFromStorage(): string | null {
+  return getTokenFromStorage();
+}
+
+/**
+ * Store CSRF token in local storage for client-side access
+ * @deprecated Use storeToken from csrf/client directly
+ */
+export function storeCsrfToken(token: string): void {
+  storeToken(token);
+}
+
+/**
+ * Clear CSRF token from storage
+ * @deprecated Use clearToken from csrf/client directly
+ */
+export function clearStoredCsrfToken(): void {
+  clearToken();
+}
+
+/**
  * A wrapper around the fetch API that handles authentication redirects
  * and saves the request for retry after login
  * 
@@ -117,7 +147,8 @@ async function refreshAuthToken(): Promise<boolean> {
  */
 export async function protectedFetch<T = any>(
   endpoint: string,
-  options: FetchOptions = {}
+  options: FetchOptions = {},
+  csrfToken?: string
 ): Promise<T> {
   // Prepare the options
   const fetchOptions: RequestInit = {
@@ -126,11 +157,20 @@ export async function protectedFetch<T = any>(
       'Content-Type': 'application/json',
       ...options.headers,
     },
+    credentials: 'include', // Always include credentials for cookies
   };
 
   // Convert body to JSON string if present
   if (options.body && typeof options.body === 'object') {
     fetchOptions.body = JSON.stringify(options.body);
+  }
+
+  // Get CSRF token from param, storage, or do nothing
+  const token = csrfToken || getCsrfTokenFromStorage();
+  
+  // If we have a token and this is not a GET request, add CSRF token
+  if (token && options.method && options.method !== 'GET') {
+    addCsrfToken(fetchOptions, token);
   }
 
   // Try to refresh the token first
@@ -170,6 +210,33 @@ export async function protectedFetch<T = any>(
 
       // Throw an error to indicate the need to log in
       throw new Error('Authentication required. Please log in.');
+    }
+
+    // Handle CSRF token refresh if needed
+    if (response.status === 403) {
+      const responseData = await response.json();
+      
+      // If error is related to CSRF, try to get a new token and retry
+      if (responseData.error && responseData.error.includes('CSRF')) {
+        try {
+          // Fetch a new CSRF token
+          const tokenResponse = await fetch('/api/csrf', {
+            credentials: 'include',
+          });
+          
+          if (tokenResponse.ok) {
+            const { csrfToken: newToken } = await tokenResponse.json();
+            
+            // Store the new token
+            storeCsrfToken(newToken);
+            
+            // Retry the original request with the new token
+            return protectedFetch<T>(endpoint, options, newToken);
+          }
+        } catch (error) {
+          console.error('Error refreshing CSRF token:', error);
+        }
+      }
     }
 
     // Handle HTTP errors

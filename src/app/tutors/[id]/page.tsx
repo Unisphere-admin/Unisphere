@@ -385,16 +385,12 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
               <Card className="overflow-hidden">
                 <div className="bg-gradient-to-r from-purple-100 to-blue-100 h-24"></div>
                 <div className="p-6 text-center relative">
-                  <Avatar className="h-24 w-24 mx-auto mt-[-3rem] border-4 border-white shadow-sm">
+                  <Avatar className="h-28 w-28 border-4 border-background shadow-md">
                     <AvatarImage 
-                      src={tutorAvatar} 
-                      alt={tutorName}
-                      onError={(e) => {
-                        console.error(`Failed to load avatar image: ${tutorAvatar}`);
-                        e.currentTarget.style.display = 'none';
-                      }}
+                      src={getTutorAvatarUrl(tutor)} 
+                      alt={tutor?.first_name ? `${tutor.first_name} ${tutor.last_name || ''}` : 'Tutor'}
                     />
-                    <AvatarFallback>
+                    <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/5 text-primary font-medium">
                       {tutor?.first_name ? tutor.first_name.charAt(0) : ''}
                       {tutor?.last_name ? tutor.last_name.charAt(0) : 'T'}
                     </AvatarFallback>
