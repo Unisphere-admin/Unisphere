@@ -146,11 +146,13 @@ export function SessionRequestCard({
           const messageCreator = message.sender;
           setIsCreatedByTutor(messageCreator?.is_tutor || false);
           
-          // Check if this message content matches a session request pattern
-          if (message.content && message.content.startsWith('Session Request:')) {
-            console.log("Message content matches Session Request pattern");
-            const sessionDetails = parseSessionRequest(message.content);
-            setPendingSession(sessionDetails);
+          // We no longer check message content for session request pattern
+          // Instead, we'll rely on the database and sessionId prop
+          // If there's a sessionId, it means there's a valid session
+          
+          // Just store the message content for other uses
+          if (message.content) {
+            setMessageContent(message.content);
           }
         }
       } catch (error) {
@@ -176,7 +178,7 @@ export function SessionRequestCard({
         return;
       }
       
-      // Check if the message content looks like a session request 
+      // Check if there's a session for this message in the database
       const checkForSession = async () => {
         try {
           console.log(`Looking up session for message: ${messageId}`);
@@ -189,8 +191,10 @@ export function SessionRequestCard({
           
           if (response.ok) {
             const data = await response.json();
-            if (data.session) {
-              console.log("Found session for message:", data.session);
+            
+            // Check if we have valid sessions data 
+            if (data.sessions && data.sessions.length > 0) {
+              console.log("Found sessions for message:", data.sessions);
               
               // Force refresh sessions to update the UI
               await refreshSessions();
@@ -201,8 +205,7 @@ export function SessionRequestCard({
             }
           }
           
-          // If we can't find a session but the message should have one,
-          // try refreshing sessions to see if that helps
+          // If we can't find a session, just refresh sessions and continue
           refreshSessions();
           setIsLoading(false);
         } catch (error) {

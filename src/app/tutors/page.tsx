@@ -49,6 +49,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
+import React from "react";
 
 // Define tutor profile type with more precise types
 interface TutorProfile {
@@ -84,11 +85,46 @@ function fuzzySearch(text: string | null | undefined, query: string): boolean {
   const textLower = String(text).toLowerCase();
   const queryLower = query.toLowerCase();
   
+  // For GCSE searches, handle special format
+  if (queryLower.includes('gcse') || textLower.includes('gcse')) {
+    // If search is for "GCSE Math" and text has "Math" or vice versa
+    if (queryLower.includes('gcse') && !textLower.includes('gcse')) {
+      // Try to match the subject after "GCSE"
+      const subjectSearch = queryLower.replace('gcse', '').trim();
+      if (subjectSearch && textLower.includes(subjectSearch)) return true;
+    } else if (!queryLower.includes('gcse') && textLower.includes('gcse')) {
+      // Text is GCSE but search doesn't specify it - try to match just the subject
+      const subjectText = textLower.replace('gcse:', '').trim();
+      if (subjectText && queryLower.includes(subjectText)) return true;
+    }
+  }
+  
+  // Similar handling for A-levels
+  if (queryLower.includes('a-level') || textLower.includes('a-level')) {
+    if (queryLower.includes('a-level') && !textLower.includes('a-level')) {
+      const subjectSearch = queryLower.replace('a-level', '').trim();
+      if (subjectSearch && textLower.includes(subjectSearch)) return true;
+    } else if (!queryLower.includes('a-level') && textLower.includes('a-level')) {
+      const subjectText = textLower.replace('a-level:', '').trim();
+      if (subjectText && queryLower.includes(subjectText)) return true;
+    }
+  }
+  
   // Exact match or substring match is ideal
   if (textLower.includes(queryLower)) return true;
   
   // Split the query into words for multi-word searching
   const queryWords = queryLower.split(/\s+/).filter(word => word.length > 0);
+  
+  // If this is a multi-word query, try matching all words in any order
+  if (queryWords.length > 1) {
+    const allWordsMatch = queryWords.every(word => {
+      // Skip very short words (prepositions, articles, etc.)
+      if (word.length <= 2) return true;
+      return textLower.includes(word);
+    });
+    if (allWordsMatch) return true;
+  }
   
   // For each word in the query, check if it matches
   for (const word of queryWords) {
@@ -202,6 +238,27 @@ const ReviewStars = ({ rating }: ReviewStarsProps) => {
   );
 };
 
+// Custom checkbox item that doesn't close the dropdown
+const StayOpenCheckboxItem = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuCheckboxItem>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuCheckboxItem> & {
+    onCheckedChange?: (checked: boolean) => void;
+  }
+>(({ onCheckedChange, ...props }, ref) => {
+  return (
+    <DropdownMenuCheckboxItem
+      {...props}
+      ref={ref}
+      onSelect={(e) => {
+        // Prevent the dropdown from closing
+        e.preventDefault();
+        onCheckedChange?.(!props.checked);
+      }}
+    />
+  );
+});
+StayOpenCheckboxItem.displayName = "StayOpenCheckboxItem";
+
 export default function TutorsPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
@@ -266,19 +323,30 @@ export default function TutorsPage() {
       })))
     : DEFAULT_SUBJECTS;
     
-  // Fix education filter to properly use current and previous education
+  // Fix education filter to properly use current and previous education only
   const allSchools = tutors.length > 0
     ? Array.from(new Set(tutors.flatMap((tutor: TutorProfile) => {
         const schools: string[] = [];
+        
+        // Log the tutor and their education data types
+        console.log(`Tutor ${tutor.id} education data:`, {
+          currentEducationType: tutor.current_education ? typeof tutor.current_education : 'undefined',
+          currentEducation: tutor.current_education,
+          previousEducationType: tutor.previous_education ? typeof tutor.previous_education : 'undefined',
+          previousEducation: tutor.previous_education,
+          major: tutor.major
+        });
         
         // Add current education if available - with better handling
         if (tutor.current_education) {
           if (typeof tutor.current_education === 'string' && tutor.current_education.trim().length > 0) {
             schools.push(tutor.current_education.trim());
+            console.log(`Found current education (string): ${tutor.current_education.trim()}`);
           } else if (Array.isArray(tutor.current_education)) {
             tutor.current_education.forEach((school: any) => {
               if (typeof school === 'string' && school.trim().length > 0) {
                 schools.push(school.trim());
+                console.log(`Found current education (array): ${school.trim()}`);
               }
             });
           }
@@ -290,29 +358,30 @@ export default function TutorsPage() {
             .filter((school: any) => typeof school === 'string' && school.trim().length > 0)
             .map((school: string) => school.trim());
           
-          schools.push(...validPreviousEducation);
-        }
-        
-        // Remove major from the schools list to prevent double counting
-        // Only include major if there's no education information available
-        if (schools.length === 0 && tutor.major && typeof tutor.major === 'string' && tutor.major.trim().length > 0) {
-          const majorStr = tutor.major.trim();
-          const yearStr = tutor.year ? ` (${tutor.year})` : '';
-          schools.push(`${majorStr}${yearStr}`);
+          validPreviousEducation.forEach(school => {
+            schools.push(school);
+            console.log(`Found previous education: ${school}`);
+          });
         }
         
         return schools;
       })))
-    : [
-        "University of Oxford",
-        "University of Cambridge",
-        "Imperial College London",
-        "University College London",
-        "London School of Economics",
-        "Harvard University",
-        "MIT",
-        "Stanford University"
-      ]; // Default schools to show if none are found
+    : [];
+    
+  // If no education data is found, use majors as a fallback
+  const filterSchools = allSchools.length > 0 
+    ? allSchools 
+    : Array.from(new Set(tutors
+        .filter(tutor => tutor.major && typeof tutor.major === 'string')
+        .map(tutor => {
+          const majorLabel = `${tutor.major}${tutor.year ? ` (${tutor.year})` : ''}`;
+          console.log(`Using major as fallback: ${majorLabel}`);
+          return majorLabel;
+        })
+      ));
+  
+  // Log the collected schools for debugging
+  console.log("All schools collected:", filterSchools);
 
   // Function to fetch ratings for all tutors
   const fetchTutorRatings = async () => {
@@ -381,7 +450,7 @@ export default function TutorsPage() {
     // Extract all education-related information with improved validation
     const tutorSchools: string[] = [];
     
-    // Current education - handle both string and array formats
+    // Current education - handle both string and array formats properly
     if (tutor.current_education) {
       if (typeof tutor.current_education === 'string' && tutor.current_education.trim().length > 0) {
         tutorSchools.push(tutor.current_education.trim());
@@ -403,58 +472,86 @@ export default function TutorsPage() {
       tutorSchools.push(...validPreviousEducation);
     }
     
-    // Only add major to schools if no education data is available
-    const hasFormalEducation = tutorSchools.length > 0;
-    if (!hasFormalEducation && tutor.major && typeof tutor.major === 'string' && tutor.major.trim().length > 0) {
-      const majorStr = tutor.major.trim();
-      const yearStr = tutor.year ? ` (${tutor.year})` : '';
-      tutorSchools.push(`${majorStr}${yearStr}`);
+    // For search purposes only - collect all education-related information
+    const tutorEducation: string[] = [...tutorSchools];
+    
+    // Add major to education-related fields for search
+    if (tutor.major && typeof tutor.major === 'string' && tutor.major.trim().length > 0) {
+      tutorEducation.push(tutor.major.trim());
     }
     
-    // Create dedicated education keywords for search - more comprehensive for education search
-    const educationKeywords = [
-      ...tutorSchools,
-      // Include major separately for search even if not in schools list
-      tutor.major || ''
-    ].filter(keyword => typeof keyword === 'string' && keyword.trim().length > 0);
+    // Add year to education-related fields for search
+    if (tutor.year && typeof tutor.year === 'string' && tutor.year.trim().length > 0) {
+      tutorEducation.push(tutor.year.trim());
+    }
     
-    // Collect all searchable keywords (excluding description)
+    // Add GCSEs to education-related fields for search
+    if (tutor.gcse && Array.isArray(tutor.gcse)) {
+      const validGcse = tutor.gcse
+        .filter((item: any) => typeof item === 'string' && item.trim().length > 0)
+        .map((item: string) => item.trim());
+      
+      // Add each GCSE subject individually  
+      tutorEducation.push(...validGcse);
+      
+      // Also add with GCSE prefix for better searching
+      validGcse.forEach(subject => {
+        tutorEducation.push(`GCSE ${subject}`);
+        tutorEducation.push(`GCSE: ${subject}`);
+      });
+      
+      // Debug log GCSE subjects
+      if (validGcse.length > 0) {
+        console.log(`Tutor ${tutor.id} (${fullName}) has GCSE subjects:`, validGcse);
+      }
+    }
+    
+    // Add A-levels to education-related fields for search
+    if (tutor["a-levels"] && Array.isArray(tutor["a-levels"])) {
+      const validALevels = tutor["a-levels"]
+        .filter((item: any) => typeof item === 'string' && item.trim().length > 0)
+        .map((item: string) => item.trim());
+      
+      // Add each A-Level subject individually
+      tutorEducation.push(...validALevels);
+      
+      // Also add with A-Level prefix for better searching
+      validALevels.forEach(subject => {
+        tutorEducation.push(`A-Level ${subject}`);
+        tutorEducation.push(`A-Level: ${subject}`);
+      });
+      
+      // Debug log A-Level subjects
+      if (validALevels.length > 0) {
+        console.log(`Tutor ${tutor.id} (${fullName}) has A-Level subjects:`, validALevels);
+      }
+    }
+    
+    // Add SPM to education-related fields for search
+    if (tutor.spm && typeof tutor.spm === 'string' && tutor.spm.trim().length > 0) {
+      tutorEducation.push(tutor.spm.trim());
+    }
+    
+    // Collect all searchable keywords (including description for general search)
     const searchableKeywords = [
       fullName,
       ...tutorSubjects,
-      ...educationKeywords, // Use dedicated education keywords
-      tutor.year || '',
-      // Handle all potential array data
-      ...(Array.isArray(tutor.gcse) ? tutor.gcse : []),
-      ...(Array.isArray(tutor["a-levels"]) ? tutor["a-levels"] : []),
-      tutor.spm || '',
-      ...(Array.isArray(tutor.extracurriculars) ? tutor.extracurriculars : []),
-      tutor.location || ''
+      ...tutorEducation,
+      tutor.location || '',
+      tutor.description || ''
     ].filter(Boolean).filter(keyword => typeof keyword === 'string' && keyword.trim().length > 0);
     
-    // Additional searchable array fields with special focus on education
-    const arrayFields = [
-      tutor.gcse,
-      tutor["a-levels"],
-      tutor.extracurriculars,
-      tutor.previous_education,
-      tutor.current_education
-    ];
-    
-    // Special handling for education search terms
-    const isEducationSearch = searchTerm.toLowerCase().includes('university') || 
-                             searchTerm.toLowerCase().includes('college') ||
-                             searchTerm.toLowerCase().includes('school');
-    
-    // Check if any searchable field matches the search term using fuzzy search
-    const matchesSearch = searchTerm.length === 0 || 
-      searchableKeywords.some(keyword => fuzzySearch(keyword, searchTerm)) ||
-      arrayFields.some(field => {
-        if (Array.isArray(field)) {
-          return field.some(item => fuzzySearch(item, searchTerm));
-        }
-        return false;
+    // Debug log searchable keywords if searching
+    if (searchTerm.length > 0) {
+      console.log(`Searching with term: "${searchTerm}" against tutor ${fullName}`, {
+        matchesSearch: searchableKeywords.some(keyword => fuzzySearch(keyword, searchTerm)),
+        educationKeywords: tutorEducation
       });
+    }
+    
+    // Special handling for education-related search terms
+    const educationTerms = ['university', 'college', 'school', 'degree', 'major', 'gcse', 'a-level', 'spm', 'education', 'previous', 'current'];
+    const isEducationSearch = educationTerms.some(term => searchTerm.toLowerCase().includes(term));
     
     // Check if tutor teaches any of the selected subjects
     const matchesSubjects = selectedSubjects.length === 0 || 
@@ -463,6 +560,21 @@ export default function TutorsPage() {
     // Check if tutor is associated with any of the selected schools - prioritize education data
     const matchesSchools = selectedSchools.length === 0 ||
       tutorSchools.some(school => selectedSchools.includes(school));
+    
+    // Check if any searchable field matches the search term using fuzzy search
+    // Always check all fields for all search terms
+    const matchesSearch = searchTerm.length === 0 || 
+      searchableKeywords.some(keyword => fuzzySearch(keyword, searchTerm));
+    
+    // If it's a GCSE search, also log the match details
+    if (searchTerm.toLowerCase().includes('gcse')) {
+      console.log(`GCSE search: "${searchTerm}", tutor: ${fullName}, matches: ${matchesSearch}`);
+      if (matchesSearch) {
+        // Log which keyword matched for debugging
+        const matchingKeyword = searchableKeywords.find(keyword => fuzzySearch(keyword, searchTerm));
+        console.log(`  Matched on keyword: "${matchingKeyword}"`);
+      }
+    }
     
     return matchesSearch && matchesSubjects && matchesSchools;
   });
@@ -484,6 +596,7 @@ export default function TutorsPage() {
     }
   });
 
+  // Toggle subject selection
   const toggleSubject = (subject: string) => {
     if (selectedSubjects.includes(subject)) {
       setSelectedSubjects(selectedSubjects.filter(s => s !== subject));
@@ -492,6 +605,7 @@ export default function TutorsPage() {
     }
   };
 
+  // Toggle school selection
   const toggleSchool = (school: string) => {
     if (selectedSchools.includes(school)) {
       setSelectedSchools(selectedSchools.filter(s => s !== school));
@@ -563,16 +677,28 @@ export default function TutorsPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56 max-h-[60vh] overflow-auto">
-                <DropdownMenuLabel>Filter by Subject</DropdownMenuLabel>
+                <div className="flex items-center justify-between mb-2">
+                  <DropdownMenuLabel>Filter by Subject</DropdownMenuLabel>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-6 w-6" 
+                    onClick={() => setIsSubjectFilterOpen(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
                 <DropdownMenuSeparator />
                 {allSubjects.sort().map((subject) => (
-                  <DropdownMenuCheckboxItem
+                  <StayOpenCheckboxItem
                     key={subject}
                     checked={selectedSubjects.includes(subject)}
-                    onCheckedChange={() => toggleSubject(subject)}
+                    onCheckedChange={() => {
+                      toggleSubject(subject);
+                    }}
                   >
                     {subject}
-                  </DropdownMenuCheckboxItem>
+                  </StayOpenCheckboxItem>
                 ))}
                 {selectedSubjects.length > 0 && (
                   <>
@@ -581,7 +707,12 @@ export default function TutorsPage() {
                       variant="ghost"
                       size="sm"
                       className="w-full justify-center text-primary/80 hover:text-primary"
-                      onClick={() => setSelectedSubjects([])}
+                      onClick={(e) => {
+                        // Prevent the dropdown from closing
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setSelectedSubjects([]);
+                      }}
                     >
                       Clear Subjects
                     </Button>
@@ -603,16 +734,28 @@ export default function TutorsPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56 max-h-[60vh] overflow-auto">
-                <DropdownMenuLabel>Filter by School</DropdownMenuLabel>
+                <div className="flex items-center justify-between mb-2">
+                  <DropdownMenuLabel>Filter by School</DropdownMenuLabel>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-6 w-6" 
+                    onClick={() => setIsSchoolFilterOpen(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
                 <DropdownMenuSeparator />
-                {allSchools.sort().map((school) => (
-                  <DropdownMenuCheckboxItem
+                {filterSchools.sort().map((school) => (
+                  <StayOpenCheckboxItem
                     key={school}
                     checked={selectedSchools.includes(school)}
-                    onCheckedChange={() => toggleSchool(school)}
+                    onCheckedChange={() => {
+                      toggleSchool(school);
+                    }}
                   >
                     {school}
-                  </DropdownMenuCheckboxItem>
+                  </StayOpenCheckboxItem>
                 ))}
                 {selectedSchools.length > 0 && (
                   <>
@@ -621,7 +764,12 @@ export default function TutorsPage() {
                       variant="ghost"
                       size="sm"
                       className="w-full justify-center text-primary/80 hover:text-primary"
-                      onClick={() => setSelectedSchools([])}
+                      onClick={(e) => {
+                        // Prevent the dropdown from closing
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setSelectedSchools([]);
+                      }}
                     >
                       Clear Schools
                     </Button>

@@ -8,30 +8,31 @@ export interface TutorBasic {
   last_name: string;
   description: string;
   avatar_url?: string;
-  subjects?: string[];
-  major?: string;
+  subjects?: string[] | string | null;
+  major?: string | null;
 }
 
 export interface TutorProfile extends TutorBasic {
-  extracurriculars?: string[];
-  current_education?: string[];
-  previous_education?: string[];
-  year?: string;
-  "a-levels"?: string[];
-  gcse?: string[];
-  spm?: string;
+  extracurriculars?: string[] | null;
+  current_education?: string | string[] | null;
+  previous_education?: string[] | null;
+  year?: string | null;
+  "a-levels"?: string[] | null;
+  gcse?: string[] | null;
+  spm?: string | null;
 }
 
 // Fields for basic listing
 const TUTOR_LIST_FIELDS = `
-  id, search_id, first_name, last_name, description, avatar_url, subjects, major
+  id, search_id, first_name, last_name, description, avatar_url, subjects, major,
+  current_education, previous_education
 `;
 
 // Fields for detailed profile
 const TUTOR_DETAIL_FIELDS = `
   id, search_id, avatar_url, first_name, last_name, description, 
   extracurriculars, current_education, subjects, previous_education, 
-  year, major, "a-levels", gcse, spm
+  year, major, "a-levels", gcse, spm, location
 `;
 
 /**

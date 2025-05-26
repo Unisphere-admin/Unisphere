@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useTransition } from "react";
 import Link from "next/link";
-import { redirect, useSearchParams } from "next/navigation";
+import { redirect, useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useMessages } from "@/context/MessageContext";
 import { useSessions } from "@/context/SessionContext";
@@ -164,6 +164,8 @@ export default function MessagesPage() {
   } = useSessions();
   
   const { toast } = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   
   // Track initial page load status to control loading indicators
@@ -808,11 +810,19 @@ export default function MessagesPage() {
     if (!message) return "Start a conversation...";
     
     if (typeof message === 'string') {
-      return message.length > 30 ? `${message.substring(0, 30)}...` : message;
+      // Remove "Session Request:" prefix if present
+      let content = message.replace(/^Session Request:.*?(?:\n|$)/, '').trim();
+      // If content became empty, use a generic message
+      if (!content) content = "Tutoring session request";
+      return content.length > 30 ? `${content.substring(0, 30)}...` : content;
     }
     
     if (message.content) {
-      return message.content.length > 30 ? `${message.content.substring(0, 30)}...` : message.content;
+      // Remove "Session Request:" prefix if present
+      let content = message.content.replace(/^Session Request:.*?(?:\n|$)/, '').trim();
+      // If content became empty, use a generic message
+      if (!content) content = "Tutoring session request";
+      return content.length > 30 ? `${content.substring(0, 30)}...` : content;
     }
     
     return "Start a conversation...";
@@ -1092,10 +1102,25 @@ export default function MessagesPage() {
   const isCurrentConversationTemp = selectedConversationId ? 
     isTempConversation(selectedConversationId) : false;
 
+  // Define custom styles for the active conversation with proper TypeScript types
+  const activeConversationStyle: React.CSSProperties = {
+    position: 'relative',
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+  };
+  
+  const activeConversationBeforeStyle: React.CSSProperties = {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: '4px',
+    backgroundColor: '#3b82f6', // Blue-500 color
+  };
+
   return (
-    <div className="min-h-[calc(100vh-4rem)] w-full bg-background/60 relative">
-      <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-muted/10 pointer-events-none"></div>
-      <div className="flex h-full max-h-[calc(100vh-4rem)] relative z-10 rounded-2xl border border-border/30 overflow-hidden shadow-md">
+    <div className="min-h-[calc(100vh-4rem)] w-full  relative">
+      <div className="absolute inset-0 from-primary/5 via-background to-muted/10 pointer-events-none"></div>
+      <div className="flex h-full max-h-[calc(100vh-4rem)] relative z-10 rounded-2xl border border-border/30 bg-gradient-to-b overflow-hidden shadow-md">
         {/* Left sidebar - dashboard navigation has been removed */}
         
         {/* Middle column - conversations list */}
@@ -1112,7 +1137,7 @@ export default function MessagesPage() {
             </div>
           </div>
           
-          <div className="flex-grow overflow-auto">
+          <div className="flex-grow overflow-auto ">
             {loading && isInitialLoad ? (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin text-primary" />
@@ -1136,11 +1161,8 @@ export default function MessagesPage() {
                 {filteredConversations.map((convo: any) => (
                   <div
                     key={convo.id}
-                    className={`p-4 cursor-pointer hover:bg-muted/50 transition-all ${
-                      selectedConversationId === convo.id
-                        ? "bg-muted/70 border-l-2 border-primary shadow-sm"
-                        : "border-l-2 border-transparent"
-                    }`}
+                    style={selectedConversationId === convo.id ? activeConversationStyle : undefined}
+                    className="p-4 cursor-pointer hover:bg-muted/50 transition-all"
                     onClick={() => {
                       // Only mark as read and set selected conversation if it changes
                       if (selectedConversationId !== convo.id) {
@@ -1165,6 +1187,9 @@ export default function MessagesPage() {
                       }
                     }}
                   >
+                    {selectedConversationId === convo.id && (
+                      <div style={activeConversationBeforeStyle}></div>
+                    )}
                     <div className="flex items-start space-x-4">
                       <Avatar className="h-10 w-10 border border-border/40 shadow-sm">
                         <AvatarImage src={convo.participant?.avatar_url || undefined} alt={convo.participant?.display_name || 'User'} />
@@ -1174,14 +1199,14 @@ export default function MessagesPage() {
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-center">
-                          <p className="text-sm font-medium truncate">
+                          <div className="text-sm font-medium truncate flex items-center">
                             {convo.participant?.display_name || "Unknown user"}
                             {convo.participant?.is_tutor && (
                               <Badge variant="outline" className="ml-1.5 py-0 h-4 bg-primary/5 text-primary border-primary/20 text-[10px] font-normal">
                                 Tutor
                               </Badge>
                             )}
-                          </p>
+                          </div>
                           <p className="text-xs text-muted-foreground whitespace-nowrap ml-1">
                             {formatMessageTime(convo.last_message_at || convo.last_message?.created_at)}
                           </p>
@@ -1415,14 +1440,33 @@ export default function MessagesPage() {
                         // Find session data
                         const associatedSession = sessions.find(s => s.message_id === message.id);
                         
-                        // Check if message is a session request
-                        const isSessionRequest = message.isSessionRequest || 
-                                               (message.content && message.content.startsWith('Session Request:'));
+                        // Check if message is a session request - ONLY use the associated session
+                        // Do NOT check message content
+                        const isSessionRequest = message.isSessionRequest || Boolean(associatedSession);
                         
                         // Create a temporary session object for session request messages without a session
                         let sessionData = associatedSession;
                         if (!sessionData && isSessionRequest) {
-                          const { title, scheduledFor } = parseSessionRequest(message.content);
+                          // This fallback should rarely be needed since we're no longer checking content
+                          // But kept for backwards compatibility with any messages marked isSessionRequest
+                          const defaultTitle = "Tutoring Session";
+                          const defaultScheduledFor = new Date().toISOString();
+                          
+                          // Only use parseSessionRequest if absolutely necessary
+                          let title = defaultTitle;
+                          let scheduledFor = defaultScheduledFor;
+                          
+                          if (message.content) {
+                            try {
+                              const parsed = parseSessionRequest(message.content);
+                              // Only use parsed values if they're meaningful
+                              title = parsed.title || defaultTitle;
+                              scheduledFor = parsed.scheduledFor || defaultScheduledFor;
+                            } catch (e) {
+                              console.error("Error parsing session details:", e);
+                            }
+                          }
+                          
                           sessionData = {
                             id: `pending-${message.id}`,
                             message_id: message.id,

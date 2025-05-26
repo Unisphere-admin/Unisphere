@@ -116,15 +116,21 @@ export const PUBLIC_PATHS = [
  * List of paths that require premium access
  */
 export const PREMIUM_PATHS = [
-  '/dashboard',
-  '/dashboard/',
+  // Dashboard paths that require premium access
+  '/dashboard', // Base path
+  '/dashboard/messages',
+  '/dashboard/history',
+  '/dashboard/schedule',
+  '/dashboard/reviews',
+  // Other paths
   '/tutors',
   '/tutors/',
   '/session',
   '/api/conversations',
   '/api/messages',
   '/api/tutoring-sessions',
-  '/api/users',
+  // Specific user API endpoints that require premium (excluding profile management)
+  '/api/users/search',
 ];
 
 /**
@@ -142,6 +148,20 @@ export function shouldProtectRoute(path: string): boolean {
  * Determines if a path requires premium access
  */
 export function requiresPremiumAccess(path: string): boolean {
+  // Special case: Settings page should be accessible to all authenticated users
+  if (path === '/dashboard/settings' || path.startsWith('/dashboard/settings/')) {
+    return false;
+  }
+  
+  // Special case: User profile API endpoints should be accessible to all authenticated users
+  if (
+    path.startsWith('/api/users/profile/') || 
+    path === '/api/users/profile' ||
+    path === '/api/users/update-email'
+  ) {
+    return false;
+  }
+  
   return PREMIUM_PATHS.some(premiumPath => 
     path === premiumPath || path.startsWith(premiumPath + '/')
   );

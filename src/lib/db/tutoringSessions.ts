@@ -783,4 +783,43 @@ export const updateReadyStatusAuth = withAuth(function _updateReadyStatus(authUs
   return updateReadyStatus(sessionId, isReady);
 });
 export const getSessionByIdAuth = withAuth(_getSessionById);
-export const getSessionsByConversationAuth = withAuth(_getSessionsByConversation); 
+export const getSessionsByConversationAuth = withAuth(_getSessionsByConversation);
+
+/**
+ * Get tutoring sessions by message ID
+ */
+export async function getSessionsByMessageId(messageId: string) {
+  try {
+    const supabase = await createRouteHandlerClientWithCookies();
+    
+    // Log that we're fetching sessions by message ID
+    console.log(`Fetching sessions for message ${messageId}`);
+    
+    const { data, error } = await supabase
+      .from('tutoring_session')
+      .select(`
+        *,
+        tutor_profile:tutor_id(first_name, last_name),
+        student_profile:student_id(first_name, last_name)
+      `)
+      .eq('message_id', messageId)
+      .order('created_at', { ascending: false });
+      
+    if (error) {
+      console.error(`Error fetching sessions for message ${messageId}:`, error);
+      return { error: error.message };
+    }
+    
+    // Log the sessions found
+    if (data && data.length > 0) {
+      console.log(`Found ${data.length} sessions for message ${messageId}`);
+    } else {
+      console.log(`No sessions found for message ${messageId}`);
+    }
+    
+    return { sessions: data as TutoringSession[] };
+  } catch (err) {
+    console.error(`Failed to get sessions for message ${messageId}:`, err);
+    return { error: 'Failed to get sessions' };
+  }
+} 

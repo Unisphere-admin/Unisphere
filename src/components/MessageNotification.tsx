@@ -36,7 +36,8 @@ export function MessageNotification() {
   
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if ((e.key === 'latest_message' || e.key === 'first_message') && pageVisibilityRef.current && user) {
+      // Only respond to 'first_message' to avoid duplicates with RealtimeContext
+      if (e.key === 'first_message' && pageVisibilityRef.current && user) {
         try {
           const messageData = JSON.parse(e.newValue || '{}');
           
@@ -48,39 +49,77 @@ export function MessageNotification() {
           // Skip if we've already shown a notification for this message
           if (messageData.id === lastShownMessageId) return;
           
-          // Don't show notifications for messages from the current user
-          if (messageData.sender_id === user.id) return;
+          // For new conversations, we need to handle both sender and recipient cases
+          const isSender = messageData.sender_id === user.id;
           
-          // Don't show notification if already on messages page with the relevant conversation selected
-          if (isOnMessagesPage && selectedConversationId === messageData.conversation_id) {
-            console.log("Skipping notification - user is already viewing conversation", messageData.conversation_id);
-            return;
+          // Show notification differently based on whether the user is the sender or recipient
+          // If user is sender, show confirmation that message was sent to recipient
+          // If user is recipient, show notification about new message
+          
+          // For the sender (the person who initiated the conversation)
+          if (isSender) {
+            // Only show notification if they're not already on the messages page viewing this conversation
+            if (isOnMessagesPage && selectedConversationId === messageData.conversation_id) {
+              console.log("Skipping sender notification - already viewing conversation", messageData.conversation_id);
+              return;
+            }
+            
+            // Get recipient information from the message if available
+            const recipientName = messageData.recipient?.display_name || 
+                                (messageData.recipient?.first_name && messageData.recipient?.last_name ? 
+                                 `${messageData.recipient.first_name} ${messageData.recipient.last_name}` : 
+                                 'the recipient');
+            
+            // Create a confirmation notification
+            toast({
+              title: 'Message sent',
+              description: `Your message has been sent to ${recipientName}`,
+              action: (
+                <ToastAction 
+                  altText="View" 
+                  onClick={() => { 
+                    router.push(`/dashboard/messages?conversationId=${messageData.conversation_id}`);
+                  }}
+                >
+                  View
+                </ToastAction>
+              ),
+            });
+          } else {
+            // For recipients, only show if not already viewing this conversation
+            if (isOnMessagesPage && selectedConversationId === messageData.conversation_id) {
+              console.log("Skipping recipient notification - already viewing conversation", messageData.conversation_id);
+              return;
+            }
+            
+            // Update last shown message
+            setLastShownMessageId(messageData.id);
+            
+            // Get sender name with fallback
+            const senderName = messageData.sender?.display_name || 
+                              (messageData.sender?.first_name && messageData.sender?.last_name ? 
+                               `${messageData.sender.first_name} ${messageData.sender.last_name}` : 
+                               'Someone');
+            
+            // Create the notification for recipient
+            toast({
+              title: `Message from ${senderName}`,
+              description: messageData.content,
+              action: (
+                <ToastAction 
+                  altText="View" 
+                  onClick={() => { 
+                    router.push(`/dashboard/messages?conversationId=${messageData.conversation_id}`);
+                  }}
+                >
+                  View
+                </ToastAction>
+              ),
+            });
           }
           
-          // Update last shown message
-          setLastShownMessageId(messageData.id);
-          
-          // Get sender name with fallback
-          const senderName = messageData.sender?.display_name || 'Someone';
-          
-          // Create the notification
-          toast({
-            title: `Message from ${senderName}`,
-            description: messageData.content,
-            action: (
-              <ToastAction 
-                altText="View" 
-                onClick={() => { 
-                  router.push(`/dashboard/messages?conversationId=${messageData.conversation_id}`);
-                }}
-              >
-                View
-              </ToastAction>
-            ),
-          });
-          
-          // If this was a first_message, clear it from localStorage to prevent duplicates
-          if (e.key === 'first_message' && typeof window !== 'undefined') {
+          // Clear from localStorage to prevent duplicates
+          if (typeof window !== 'undefined') {
             localStorage.removeItem('first_message');
           }
         } catch (error) {

@@ -440,9 +440,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     
     setLoadingSessions(true);
     try {
-      // Include userType parameter to avoid "Required parameters missing" error
+      // Include both user_id and user_type to satisfy API requirements
       const userType = user.role === 'tutor' ? 'tutor' : 'student';
-      const response = await fetch(`/api/tutoring-sessions?userType=${userType}`, {
+      const response = await fetch(`/api/tutoring-sessions?user_id=${user.id}&user_type=${userType}`, {
         credentials: 'include'
       });
       

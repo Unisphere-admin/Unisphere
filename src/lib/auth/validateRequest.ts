@@ -66,7 +66,13 @@ export async function validateRequest(req: NextRequest): Promise<{
     
     // Check if this path requires premium access
     const path = req.nextUrl.pathname;
-    if (requiresPremiumAccess(path) && !authUser.is_tutor && !authUser.has_access) {
+    
+    // Allow users to access their own profile data regardless of premium status
+    const isAccessingOwnProfile = path.startsWith('/api/users/profile/') && 
+                               path.includes(`/${authUser.id}`) ||
+                               path === '/api/users/update-email';
+    
+    if (requiresPremiumAccess(path) && !authUser.is_tutor && !authUser.has_access && !isAccessingOwnProfile) {
       // Path requires premium access but user doesn't have it
       const isApiRequest = path.startsWith('/api/');
       

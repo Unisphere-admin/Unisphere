@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
 interface ProtectedPageWrapperProps {
@@ -11,6 +11,10 @@ interface ProtectedPageWrapperProps {
 export default function ProtectedPageWrapper({ children }: ProtectedPageWrapperProps) {
   const { user, loading, refreshUser } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  
+  // Check if the current path is the settings page
+  const isSettingsPage = pathname === '/dashboard/settings' || pathname?.startsWith('/dashboard/settings/');
 
   useEffect(() => {
     // Wait until auth is loaded
@@ -28,20 +32,23 @@ export default function ProtectedPageWrapper({ children }: ProtectedPageWrapperP
     const hasAccess = user?.role === 'tutor' || user?.has_access === true;
     
     // Add debug logging
-    console.log(`ProtectedPageWrapper access check: user=${user?.id}, role=${user?.role}, has_access=${user?.has_access}, hasAccess=${hasAccess}`);
+    console.log(`ProtectedPageWrapper access check: user=${user?.id}, role=${user?.role}, has_access=${user?.has_access}, hasAccess=${hasAccess}, path=${pathname}, isSettingsPage=${isSettingsPage}`);
     
-    // If not authenticated or doesn't have access, redirect to paywall
+    // If not authenticated, redirect to login
     if (!user) {
       router.replace('/login');
-    } else if (!hasAccess) {
+    } 
+    // If settings page, allow access to any authenticated user
+    else if (!hasAccess && !isSettingsPage) {
       console.warn('User does not have premium access, redirecting to paywall', {
         id: user.id,
         role: user.role,
-        has_access: user.has_access
+        has_access: user.has_access,
+        path: pathname
       });
       router.replace('/paywall');
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, pathname, isSettingsPage]);
 
   // If loading, show loading spinner
   if (loading) {
@@ -57,7 +64,12 @@ export default function ProtectedPageWrapper({ children }: ProtectedPageWrapperP
     return null;
   }
 
-  // Check access explicitly - using both tutor role and has_access flag
+  // For settings page, don't check premium access
+  if (isSettingsPage) {
+    return <>{children}</>;
+  }
+
+  // For other pages, check access explicitly - using both tutor role and has_access flag
   const hasAccess = user.role === 'tutor' || user.has_access === true;
   
   // If no access, don't render content (will redirect)

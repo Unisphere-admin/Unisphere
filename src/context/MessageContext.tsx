@@ -477,6 +477,83 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     }
   }, [user, conversations, setConversations, hasUnreadMessages, isTempConversation, checkPremiumAccess, hasPremiumAccess]);
 
+  // Helper function to verify if a conversation is ready to receive messages
+  const verifyConversationReady = async (conversationId: string): Promise<boolean> => {
+    if (!conversationId || !user) return false;
+    
+    console.log(`Verifying if conversation ${conversationId} is ready to receive messages`);
+    
+    try {
+      // Make up to 3 attempts with increasing delays
+      const maxAttempts = 3;
+      
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        // Add delay between attempts, increasing with each attempt
+        if (attempt > 0) {
+          const delay = 1000 * Math.pow(2, attempt - 1); // 1s, 2s, 4s
+          console.log(`Waiting ${delay}ms before verification attempt ${attempt + 1}`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+        
+        // Set a timeout for the fetch
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        
+        try {
+          // Call the status endpoint to check if conversation is ready
+          const response = await fetch(`/api/conversations/${conversationId}/status`, {
+            credentials: 'include',
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) {
+            console.log(`Conversation status check failed with status ${response.status}`);
+            
+            if (attempt === maxAttempts - 1) {
+              console.log('All verification attempts failed, conversation may not be ready');
+              return false;
+            }
+            
+            // Continue to next attempt
+            continue;
+          }
+          
+          // Parse the response
+          const data = await response.json();
+          
+          if (data.ready === true) {
+            console.log('Conversation is ready to receive messages');
+            return true;
+          }
+          
+          console.log(`Conversation not ready yet: ${data.error || 'Unknown reason'}`);
+          
+          // If this is the last attempt, return false
+          if (attempt === maxAttempts - 1) {
+            console.log('All verification attempts failed, conversation may not be ready');
+            return false;
+          }
+        } catch (error) {
+          clearTimeout(timeoutId);
+          console.error(`Error during conversation status check (attempt ${attempt + 1}):`, error);
+          
+          // If this is the last attempt, return false
+          if (attempt === maxAttempts - 1) {
+            return false;
+          }
+        }
+      }
+      
+      // If we've reached here, all attempts failed
+      return false;
+    } catch (error) {
+      console.error('Unexpected error verifying conversation readiness:', error);
+      return false;
+    }
+  };
+
   // Handle typing state received from other users
   const handleTypingState = useCallback((payload: { userId: string; conversationId: string; isTyping: boolean; displayName?: string }) => {
     const { userId, conversationId, isTyping, displayName } = payload;
@@ -601,79 +678,126 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
   const handleRealtimeMessage = useCallback((message: Message) => {
     if (!message || !message.conversation_id) return;
     
-    // Update conversation messages when a new message arrives
-    setMessages(prev => {
-      // Get current messages for this conversation or initialize empty array
-      const conversationId = message.conversation_id as string;
-      const conversationMessages = [...(prev[conversationId] || [])];
-      
-      // Check if this message already exists (by id)
-      const existingIndex = conversationMessages.findIndex(msg => msg.id === message.id);
-      
-      // We also check for messages that might be the "sending" version with a temp ID
-      // This prevents duplicate messages when a message transitions from sending to sent
-      const pendingIndex = message.sender_id === user?.id ? 
-        conversationMessages.findIndex(msg => 
-          msg.status === 'sending' && 
-          msg.content === message.content && 
-          msg.sender_id === message.sender_id &&
-          msg.id !== message.id // Make sure IDs don't match to prevent processing the same message twice
-        ) : -1;
-      
-      // Create a function to ensure IDs are unique in the messages array
-      const ensureUniqueIds = (messages: Message[]): Message[] => {
-        const seen = new Set<string>();
-        return messages.filter(msg => {
-          // If we've already seen this ID, filter it out
-          if (seen.has(msg.id)) return false;
-          // Otherwise add it to our set and keep the message
-          seen.add(msg.id);
-          return true;
-        });
+    console.log('Received realtime message:', message);
+    
+    // Always handle message state updates regardless of sender
+    if (message.conversation_id) {
+      const convertedMessage = {
+        ...message,
+        timestamp: new Date(message.created_at || new Date()),
+        read: false // Assume unread for new realtime messages
       };
-      
-      if (existingIndex >= 0) {
-        // Message exists - update it with proper status
-        // Use object spread to ensure React detects the change
-        conversationMessages[existingIndex] = {
-          ...conversationMessages[existingIndex],
-          ...updateMessageStatus(message),
-          // Preserve the original ID to maintain component identity
-          id: conversationMessages[existingIndex].id
-        };
-      } else if (pendingIndex >= 0) {
-        // Found a pending/sending message that matches this one - update it in-place
-        // This creates a seamless transition from sending to sent
-        conversationMessages[pendingIndex] = {
-          ...conversationMessages[pendingIndex],
-          ...updateMessageStatus(message),
-          // Keep any fields we want to preserve from the original sending message
-          status: 'sent'
+
+      // Update the messages state
+      setMessages(prev => {
+        // Get current messages for this conversation or initialize empty array
+        const conversationId = message.conversation_id as string;
+        const conversationMessages = [...(prev[conversationId] || [])];
+        
+        // Check if this message already exists (by id)
+        const existingIndex = conversationMessages.findIndex(msg => msg.id === message.id);
+        
+        // We also check for messages that might be the "sending" version with a temp ID
+        // This prevents duplicate messages when a message transitions from sending to sent
+        const pendingIndex = message.sender_id === user?.id ? 
+          conversationMessages.findIndex(msg => 
+            msg.status === 'sending' && 
+            msg.content === message.content && 
+            msg.sender_id === message.sender_id &&
+            msg.id !== message.id // Make sure IDs don't match to prevent processing the same message twice
+          ) : -1;
+        
+        // Create a function to ensure IDs are unique in the messages array
+        const ensureUniqueIds = (messages: Message[]): Message[] => {
+          const seen = new Set<string>();
+          return messages.filter(msg => {
+            // If we've already seen this ID, filter it out
+            if (seen.has(msg.id)) return false;
+            // Otherwise add it to our set and keep the message
+            seen.add(msg.id);
+            return true;
+          });
         };
         
-        // Important: If the ID changed, we may need to remove any other instances
-        // of messages with the new ID to prevent duplicates
-        const duplicateIndex = conversationMessages.findIndex(
-          (msg, idx) => idx !== pendingIndex && msg.id === message.id
-        );
-        
-        if (duplicateIndex >= 0) {
-          // Remove the duplicate
-          conversationMessages.splice(duplicateIndex, 1);
+        if (existingIndex >= 0) {
+          // Message exists - update it with proper status
+          // Use object spread to ensure React detects the change
+          conversationMessages[existingIndex] = {
+            ...conversationMessages[existingIndex],
+            ...updateMessageStatus(message),
+            // Preserve the original ID to maintain component identity
+            id: conversationMessages[existingIndex].id
+          };
+        } else if (pendingIndex >= 0) {
+          // Found a pending/sending message that matches this one - update it in-place
+          // This creates a seamless transition from sending to sent
+          conversationMessages[pendingIndex] = {
+            ...conversationMessages[pendingIndex],
+            ...updateMessageStatus(message),
+            // Keep any fields we want to preserve from the original sending message
+            status: 'sent'
+          };
+          
+          // Important: If the ID changed, we may need to remove any other instances
+          // of messages with the new ID to prevent duplicates
+          const duplicateIndex = conversationMessages.findIndex(
+            (msg, idx) => idx !== pendingIndex && msg.id === message.id
+          );
+          
+          if (duplicateIndex >= 0) {
+            // Remove the duplicate
+            conversationMessages.splice(duplicateIndex, 1);
+          }
+        } else {
+          // Message is new - add it with proper status
+          conversationMessages.push(updateMessageStatus(message));
         }
-      } else {
-        // Message is new - add it with proper status
-        conversationMessages.push(updateMessageStatus(message));
-      }
-      
-      // Ensure we don't have duplicate IDs in the final array
-      const deduplicatedMessages = ensureUniqueIds(conversationMessages);
-      
-      return {
-        ...prev,
-        [conversationId]: deduplicatedMessages
-      };
-    });
+        
+        // Ensure we don't have duplicate IDs in the final array
+        const deduplicatedMessages = ensureUniqueIds(conversationMessages);
+        
+        return {
+          ...prev,
+          [conversationId]: deduplicatedMessages
+        };
+      });
+
+      // Move the conversation to the top of the list if it's a new message
+      setConversations(prev => {
+        // Find the conversation that received the message
+        const conversationIndex = prev.findIndex(c => c.id === message.conversation_id);
+        
+        if (conversationIndex < 0) {
+          // Conversation not found, can't reorder
+          return prev;
+        }
+        
+        // Make a copy of the conversation
+        const conversation = { ...prev[conversationIndex] };
+        
+        // Update the conversation's last message info
+        conversation.last_message = {
+          id: message.id,
+          content: message.content,
+          created_at: message.created_at || new Date().toISOString(),
+          sender_id: message.sender_id
+        };
+        conversation.last_message_at = message.created_at || new Date().toISOString();
+        
+        // Create a new array without the conversation
+        const newConversations = prev.filter(c => c.id !== message.conversation_id);
+        
+        // Add the conversation at the top
+        return [conversation, ...newConversations];
+      });
+    }
+    
+    // Only show notifications for messages from other users
+    // Do this check after state update to ensure UI consistency
+    if (!user || message.sender_id === user.id) {
+      console.log('Skipping notification for own message:', message.id);
+      return;
+    }
   }, [updateMessageStatus, user?.id]);
 
   // Get current conversation
@@ -816,23 +940,25 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
           p => p.user_id !== user.id
         )?.user;
         
-        // Find current user's participant record to get last_viewed_at
+        // Calculate unread count - a message is unread if:
+        // 1. It's from another user
+        // 2. It was sent after the last time the current user viewed the conversation
+        let unreadCount = 0;
+        
+        // Find the current user's participant record to get last_viewed_at
         const currentUserParticipant = convo.participants.find(
           p => p.user_id === user.id
         );
         
-        // Calculate number of unread messages based on last_viewed_at
-        // Note: This unreadCount will be updated by API or recalculated when messages are loaded
-        let unreadCount = convo.unreadCount || 0;
-
-        // If the last_message exists and the last_viewed_at is older than the last_message's created_at,
-        // consider this conversation to have an unread message
-        if (convo.last_message && currentUserParticipant?.last_viewed_at) {
-          const lastViewedAt = new Date(currentUserParticipant.last_viewed_at).getTime();
-          const lastMessageAt = new Date(convo.last_message.created_at).getTime();
-          
-          if (lastMessageAt > lastViewedAt && convo.last_message.sender_id !== user.id) {
-            unreadCount = 1;
+        const lastViewedAt = currentUserParticipant?.last_viewed_at
+          ? new Date(currentUserParticipant.last_viewed_at).getTime()
+          : 0;
+        
+        // If there's a last message and it's not from the current user, check if it's unread
+        if (convo.last_message && convo.last_message.sender_id !== user.id) {
+          const messageTime = new Date(convo.last_message.created_at).getTime();
+          if (messageTime > lastViewedAt) {
+            unreadCount = 1; // We only count the most recent message for now
           }
         }
         
@@ -863,6 +989,18 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
             mergedConversations.push(tempConv);
           } else {
             console.log(`Not adding temp conversation for tutor ${tutorId} as real conversation exists`);
+            
+            // If there's a temporary conversation in localStorage for this tutor, remove it
+            Object.keys(tempConversations).forEach(tempId => {
+              if (tempConversations[tempId].tutorId === tutorId) {
+                setTempConversations(prev => {
+                  const newTemp = {...prev};
+                  delete newTemp[tempId];
+                  return newTemp;
+                });
+                console.log(`Removing stale temporary conversation ${tempId} for tutor ${tutorId}`);
+              }
+            });
           }
         }
       }
@@ -966,6 +1104,35 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       if (response.status === 401) {
         // Handle unauthorized
         console.log('Session expired or unauthorized for messages.');
+        return;
+      }
+      
+      if (response.status === 403 || response.status === 500) {
+        // Likely not authorized for this conversation
+        console.log(`Not authorized to access conversation: ${conversationId}`);
+        
+        // Add to checked conversations to prevent retries
+        checkedConversationsRef.current.add(conversationKey);
+        
+        // If this is the selected conversation, clear it
+        if (selectedConversationId === conversationId) {
+          _setSelectedConversationId(null);
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('selectedConversationId');
+          }
+        }
+        
+        // Remove this conversation from the list
+        setConversations(prev => prev.filter(c => c.id !== conversationId));
+        
+        // Remove messages for this conversation
+        setMessages(prev => {
+          const newMessages = {...prev};
+          delete newMessages[conversationId];
+          return newMessages;
+        });
+        
+        setLoadingMessages(false);
         return;
       }
       
@@ -1158,6 +1325,7 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     // Check if this is a temporary conversation that needs to be created
     const isTemp = isTempConversation(conversationId);
     let actualConversationId = conversationId;
+    let verificationSuccessful = false;
     
     // Add to messages immediately for optimistic UI update
     setMessages(prev => {
@@ -1209,39 +1377,8 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         actualConversationId = responseData.conversation_id;
         console.log(`Created real conversation with ID: ${actualConversationId}`);
         
-        // Ensure first message is properly handled for notification
-        // By storing the message in localStorage, which will trigger notification in other tabs
-        // This will now be done AFTER successful message sending to prevent false notifications
-        
-        // Wait for the conversation to be properly registered
-        const maxRetries = 5;
-        for (let retry = 0; retry < maxRetries; retry++) {
-          // Increasing delay starting at 400ms, exponentially increasing
-          const delay = 400 * Math.pow(1.5, retry);
-          
-          // Wait for the conversation to be properly registered
-          await new Promise(resolve => setTimeout(resolve, delay));
-          
-          // Verify access to the conversation
-          try {
-            const checkResponse = await fetch(`/api/messages?conversation_id=${actualConversationId}`, {
-              credentials: 'include'
-            });
-            
-            if (checkResponse.ok) {
-              // We have access - conversation is ready
-              console.log("Conversation access verified successfully");
-              break;
-            } else if (retry === maxRetries - 1) {
-              // Last retry and still failing
-              throw new Error("Unable to access conversation after multiple attempts. Please try again later.");
-            }
-          } catch (verifyError) {
-            if (retry === maxRetries - 1) {
-              throw new Error("Unable to access conversation. Please try again later.");
-            }
-          }
-        }
+        // Check if the conversation is ready using the dedicated endpoint
+        verificationSuccessful = await verifyConversationReady(actualConversationId);
       } catch (error) {
         console.error('Error creating real conversation:', error);
         
@@ -1271,7 +1408,13 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         // If this is a retry attempt, wait before trying again with exponential backoff
         if (attempt > 0) {
           console.log(`Retry attempt ${attempt}/${maxRetries} for sending message to conversation ${actualConversationId}`);
-          const retryDelay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // Max 5 seconds delay
+          
+          // For new conversations that weren't verified successfully, use longer delays
+          const isNewUnverifiedConversation = isTemp && !verificationSuccessful;
+          const baseDelay = isNewUnverifiedConversation ? 2000 : 1000;
+          const retryDelay = Math.min(baseDelay * Math.pow(2, attempt - 1), 8000); // Max 8 seconds delay
+          
+          console.log(`Waiting ${retryDelay}ms before retry attempt`);
           await new Promise(resolve => setTimeout(resolve, retryDelay));
           
           // Update message status to show retrying
@@ -1312,16 +1455,39 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         // Only do this for first messages in newly created conversations
         if (isTemp) {
           try {
-            const optimisticMessageWithRealId = {
-              ...optimisticMessage,
+            // Create a notification-friendly message object with all required fields
+            const notificationMessage = {
+              ...serverMessage,
               conversation_id: actualConversationId,
-              id: `${tempId}-real`,
-              _notificationTimestamp: Date.now()
+              id: serverMessage.id || `${tempId}-real`,
+              content: content,
+              _notificationTimestamp: Date.now(),
+              sender: {
+                id: user.id,
+                display_name: user.name || 'You',
+                avatar_url: user.profilePic || user.avatar_url || null,
+                is_tutor: user.role === 'tutor'
+              },
+              // Add recipient info for the notification system
+              recipient: tempConversations[conversationId] ? {
+                id: tempConversations[conversationId].tutorId,
+                display_name: tempConversations[conversationId].tutorName || 'Tutor',
+                avatar_url: tempConversations[conversationId].tutorAvatar || null,
+                is_tutor: true
+              } : undefined,
+              // Add any fields the notification system needs
+              created_at: serverMessage.created_at || new Date().toISOString(),
+              sender_id: user.id
             };
             
             if (typeof window !== 'undefined') {
-              localStorage.setItem('first_message', JSON.stringify(optimisticMessageWithRealId));
-              console.log('Stored first message for notification after successful send');
+              // Store for notifications in this tab
+              localStorage.setItem('first_message', JSON.stringify(notificationMessage));
+              
+              // Also store in latest_message to trigger the RealtimeContext notification system
+              localStorage.setItem('latest_message', JSON.stringify(notificationMessage));
+              
+              console.log('Stored first message for notification systems after successful send', notificationMessage);
             }
             
             // Remove the temporary conversation from storage since we now have a real conversation
@@ -1338,6 +1504,11 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
               
               return newTempConversations;
             });
+            
+            // Immediately remove the temporary conversation from the UI
+            setConversations(prevConversations => 
+              prevConversations.filter(convo => convo.id !== conversationId)
+            );
             
             // Change the selected conversation to the real conversation
             setSelectedConversationId(actualConversationId);
@@ -1427,22 +1598,33 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         });
         
         // Update the conversation's last message
-        setConversations(prev => 
-          prev.map(convo => 
-            convo.id === actualConversationId
-              ? {
-                  ...convo,
-                  last_message: {
-                    id: serverMessage.id,
-                    content: serverMessage.content,
-                    created_at: serverMessage.created_at || new Date().toISOString(),
-                    sender_id: user.id
-                  },
-                  last_message_at: serverMessage.created_at || new Date().toISOString()
-                }
-              : convo
-          )
-        );
+        setConversations(prev => {
+          // First find the conversation to update
+          const conversationToUpdate = prev.find(convo => convo.id === actualConversationId);
+          
+          if (!conversationToUpdate) {
+            // If the conversation doesn't exist in the list, keep the list as is
+            return prev;
+          }
+          
+          // Update the conversation with the new last message
+          const updatedConversation = {
+            ...conversationToUpdate,
+            last_message: {
+              id: serverMessage.id,
+              content: serverMessage.content,
+              created_at: serverMessage.created_at || new Date().toISOString(),
+              sender_id: user.id
+            },
+            last_message_at: serverMessage.created_at || new Date().toISOString()
+          };
+          
+          // Remove the conversation from the current position
+          const filteredConversations = prev.filter(convo => convo.id !== actualConversationId);
+          
+          // Return a new array with the updated conversation at the top
+          return [updatedConversation, ...filteredConversations];
+        });
         
         // Successfully sent the message, return it with status explicitly set
         return {
@@ -1462,11 +1644,23 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
             const messageIndex = conversationMessages.findIndex(msg => msg.id === tempId);
             
             if (messageIndex >= 0) {
+              // Create an appropriate error message
+              let errorMessage = ' (Failed to send)';
+              
+              // More specific error messages for common issues
+              if (error instanceof Error) {
+                if (error.message.includes('conversation')) {
+                  errorMessage = ' (Conversation creation failed, please try again)';
+                } else if (error.message.includes('network') || error.message.includes('timeout')) {
+                  errorMessage = ' (Network error, please check your connection)';
+                }
+              }
+              
               // Mark as error
               conversationMessages[messageIndex] = {
                 ...conversationMessages[messageIndex],
                 status: 'error',
-                content: content + ' (Failed to send)'
+                content: content + errorMessage
               };
             }
             

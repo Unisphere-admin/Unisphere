@@ -8,6 +8,7 @@ import {
   getSessionByIdAuth as getSessionById, 
   getSessionsByConversationAuth as getSessionsByConversation,
   getUserSessions,
+  getSessionsByMessageId,
   TutoringSession 
 } from '@/lib/db/tutoringSessions';
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
@@ -176,19 +177,20 @@ async function getTutoringSessionsHandler(
   try {
     const { searchParams } = new URL(req.url);
     const conversationId = searchParams.get('conversation_id');
-    const sessionId = searchParams.get('session_id');
     const messageId = searchParams.get('message_id');
-    const userType = searchParams.get('userType');
+    const userId = searchParams.get('user_id');
+    const userType = searchParams.get('user_type');
     
-    // If userType is provided, get user sessions
-    if (userType === 'tutor' || userType === 'student') {
-      // Always use the authenticated user's ID
-      const cacheKey = `user_sessions:${user.id}:${userType}`;
+    // If user ID is provided, get the user's sessions
+    if (userId && userType) {
+      // Check if the user has permission to fetch these sessions
+      if (userId !== user.id && !user.is_tutor) {
+        return NextResponse.json({ 
+          error: 'Not authorized to access these sessions' 
+        }, { status: 403 });
+      }
       
-      const { sessions, error } = await getCachedOrFresh(
-        cacheKey,
-        () => getUserSessions(user.id, userType as 'tutor' | 'student')
-      );
+      const { sessions, error } = await getUserSessions(userId, userType as 'tutor' | 'student');
       
       if (error) {
         return NextResponse.json({ error }, { status: 500 });
@@ -200,65 +202,36 @@ async function getTutoringSessionsHandler(
       return response;
     }
     
-    // If session ID is provided, get a specific session
-    if (sessionId) {
-      const cacheKey = `session:${sessionId}`;
-      
-      const { session, error, authError } = await getCachedOrFresh(
-        cacheKey,
-        () => getSessionById(user, sessionId)
-      );
-      
-      if (authError) {
-        return NextResponse.json({ error: authError }, { status: 401 });
-      }
-      
-      if (error) {
-        return NextResponse.json({ error }, { status: 500 });
-      }
-      
-      const response = NextResponse.json({ session });
-      // Add cache tag for this user to enable proper invalidation on logout
-      response.headers.set('Cache-Tag', `user-${user.id}`);
-      return response;
-    }
-    
     // If message ID is provided, get the session associated with that message
     if (messageId) {
-      // Create a client instance
-      const supabase = await createRouteHandlerClientWithCookies();
+      console.log(`API route: Getting sessions for message ID ${messageId}`);
+      const { sessions, error } = await getSessionsByMessageId(messageId);
       
-      // Query the session by message ID
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('tutoring_session')
-        .select(`
-          *,
-          tutor_profile:tutor_id(first_name, last_name),
-          student_profile:student_id(first_name, last_name)
-        `)
-        .eq('message_id', messageId)
-        .single();
-      
-      if (sessionError) {
-        console.error(`Error fetching session by message ID ${messageId}:`, sessionError);
-        
-        // If not found, return empty rather than error
-        if (sessionError.code === 'PGRST116') {  // "No rows returned" error
-          const response = NextResponse.json({ session: null });
-          // Add cache tag for this user to enable proper invalidation on logout
-          response.headers.set('Cache-Tag', `user-${user.id}`);
-          return response;
-        }
-        
-        return NextResponse.json({ error: 'Failed to fetch session' }, { status: 500 });
+      if (error) {
+        console.error(`Error getting sessions for message ${messageId}:`, error);
+        return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
       }
       
-      // Check if user is authorized to view this session
-      if (sessionData && sessionData.tutor_id !== user.id && sessionData.student_id !== user.id) {
-        return NextResponse.json({ error: 'Not authorized to access this session' }, { status: 403 });
+      // If no sessions found, return empty array
+      if (!sessions || sessions.length === 0) {
+        console.log(`No sessions found for message ${messageId}`);
+        const response = NextResponse.json({ sessions: [] });
+        response.headers.set('Cache-Tag', `user-${user.id}`);
+        return response;
       }
       
-      const response = NextResponse.json({ session: sessionData });
+      // Check if user is authorized to view these sessions
+      const isAuthorized = sessions.some(session => 
+        session.tutor_id === user.id || session.student_id === user.id
+      );
+      
+      if (!isAuthorized) {
+        console.log(`User ${user.id} not authorized to access sessions for message ${messageId}`);
+        return NextResponse.json({ error: 'Not authorized to access these sessions' }, { status: 403 });
+      }
+      
+      console.log(`Found ${sessions.length} sessions for message ${messageId}`);
+      const response = NextResponse.json({ sessions });
       // Add cache tag for this user to enable proper invalidation on logout
       response.headers.set('Cache-Tag', `user-${user.id}`);
       return response;

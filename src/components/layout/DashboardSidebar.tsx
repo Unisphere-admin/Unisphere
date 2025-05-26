@@ -26,6 +26,7 @@ import { BadgeIndicator } from "@/components/ui/badge-indicator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { getInitials, getAvatarUrl } from "@/utils/nameUtils";
 
 const DashboardSidebar = () => {
   const pathname = usePathname();
@@ -90,11 +91,9 @@ const DashboardSidebar = () => {
         <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-sm shadow-sm overflow-hidden">
           <div className="p-4 flex items-center gap-3">
             <Avatar className="h-11 w-11 border border-border/40 shadow-sm">
-              <AvatarImage src={user?.avatar_url || "/placeholder.svg"} alt={user?.name || 'User'} />
-              <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                {user?.name && user.name.includes(' ') ? 
-                  `${user.name.split(' ')[0][0]}${user.name.split(' ')[1][0]}` : 
-                  user?.name ? user.name.charAt(0) : 'U'}
+              <AvatarImage src={user?.avatar_url || undefined} alt={user?.name || 'User'} />
+              <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/5 text-primary font-medium">
+                {getInitials(user) || 'U'}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">

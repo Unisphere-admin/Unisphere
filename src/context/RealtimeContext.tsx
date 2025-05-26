@@ -20,6 +20,8 @@ interface RealtimeMessage {
   sender?: {
     id: string;
     display_name: string;
+    first_name?: string;
+    last_name?: string;
     avatar_url: string | null;
     is_tutor: boolean;
   };
@@ -164,6 +166,9 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       return false;
     }
     
+    // Make sure we have a valid sender name
+    const displayName = senderName || 'Someone';
+    
     // Record this notification to prevent duplicates - use a compound key that includes the content
     // This helps prevent functionally identical notifications
     const notificationKey = `${messageId}-${conversationId}-${content.substring(0, 30)}`;
@@ -187,11 +192,11 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         <Avatar className="h-9 w-9 shrink-0">
           <AvatarImage src={senderAvatar || undefined} />
           <AvatarFallback>
-            {senderName?.charAt(0) || 'U'}
+            {displayName?.charAt(0) || 'U'}
           </AvatarFallback>
         </Avatar>
         <div className="flex-1">
-          <p className="text-sm font-medium">{senderName}</p>
+          <p className="text-sm font-medium">{displayName}</p>
           <p className="text-sm text-muted-foreground line-clamp-2">
             {isSessionRequest ? 'Sent you a session request' : content}
           </p>
@@ -311,8 +316,57 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [user, checkPremiumAccess]);
 
-  // Handle realtime message events - separated from subscription logic
-  const handleRealtimeMessage = useCallback((payload: { payload: RealtimeMessage }) => {
+  // Update the function to check if a message has an associated session
+  const checkMessageHasSession = useCallback(async (messageId: string): Promise<boolean> => {
+    if (!messageId) return false;
+    
+    try {
+      // Add a cache for frequently checked messages to avoid unnecessary API calls
+      const cacheKey = `message-session-check-${messageId}`;
+      const cachedResult = localStorage.getItem(cacheKey);
+      
+      if (cachedResult) {
+        // Use cached result if available (valid for 5 minutes)
+        const { result, timestamp } = JSON.parse(cachedResult);
+        const now = Date.now();
+        if (now - timestamp < 5 * 60 * 1000) { // 5 minutes
+          console.log(`Using cached session check result for message ${messageId}: ${result}`);
+          return result;
+        }
+      }
+      
+      // Make API call to check if message has associated sessions
+      console.log(`Checking if message ${messageId} has associated sessions`);
+      const response = await fetch(`/api/tutoring-sessions?message_id=${messageId}`, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        console.error(`Error checking sessions for message ${messageId}: ${response.status}`);
+        return false;
+      }
+      
+      const data = await response.json();
+      
+      // Check if there are any sessions associated with this message
+      const hasSession = Array.isArray(data.sessions) && data.sessions.length > 0;
+      
+      // Cache the result
+      localStorage.setItem(cacheKey, JSON.stringify({
+        result: hasSession,
+        timestamp: Date.now()
+      }));
+      
+      console.log(`Message ${messageId} session check result: ${hasSession ? 'Has session' : 'No session'}`);
+      return hasSession;
+    } catch (error) {
+      console.error('Error checking if message has a session:', error);
+      return false;
+    }
+  }, []);
+
+  // Modify the handleRealtimeMessage function
+  const handleRealtimeMessage = useCallback(async (payload: { payload: RealtimeMessage }) => {
     if (!payload.payload) return;
     
     const message = payload.payload;
@@ -370,12 +424,27 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         }));
         console.log('Stored message in localStorage for notifications');
         
+        // Determine the best display name
+        const senderDisplayName = message.sender?.display_name || 'Someone';
+        
+        console.log(`Checking if message ${message.id} is associated with a session request...`);
+        
+        // Check if this message is associated with a session request by querying the database
+        let isSessionRequest = false;
+        try {
+          isSessionRequest = await checkMessageHasSession(message.id);
+          console.log(`Message ${message.id} session check result: ${isSessionRequest ? 'Has session' : 'No session'}`);
+        } catch (error) {
+          console.error(`Error checking if message has session:`, error);
+          // Default to false in case of error
+          isSessionRequest = false;
+        }
+        
         // Show notification in current tab
-        const isSessionRequest = message.content?.startsWith('Session Request:') || false;
         showNotification(
           message.id,
           message.conversation_id,
-          message.sender?.display_name || 'Someone',
+          senderDisplayName,
           message.sender?.avatar_url || null,
           message.content || '',
           isSessionRequest
@@ -384,7 +453,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error('Error processing notification:', error);
     }
-  }, [messageContext, user, showNotification, hasRecentlyShown]);
+  }, [messageContext, user, showNotification, hasRecentlyShown, checkMessageHasSession]);
 
   // Handle realtime session update events
   const handleSessionUpdate = useCallback((payload: { payload: { session: RealtimeSession } }) => {
@@ -520,7 +589,12 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     try {
       // Create and subscribe to the channel
       const channel = supabaseRef.current.channel(channelName)
-        .on('broadcast', { event: 'message' }, handleRealtimeMessage)
+        .on('broadcast', { event: 'message' }, (payload: { payload: RealtimeMessage }) => {
+          // Wrap the async call in a function that catches errors
+          handleRealtimeMessage(payload).catch(err => {
+            console.error(`Error handling realtime message in channel ${conversationId}:`, err);
+          });
+        })
         .on('broadcast', { event: 'session_update' }, handleSessionUpdate)
         .on('broadcast', { event: 'session_list_update' }, handleSessionListUpdate)
         .on('broadcast', { event: 'typing' }, handleTypingIndicator)
@@ -590,7 +664,40 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
           // Subscribe to the conversation if it's for the current user
           if (isParticipant && conversationId) {
             console.log(`Subscribing to new conversation: ${conversationId}`);
+            
+            // Use the realtime subscription method
             subscribeToConversation(conversationId);
+            
+            // Show notification for new conversation
+            const otherParticipant = participants.find(p => p.user_id !== user.id);
+            const participantName = otherParticipant?.user?.display_name || 'Someone';
+            
+            // Only show notification if the conversation wasn't created by the current user
+            if (payload.new.created_by !== user.id) {
+              showNotification(
+                `new-conversation-${conversationId}`,
+                conversationId,
+                participantName,
+                otherParticipant?.user?.avatar_url || null,
+                'Started a new conversation with you',
+                false
+              );
+            }
+            
+            // Move the conversation to the top of the list
+            if (messageContext?.conversations) {
+              const conversation = messageContext.conversations.find(c => c.id === conversationId);
+              if (conversation) {
+                // We need to use the browser's API to refresh the conversations
+                // This will trigger the MessageContext to fetch fresh conversations
+                fetch('/api/conversations', {
+                  credentials: 'include',
+                  headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                  }
+                }).catch(err => console.error('Error refreshing conversations:', err));
+              }
+            }
           }
         }
       )
@@ -602,7 +709,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       channel.unsubscribe();
     };
-  }, [user, subscribeToConversation, hasPremiumAccess, checkPremiumAccess]);
+  }, [user, subscribeToConversation, hasPremiumAccess, checkPremiumAccess, showNotification, messageContext]);
 
   // Subscribe to user's conversations automatically
   useEffect(() => {
@@ -753,6 +860,48 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       console.error(`Error broadcasting typing status:`, error);
     }
   }, [user]);
+
+  // Listen for storage events for new messages
+  useEffect(() => {
+    if (!user) return;
+    
+    // Handler for localStorage events (works across tabs)
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'latest_message' && event.newValue) {
+        try {
+          const messageData = JSON.parse(event.newValue);
+          
+          // Skip processing if this is from the current user (to avoid duplicates)
+          if (messageData.sender_id === user.id) {
+            console.log('Skipping storage notification for own message');
+            return;
+          }
+          
+          // Process as a normal realtime message - use format expected by handler
+          // Since handleRealtimeMessage is now async, we need to catch any errors
+          handleRealtimeMessage({ 
+            payload: messageData 
+          }).catch(err => {
+            console.error('Error handling realtime message from storage event:', err);
+          });
+          
+          // If this is a new conversation, make sure we're subscribed to it
+          if (messageData.conversation_id && !channelsRef.current[messageData.conversation_id]) {
+            console.log(`New conversation detected from storage event: ${messageData.conversation_id}`);
+            subscribeToConversation(messageData.conversation_id);
+          }
+        } catch (error) {
+          console.error('Error processing localStorage message:', error);
+        }
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [user, handleRealtimeMessage, subscribeToConversation]);
 
   // Provide the realtime context
   return (

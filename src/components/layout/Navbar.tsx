@@ -17,6 +17,7 @@ import { Menu, X, User, LogOut, MessageSquare, Home, BookOpen, Users, LayoutDash
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { BadgeIndicator } from "@/components/ui/badge-indicator";
+import { getInitials, getAvatarUrl } from "@/utils/nameUtils";
 
 // Create a separate LogoutButton component to encapsulate the signOut functionality
 const LogoutButton = ({ 
@@ -122,11 +123,9 @@ const Navbar = () => {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="rounded-full h-9 pl-2 pr-2.5 gap-1 text-sm">
                   <Avatar className="h-7 w-7 border border-border/40">
-                    <AvatarImage src={user.avatar_url || user.profilePic || "/placeholder.svg"} alt={user.name || ''} />
-                    <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                      {user.name && user.name.includes(' ') ? 
-                        `${user.name.split(' ')[0][0]}${user.name.split(' ')[1][0]}` : 
-                        user.name ? user.name.charAt(0) : 'U'}
+                    <AvatarImage src={user.avatar_url || user.profilePic || undefined} alt={user.name || ''} />
+                    <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/5 text-primary font-medium text-xs">
+                      {getInitials(user) || 'U'}
                     </AvatarFallback>
                   </Avatar>
                   <span className="font-medium ml-1 hidden sm:inline-block max-w-[100px] truncate">
