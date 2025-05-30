@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSessions } from "@/context/SessionContext";
-import { useApiTutorProfiles } from "@/hooks/useApiClient";
+import { useCachedTutors } from "@/hooks/useCachedData";
 import { useAuth } from "@/context/AuthContext";
 import { 
   Search,
@@ -265,7 +265,7 @@ export default function TutorsPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
   const { reviewHistory } = useSessions();
-  const { tutors: apiTutors, loading: tutorsLoading, error: tutorsError } = useApiTutorProfiles();
+  const { data: apiTutors, isLoading: tutorsLoading, error: tutorsError, refresh: refreshTutors } = useCachedTutors();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [selectedSchools, setSelectedSchools] = useState<string[]>([]);
@@ -665,7 +665,7 @@ export default function TutorsPage() {
           <div className="absolute bottom-10 left-[10%] w-80 h-80 bg-secondary/5 rounded-full blur-3xl opacity-60 animate-pulse" style={{animationDuration: '12s'}}></div>
         </div>
         <div className="container relative z-10 mx-auto px-4 md:px-6 max-w-screen-xl">
-          <div className="max-w-3xl mx-auto text-center">
+        <div className="max-w-3xl mx-auto text-center">
             <Badge variant="outline" className="px-3 py-1 mb-4 text-sm bg-background/80 backdrop-blur-sm border-primary/20 shadow-sm">
               <span className="text-primary font-medium">Premium</span> - Expert tutors
             </Badge>
@@ -673,18 +673,18 @@ export default function TutorsPage() {
               Find Your Perfect <span className="text-primary">Tutor</span>
             </h1>
             <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Browse our network of expert tutors and find the right match for your learning needs
-            </p>
-            
+            Browse our network of expert tutors and find the right match for your learning needs
+          </p>
+          
             {/* Search Bar with improved styling */}
-            <div className="relative max-w-xl mx-auto">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
-              <Input
+          <div className="relative max-w-xl mx-auto">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
+            <Input
                 className="pl-10 h-12 bg-background/80 backdrop-blur-sm border-border/40 shadow-md focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-                placeholder="Search by name, subject, or keyword"
-                value={searchTerm}
+              placeholder="Search by name, subject, or keyword"
+              value={searchTerm}
                 onChange={handleSearchChange}
-              />
+            />
             </div>
           </div>
         </div>
@@ -708,7 +708,7 @@ export default function TutorsPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56 max-h-[60vh] overflow-auto">
                 <div className="flex items-center justify-between mb-2">
-                  <DropdownMenuLabel>Filter by Subject</DropdownMenuLabel>
+                <DropdownMenuLabel>Filter by Subject</DropdownMenuLabel>
                   <Button 
                     variant="ghost" 
                     size="icon" 
@@ -752,8 +752,8 @@ export default function TutorsPage() {
             </DropdownMenu>
 
             {/* School filter dropdown */}
-            <DropdownMenu open={isSchoolFilterOpen} onOpenChange={setIsSchoolFilterOpen}>
-              <DropdownMenuTrigger asChild>
+              <DropdownMenu open={isSchoolFilterOpen} onOpenChange={setIsSchoolFilterOpen}>
+                <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="flex items-center gap-2 shadow-sm border-border/40 hover:bg-muted transition-colors">
                   <School className="h-4 w-4 text-primary/80" strokeWidth={1.5} />
                   Schools {selectedSchools.length > 0 && (
@@ -761,9 +761,9 @@ export default function TutorsPage() {
                       {selectedSchools.length}
                     </Badge>
                   )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56 max-h-[60vh] overflow-auto">
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56 max-h-[60vh] overflow-auto">
                 <div className="flex items-center justify-between mb-2">
                   <DropdownMenuLabel>Filter by School</DropdownMenuLabel>
                   <Button 
@@ -775,24 +775,24 @@ export default function TutorsPage() {
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-                <DropdownMenuSeparator />
+                  <DropdownMenuSeparator />
                 {filterSchools.sort().map((school) => (
                   <StayOpenCheckboxItem
-                    key={school}
-                    checked={selectedSchools.includes(school)}
+                      key={school}
+                      checked={selectedSchools.includes(school)}
                     onCheckedChange={() => {
                       toggleSchool(school);
                     }}
-                  >
-                    {school}
+                    >
+                      {school}
                   </StayOpenCheckboxItem>
-                ))}
-                {selectedSchools.length > 0 && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                  ))}
+                  {selectedSchools.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <Button
+                        variant="ghost"
+                        size="sm"
                       className="w-full justify-center text-primary/80 hover:text-primary"
                       onClick={(e) => {
                         // Prevent the dropdown from closing
@@ -800,13 +800,13 @@ export default function TutorsPage() {
                         e.stopPropagation();
                         setSelectedSchools([]);
                       }}
-                    >
-                      Clear Schools
-                    </Button>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                      >
+                        Clear Schools
+                      </Button>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             
             {/* Clear all filters button */}
             {(selectedSubjects.length > 0 || selectedSchools.length > 0 || searchTerm) && (
@@ -822,7 +822,7 @@ export default function TutorsPage() {
               >
                 Clear All Filters
                 <X className="h-4 w-4 ml-1" />
-              </Button>
+            </Button>
             )}
           </div>
           <div className="flex items-center gap-4">
@@ -831,9 +831,13 @@ export default function TutorsPage() {
             </p>
             <Select 
               value={sortOrder} 
-              onValueChange={(value) => 
-                setSortOrder(value as "rating" | "name" | "popularity")
+              onValueChange={(value) => {
+                // Type guard to prevent unnecessary re-renders
+                const newValue = value as "rating" | "name" | "popularity";
+                if (sortOrder !== newValue) {
+                  setSortOrder(newValue);
               }
+              }}
             >
               <SelectTrigger className="w-[180px] shadow-sm border-border/40">
                 <SelectValue placeholder="Highest Rating" />
@@ -857,9 +861,9 @@ export default function TutorsPage() {
             <p className="text-muted-foreground mb-6">Try adjusting your filters or search term</p>
             <Button 
               onClick={() => {
-                setSearchTerm("");
-                setSelectedSubjects([]);
-                setSelectedSchools([]);
+              setSearchTerm("");
+              setSelectedSubjects([]);
+              setSelectedSchools([]);
               }}
               className="bg-primary hover:bg-primary/90 shadow-md hover:shadow-lg transition-all hover:translate-y-[-2px]"
             >
@@ -889,12 +893,12 @@ export default function TutorsPage() {
                   <div className="p-6 relative">
                     <Avatar className="h-20 w-20 border-4 border-background absolute -top-10 left-6 shadow-md group-hover:shadow-lg transition-all">
                       <AvatarImage 
-                        src={tutorImage || '/placeholder.svg'} 
+                        src={tutorImage ?? undefined} 
                         alt={tutorName}
                       />
-                      <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/5 text-primary font-medium">
-                        {tutor.first_name ? tutor.first_name.charAt(0) : ''}
-                        {tutor.last_name ? tutor.last_name.charAt(0) : 'T'}
+                      <AvatarFallback className="bg-gradient-to-br from-primary/30 to-primary/10 text-primary font-semibold">
+                        {tutor.first_name ? tutor.first_name.charAt(0).toUpperCase() : ''}
+                        {tutor.last_name ? tutor.last_name.charAt(0).toUpperCase() : 'T'}
                       </AvatarFallback>
                     </Avatar>
                     
@@ -921,7 +925,7 @@ export default function TutorsPage() {
                       <div className="flex items-center gap-3 text-sm text-muted-foreground mt-4 mb-5">
                         <div className="flex items-center">
                           <MapPin className="h-3.5 w-3.5 mr-1 text-primary/70" strokeWidth={2} />
-                          {tutorLocation}
+                        {tutorLocation}
                         </div>
                         <Separator orientation="vertical" className="h-4" />
                         <div className="flex items-center">

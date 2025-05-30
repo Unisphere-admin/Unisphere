@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserConversations, createConversation, Conversation, ConversationParticipant } from '@/lib/db/messages';
 import { AuthUser } from '@/lib/auth/protectResource';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
+import { withCsrfProtection } from '@/lib/csrf/server';
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 
 // Export runtime config to optimize API performance with Edge runtime
@@ -221,4 +222,4 @@ async function postConversationsHandler(
 
 // Use the withRouteAuth pattern for all API routes
 export const GET = withRouteAuth(getConversationsHandler);
-export const POST = withRouteAuth(postConversationsHandler); 
+export const POST = withRouteAuth(withCsrfProtection(postConversationsHandler)); 

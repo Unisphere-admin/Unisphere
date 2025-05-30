@@ -3,6 +3,7 @@ import { AuthUser } from '@/lib/auth/protectResource';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 import { verifyConversationParticipant } from '@/lib/db/securityUtils';
+import { withCsrfProtection } from '@/lib/csrf/server';
 
 async function typingIndicatorHandler(
   req: NextRequest,
@@ -68,4 +69,4 @@ async function typingIndicatorHandler(
 }
 
 // Export the wrapped route handler
-export const POST = withRouteAuth(typingIndicatorHandler); 
+export const POST = withRouteAuth(withCsrfProtection(typingIndicatorHandler)); 

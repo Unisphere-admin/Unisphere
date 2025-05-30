@@ -783,7 +783,7 @@ export const updateReadyStatusAuth = withAuth(function _updateReadyStatus(authUs
   return updateReadyStatus(sessionId, isReady);
 });
 export const getSessionByIdAuth = withAuth(_getSessionById);
-export const getSessionsByConversationAuth = withAuth(_getSessionsByConversation);
+export const getSessionsByConversationAuth = withAuth(_getSessionsByConversation); 
 
 /**
  * Get tutoring sessions by message ID

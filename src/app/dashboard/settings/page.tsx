@@ -19,7 +19,7 @@ import { createClient } from "@/utils/supabase/client";
 import Image from "next/image";
 import { uploadAvatar } from "@/utils/supabase/storage";
 import { AvatarEditor } from "@/components/AvatarEditor";
-import { useCsrf } from "@/context/CsrfContext";
+import { useCsrfToken } from "@/lib/csrf/client";
 
 // Define the base schema for profile fields
 const baseProfileSchema = z.object({
@@ -81,7 +81,7 @@ export default function SettingsPage() {
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { csrfToken, fetchCsrfToken } = useCsrf();
+  const { token, fetchCsrfToken } = useCsrfToken();
 
   // Determine if the user is a tutor
   const isTutor = user?.role === "tutor";
@@ -267,10 +267,10 @@ export default function SettingsPage() {
 
   useEffect(() => {
     // Make sure we have a CSRF token for forms
-    if (!csrfToken) {
+    if (!token) {
       fetchCsrfToken();
     }
-  }, [csrfToken, fetchCsrfToken]);
+  }, [token, fetchCsrfToken]);
 
   // Handle form submission for student profiles - name only
   const onStudentSubmit = async (data: StudentProfileFormValues) => {
@@ -296,7 +296,7 @@ export default function SettingsPage() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken || "",
+          "X-CSRF-Token": token || "",
         },
         body: JSON.stringify(profileData),
         credentials: "include",
@@ -350,7 +350,7 @@ export default function SettingsPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-CSRF-Token": csrfToken || "",
+            "X-CSRF-Token": token || "",
           },
           body: JSON.stringify({ email: data.email }),
           credentials: "include",
@@ -403,7 +403,7 @@ export default function SettingsPage() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken || "",
+          "X-CSRF-Token": token || "",
         },
         body: JSON.stringify({
           first_name: data.first_name,
@@ -542,7 +542,7 @@ export default function SettingsPage() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken || "",
+          "X-CSRF-Token": token || "",
         },
         body: JSON.stringify(profileData),
         credentials: "include",
@@ -764,7 +764,7 @@ export default function SettingsPage() {
                             method: "PATCH",
                             headers: {
                               "Content-Type": "application/json",
-                              "X-CSRF-Token": csrfToken || "",
+                              "X-CSRF-Token": token || "",
                             },
                             body: JSON.stringify({ avatar_url: null }),
                             credentials: "include",

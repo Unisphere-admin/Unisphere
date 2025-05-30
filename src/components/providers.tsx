@@ -15,14 +15,14 @@ const queryClient = new QueryClient();
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={queryClient}>
       <ThemeProvider
         attribute="class"
         defaultTheme="system"
         enableSystem
       >
-        <SidebarProvider>
-          <AuthProvider>
+          <SidebarProvider>
+            <AuthProvider>
             <CsrfProvider>
               <RealtimeProvider>
                 <MessageProvider>
@@ -33,9 +33,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 </MessageProvider>
               </RealtimeProvider>
             </CsrfProvider>
-          </AuthProvider>
-        </SidebarProvider>
+            </AuthProvider>
+          </SidebarProvider>
       </ThemeProvider>
-    </QueryClientProvider>
+      </QueryClientProvider>
   );
 } 

@@ -391,10 +391,10 @@ export default function DashboardPage() {
         <Card className="bg-card/80 backdrop-blur-sm shadow-md border-border/40 hover:shadow-xl transition-all">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2">
                 <BarChartIcon className="h-5 w-5 text-primary/80" strokeWidth={1.5} />
-                Completed Sessions
-              </CardTitle>
+              Completed Sessions
+            </CardTitle>
               <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
                 Last 7 Days
               </Badge>
@@ -511,39 +511,39 @@ export default function DashboardPage() {
                         </div>
                       </div>
                       <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
-                        {session.scheduled_for 
-                          ? new Date(session.scheduled_for).toLocaleDateString([], {
-                              weekday: 'short',
-                              month: 'short',
-                              day: 'numeric'
-                            })
-                          : "Scheduled"}
+                          {session.scheduled_for 
+                            ? new Date(session.scheduled_for).toLocaleDateString([], {
+                                weekday: 'short',
+                                month: 'short',
+                                day: 'numeric'
+                              })
+                            : "Scheduled"}
                       </Badge>
-                    </div>
+                        </div>
                     <Separator className="my-3 opacity-40" />
                     <div className="flex items-center justify-between">
-                      <div className="text-sm text-muted-foreground">
-                        {session.scheduled_for 
-                          ? new Date(session.scheduled_for).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })
+                        <div className="text-sm text-muted-foreground">
+                          {session.scheduled_for 
+                            ? new Date(session.scheduled_for).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })
                           : "Time TBD"}
                       </div>
                       <div className="flex gap-2">
-                        {session.conversation_id && (
+                      {session.conversation_id && (
                           <Button variant="outline" size="sm" asChild className="h-8 shadow-sm border-border/40 hover:bg-muted hover:border-primary/30 transition-all">
-                            <SessionLink 
-                              sessionId={session.id}
-                              conversationId={session.conversation_id}
-                            >
-                              Message
-                            </SessionLink>
-                          </Button>
-                        )}
+                          <SessionLink 
+                            sessionId={session.id}
+                            conversationId={session.conversation_id}
+                          >
+                            Message
+                          </SessionLink>
+                        </Button>
+                      )}
                         <Button size="sm" asChild className="h-8 shadow-sm bg-primary hover:bg-primary/90 transition-all">
                           <Link href="/dashboard/schedule">View Details</Link>
-                        </Button>
+                      </Button>
                       </div>
                     </div>
                   </div>

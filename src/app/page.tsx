@@ -37,19 +37,19 @@ export default function HomePage() {
           <div className="flex flex-col md:flex-row gap-12 items-center">
             <div className="flex-1 space-y-6">
               <Badge variant="outline" className="px-3 py-1 mb-2 text-sm bg-background/80 backdrop-blur-sm border-primary/20">
-                <span className="text-primary font-medium">New</span> - Instant learning now available
+                <span className="text-primary font-medium">New</span> - Global knowledge exchange now available
               </Badge>
               <h1 className="font-bold tracking-tight text-4xl md:text-5xl lg:text-6xl">
-                Quality Education,<br />
-                <span className="text-primary">Anytime, Anywhere</span>
+                Global Knowledge,<br />
+                <span className="text-primary">Borderless Learning</span>
               </h1>
               <p className="text-xl text-muted-foreground md:text-2xl max-w-[600px]">
-                Connect with personalized learning experiences to achieve your academic goals
+                Connect with experts worldwide for personalized learning experiences
               </p>
               <div className="flex flex-col sm:flex-row gap-4 mt-8">
                 <Button size="lg" className="shadow-md bg-primary hover:bg-primary/90 transition-all hover:shadow-lg hover:translate-y-[-2px] group">
                   <Link href="/tutors" className="flex items-center gap-2">
-                    Start Learning <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
+                    Explore Now <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
                   </Link>
                 </Button>
                 <Button size="lg" variant="outline" className="border-border/40 hover:border-primary/40 hover:bg-primary/5 transition-all">
@@ -135,9 +135,9 @@ export default function HomePage() {
         <div className="container mx-auto px-4 md:px-6 max-w-screen-xl">
           <div className="text-center max-w-2xl mx-auto mb-16">
             <Badge className="mb-4 bg-secondary/10 text-secondary hover:bg-secondary/20 border-none">How It Works</Badge>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Simple Steps to Start Learning</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Simple Steps to Global Learning</h2>
             <p className="text-lg text-muted-foreground">
-              Our platform makes it easy to transform your learning journey
+              Our platform connects you with knowledge from around the world
             </p>
           </div>
 
@@ -146,11 +146,11 @@ export default function HomePage() {
               <CardContent className="pt-8 px-6">
                 <div className="h-14 w-14 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mb-6 shadow-sm">
                   <Users className="h-7 w-7 text-primary" />
-                </div>
-                <h3 className="text-xl font-semibold mb-3">Find Your Path</h3>
-                <p className="text-muted-foreground">
-                  Browse subjects and learning resources tailored to your academic needs
-                </p>
+              </div>
+                <h3 className="text-xl font-semibold mb-3">Discover Expertise</h3>
+              <p className="text-muted-foreground">
+                  Browse global experts and specialized knowledge across diverse disciplines
+              </p>
               </CardContent>
             </Card>
 
@@ -158,11 +158,11 @@ export default function HomePage() {
               <CardContent className="pt-8 px-6">
                 <div className="h-14 w-14 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mb-6 shadow-sm">
                   <MessageCircle className="h-7 w-7 text-primary" />
-                </div>
-                <h3 className="text-xl font-semibold mb-3">Schedule Sessions</h3>
-                <p className="text-muted-foreground">
-                  Arrange learning sessions at times that fit your schedule and learning goals
-                </p>
+              </div>
+                <h3 className="text-xl font-semibold mb-3">Connect Globally</h3>
+              <p className="text-muted-foreground">
+                  Schedule sessions with experts from around the world at times that work for you
+              </p>
               </CardContent>
             </Card>
 
@@ -170,11 +170,11 @@ export default function HomePage() {
               <CardContent className="pt-8 px-6">
                 <div className="h-14 w-14 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mb-6 shadow-sm">
                   <GraduationCap className="h-7 w-7 text-primary" />
-                </div>
-                <h3 className="text-xl font-semibold mb-3">Learn & Succeed</h3>
-                <p className="text-muted-foreground">
-                  Engage in personalized learning experiences and track your progress
-                </p>
+              </div>
+              <h3 className="text-xl font-semibold mb-3">Learn Across Borders</h3>
+              <p className="text-muted-foreground">
+                  Engage in cross-cultural knowledge exchange and track your global learning journey
+              </p>
               </CardContent>
             </Card>
           </div>
@@ -190,9 +190,9 @@ export default function HomePage() {
         <div className="container mx-auto px-4 md:px-6 max-w-screen-xl relative z-10">
           <div className="text-center max-w-2xl mx-auto mb-16">
             <Badge className="mb-4 bg-secondary/10 text-secondary hover:bg-secondary/20 border-none">Testimonials</Badge>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">What Our Students Say</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">What Our Community Says</h2>
             <p className="text-lg text-muted-foreground">
-              Real stories from students who achieved their goals with our platform
+              Real stories from learners who expanded their horizons with Unisphere
             </p>
           </div>
 
@@ -279,7 +279,7 @@ export default function HomePage() {
           <div className="mt-16 text-center">
             <Button size="lg" className="bg-primary/10 text-primary hover:bg-primary/20 hover:shadow-md transition-all border-border/40 hover:translate-y-[-2px] group">
               <Link href="/tutors" className="flex items-center gap-2">
-                Start Learning Today <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
+                Begin Your Global Journey <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
               </Link>
             </Button>
           </div>

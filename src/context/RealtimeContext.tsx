@@ -231,6 +231,26 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       return false;
     }
     
+    // Check if we have a recent cached result to avoid unnecessary API calls
+    if (hasPremiumAccess !== null) {
+      const accessCacheKey = `premium_access_${user.id}`;
+      try {
+        const cachedAccess = localStorage.getItem(accessCacheKey);
+        if (cachedAccess) {
+          const { hasAccess, timestamp } = JSON.parse(cachedAccess);
+          const now = Date.now();
+          // Use cached result if less than 5 minutes old
+          if (now - timestamp < 5 * 60 * 1000) {
+            console.log('Using cached premium access status:', hasAccess);
+            setHasPremiumAccess(hasAccess);
+            return hasAccess;
+          }
+        }
+      } catch (error) {
+        console.warn('Error reading cached premium access:', error);
+      }
+    }
+    
     try {
       // Use the API route instead of direct database access
       const response = await fetch('/api/auth/session', {
@@ -252,6 +272,19 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       // User has access if they are a tutor OR have premium access
       const hasAccess = data.user?.role === 'tutor' || data.user?.has_access === true;
       setHasPremiumAccess(hasAccess);
+      
+      // Cache the result
+      if (user.id) {
+        try {
+          localStorage.setItem(`premium_access_${user.id}`, JSON.stringify({
+            hasAccess,
+            timestamp: Date.now()
+          }));
+        } catch (error) {
+          console.warn('Error caching premium access:', error);
+        }
+      }
+      
       return hasAccess;
     } catch (error) {
       console.error('Error checking user premium access:', error);
@@ -265,7 +298,9 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     if (!user) return;
     
     // Check premium access first
-    checkPremiumAccess().then(hasAccess => {
+    const checkAccess = async () => {
+      const hasAccess = await checkPremiumAccess();
+      
       // Only initialize Supabase realtime client if user has premium access
       if (hasAccess) {
         // Create Supabase client only once
@@ -301,7 +336,22 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
           console.log("Cleaned up realtime connections due to lack of premium access");
         }
       }
-    });
+    };
+    
+    // Use cached premium access status when available to avoid unnecessary API calls
+    if (hasPremiumAccess !== null) {
+      if (hasPremiumAccess) {
+        // Initialize Supabase client if we know user has access
+        if (!supabaseRef.current) {
+          supabaseRef.current = createClient();
+          setConnected(true);
+          console.log("Initialized Supabase realtime client from cached access status");
+        }
+      }
+    } else {
+      // Only check premium access if we don't have a cached result
+      checkAccess();
+    }
     
     return () => {
       // Clean up all channels when unmounting
@@ -314,7 +364,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       setSubscribedChannels([]);
       channelsRef.current = {};
     };
-  }, [user, checkPremiumAccess]);
+  }, [user, checkPremiumAccess, hasPremiumAccess]);
 
   // Update the function to check if a message has an associated session
   const checkMessageHasSession = useCallback(async (messageId: string): Promise<boolean> => {
@@ -365,21 +415,53 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  // Modify the handleRealtimeMessage function
+  // Handle realtime message events
   const handleRealtimeMessage = useCallback(async (payload: { payload: RealtimeMessage }) => {
     if (!payload.payload) return;
     
     const message = payload.payload;
     console.log('Received realtime message:', message);
     
-    // Always handle message state updates regardless of sender
-    if (messageContext?.handleRealtimeMessage) {
-      const convertedMessage = {
+    // Immediately check if this is a session request based on content
+    const isSessionRequest = message.content && message.content.trim().startsWith('Session Request:');
+    
+    // Only update message state if messageContext exists and this is a valid message
+    if (messageContext && message.conversation_id) {
+      // Create a session request object if needed
+      let sessionRequest = undefined;
+      if (isSessionRequest) {
+        // Extract information from sender for proper session request setup
+        const isSenderTutor = message.sender?.is_tutor || false;
+        const title = message.content.replace(/^Session Request: /, '').trim();
+        
+        sessionRequest = {
+          title: title,
+          scheduledFor: new Date().toISOString(),
+          conversationId: message.conversation_id,
+          messageId: message.id,
+          // Add creator information to help with accept button display
+          tutorId: isSenderTutor ? message.sender_id : undefined,
+          studentId: !isSenderTutor ? message.sender_id : undefined,
+          // Set default status with correct type
+          status: "requested" as "requested" | "accepted" | "started" | "ended" | "cancelled"
+        };
+        
+        console.log('Created session request object from realtime message:', sessionRequest);
+      }
+      
+      // Add the sessionRequest property to the message
+      const enhancedMessage = {
         ...message,
+        sessionRequest,
+        // Mark session requests explicitly for UI detection
+        isSessionRequest: Boolean(isSessionRequest),
+        // Add required properties for Message type
         timestamp: new Date(message.created_at),
-        read: false // Assume unread for new realtime messages
+        read: false
       };
-      messageContext.handleRealtimeMessage(convertedMessage);
+      
+      // Now handle the message with the session request info already embedded
+      messageContext.handleRealtimeMessage(enhancedMessage);
     }
     
     // Only show notifications for messages from other users
@@ -427,17 +509,22 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         // Determine the best display name
         const senderDisplayName = message.sender?.display_name || 'Someone';
         
-        console.log(`Checking if message ${message.id} is associated with a session request...`);
+        // First check if the message content indicates it's a session request
+        let isSessionRequest = message.content && message.content.trim().startsWith('Session Request:');
         
-        // Check if this message is associated with a session request by querying the database
-        let isSessionRequest = false;
-        try {
-          isSessionRequest = await checkMessageHasSession(message.id);
-          console.log(`Message ${message.id} session check result: ${isSessionRequest ? 'Has session' : 'No session'}`);
-        } catch (error) {
-          console.error(`Error checking if message has session:`, error);
-          // Default to false in case of error
-          isSessionRequest = false;
+        // If content doesn't indicate a session request, check the database
+        if (!isSessionRequest) {
+          console.log(`Checking if message ${message.id} is associated with a session request...`);
+          try {
+            isSessionRequest = await checkMessageHasSession(message.id);
+            console.log(`Message ${message.id} session check result: ${isSessionRequest ? 'Has session' : 'No session'}`);
+          } catch (error) {
+            console.error(`Error checking if message has session:`, error);
+            // Default to false in case of error
+            isSessionRequest = false;
+          }
+        } else {
+          console.log(`Message ${message.id} is a session request based on content`);
         }
         
         // Show notification in current tab
@@ -559,8 +646,8 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
   
   // Subscribe to a conversation channel
   const subscribeToConversation = useCallback(async (conversationId: string) => {
-    // First check if user has premium access
-    if (!hasPremiumAccess && hasPremiumAccess !== null) {
+    // First check if user has premium access using the cached status when available
+    if (hasPremiumAccess === false) {
       console.log("User does not have premium access, skipping conversation subscription");
       return null;
     }
@@ -576,10 +663,52 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     
     if (!supabaseRef.current || !user || !conversationId) return null;
     
+    // Create a stable key for logging to prevent excessive console output
+    const stableKey = `subscription-${conversationId.substring(0, 8)}`;
+    const cooldownKey = `cooldown-${conversationId}`;
+    
+    // Check if we're in a cooldown period for this conversation
+    // This prevents rapid re-subscriptions that can happen during state transitions
+    const now = Date.now();
+    const lastSubscriptionAttempt = channelsRef.current[cooldownKey] as number;
+    const SUBSCRIPTION_COOLDOWN = 5000; // 5 seconds
+    
+    if (lastSubscriptionAttempt && now - lastSubscriptionAttempt < SUBSCRIPTION_COOLDOWN) {
+      console.log(`Subscription attempt for ${conversationId} is in cooldown period, skipping`);
+      return channelsRef.current[conversationId] || null;
+    }
+    
+    // Update the subscription attempt timestamp
+    channelsRef.current[cooldownKey] = now;
+    
     // Skip if already subscribed - return the existing channel instead of resubscribing
     if (channelsRef.current[conversationId]) {
-      console.log(`Already subscribed to conversation: ${conversationId}`);
-      return channelsRef.current[conversationId];
+      // Check if channel is still valid
+      const channel = channelsRef.current[conversationId];
+      if (channel && 
+          (channel.state === 'SUBSCRIBED' || 
+           channel.state === 'JOINED' || 
+           channel.state === 'JOINING' ||
+           channel.state === 'joined')) {
+        // Only log once every 30 seconds per conversation to reduce noise
+        if (!channelsRef.current[stableKey] || 
+            Date.now() - channelsRef.current[stableKey] > 30000) {
+          console.log(`Already subscribed to conversation: ${conversationId}`);
+          channelsRef.current[stableKey] = Date.now();
+        }
+        return channel;
+      } else {
+        // Clean up invalid channel before creating a new one
+        try {
+          if (channel) {
+            console.log(`Cleaning up invalid channel for conversation: ${conversationId}, state: ${channel.state}`);
+            channel.unsubscribe();
+          }
+          delete channelsRef.current[conversationId];
+        } catch (e) {
+          console.error(`Error cleaning up invalid channel for ${conversationId}:`, e);
+        }
+      }
     }
     
     // Create channel name based on conversation ID
@@ -611,6 +740,8 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       
       // Save the channel reference
       channelsRef.current[conversationId] = channel;
+      // Record subscription time for logging throttling
+      channelsRef.current[stableKey] = Date.now();
       
       // Return the channel so it can be used for unsubscription
       return channel;
@@ -723,9 +854,25 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     
     // If hasPremiumAccess is null (not yet checked), we'll let subscribeToConversation handle the check
     
+    // Track which conversations we're currently processing to avoid redundant operations
+    const processedConversations = new Set<string>();
+    
     // Subscribe to all user conversations
     messageContext.conversations.forEach(conversation => {
-      subscribeToConversation(conversation.id);
+      const conversationId = conversation.id;
+      
+      // Skip if we've already processed this conversation in this effect run
+      if (processedConversations.has(conversationId)) return;
+      
+      // Mark as processed
+      processedConversations.add(conversationId);
+      
+      // Subscribe with a small delay to avoid overwhelming the connection
+      setTimeout(() => {
+        if (user) { // Double-check user is still logged in
+          subscribeToConversation(conversationId);
+        }
+      }, Math.random() * 1000); // Random delay up to 1 second to spread out connection attempts
     });
     
     // Listen for new conversations created in PostgreSQL
@@ -739,11 +886,13 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     if (channel) {
       try {
         // Only unsubscribe if the channel exists and has an active subscription
-        if (channel.state === 'SUBSCRIBED' || channel.state === 'JOINED') {
+        // Check for both uppercase and lowercase state names
+        const activeStates = ['SUBSCRIBED', 'JOINED', 'joined', 'subscribed'];
+        if (activeStates.includes(channel.state)) {
           channel.unsubscribe();
           console.log(`Unsubscribed from conversation: ${conversationId}`);
         } else {
-          console.log(`Skipping unsubscribe for conversation ${conversationId} - channel not in SUBSCRIBED state (${channel.state})`);
+          console.log(`Skipping unsubscribe for conversation ${conversationId} - channel not in active state (${channel.state})`);
         }
         
         // Remove from our channel references

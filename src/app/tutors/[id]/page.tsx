@@ -24,7 +24,10 @@ import {
   GraduationCap,
   School,
   Cake,
-  Send
+  Send,
+  MessageCircle,
+  Video,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -68,10 +71,10 @@ type Review = {
 // Enhance Avatar component in the profile page to ensure it always has a fallback
 // Create a more robust function to handle tutor avatar
 const getTutorAvatarUrl = (tutor: any) => {
-  if (!tutor) return '/placeholder.svg';
+  if (!tutor) return null;
   
   // Check if avatar_url exists and is not empty
-  if (tutor.avatar_url && tutor.avatar_url.trim() !== '') {
+  if (tutor.avatar_url && typeof tutor.avatar_url === 'string' && tutor.avatar_url.trim() !== '') {
     // If it's a relative path (no protocol), ensure it's properly formed
     if (!tutor.avatar_url.startsWith('http') && !tutor.avatar_url.startsWith('/')) {
       return `/${tutor.avatar_url}`;
@@ -79,7 +82,8 @@ const getTutorAvatarUrl = (tutor: any) => {
     return tutor.avatar_url;
   }
   
-  return '/placeholder.svg';
+  // Return null to trigger the AvatarFallback
+  return null;
 };
 
 export default function TutorProfile(props: { params: Promise<{ id: string }> }) {
@@ -298,12 +302,12 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
             
       if (!tempConversationId) {
         throw new Error("Failed to create temporary conversation");
-            }
+      }
       
       console.log(`Created temporary conversation ${tempConversationId} with tutor ${tutor.id}`);
       
       // Navigate to the messages page with the temporary conversation selected
-      window.location.href = `/dashboard/messages?conversationId=${tempConversationId}`;
+      router.push(`/dashboard/messages?conversationId=${tempConversationId}`);
     } catch (error) {
       console.error('Error creating temporary conversation:', error);
       toast({
@@ -312,7 +316,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
         variant: "destructive"
       });
     }
-  }, [user, tutor, messageContext]);
+  }, [user, tutor, messageContext, router]);
 
   // Show loading state
   if (tutorLoading) {
@@ -385,17 +389,19 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
               <Card className="overflow-hidden">
                 <div className="bg-gradient-to-r from-purple-100 to-blue-100 h-24"></div>
                 <div className="p-6 text-center relative">
-                  <Avatar className="h-28 w-28 border-4 border-background shadow-md">
+                  <Avatar className="h-28 w-28 border-4 border-background shadow-md absolute -top-14 left-1/2 transform -translate-x-1/2">
                     <AvatarImage 
                       src={getTutorAvatarUrl(tutor)} 
                       alt={tutor?.first_name ? `${tutor.first_name} ${tutor.last_name || ''}` : 'Tutor'}
                     />
-                    <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/5 text-primary font-medium">
-                      {tutor?.first_name ? tutor.first_name.charAt(0) : ''}
-                      {tutor?.last_name ? tutor.last_name.charAt(0) : 'T'}
+                    <AvatarFallback className="bg-gradient-to-br from-primary/30 to-primary/10 text-primary font-semibold text-xl">
+                      {tutor?.first_name ? tutor.first_name.charAt(0).toUpperCase() : ''}
+                      {tutor?.last_name ? tutor.last_name.charAt(0).toUpperCase() : 'T'}
                     </AvatarFallback>
                   </Avatar>
-                  <h2 className="text-2xl font-bold mt-3">{tutorName}</h2>
+                  <div className="mt-16">
+                    <h2 className="text-2xl font-bold">{tutorName}</h2>
+                  </div>
                   
                   <div className="flex items-center justify-center gap-1 mt-2">
                     {[...Array(5)].map((_, i) => {
@@ -601,6 +607,14 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                     <div className="mt-6">
                       <h3 className="font-semibold text-lg mb-2">SPM</h3>
                       <p>{tutorSpm || "N/A"}</p>
+                    </div>
+
+                    <div className="mt-6">
+                      <h3 className="font-semibold text-lg mb-2">Subjects</h3>
+                      <div className="flex items-center gap-1">
+                        <Globe className="h-4 w-4 mr-2" />
+                        <span>Subjects: {tutorSubjects?.join(", ")}</span>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

@@ -1,5 +1,6 @@
 import { createClient } from './supabase/client';
 import { invalidateCache, CACHE_CONFIG } from '@/lib/caching';
+import { clearStoredCsrfToken } from '@/lib/csrf/client';
 
 /**
  * Checks if the user is authenticated and clears tutor cache if not
@@ -13,10 +14,11 @@ export async function checkAuthAndClearCacheIfNeeded(): Promise<boolean> {
     // Check authentication status
     const { data, error } = await supabase.auth.getUser();
     
-    // If not authenticated, clear tutors cache
+    // If not authenticated, clear tutors cache and CSRF token
     if (error || !data.user) {
-      console.log('User not authenticated, clearing tutor cache');
+      console.log('User not authenticated, clearing tutor cache and CSRF token');
       invalidateCache(CACHE_CONFIG.TUTORS_CACHE_KEY);
+      clearStoredCsrfToken(); // Clear CSRF token when logged out
       return false;
     }
     
@@ -30,6 +32,43 @@ export async function checkAuthAndClearCacheIfNeeded(): Promise<boolean> {
 }
 
 /**
+ * Fetches a new CSRF token if the user is authenticated
+ */
+export async function fetchCsrfTokenIfAuthenticated(): Promise<void> {
+  try {
+    // Check if user is authenticated first
+    const isAuthenticated = await checkAuthAndClearCacheIfNeeded();
+    
+    if (isAuthenticated) {
+      // Fetch new CSRF token
+      const response = await fetch('/api/csrf', {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        console.warn('Failed to fetch CSRF token:', response.status);
+        return;
+      }
+      
+      // Process response
+      const data = await response.json();
+      
+      if (data.csrfToken) {
+        // Store token locally (client.ts module handles this)
+        localStorage.setItem('csrfToken', data.csrfToken);
+        console.log('CSRF token refreshed successfully');
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching CSRF token:', error);
+  }
+}
+
+/**
  * This function is called on application startup to ensure
  * no cached tutor data is accessible to unauthenticated users
  */
@@ -37,13 +76,20 @@ export function setupAuthCacheCheck() {
   // Check immediately on page load
   checkAuthAndClearCacheIfNeeded();
   
+  // Also fetch CSRF token if needed
+  fetchCsrfTokenIfAuthenticated();
+  
   // Check whenever the page visibility changes (user returns to app)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       checkAuthAndClearCacheIfNeeded();
+      fetchCsrfTokenIfAuthenticated();
     }
   });
   
   // Setup periodic check every 5 minutes
-  setInterval(checkAuthAndClearCacheIfNeeded, 5 * 60 * 1000);
+  setInterval(() => {
+    checkAuthAndClearCacheIfNeeded();
+    fetchCsrfTokenIfAuthenticated();
+  }, 5 * 60 * 1000);
 } 

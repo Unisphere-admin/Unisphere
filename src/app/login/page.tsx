@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BookOpen, ArrowRight, Loader2, X, LockKeyhole, Mail, User, Shield } from "lucide-react";
+import { BookOpen, ArrowRight, Loader2, X, LockKeyhole, Mail, User, Shield, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Alert,
@@ -36,7 +36,7 @@ export default function LoginPage() {
   const redirectTo = searchParams?.get('redirectTo') || null;
   
   // Update to use the new hook correctly
-  const { csrfToken, fetchCsrfToken } = useCsrfToken();
+  const { token, fetchCsrfToken } = useCsrfToken();
   
   // Form states
   const [email, setEmail] = useState("");
@@ -95,7 +95,7 @@ export default function LoginPage() {
     // Make sure we have a CSRF token for forms
     const getCsrfTokenSafely = async () => {
       try {
-        if (!csrfToken) {
+        if (!token) {
           // On the login page, CSRF token fetch is expected to fail when not logged in
           // This is normal and shouldn't be treated as an error
           console.log('Attempting to fetch CSRF token (normal to fail on login page)');
@@ -113,7 +113,7 @@ export default function LoginPage() {
     };
     
     getCsrfTokenSafely();
-  }, [csrfToken, fetchCsrfToken]);
+  }, [token, fetchCsrfToken]);
 
   // Handle login function that uses the Auth API
   const signIn = async (email: string, password: string, redirectPath?: string) => {
@@ -123,8 +123,8 @@ export default function LoginPage() {
       };
       
       // Only add CSRF token if it exists
-      if (csrfToken) {
-        headers['X-CSRF-Token'] = csrfToken;
+      if (token) {
+        headers['X-CSRF-Token'] = token;
       }
       
       const response = await fetch('/api/auth/login', {
@@ -138,7 +138,7 @@ export default function LoginPage() {
         const contentType = response.headers.get('content-type');
         
         if (contentType && contentType.includes('application/json')) {
-          const errorData = await response.json();
+        const errorData = await response.json();
           throw new Error(errorData.error || `Login failed with status ${response.status}`);
         } else {
           throw new Error(`Login failed with status ${response.status}`);
@@ -197,15 +197,15 @@ export default function LoginPage() {
       formData.append("email", sanitizedEmail);
       
       // Only add CSRF token if it exists
-      if (csrfToken) {
-        formData.append("csrfToken", csrfToken);
+      if (token) {
+        formData.append("csrfToken", token);
       }
       
       const headers: HeadersInit = {};
       
       // Only add CSRF token if it exists
-      if (csrfToken) {
-        headers['X-CSRF-Token'] = csrfToken;
+      if (token) {
+        headers['X-CSRF-Token'] = token;
       }
       
       // Call the API route using fetch with CSRF token
@@ -294,7 +294,7 @@ export default function LoginPage() {
       console.error("Login error:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to login";
       setError(errorMessage);
-      setErrorType("auth");
+        setErrorType("auth");
     } finally {
       setIsLoading(false);
     }
@@ -360,23 +360,23 @@ export default function LoginPage() {
       };
       
       // Only add CSRF token if it exists
-      if (csrfToken) {
-        headers['X-CSRF-Token'] = csrfToken;
+      if (token) {
+        headers['X-CSRF-Token'] = token;
       }
       
       // Use the API route for signup with CSRF token
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           email: sanitizedEmail, 
-          password, 
+        password,
           first_name: sanitizedFirstName, 
           last_name: sanitizedLastName 
         }),
         credentials: 'include',
       });
-
+      
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Signup failed');
@@ -457,22 +457,22 @@ export default function LoginPage() {
       
       <div className="relative z-10 max-w-md w-full">
         <div className="mb-8 text-center">
-          <Link href="/" className="inline-flex items-center gap-2 transition hover:opacity-80">
-            <div className="bg-primary/10 p-2 rounded-md">
-              <BookOpen className="h-6 w-6 text-primary" strokeWidth={2} />
+          <Link href="/" className="mb-6 flex items-center gap-2">
+            <div className="bg-primary/10 p-1.5 rounded-md">
+              <Globe className="h-5 w-5 text-primary" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">TutorMatch</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Unisphere</h1>
           </Link>
           <p className="mt-2 text-muted-foreground text-sm">Learn from the best, anytime, anywhere</p>
         </div>
         
         <Card className="border-border/40 shadow-xl backdrop-blur-sm bg-card/95">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "login" | "signup")} className="w-full">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "login" | "signup")} className="w-full">
             <TabsList className="grid grid-cols-2 w-full mb-2 bg-muted/50">
               <TabsTrigger value="login" className="rounded-md data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm">Login</TabsTrigger>
               <TabsTrigger value="signup" className="rounded-md data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm">Sign Up</TabsTrigger>
-            </TabsList>
-            
+          </TabsList>
+          
             <TabsContent value="login" className="mt-0 pt-4">
               <CardHeader className="px-6 pb-2">
                 <CardTitle className="text-xl">Welcome back</CardTitle>
@@ -484,15 +484,15 @@ export default function LoginPage() {
                     <Label htmlFor="email" className="text-sm font-medium">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        id="email" 
-                        type="email" 
-                        placeholder="name@example.com" 
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      placeholder="name@example.com" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                         className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-                        required
-                      />
+                      required
+                    />
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -512,15 +512,15 @@ export default function LoginPage() {
                     </div>
                     <div className="relative">
                       <LockKeyhole className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        id="password" 
-                        type="password" 
-                        placeholder="••••••••" 
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                    <Input 
+                      id="password" 
+                      type="password" 
+                      placeholder="••••••••" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                         className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-                        required
-                      />
+                      required
+                    />
                     </div>
                   </div>
                   
@@ -546,8 +546,8 @@ export default function LoginPage() {
                   </Button>
                 </CardFooter>
               </form>
-            </TabsContent>
-            
+          </TabsContent>
+          
             <TabsContent value="signup" className="mt-0 pt-4">
               <CardHeader className="px-6 pb-2">
                 <CardTitle className="text-xl">Create an account</CardTitle>
@@ -560,15 +560,15 @@ export default function LoginPage() {
                       <Label htmlFor="first-name" className="text-sm font-medium">First Name</Label>
                       <div className="relative">
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                          id="first-name" 
-                          type="text" 
-                          placeholder="John" 
-                          value={firstName}
-                          onChange={(e) => setFirstName(e.target.value)}
+                      <Input 
+                        id="first-name" 
+                        type="text" 
+                        placeholder="John" 
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
                           className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-                          required
-                        />
+                        required
+                      />
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -588,45 +588,45 @@ export default function LoginPage() {
                     <Label htmlFor="signup-email" className="text-sm font-medium">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        id="signup-email" 
-                        type="email" 
-                        placeholder="name@example.com" 
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                    <Input 
+                      id="signup-email" 
+                      type="email" 
+                      placeholder="name@example.com" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                         className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-                        required
-                      />
+                      required
+                    />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-password" className="text-sm font-medium">Password</Label>
                     <div className="relative">
                       <LockKeyhole className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        id="signup-password" 
-                        type="password" 
-                        placeholder="••••••••" 
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                    <Input 
+                      id="signup-password" 
+                      type="password" 
+                      placeholder="••••••••" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                         className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-                        required
-                      />
+                      required
+                    />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="confirm-password" className="text-sm font-medium">Confirm Password</Label>
                     <div className="relative">
                       <Shield className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        id="confirm-password" 
-                        type="password" 
-                        placeholder="••••••••" 
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
+                    <Input 
+                      id="confirm-password" 
+                      type="password" 
+                      placeholder="••••••••" 
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
                         className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-                        required
-                      />
+                      required
+                    />
                     </div>
                   </div>
                   
@@ -652,20 +652,20 @@ export default function LoginPage() {
                   </Button>
                 </CardFooter>
               </form>
-            </TabsContent>
-          </Tabs>
+          </TabsContent>
+        </Tabs>
         </Card>
         
         <div className="mt-6 text-center text-sm text-muted-foreground">
           <p className="backdrop-blur-sm bg-background/40 p-3 rounded-lg shadow-sm border border-border/20">
-            By continuing, you agree to our
+          By continuing, you agree to our
             <Link href="#" className="mx-1 text-primary hover:underline font-medium">
-              Terms of Service
-            </Link>
-            and
+            Terms of Service
+          </Link>
+          and
             <Link href="#" className="ml-1 text-primary hover:underline font-medium">
-              Privacy Policy
-            </Link>
+            Privacy Policy
+          </Link>
           </p>
         </div>
       </div>
@@ -681,14 +681,14 @@ export default function LoginPage() {
               <Label htmlFor="reset-email">Email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                  id="reset-email" 
-                  type="email" 
-                  placeholder="name@example.com" 
-                  value={resetEmail}
-                  onChange={(e) => setResetEmail(e.target.value)}
+              <Input 
+                id="reset-email" 
+                type="email" 
+                placeholder="name@example.com" 
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
                   className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-                />
+              />
               </div>
             </div>
             {error && <div className="text-red-500 text-sm">{error}</div>}

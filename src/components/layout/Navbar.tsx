@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Menu, X, User, LogOut, MessageSquare, Home, BookOpen, Users, LayoutDashboard, Lock, Bell, Settings, ChevronDown } from "lucide-react";
+import { Menu, X, User, LogOut, MessageSquare, Home, Globe, Users, LayoutDashboard, Lock, Bell, Settings, ChevronDown } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { BadgeIndicator } from "@/components/ui/badge-indicator";
@@ -66,9 +66,9 @@ const Navbar = () => {
         <div className="flex items-center gap-4">
           <Link href="/" className="flex items-center space-x-2 group">
             <div className="bg-primary/10 p-1.5 rounded-md group-hover:bg-primary/15 transition-colors">
-              <BookOpen className="h-5 w-5 text-primary" strokeWidth={2} />
+              <Globe className="h-5 w-5 text-primary" strokeWidth={2} />
             </div>
-            <span className="text-xl font-bold tracking-tight">TutorMatch</span>
+            <span className="text-xl font-bold tracking-tight">Unisphere</span>
           </Link>
           
           <nav className="hidden md:flex items-center gap-8 text-sm ml-6">
@@ -83,7 +83,7 @@ const Navbar = () => {
                 href={hasAccess ? "/tutors" : "/paywall"} 
                 className="font-medium text-muted-foreground hover:text-foreground transition-colors group relative flex items-center"
               >
-                Find Tutors
+                Find Experts
                 {user && !hasAccess && (
                   <Lock className="h-3.5 w-3.5 ml-1.5 text-muted-foreground group-hover:text-foreground" />
                 )}
@@ -158,11 +158,11 @@ const Navbar = () => {
                   <Link href={hasAccess ? "/dashboard/messages" : "/paywall"} className="flex items-center w-full">
                     <MessageSquare className="mr-2 h-4 w-4 text-primary/80" strokeWidth={2} />
                     Messages
-                    {!hasAccess ? (
+                  {!hasAccess ? (
                       <Lock className="ml-auto h-3 w-3 text-muted-foreground" strokeWidth={2} />
-                    ) : unreadCount > 0 ? (
+                  ) : unreadCount > 0 ? (
                       <BadgeIndicator count={unreadCount} size="sm" className="ml-auto" />
-                    ) : null}
+                  ) : null}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem className="focus:bg-muted">
@@ -211,9 +211,9 @@ const Navbar = () => {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <div className="bg-primary/10 p-1.5 rounded-md">
-                      <BookOpen className="h-5 w-5 text-primary" strokeWidth={2} />
+                      <Globe className="h-5 w-5 text-primary" strokeWidth={2} />
                     </div>
-                    <span className="font-bold tracking-tight">TutorMatch</span>
+                    <span className="font-bold tracking-tight">Unisphere</span>
                   </div>
                   <Button
                     variant="ghost"
@@ -237,7 +237,7 @@ const Navbar = () => {
                   className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  <BookOpen className="h-5 w-5 text-primary/70" strokeWidth={1.5} /> About
+                  <Globe className="h-5 w-5 text-primary/70" strokeWidth={1.5} /> About
                 </Link>
                 {user && (
                   <Link 
@@ -245,7 +245,7 @@ const Navbar = () => {
                     className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
-                    <Users className="h-5 w-5 text-primary/70" strokeWidth={1.5} /> Find Tutors
+                    <Users className="h-5 w-5 text-primary/70" strokeWidth={1.5} /> Find Experts
                     {user && !hasAccess && <Lock className="h-3.5 w-3.5 ml-1.5 text-muted-foreground" strokeWidth={2} />}
                   </Link>
                 )}

@@ -1,9 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, Mail, MapPin, Phone, ChevronRight, Heart } from "lucide-react";
+import { BookOpen, Mail, MapPin, Phone, ChevronRight, Heart, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+} from "@/components/ui/navigation-menu";
 
 const Footer = () => {
   return (
@@ -16,11 +24,11 @@ const Footer = () => {
       <div className="container relative z-10 py-12 md:py-16 px-4 md:px-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12">
           <div>
-            <Link href="/" className="flex items-center space-x-2 group">
-              <div className="bg-primary/10 p-1.5 rounded-md group-hover:bg-primary/15 transition-colors">
-                <BookOpen className="h-5 w-5 text-primary" strokeWidth={2} />
+            <Link href="/" className="flex items-center gap-2 transition hover:opacity-80 mb-6">
+              <div className="bg-primary/10 p-1.5 rounded-md">
+                <Globe className="h-5 w-5 text-primary" strokeWidth={1.5} />
               </div>
-              <span className="text-xl font-bold tracking-tight">TutorMatch</span>
+              <span className="text-xl font-bold tracking-tight">Unisphere</span>
             </Link>
             <p className="mt-4 text-muted-foreground text-sm leading-relaxed">
               Connecting students with expert tutors for personalized learning experiences. Find the perfect match for your educational journey.
@@ -65,7 +73,7 @@ const Footer = () => {
               <li>
                 <Link href="/tutors" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
                   <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
-                  <span className="transition-colors">Find Tutors</span>
+                  <span className="transition-colors">Find Experts</span>
                 </Link>
               </li>
               <li>
@@ -146,7 +154,7 @@ const Footer = () => {
                 <div className="bg-primary/10 p-1.5 rounded-full">
                   <Mail className="h-4 w-4 text-primary" strokeWidth={2} />
                 </div>
-                <span className="text-sm text-muted-foreground">info@tutormatch.com</span>
+                <span className="text-sm text-muted-foreground">info@unisphere.com</span>
               </div>
             </div>
           </div>
@@ -156,7 +164,7 @@ const Footer = () => {
       <div className="border-t border-border/40">
         <div className="container py-6 px-4 md:px-8 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
           <p className="text-sm text-muted-foreground/80">
-            © {new Date().getFullYear()} TutorMatch. All rights reserved.
+            © {new Date().getFullYear()} Unisphere. All rights reserved.
           </p>
           <div className="flex flex-wrap justify-center gap-6">
             <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -173,7 +181,7 @@ const Footer = () => {
       </div>
       
       <div className="py-3 text-center text-xs text-muted-foreground/70 border-t border-border/40 bg-background/40 backdrop-blur-sm">
-        Made with <Heart className="h-3 w-3 inline-block text-red-500 mx-0.5" fill="currentColor" /> by TutorMatch Team
+        Made with <Heart className="h-3 w-3 inline-block text-red-500 mx-0.5" fill="currentColor" /> by Unisphere Team
       </div>
     </footer>
   );

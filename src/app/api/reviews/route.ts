@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthUser } from '@/lib/auth/protectResource';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
+import { withCsrfProtection } from '@/lib/csrf/server';
 import { 
   createReview,
   getTutorReviews,
@@ -119,4 +120,4 @@ async function postReviewHandler(
 }
 
 // Export only the POST handler with auth wrapper
-export const POST = withRouteAuth(postReviewHandler); 
+export const POST = withRouteAuth(withCsrfProtection(postReviewHandler)); 

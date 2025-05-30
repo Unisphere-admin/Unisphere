@@ -19,7 +19,7 @@ interface TokenData {
 /**
  * Generate a secure CSRF token and store it in a cookie
  */
-export function generateCsrfToken(): string {
+export async function generateCsrfToken(): Promise<string> {
   // Generate a secure random token
   const token = nanoid(TOKEN_LENGTH);
   
@@ -27,7 +27,7 @@ export function generateCsrfToken(): string {
   const expires = Date.now() + TOKEN_EXPIRY;
   
   // Store token in HTTP-only cookie
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   cookieStore.set(CSRF_COOKIE_NAME, JSON.stringify({ token, expires }), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -42,10 +42,10 @@ export function generateCsrfToken(): string {
 /**
  * Retrieve and validate the CSRF token from cookies
  */
-export function validateStoredToken(): { valid: boolean; token?: string } {
+export async function validateStoredToken(): Promise<{ valid: boolean; token?: string }> {
   try {
     // Get token from cookie
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const tokenCookie = cookieStore.get(CSRF_COOKIE_NAME);
     
     if (!tokenCookie?.value) {
@@ -70,8 +70,8 @@ export function validateStoredToken(): { valid: boolean; token?: string } {
 /**
  * Clear the CSRF token cookie
  */
-export function clearCsrfToken(): void {
-  const cookieStore = cookies();
+export async function clearCsrfToken(): Promise<void> {
+  const cookieStore = await cookies();
   cookieStore.set(CSRF_COOKIE_NAME, "", {
     expires: new Date(0),
     path: "/",
@@ -81,10 +81,10 @@ export function clearCsrfToken(): void {
 /**
  * Middleware to validate CSRF tokens in API requests
  */
-export function csrfMiddleware(
+export async function csrfMiddleware(
   req: NextRequest,
   user: AuthUser
-): NextResponse | null {
+): Promise<NextResponse | null> {
   // Skip CSRF validation for GET requests (they should be idempotent)
   if (req.method === "GET") {
     return null;
@@ -109,7 +109,7 @@ export function csrfMiddleware(
   }
   
   // Validate the stored token
-  const { valid, token: storedToken } = validateStoredToken();
+  const { valid, token: storedToken } = await validateStoredToken();
   
   if (!valid || !storedToken) {
     return NextResponse.json(
@@ -144,7 +144,7 @@ export function withCsrfProtection<T extends any[], R>(
     const user = args[1] as AuthUser;
     
     // Apply CSRF middleware
-    const csrfResponse = csrfMiddleware(req, user);
+    const csrfResponse = await csrfMiddleware(req, user);
     
     // If CSRF validation fails, throw an error
     if (csrfResponse) {

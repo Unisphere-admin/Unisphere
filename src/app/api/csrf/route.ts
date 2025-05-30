@@ -1,24 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withRouteAuth } from "@/lib/auth/validateRequest";
 import { generateCsrfToken } from "@/lib/csrf/server";
-import { AuthUser } from "@/lib/auth/protectResource";
+import { getAuthUser } from "@/lib/auth/protectResource";
 
 // Make sure we never cache this endpoint
 export const dynamic = 'force-dynamic';
 
-// Handler to generate and return a CSRF token
-async function csrfTokenHandler(
-  req: NextRequest,
-  user: AuthUser
-): Promise<NextResponse> {
+/**
+ * Special CSRF token handler that does not redirect to login page
+ * This ensures client-side code can parse the JSON response properly
+ */
+export async function GET(req: NextRequest) {
   try {
-    // Only logged in users can get a CSRF token
+    // Try to get the authenticated user, but don't redirect if not logged in
+    const user = await getAuthUser();
+    
+    // If not authenticated, return a proper JSON response
     if (!user || !user.id) {
-      console.log('CSRF token request rejected: User not authenticated');
+      console.log('CSRF token request from unauthenticated user');
       
-      // Return a JSON response with proper headers to prevent HTML redirect
+      // Return a JSON response with proper headers
       return new NextResponse(
-        JSON.stringify({ error: "Authentication required", status: "unauthenticated" }), 
+        JSON.stringify({ 
+          error: "Authentication required", 
+          status: "unauthenticated",
+          authenticated: false
+        }), 
         { 
           status: 401,
           headers: {
@@ -42,7 +48,12 @@ async function csrfTokenHandler(
     
     // Return the token to the client
     return new NextResponse(
-      JSON.stringify({ csrfToken: token, status: "success" }),
+      JSON.stringify({ 
+        token: token, 
+        csrfToken: token, 
+        status: "success",
+        authenticated: true
+      }),
       { 
         status: 200,
         headers: {
@@ -60,7 +71,8 @@ async function csrfTokenHandler(
       JSON.stringify({ 
         error: "Failed to generate CSRF token", 
         status: "error",
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: error instanceof Error ? error.message : 'Unknown error',
+        authenticated: false
       }),
       { 
         status: 500,
@@ -74,7 +86,4 @@ async function csrfTokenHandler(
       }
     );
   }
-}
-
-// Export the handler with auth middleware
-export const GET = withRouteAuth(csrfTokenHandler); 
+} 

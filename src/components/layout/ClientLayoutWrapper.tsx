@@ -1,13 +1,13 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import AuthLoadingScreen from './AuthLoadingScreen';
 import { usePathname } from 'next/navigation';
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { toast } from "@/components/ui/sonner";
-import { initPrefetching } from '@/lib/prefetch';
+import { initializeCache } from '@/lib/cacheInitializer';
 import { setupAuthCacheCheck } from '@/utils/authUtils';
 
 interface ClientLayoutWrapperProps {
@@ -21,6 +21,9 @@ export default function ClientLayoutWrapper({ children }: ClientLayoutWrapperPro
   const [isDev, setIsDev] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
   
+  // Use ref instead of state to track initialization
+  const cacheInitializedRef = useRef(false);
+  
   useEffect(() => {
     setIsDev(process.env.NODE_ENV === 'development');
   }, []);
@@ -32,15 +35,18 @@ export default function ClientLayoutWrapper({ children }: ClientLayoutWrapperPro
     }
   }, [loading, initialLoad]);
   
-  // Initialize prefetching when the app loads and user is authenticated
+  // Initialize caching system when the app loads - only once
   useEffect(() => {
-    if (user && initialLoad) {
-      console.log('Initializing prefetching for authenticated user on initial app load');
-      initPrefetching();
+    if (!cacheInitializedRef.current) {
+      console.log('Initializing cache system on application load');
+      
+      // Initialize the cache system (works for both authenticated and unauthenticated users)
+      initializeCache();
+      cacheInitializedRef.current = true;
     }
-  }, [user, initialLoad]);
+  }, []);
   
-  // Setup auth cache check on component mount
+  // Setup auth cache check on component mount - separate from cache initialization
   useEffect(() => {
     console.log('Setting up auth cache check mechanism');
     setupAuthCacheCheck();

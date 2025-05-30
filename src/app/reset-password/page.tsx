@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, ArrowRight, Loader2, Lock, ShieldCheck } from "lucide-react";
+import { BookOpen, ArrowRight, Loader2, Lock, ShieldCheck, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/context/AuthContext";
@@ -135,11 +135,11 @@ export default function ResetPasswordPage() {
       <div className="max-w-md w-full px-4 py-8 relative z-10">
         <div className="flex justify-center mb-6">
           <div className="flex items-center gap-2">
-            <Link href="/">
-              <div className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                <BookOpen className="h-10 w-10 text-primary" />
-                <h1 className="text-3xl font-bold">TutorMatch</h1>
+            <Link href="/" className="inline-flex items-center gap-2 mb-4">
+              <div className="bg-primary/10 p-2 rounded-md">
+                <Globe className="h-6 w-6 text-primary" strokeWidth={2} />
               </div>
+              <h1 className="text-3xl font-bold">Unisphere</h1>
             </Link>
           </div>
         </div>

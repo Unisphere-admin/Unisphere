@@ -235,14 +235,25 @@ async function postMessagesHandler(
   try {
     // Parse request body
     const body = await req.json();
-    const { conversationId, content, options } = body;
-    
-    // Validate required parameters
-    if (!conversationId) {
+    const { conversation_id, conversationId, content, options } = body;
+
+    // Normalize conversation ID parameter (handle both conversation_id and conversationId)
+    const normalizedConversationId = conversation_id || conversationId;
+
+    // Enhanced conversation ID validation
+    if (!normalizedConversationId) {
       return NextResponse.json({ error: "Conversation ID is required" }, { status: 400 });
     }
-    
+
+    if (typeof normalizedConversationId !== 'string' || normalizedConversationId.trim() === '') {
+      return NextResponse.json({ error: "Invalid conversation ID format" }, { status: 400 });
+    }
+
     // Validate and sanitize message content
+    if (!content) {
+      return NextResponse.json({ error: "Message content is required" }, { status: 400 });
+    }
+
     const validationResult = validateText(content, { 
       min: 1, 
       max: 5000,
@@ -282,7 +293,7 @@ async function postMessagesHandler(
     while (retryCount <= maxRetries) {
       try {
         // Send the message
-        const result = await sendMessage(user, conversationId, senderId, sanitizedContent);
+        const result = await sendMessage(user, normalizedConversationId, senderId, sanitizedContent);
         message = result.message;
         error = result.error;
         
@@ -292,6 +303,8 @@ async function postMessagesHandler(
         }
       } catch (err) {
         console.error(`Message send attempt ${retryCount + 1} failed:`, err);
+        // Store the error for better error reporting
+        error = err instanceof Error ? err.message : String(err);
       }
       
       retryCount++;
@@ -304,21 +317,37 @@ async function postMessagesHandler(
     // Handle errors after retries
     if (error) {
       console.error(`Failed to send message after ${retryCount} attempts:`, error);
+      
+      // Provide more specific error messages for common issues
+      if (error.includes("not found") || error.includes("doesn't exist")) {
+        return NextResponse.json({ 
+          error: "Conversation not found or no longer available" 
+        }, { status: 404 });
+      }
+      
+      if (error.includes("permission") || error.includes("not authorized") || error.includes("access")) {
+        return NextResponse.json({ 
+          error: "You don't have permission to send messages in this conversation" 
+        }, { status: 403 });
+      }
+      
       return NextResponse.json({ error }, { status: 500 });
     }
-    
+
     if (!message) {
       return NextResponse.json({ error: "Failed to send message" }, { status: 500 });
     }
-    
+
     // Broadcast message to realtime subscribers
-    await broadcastMessage(message, conversationId);
+    await broadcastMessage(message, normalizedConversationId);
     
     return NextResponse.json(message);
   } catch (error) {
     console.error("Error in POST /api/messages:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
     return NextResponse.json(
-      { error: "An unexpected error occurred" },
+      { error: "An unexpected error occurred", details: errorMessage },
       { status: 500 }
     );
   }

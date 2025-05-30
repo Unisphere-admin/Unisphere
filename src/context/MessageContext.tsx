@@ -5,6 +5,14 @@ import { useAuth } from "./AuthContext";
 import { createClient } from "@/utils/supabase/client";
 import { getFromCache, saveToCache, CACHE_CONFIG } from "@/lib/caching";
 import { useRouter } from "next/navigation";
+import { 
+  getCsrfTokenFromStorage, 
+  CSRF_HEADER_NAME,
+  useCsrfToken
+} from '@/lib/csrf/client';
+
+// Define the expiry time for temporary conversations - 24 hours
+const TEMP_CONVERSATION_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
 export interface Message {
   id: string;
@@ -13,7 +21,19 @@ export interface Message {
   content: string;
   timestamp: Date;
   read: boolean;
-  sessionRequest?: SessionRequest | null;
+  sessionRequest?: {
+    id?: string;
+    title: string;
+    scheduledFor: string;
+    conversationId: string;
+    messageId: string;
+    studentId?: string;
+    tutorId?: string;
+    studentReady?: boolean;
+    tutorReady?: boolean;
+    status?: "requested" | "accepted" | "started" | "ended" | "cancelled";
+    tokens?: number;
+  } | null;
   created_at?: string;
   conversation_id?: string;
   sender?: {
@@ -23,6 +43,8 @@ export interface Message {
     is_tutor: boolean;
   };
   status?: 'sending' | 'sent' | 'delivered' | 'error';
+  // For backwards compatibility 
+  isSessionRequest?: boolean;
 }
 
 export interface SessionRequest {
@@ -181,28 +203,40 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         if (stored) {
           // Parse stored data and convert string dates back to Date objects
           const parsed = JSON.parse(stored);
+          const now = Date.now();
+          const cleanedConversations: {[id: string]: any} = {};
+          
+          // Filter out expired temporary conversations (older than 24 hours)
           Object.keys(parsed).forEach(key => {
-            parsed[key].createdAt = new Date(parsed[key].createdAt);
+            const createdAtDate = new Date(parsed[key].createdAt);
+            const age = now - createdAtDate.getTime();
+            
+            // Only keep conversations that are less than 24 hours old
+            if (age < TEMP_CONVERSATION_EXPIRY_MS) {
+              cleanedConversations[key] = {
+                ...parsed[key],
+                createdAt: createdAtDate
+              };
+            } else {
+              console.log(`Removing expired temporary conversation ${key}, age: ${Math.round(age / 3600000)} hours`);
+            }
           });
-          return parsed;
+          
+          // Save the cleaned list back to localStorage
+          if (Object.keys(parsed).length !== Object.keys(cleanedConversations).length) {
+            localStorage.setItem('tempConversations', JSON.stringify(cleanedConversations));
+          }
+          
+          return cleanedConversations;
         }
       } catch (e) {
         console.error('Failed to load temporary conversations from localStorage:', e);
+        // Clear corrupted data
+        localStorage.removeItem('tempConversations');
       }
     }
     return {};
   });
-
-  // Effect to save tempConversations to localStorage when it changes
-  useEffect(() => {
-    if (typeof window !== 'undefined' && Object.keys(tempConversations).length > 0) {
-      try {
-        localStorage.setItem('tempConversations', JSON.stringify(tempConversations));
-      } catch (e) {
-        console.error('Failed to save temporary conversations to localStorage:', e);
-      }
-    }
-  }, [tempConversations]);
 
   // Check if a conversation is temporary
   const isTempConversation = useCallback((conversationId: string) => {
@@ -213,6 +247,17 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
   const checkPremiumAccess = useCallback(async () => {
     if (!user) {
       return false;
+    }
+    
+    // Add caching for premium access checks to avoid unnecessary API calls
+    const now = Date.now();
+    
+    // If we have a cached result and it's not expired, use it
+    if (hasPremiumAccess !== null && 
+        premiumAccessCheckedRef.current && 
+        (now - premiumAccessTimestampRef.current < PREMIUM_ACCESS_CACHE_TTL)) {
+      console.log('Using cached premium access status:', hasPremiumAccess);
+      return hasPremiumAccess;
     }
     
     try {
@@ -233,12 +278,19 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       const data = await response.json();
       
       // User has access if they are a tutor OR have premium access
-      return data.user?.role === 'tutor' || data.user?.has_access === true;
+      const hasAccess = data.user?.role === 'tutor' || data.user?.has_access === true;
+      
+      // Update cache
+      setHasPremiumAccess(hasAccess);
+      premiumAccessCheckedRef.current = true;
+      premiumAccessTimestampRef.current = now;
+      
+      return hasAccess;
     } catch (error) {
       console.error('Error checking user premium access:', error);
       return false;
     }
-  }, [user]);
+  }, [user, hasPremiumAccess]);
 
   // Create a temporary conversation
   const createTempConversation = useCallback((tutorId: string, tutorName: string, tutorAvatar?: string | null) => {
@@ -251,6 +303,8 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     
     if (existingConversation) {
       console.log(`Using existing conversation ${existingConversation.id} with tutor ${tutorId}`);
+      // Select the existing conversation
+      setSelectedConversationId(existingConversation.id);
       return existingConversation.id;
     }
 
@@ -261,6 +315,8 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
 
     if (existingTempConv) {
       console.log(`Using existing temporary conversation ${existingTempConv[0]} with tutor ${tutorId}`);
+      // Select the existing temporary conversation
+      setSelectedConversationId(existingTempConv[0]);
       return existingTempConv[0];
     }
 
@@ -431,9 +487,21 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       
       console.log(`Marking conversation ${conversationId} as read for user ${user.id}`);
       
+      // Get CSRF token
+      const csrfToken = getCsrfTokenFromStorage();
+      
+      // Create headers with CSRF token if available
+      const headers: HeadersInit = {};
+      if (csrfToken) {
+        headers[CSRF_HEADER_NAME] = csrfToken;
+      } else {
+        console.warn('CSRF token not found for markConversationAsRead. This request might fail due to CSRF protection.');
+      }
+      
       // Make API call to mark as read
       const response = await fetch(`/api/conversations/${conversationId}/mark-read`, {
         method: 'POST',
+        headers,
         credentials: 'include'
       });
       
@@ -628,12 +696,24 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     
     // Create a broadcast to other users
     try {
+      // Get CSRF token
+      const csrfToken = getCsrfTokenFromStorage();
+      
+      // Create headers with CSRF token if available
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      };
+      
+      if (csrfToken) {
+        headers[CSRF_HEADER_NAME] = csrfToken;
+      } else {
+        console.warn('CSRF token not found for setUserTyping. This request might fail due to CSRF protection.');
+      }
+      
       // Using fetch to broadcast typing status without needing the Realtime context here
       fetch('/api/typing-indicator', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers,
         body: JSON.stringify({
           conversation_id: conversationId,
           is_typing: isTyping,
@@ -674,18 +754,72 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     return { ...message, status: 'sent' as 'sending' | 'sent' | 'delivered' | 'error' };
   }, []);
   
+  // Add a utility function to sort conversations consistently
+  const sortConversations = useCallback((convos: Conversation[]): Conversation[] => {
+    if (!convos || convos.length === 0) return [];
+    
+    // First ensure conversations have a valid last_message_at timestamp
+    // This prevents messages from jumping to the bottom when they're missing a timestamp
+    const normalizedConvos = convos.map(convo => {
+      // If last_message_at is missing but the conversation has a last_message, use its timestamp
+      if (!convo.last_message_at && convo.last_message?.created_at) {
+        return {
+          ...convo,
+          last_message_at: convo.last_message.created_at
+        };
+      }
+      
+      // If no timestamp is available at all, use the current time to keep it at the top
+      if (!convo.last_message_at) {
+        return {
+          ...convo,
+          last_message_at: new Date().toISOString()
+        };
+      }
+      
+      return convo;
+    });
+    
+    return [...normalizedConvos].sort((a, b) => {
+      // First, temporary conversations always go first
+      const aIsTemp = isTempConversation(a.id);
+      const bIsTemp = isTempConversation(b.id);
+      
+      if (aIsTemp && !bIsTemp) return -1;
+      if (!aIsTemp && bIsTemp) return 1;
+      
+      // For real conversations, sort by last_message_at (most recent first)
+      const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+      const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+      
+      return bTime - aTime; // descending order (newest first)
+    });
+  }, [isTempConversation]);
+
   // Handle realtime messages
   const handleRealtimeMessage = useCallback((message: Message) => {
     if (!message || !message.conversation_id) return;
     
-    console.log('Received realtime message:', message);
-    
-    // Always handle message state updates regardless of sender
     if (message.conversation_id) {
+      // Check if the message content indicates it's a session request
+      // Add this check to immediately identify session requests 
+      const isSessionRequestMessage = message.content && 
+                                     message.content.trim().startsWith('Session Request:');
+      
+      // Create a session request object if it's a session request message
+      const sessionRequestObj = isSessionRequestMessage ? {
+        title: message.content.replace(/^Session Request: /, '').trim(),
+        scheduledFor: new Date().toISOString(),
+        conversationId: message.conversation_id,
+        messageId: message.id
+      } : undefined;
+      
       const convertedMessage = {
         ...message,
         timestamp: new Date(message.created_at || new Date()),
-        read: false // Assume unread for new realtime messages
+        read: false, // Assume unread for new realtime messages
+        // Set sessionRequest property if it appears to be a session request
+        sessionRequest: message.sessionRequest || sessionRequestObj
       };
 
       // Update the messages state
@@ -787,8 +921,8 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         // Create a new array without the conversation
         const newConversations = prev.filter(c => c.id !== message.conversation_id);
         
-        // Add the conversation at the top
-        return [conversation, ...newConversations];
+        // Add the conversation at the top and ensure proper sorting
+        return sortConversations([conversation, ...newConversations]);
       });
     }
     
@@ -798,7 +932,7 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       console.log('Skipping notification for own message:', message.id);
       return;
     }
-  }, [updateMessageStatus, user?.id]);
+  }, [updateMessageStatus, user?.id, sortConversations]);
 
   // Get current conversation
   const currentConversation = selectedConversationId 
@@ -825,9 +959,9 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
           // Merge temporary conversations with cached conversations
           const tempConvs = createTemporaryConversationObjects();
           if (tempConvs.length > 0) {
-            setConversations([...tempConvs, ...cachedConversations]);
+            setConversations(sortConversations([...tempConvs, ...cachedConversations]));
           } else {
-          setConversations(cachedConversations);
+            setConversations(sortConversations(cachedConversations));
           }
           setLoading(false);
           
@@ -835,7 +969,7 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
           const accessStatus = await checkPremiumAccess();
           if (accessStatus) {
             // Fetch fresh data in the background if user has premium access
-          fetchFreshConversations();
+            fetchFreshConversations();
           } else {
             console.log('User does not have premium access, skipping fresh conversations fetch');
           }
@@ -845,20 +979,20 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         // No cache or expired cache, check premium access before showing loading state and fetching fresh data
         const accessStatus = await checkPremiumAccess();
         if (accessStatus) {
-        setLoading(true);
-        await fetchFreshConversations();
+          setLoading(true);
+          await fetchFreshConversations();
         } else {
           console.log('User does not have premium access, skipping conversations fetch');
           // Create temporary conversation objects only
           const tempConvs = createTemporaryConversationObjects();
-          setConversations(tempConvs);
+          setConversations(sortConversations(tempConvs));
         }
       } catch (error) {
         console.error('Error fetching conversations:', error);
         // Don't use mock conversations as fallback anymore
         // Just use empty array or temporary conversations
         const tempConvs = createTemporaryConversationObjects();
-        setConversations(tempConvs);
+        setConversations(sortConversations(tempConvs));
       } finally {
         setLoading(false);
       }
@@ -953,7 +1087,7 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         const lastViewedAt = currentUserParticipant?.last_viewed_at
           ? new Date(currentUserParticipant.last_viewed_at).getTime()
           : 0;
-        
+
         // If there's a last message and it's not from the current user, check if it's unread
         if (convo.last_message && convo.last_message.sender_id !== user.id) {
           const messageTime = new Date(convo.last_message.created_at).getTime();
@@ -1006,7 +1140,7 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       }
       
       // Update state with fresh data
-      setConversations(mergedConversations);
+      setConversations(sortConversations(mergedConversations));
       
       // Save to localStorage cache - only save real conversations
       saveToCache(CACHE_CONFIG.CONVERSATIONS_CACHE_KEY, processedConversations);
@@ -1014,7 +1148,7 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     };
 
     fetchConversations();
-  }, [user, tempConversations, checkPremiumAccess, hasPremiumAccess]);
+  }, [user, tempConversations, checkPremiumAccess, hasPremiumAccess, sortConversations]);
 
   // Load messages for a conversation
   const getMessages = useCallback(async (conversationId: string, forceRefresh = false) => {
@@ -1044,8 +1178,26 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       return;
     }
     
-    // Check if user has premium access before making API calls
-    const accessStatus = await checkPremiumAccess();
+    // Only verify premium access if:
+    // 1. We don't have a cached result (hasPremiumAccess is null)
+    // 2. OR the cache has expired
+    // 3. OR user doesn't have premium access according to cache (we'll check again in case they upgraded)
+    const now = Date.now();
+    const needsAccessCheck = 
+      hasPremiumAccess === null || 
+      !premiumAccessCheckedRef.current || 
+      (now - premiumAccessTimestampRef.current > PREMIUM_ACCESS_CACHE_TTL) ||
+      hasPremiumAccess === false;
+    
+    // Use cached result if available and on messages page (where we've already verified access)
+    let accessStatus = hasPremiumAccess;
+    
+    if (needsAccessCheck) {
+      console.log('Checking premium access for messages...');
+      accessStatus = await checkPremiumAccess();
+    } else {
+      console.log('Using cached premium access status:', accessStatus);
+    }
     
     if (!accessStatus) {
       console.log(`User does not have premium access, skipping message fetch for conversation: ${conversationId}`);
@@ -1075,7 +1227,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     checkedConversationsRef.current.delete(conversationKey);
     
     // Check if we already have cached messages that aren't expired
-    const now = Date.now();
     const cachedData = messagesCacheRef.current[conversationId];
     
     if (!forceRefresh && 
@@ -1272,28 +1423,50 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     if (selectedConversationId) {
       // Check if we've already marked this conversation as checked for a non-premium user
       const conversationKey = user?.id ? `${user.id}:${selectedConversationId}` : '';
+      
+      // Skip loading if:
+      // 1. We've already checked this conversation and user doesn't have premium access
+      // 2. OR this is a temporary conversation (handled separately)
       if (
-        conversationKey && 
-        checkedConversationsRef.current.has(conversationKey) && 
-        hasPremiumAccess === false
+        (conversationKey && 
+         checkedConversationsRef.current.has(conversationKey) && 
+         hasPremiumAccess === false) ||
+        isTempConversation(selectedConversationId)
       ) {
-        // Already checked and user doesn't have access, so skip to prevent infinite loops
+        // Skip loading messages to prevent unnecessary API calls
         return;
       }
       
+      // If we already have premium access (cached) and we're just switching conversations,
+      // load messages without rechecking premium status
       getMessages(selectedConversationId);
     }
-  }, [selectedConversationId, getMessages, user?.id, hasPremiumAccess]);
+  }, [selectedConversationId, getMessages, user?.id, hasPremiumAccess, isTempConversation]);
 
   // Modify the sendMessage function to handle temp conversations
   const sendMessage = useCallback(async (conversationId: string, content: string, options?: { maxRetries?: number }) => {
     if (!user) throw new Error('Not authenticated');
+    
+    // Validate conversation ID - this is where the error was happening
+    if (!conversationId || typeof conversationId !== 'string' || conversationId.trim() === '') {
+      throw new Error('Conversation ID is required');
+    }
     
     // Check premium access for non-temporary conversations
     if (!conversationId.startsWith('temp-')) {
       const accessStatus = await checkPremiumAccess();
       if (!accessStatus) {
         throw new Error('Premium access required to send messages');
+      }
+    }
+    
+    // If this is a temporary conversation, pre-fetch the CSRF token to avoid 403 errors
+    if (isTempConversation(conversationId)) {
+      console.log('Temporary conversation detected, ensuring CSRF token is available...');
+      try {
+        await fetchCsrfToken();
+      } catch (error) {
+        console.warn('Pre-fetch of CSRF token failed, will try again during conversation creation:', error);
       }
     }
     
@@ -1354,7 +1527,9 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         const response = await fetch('/api/conversations', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            // Add CSRF token to the headers
+            [CSRF_HEADER_NAME]: getCsrfTokenFromStorage() || ''
           },
           body: JSON.stringify({
             participant_id: tempDetails.tutorId
@@ -1381,6 +1556,22 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         verificationSuccessful = await verifyConversationReady(actualConversationId);
       } catch (error) {
         console.error('Error creating real conversation:', error);
+        
+        // Check specifically for CSRF errors
+        const isCsrfError = error instanceof Error && 
+          (error.message.includes('CSRF') || error.message.includes('csrf'));
+        
+        if (isCsrfError) {
+          // Attempt to fetch a fresh CSRF token if this was a CSRF error
+          try {
+            console.log('CSRF token error detected, attempting to refresh token...');
+            await fetchCsrfToken();
+            throw new Error('CSRF token error - please try again. The token has been refreshed.');
+          } catch (refreshError) {
+            console.error('Failed to refresh CSRF token:', refreshError);
+            throw new Error('CSRF token validation failed. Please refresh the page and try again.');
+          }
+        }
         
         // Update message status to error
         setMessages(prev => {
@@ -1433,11 +1624,23 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         }
       
         // Make the API request with the actual conversation ID
+        const csrfToken = getCsrfTokenFromStorage();
+        
+        // Add CSRF token to the headers for non-GET requests
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json'
+        };
+        
+        // Include CSRF token if available
+        if (csrfToken) {
+          headers[CSRF_HEADER_NAME] = csrfToken;
+        } else {
+          console.warn('CSRF token not found. This request might fail due to CSRF protection.');
+        }
+        
         const response = await fetch('/api/messages', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers,
           body: JSON.stringify({ conversation_id: actualConversationId, content }),
           credentials: 'include'
         });
@@ -1505,25 +1708,89 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
               return newTempConversations;
             });
             
+            // Store a mapping from temp ID to real ID to help with redirects
+            const conversionMap = JSON.parse(localStorage.getItem('tempToRealConversions') || '{}');
+            conversionMap[conversationId] = actualConversationId;
+            localStorage.setItem('tempToRealConversions', JSON.stringify(conversionMap));
+            
             // Immediately remove the temporary conversation from the UI
-            setConversations(prevConversations => 
-              prevConversations.filter(convo => convo.id !== conversationId)
-            );
+            setConversations(prevConversations => {
+              // Filter out the temp conversation
+              const filteredConvos = prevConversations.filter(convo => convo.id !== conversationId);
+              
+              // Make sure the real conversation is included
+              const hasRealConvo = filteredConvos.some(convo => convo.id === actualConversationId);
+              if (!hasRealConvo) {
+                // If we don't have the real conversation yet, we'll add a placeholder
+                // It will be replaced with the real data when fetchFreshConversations runs
+                const tempDetails = tempConversations[conversationId];
+                const placeholderConvo: Conversation = {
+                  id: actualConversationId,
+                  participants: [
+                    {
+                      user_id: user.id,
+                      user: {
+                        id: user.id,
+                        display_name: user.name || 'You',
+                        first_name: user.name?.split(' ')[0] || '',
+                        last_name: user.name?.split(' ')[1] || '',
+                        avatar_url: user.profilePic || user.avatar_url || null,
+                        is_tutor: user.role === 'tutor'
+                      }
+                    },
+                    {
+                      user_id: tempDetails.tutorId,
+                      user: {
+                        id: tempDetails.tutorId,
+                        display_name: tempDetails.tutorName,
+                        first_name: tempDetails.tutorName.split(' ')[0] || '',
+                        last_name: tempDetails.tutorName.split(' ')[1] || '',
+                        avatar_url: tempDetails.tutorAvatar || null,
+                        is_tutor: true
+                      }
+                    }
+                  ],
+                  unreadCount: 0,
+                  participant: {
+                    id: tempDetails.tutorId,
+                    display_name: tempDetails.tutorName,
+                    first_name: tempDetails.tutorName.split(' ')[0] || '',
+                    last_name: tempDetails.tutorName.split(' ')[1] || '',
+                    avatar_url: tempDetails.tutorAvatar || null,
+                    is_tutor: true
+                  },
+                  last_message: {
+                    id: serverMessage.id,
+                    content: serverMessage.content,
+                    created_at: serverMessage.created_at || new Date().toISOString(),
+                    sender_id: user.id
+                  },
+                  last_message_at: serverMessage.created_at || new Date().toISOString()
+                };
+                return sortConversations([placeholderConvo, ...filteredConvos]);
+              }
+              
+              return sortConversations(filteredConvos);
+            });
             
             // Change the selected conversation to the real conversation
             setSelectedConversationId(actualConversationId);
             
-            // Redirect to the real conversation if we're in the messages page
-            if (typeof window !== 'undefined' && window.location.pathname.includes('/dashboard/messages')) {
-              // Use history.replaceState to update the URL without a full page reload
+            // Only redirect if we're viewing this specific conversation
+            if (typeof window !== 'undefined' && 
+                window.location.pathname.includes('/dashboard/messages') &&
+                selectedConversationId === conversationId) {
+              // Update the URL without causing a page reload
               window.history.replaceState(
                 {}, 
                 '', 
-                `/dashboard/messages?conversation=${actualConversationId}`
+                `/dashboard/messages?conversationId=${actualConversationId}`
               );
+              
+              console.log(`Redirected temporary conversation ${conversationId} to real conversation ${actualConversationId}`);
+            } else {
+              console.log(`Converted temporary conversation ${conversationId} to real conversation ${actualConversationId} without redirect`);
             }
-            
-            console.log(`Removed temporary conversation ${conversationId} and redirected to ${actualConversationId}`);
           } catch (error) {
             console.error('Error handling conversation redirection:', error);
           }
@@ -1622,8 +1889,8 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
           // Remove the conversation from the current position
           const filteredConversations = prev.filter(convo => convo.id !== actualConversationId);
           
-          // Return a new array with the updated conversation at the top
-          return [updatedConversation, ...filteredConversations];
+          // Return a new array with the updated conversation at the top with proper sorting
+          return sortConversations([updatedConversation, ...filteredConversations]);
         });
         
         // Successfully sent the message, return it with status explicitly set
@@ -1678,12 +1945,86 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     
     // This should never be reached due to the return or throw above
     throw lastError || new Error('Failed to send message after retries');
-  }, [user, isTempConversation, checkPremiumAccess, hasPremiumAccess, setMessages, setConversations, tempConversations, updateMessageStatus]);
+  }, [user, isTempConversation, checkPremiumAccess, hasPremiumAccess, setMessages, setConversations, tempConversations, updateMessageStatus, sortConversations]);
   
   // Set active conversation - convenience function that aliases setSelectedConversationId
   const setActiveConversation = useCallback((id: string) => {
     setSelectedConversationId(id);
   }, [setSelectedConversationId]);
+
+  // Add CSRF token management
+  const { fetchCsrfToken } = useCsrfToken();
+  const csrfFetchedRef = useRef(false);
+  
+  // Add effect to fetch CSRF token when needed
+  useEffect(() => {
+    if (!csrfFetchedRef.current && user) {
+      console.log('Fetching CSRF token for MessageProvider...');
+      fetchCsrfToken().then(token => {
+        if (token) {
+          console.log('CSRF token fetched successfully');
+        } else {
+          console.warn('Failed to fetch CSRF token, requests requiring CSRF might fail');
+        }
+        csrfFetchedRef.current = true;
+      }).catch(error => {
+        console.error('Error fetching CSRF token:', error);
+      });
+    }
+  }, [fetchCsrfToken, user]);
+
+  // Add a cleanup function for temp conversations at the end of the useEffect for tempConversations
+  // Effect to save tempConversations to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        if (Object.keys(tempConversations).length > 0) {
+          localStorage.setItem('tempConversations', JSON.stringify(tempConversations));
+        } else {
+          // Clean up if no temp conversations
+          localStorage.removeItem('tempConversations');
+        }
+      } catch (e) {
+        console.error('Failed to save temporary conversations to localStorage:', e);
+      }
+    }
+    
+    // Clean up function to run on unmount
+    return () => {
+      if (typeof window !== 'undefined') {
+        // Check for and remove any stale conversations
+        try {
+          const stored = localStorage.getItem('tempConversations');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            const now = Date.now();
+            let hasChanges = false;
+            
+            Object.keys(parsed).forEach(key => {
+              const createdAtDate = new Date(parsed[key].createdAt);
+              const age = now - createdAtDate.getTime();
+              
+              if (age > TEMP_CONVERSATION_EXPIRY_MS) {
+                delete parsed[key];
+                hasChanges = true;
+                console.log(`Cleanup: Removing expired temporary conversation ${key}`);
+              }
+            });
+            
+            if (hasChanges) {
+              if (Object.keys(parsed).length > 0) {
+                localStorage.setItem('tempConversations', JSON.stringify(parsed));
+              } else {
+                localStorage.removeItem('tempConversations');
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error during temp conversation cleanup:', e);
+        }
+      }
+    };
+  }, [tempConversations]);
   
   return (
     <MessageContext.Provider value={{

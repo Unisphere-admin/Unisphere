@@ -3,13 +3,16 @@
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { 
-  BookOpen, 
   Users, 
   Clock, 
   Award, 
   CheckCircle, 
   Star,
-  ArrowRight
+  ArrowRight,
+  Globe,
+  MessageCircle,
+  UserCheck,
+  Sparkles
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -33,11 +36,14 @@ export default function AboutPage() {
         
         <div className="grid md:grid-cols-2 gap-12 items-center relative z-10">
           <div>
-            <h1 className="text-4xl md:text-5xl font-bold mb-6">
-              Our Mission: <span className="text-primary">Connect</span> & <span className="text-primary">Empower</span>
-            </h1>
+            <div className="flex items-center gap-4 mb-8">
+              <div className="bg-primary/10 p-4 rounded-md">
+                <Globe className="h-6 w-6 text-primary" />
+              </div>
+              <h1 className="text-4xl md:text-5xl font-bold tracking-tight">About Us</h1>
+            </div>
             <p className="text-xl text-muted-foreground mb-8">
-              TutorMatch was founded with a simple vision: to make quality education accessible to everyone through personalized learning experiences.
+              Unisphere was founded with a simple vision: to make quality education accessible to everyone through personalized learning experiences.
             </p>
             <Button asChild size="lg" className="shadow-md hover:shadow-lg transition-all hover:translate-y-[-2px]">
               <Link href="/tutors">Start Learning Today</Link>
@@ -89,7 +95,7 @@ export default function AboutPage() {
           <Badge className="mb-4 bg-primary/10 text-primary hover:bg-primary/20 transition-colors">Our Journey</Badge>
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Our Story</h2>
           <p className="text-xl text-muted-foreground">
-            How TutorMatch came to be and our journey so far
+            How Unisphere came to be and our journey so far
           </p>
         </div>
         
@@ -99,7 +105,7 @@ export default function AboutPage() {
               <div className="hover:translate-x-1 transition-transform duration-300">
                 <h3 className="text-2xl font-semibold mb-3">The Beginning</h3>
                 <p className="text-muted-foreground">
-                  TutorMatch was founded in 2020 by a group of educators and technologists who believed that personalized learning should be accessible to everyone, regardless of location or background.
+                  Unisphere was founded in 2020 by a group of educators and technologists who believed that personalized learning should be accessible to everyone, regardless of location or background.
                 </p>
               </div>
               
@@ -139,7 +145,7 @@ export default function AboutPage() {
         
         <div className="max-w-3xl mx-auto text-center mb-16 relative z-10">
           <Badge className="mb-4 bg-secondary/10 text-secondary hover:bg-secondary/20 transition-colors">Simple Process</Badge>
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">How TutorMatch Works</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">How Unisphere Works</h2>
           <p className="text-xl text-muted-foreground">
             Our platform makes it easy to connect and start learning
           </p>
@@ -186,9 +192,9 @@ export default function AboutPage() {
         
         <div className="max-w-3xl mx-auto text-center mb-16 relative z-10">
           <Badge className="mb-4 bg-primary/10 text-primary hover:bg-primary/20 transition-colors">Our People</Badge>
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Meet Our Team</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">The Team</h2>
           <p className="text-xl text-muted-foreground">
-            The passionate educators and technologists behind TutorMatch
+            The passionate educators and technologists behind Unisphere
           </p>
         </div>
         
@@ -219,9 +225,9 @@ export default function AboutPage() {
               <div className="relative mb-4">
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-full blur-md transform scale-90 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 <Avatar className="h-24 w-24 border-2 border-background shadow-md group-hover:scale-105 transition-transform">
-                  <AvatarImage src={member.image} />
-                  <AvatarFallback>{member.name.charAt(0)}</AvatarFallback>
-                </Avatar>
+                <AvatarImage src={member.image} />
+                <AvatarFallback>{member.name.charAt(0)}</AvatarFallback>
+              </Avatar>
               </div>
               <h3 className="font-semibold">{member.name}</h3>
               <p className="text-sm text-muted-foreground">{member.role}</p>
@@ -246,7 +252,7 @@ export default function AboutPage() {
           <Card className="bg-background/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px]">
             <CardHeader className="flex flex-row items-center gap-4">
               <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center shadow-sm">
-                <BookOpen className="h-6 w-6 text-primary" />
+                <Globe className="h-6 w-6 text-primary" />
               </div>
               <CardTitle>Educational Excellence</CardTitle>
             </CardHeader>
@@ -296,16 +302,16 @@ export default function AboutPage() {
           </div>
           
           <div className="relative z-10">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Start Learning?</h2>
-            <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Start Learning?</h2>
+          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
               Join thousands of students who have already started their learning journey with us.
-            </p>
+          </p>
             <Button asChild size="lg" className="shadow-md hover:shadow-lg transition-all hover:translate-y-[-2px]">
-              <Link href="/tutors">
+            <Link href="/tutors">
                 Start Learning
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
           </div>
         </div>
       </section>

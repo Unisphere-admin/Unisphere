@@ -17,7 +17,9 @@ import {
   CalendarCheck,
   LogOut,
   Wallet,
-  ChevronRight
+  ChevronRight,
+  Home,
+  Globe
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -63,10 +65,16 @@ const DashboardSidebar = () => {
       active: pathname === "/dashboard/history",
     },
     {
-      title: isStudent ? "Find Tutors" : "Subjects",
+      title: isStudent ? "Find Experts" : "Subjects",
       icon: <BookOpen className="h-5 w-5" />,
       href: isStudent ? "/tutors" : "/dashboard/subjects",
       active: pathname === (isStudent ? "/tutors" : "/dashboard/subjects"),
+    },
+    {
+      title: "Resources",
+      href: "/resources",
+      icon: <Globe className="h-5 w-5" />,
+      badge: undefined
     },
     {
       title: "Settings",
@@ -81,9 +89,13 @@ const DashboardSidebar = () => {
     <div className="h-full flex flex-col py-6">
       {/* Logo with home link */}
       <div className="px-6 mb-6">
-        <Link href="/" className="flex items-center gap-2 transition hover:opacity-80">
-          <BookOpen className="h-6 w-6 text-primary" strokeWidth={1.5} />
-          <span className="text-xl font-bold tracking-tight">TutorMatch</span>
+        <Link href="/">
+          <div className="flex items-center gap-3 px-2">
+            <div className="bg-primary/10 p-1.5 rounded-md">
+              <Globe className="h-5 w-5 text-primary" />
+            </div>
+            <span className="text-xl font-bold tracking-tight">Unisphere</span>
+          </div>
         </Link>
       </div>
       
@@ -134,7 +146,7 @@ const DashboardSidebar = () => {
                 "text-primary/80",
                 item.active && "text-primary-foreground"
               )}>
-                {item.icon}
+              {item.icon}
               </span>
               
               {item.title}

@@ -6,7 +6,7 @@ import {
   updateSessionStatusAuth as updateSessionStatus, 
   updateReadyStatusAuth as updateReadyStatus, 
   getSessionByIdAuth as getSessionById, 
-  getSessionsByConversationAuth as getSessionsByConversation,
+  getSessionsByConversation,
   getUserSessions,
   getSessionsByMessageId,
   TutoringSession 
@@ -14,6 +14,7 @@ import {
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 import { createClient } from '@supabase/supabase-js';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
+import { withCsrfProtection } from '@/lib/csrf/server';
 
 // Export runtime config for improved performance
 export const runtime = 'edge';
@@ -180,6 +181,36 @@ async function getTutoringSessionsHandler(
     const messageId = searchParams.get('message_id');
     const userId = searchParams.get('user_id');
     const userType = searchParams.get('user_type');
+    const sessionId = searchParams.get('session_id');
+    
+    // If session ID is provided, get a specific session by ID
+    if (sessionId) {
+      console.log(`API route: Getting specific session by ID ${sessionId}`);
+      const { session, error } = await getSessionById(user, sessionId);
+      
+      if (error) {
+        console.error(`Error getting session ${sessionId}:`, error);
+        return NextResponse.json({ error: 'Failed to fetch session' }, { status: 500 });
+      }
+      
+      if (!session) {
+        console.log(`No session found with ID ${sessionId}`);
+        return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      }
+      
+      // Check if user is authorized to view this session
+      const isAuthorized = session.tutor_id === user.id || session.student_id === user.id;
+      
+      if (!isAuthorized) {
+        console.log(`User ${user.id} not authorized to access session ${sessionId}`);
+        return NextResponse.json({ error: 'Not authorized to access this session' }, { status: 403 });
+      }
+      
+      console.log(`Found session with ID ${sessionId}`);
+      const response = NextResponse.json({ session });
+      response.headers.set('Cache-Tag', `user-${user.id}`);
+      return response;
+    }
     
     // If user ID is provided, get the user's sessions
     if (userId && userType) {
@@ -211,15 +242,15 @@ async function getTutoringSessionsHandler(
         console.error(`Error getting sessions for message ${messageId}:`, error);
         return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
       }
-      
+        
       // If no sessions found, return empty array
       if (!sessions || sessions.length === 0) {
         console.log(`No sessions found for message ${messageId}`);
         const response = NextResponse.json({ sessions: [] });
-        response.headers.set('Cache-Tag', `user-${user.id}`);
-        return response;
-      }
-      
+          response.headers.set('Cache-Tag', `user-${user.id}`);
+          return response;
+        }
+        
       // Check if user is authorized to view these sessions
       const isAuthorized = sessions.some(session => 
         session.tutor_id === user.id || session.student_id === user.id
@@ -242,25 +273,22 @@ async function getTutoringSessionsHandler(
       return NextResponse.json({ error: 'Required parameters missing' }, { status: 400 });
     }
     
-    const cacheKey = `sessions:${conversationId}`;
-    
-    const { sessions, error, authError } = await getCachedOrFresh(
-      cacheKey,
-      () => getSessionsByConversation(user, conversationId)
-    );
-    
-    if (authError) {
-      return NextResponse.json({ error: authError }, { status: 401 });
+    try {
+      // Direct call to getSessionsByConversation with only the conversationId parameter
+      const result = await getSessionsByConversation(conversationId);
+      
+      if (result.error) {
+        return NextResponse.json({ error: result.error }, { status: 500 });
+      }
+      
+      const response = NextResponse.json({ sessions: result.sessions });
+      // Add cache tag for this user to enable proper invalidation on logout
+      response.headers.set('Cache-Tag', `user-${user.id}`);
+      return response;
+    } catch (error) {
+      console.error("Error fetching sessions for conversation:", error);
+      return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
     }
-    
-    if (error) {
-      return NextResponse.json({ error }, { status: 500 });
-    }
-    
-    const response = NextResponse.json({ sessions });
-    // Add cache tag for this user to enable proper invalidation on logout
-    response.headers.set('Cache-Tag', `user-${user.id}`);
-    return response;
   } catch (error) {
     console.error("Error in GET tutoring sessions handler:", error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -517,5 +545,5 @@ async function patchTutoringSessionsHandler(
 
 // Convert the manually implemented auth handlers to use the withRouteAuth pattern
 export const GET = withRouteAuth(getTutoringSessionsHandler);
-export const POST = withRouteAuth(postTutoringSessionsHandler);
-export const PATCH = withRouteAuth(patchTutoringSessionsHandler); 
+export const POST = withRouteAuth(withCsrfProtection(postTutoringSessionsHandler));
+export const PATCH = withRouteAuth(withCsrfProtection(patchTutoringSessionsHandler)); 

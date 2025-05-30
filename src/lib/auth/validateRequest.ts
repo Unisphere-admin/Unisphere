@@ -34,14 +34,14 @@ export async function validateRequest(req: NextRequest): Promise<{
     
     // First check if the user is authenticated
     let authUser = await getAuthUser();
-    
+      
     // Check if this path requires protection
     if (shouldProtectRoute(path)) {
       // If no user is logged in, redirect to login
       if (!authUser) {
         return { user: null, errorResponse: redirectToLogin(req) };
-      }
-      
+    }
+    
       // Check if this path requires premium access
       if (requiresPremiumAccess(path) && shouldRedirectToPaywall(authUser, path)) {
         return { user: null, errorResponse: redirectToPaywall(req) };
@@ -87,28 +87,28 @@ export function withRouteAuth<Params = Record<string, string>>(
 ): (req: NextRequest, props: { params: Promise<Params> }) => Promise<NextResponse> {
   return async (req: NextRequest, props: { params: Promise<Params> }) => {
     // Validate the request
-    const { user, errorResponse } = await validateRequest(req);
-    
+      const { user, errorResponse } = await validateRequest(req);
+      
     // If there's an error response, return it
-    if (errorResponse) {
-      return errorResponse;
-    }
-    
+      if (errorResponse) {
+        return errorResponse;
+      }
+      
     // If no user is returned, it's an unexpected error
-    if (!user) {
-      return NextResponse.json(
+      if (!user) {
+        return NextResponse.json(
         { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-    
+          { status: 401 }
+        );
+      }
+      
     try {
       // Otherwise, call the handler with the authenticated user
       const params = await props.params;
       return await handler(req, user, params);
     } catch (error) {
       console.error('Error in route handler:', error);
-      
+        
       // Return a generic error response
       return NextResponse.json(
         { error: 'Internal server error' },

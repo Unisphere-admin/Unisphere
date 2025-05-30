@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { markConversationAsRead } from '@/lib/db/messages';
 import { AuthUser } from '@/lib/auth/protectResource';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
+import { withCsrfProtection } from '@/lib/csrf/server';
 
 // Set edge runtime for better performance
 export const runtime = 'edge';
@@ -43,4 +44,4 @@ async function markReadHandler(
 }
 
 // Apply authentication middleware
-export const POST = withRouteAuth(markReadHandler);
+export const POST = withRouteAuth(withCsrfProtection(markReadHandler));

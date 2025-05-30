@@ -17,8 +17,8 @@ import { MessageNotification } from '@/components/MessageNotification';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'MentorConnect - Find your perfect tutor match',
-  description: 'Connect with expert tutors for personalized learning sessions',
+  title: 'Unisphere - Global Knowledge Exchange',
+  description: 'Connect with experts worldwide for personalized learning experiences',
 };
 
 export default function RootLayout({

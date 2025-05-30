@@ -48,6 +48,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { SessionRequestCard, parseSessionRequest } from "@/components/SessionRequestCard";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { validateText, sanitizeInput, checkForMaliciousContent, messageSchema } from "@/lib/validation";
+import { getCsrfTokenFromStorage, CSRF_HEADER_NAME, useCsrfToken } from '@/lib/csrf/client';
 
 // Define interface for messages returned from API
 interface Message {
@@ -66,6 +67,19 @@ interface Message {
   // For UI tracking
   isSessionRequest?: boolean;
   pendingSessionCreation?: boolean;
+  sessionRequest?: {
+    id?: string;
+    title: string;
+    scheduledFor: string;
+    conversationId: string;
+    messageId: string;
+    studentId?: string;
+    tutorId?: string;
+    studentReady?: boolean;
+    tutorReady?: boolean;
+    status?: "requested" | "accepted" | "started" | "ended" | "cancelled";
+    tokens?: number;
+  };
 }
 
 // Define interface for session objects
@@ -164,6 +178,8 @@ export default function MessagesPage() {
     refreshSessions,
   } = useSessions();
   
+  const { fetchCsrfToken } = useCsrfToken();
+  
   const { toast } = useToast();
   const router = useRouter();
   const pathname = usePathname();
@@ -209,10 +225,21 @@ export default function MessagesPage() {
   // Get realtime context
   const { subscribeToConversation: subscribeToConversationOriginal, broadcastTypingIndicator, unsubscribeFromConversation } = useRealtime();
   
+  // Track subscribed conversations to prevent redundant subscriptions
+  const subscribedConversationsRef = useRef<Set<string>>(new Set());
+  
   // Memoize the subscription function to prevent redundant API calls
   const subscribeToConversation = useCallback((conversationId: string) => {
+    // Check if already subscribed to this conversation
+    if (subscribedConversationsRef.current.has(conversationId)) {
+      console.log(`Already subscribed locally to conversation: ${conversationId}, skipping duplicate subscription`);
+      return null;
+    }
+    
+    // Mark as subscribed locally before making the API call
+    subscribedConversationsRef.current.add(conversationId);
     console.log(`Memoized subscription to conversation: ${conversationId}`);
-    subscribeToConversationOriginal(conversationId);
+    return subscribeToConversationOriginal(conversationId);
   }, [subscribeToConversationOriginal]);
   
   // Save the scroll position before updates
@@ -242,14 +269,143 @@ export default function MessagesPage() {
     refreshSessions(); // Keep this initial refresh for page load
   }, [refreshSessions]);
   
-  // Handle URL query parameters on component mount
+  // Update the effect that handles URL parameters
   useEffect(() => {
-    // If conversationId is provided in URL, select that conversation
-    if (conversationId && stableConversations.some((c: any) => c.id === conversationId)) {
-      console.log(`Setting conversation from URL param: ${conversationId}`);
-      setSelectedConversationId(conversationId);
+    // Check for temp-to-real conversation mappings first
+    const checkTempToRealConversions = () => {
+      if (typeof window === 'undefined') return null;
+      
+      try {
+        const conversionMap = JSON.parse(localStorage.getItem('tempToRealConversions') || '{}');
+        if (Object.keys(conversionMap).length === 0) return null;
+        
+        // Get conversation ID from URL - could be either 'conversationId' or 'conversation'
+        const urlConversationId = conversationId || searchParams?.get('conversation');
+        
+        // If we have a selected conversation that's in the map, redirect to the real one
+        if (urlConversationId && conversionMap[urlConversationId]) {
+          const realId = conversionMap[urlConversationId];
+          console.log(`Found temp-to-real mapping: ${urlConversationId} -> ${realId}`);
+          
+          // Update URL to use the real ID
+          router.replace(`/dashboard/messages?conversationId=${realId}`, { scroll: false });
+          
+          // Delete this mapping after using it
+          delete conversionMap[urlConversationId];
+          localStorage.setItem('tempToRealConversions', JSON.stringify(conversionMap));
+          
+          return realId;
+        }
+        
+        // Clean up orphaned mappings - if the temp conversation doesn't exist anymore
+        if (typeof window !== 'undefined') {
+          try {
+            const tempConvos = JSON.parse(localStorage.getItem('tempConversations') || '{}');
+            let hasOrphanedMappings = false;
+            
+            // Check each mapping to see if the temp conversation still exists
+            Object.keys(conversionMap).forEach(tempId => {
+              if (!tempConvos[tempId]) {
+                console.log(`Removing orphaned mapping for non-existent temp conversation: ${tempId}`);
+                delete conversionMap[tempId];
+                hasOrphanedMappings = true;
+              }
+            });
+            
+            // Save cleaned up mappings
+            if (hasOrphanedMappings) {
+              if (Object.keys(conversionMap).length > 0) {
+                localStorage.setItem('tempToRealConversions', JSON.stringify(conversionMap));
+              } else {
+                localStorage.removeItem('tempToRealConversions');
+              }
+            }
+          } catch (e) {
+            console.error('Error cleaning up orphaned mappings:', e);
+          }
+        }
+        
+        return null;
+      } catch (e) {
+        console.error('Error checking temp-to-real conversions:', e);
+        localStorage.removeItem('tempToRealConversions'); // Clear potentially corrupted data
+        return null;
+      }
+    };
+    
+    // Check for redirects first
+    const realConversationId = checkTempToRealConversions();
+    if (realConversationId) {
+      console.log(`Redirecting to real conversation: ${realConversationId}`);
+      return; // Skip the rest of this effect
     }
-  }, [conversationId, stableConversations, setSelectedConversationId]);
+    
+    // If conversationId is provided in URL, set it as the selected conversation
+    if (conversationId && conversationId !== selectedConversationId) {
+      // Check if this conversation exists in our list
+      const conversationExists = stableConversations.some((c: any) => c.id === conversationId);
+      
+      // Set the selected conversation ID regardless
+      // This allows it to be selected even if the conversations are still loading
+      console.log(`Setting conversation from URL param: ${conversationId} (exists in list: ${conversationExists})`);
+      setSelectedConversationId(conversationId);
+      
+      // If the conversation doesn't exist in our current list and we're not in loading state,
+      // try to fetch the specific conversation directly
+      if (!conversationExists && !loading && stableConversations.length > 0) {
+        console.log(`Conversation ${conversationId} not in list, triggering direct fetch`);
+        
+        // Trigger direct fetch for the specific conversation ID
+        const fetchSpecificConversation = async () => {
+          try {
+            // This will both fetch the conversation and its messages
+            await refreshMessages(conversationId);
+          } catch (err) {
+            console.error(`Failed to fetch specific conversation ${conversationId}:`, err);
+          }
+        };
+        
+        fetchSpecificConversation();
+      }
+    }
+  }, [conversationId, stableConversations, selectedConversationId, setSelectedConversationId, router, loading, refreshMessages]);
+  
+  // Add effect to clean up temp conversations when the page loads
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // Check for expired temporary conversations
+    try {
+      const stored = localStorage.getItem('tempConversations');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const now = Date.now();
+        const TEMP_CONVERSATION_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+        let hasChanges = false;
+        
+        Object.keys(parsed).forEach(key => {
+          const createdAtDate = new Date(parsed[key].createdAt);
+          const age = now - createdAtDate.getTime();
+          
+          if (age > TEMP_CONVERSATION_EXPIRY_MS) {
+            delete parsed[key];
+            hasChanges = true;
+            console.log(`Page cleanup: Removing expired temporary conversation ${key}`);
+          }
+        });
+        
+        if (hasChanges) {
+          if (Object.keys(parsed).length > 0) {
+            localStorage.setItem('tempConversations', JSON.stringify(parsed));
+          } else {
+            localStorage.removeItem('tempConversations');
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error during temp conversation cleanup:', e);
+    }
+  }, []);
   
   // Effect to log when we're handling conversation ID changes
   useEffect(() => {
@@ -418,7 +574,27 @@ export default function MessagesPage() {
 
   // Handle sending a new message
   const handleSendMessage = async () => {
-    if (!selectedConversationId || !user) return;
+    if (!messageText.trim()) return; // Don't send empty messages
+    
+    // Validate selected conversation ID
+    if (!selectedConversationId) {
+      toast({
+        variant: "destructive",
+        title: "No conversation selected",
+        description: "Please select a conversation before sending a message"
+      });
+      return;
+    }
+    
+    // Validate that user is logged in
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Not logged in",
+        description: "You must be logged in to send messages"
+      });
+      return;
+    }
 
     // Validate message content
     try {
@@ -465,6 +641,7 @@ export default function MessagesPage() {
       broadcastTypingIndicator(selectedConversationId, false);
 
       // Send the message
+      try {
       const sentMessage = await sendMessage(selectedConversationId, content);
       console.log(`Message sent successfully:`, sentMessage);
       
@@ -483,10 +660,36 @@ export default function MessagesPage() {
       }, 100);
     } catch (error) {
       console.error('Error sending message:', error);
+        
+        // Reset the message text so the user can try again
+        setMessageText(content);
+        
+        // Show a more descriptive error message
+        let errorMessage = "Please try again later.";
+        if (error instanceof Error) {
+          if (error.message.includes("Conversation ID")) {
+            errorMessage = "Invalid conversation. Please reload the page and try again.";
+          } else if (error.message.includes("premium") || error.message.includes("access")) {
+            errorMessage = "Premium access required to send messages.";
+          } else if (error.message.includes("authenticated") || error.message.includes("login")) {
+            errorMessage = "You must be logged in to send messages.";
+          } else {
+            errorMessage = error.message;
+          }
+        }
+        
       toast({
         variant: "destructive",
         title: "Failed to send message",
-        description: "Please try again later."
+          description: errorMessage
+        });
+      }
+    } catch (error) {
+      console.error('Error in message validation:', error);
+      toast({
+        variant: "destructive",
+        title: "Failed to process message",
+        description: "An unexpected error occurred. Please try again."
       });
     }
   };
@@ -622,9 +825,34 @@ export default function MessagesPage() {
       };
       
       console.log("Creating session without message ID first");
+      
+      // Get CSRF token
+      let csrfToken = getCsrfTokenFromStorage();
+      if (!csrfToken) {
+        console.log("CSRF token not found, fetching a new one...");
+        try {
+          // Try to fetch a new token
+          csrfToken = await fetchCsrfToken();
+          if (!csrfToken) {
+            throw new Error("Failed to fetch CSRF token");
+          }
+        } catch (tokenError) {
+          console.error("Error fetching CSRF token:", tokenError);
+          toast({
+            title: "Error",
+            description: "Security token missing. Please try refreshing the page.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+      
       const sessionResponse = await fetch("/api/tutoring-sessions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          [CSRF_HEADER_NAME]: csrfToken
+        },
         body: JSON.stringify(sessionRequest),
         credentials: 'include'
       });
@@ -693,7 +921,10 @@ export default function MessagesPage() {
       console.log("Updating session with message ID:", sentMessage.id);
       const updateResponse = await fetch("/api/tutoring-sessions", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          [CSRF_HEADER_NAME]: csrfToken // Use the same CSRF token from earlier
+        },
         body: JSON.stringify({
           session_id: session.id,
           action: "update_message_id",
@@ -1110,8 +1341,18 @@ export default function MessagesPage() {
     const loadMessages = async () => {
       try {
         // Check if this is a temporary conversation
-        if (isTempConversation(selectedConversationId)) {
-          console.log(`Not fetching messages for temporary conversation: ${selectedConversationId}`);
+        const isTemp = isTempConversation(selectedConversationId);
+        if (isTemp) {
+          console.log(`Temporary conversation selected: ${selectedConversationId}, not fetching messages from API`);
+          // Don't return early, we still want to mark this conversation as loaded
+          // And we want to make sure we have an empty array initialized for this conversation
+          if (!messages[selectedConversationId]) {
+            console.log(`Initializing empty messages array for temporary conversation: ${selectedConversationId}`);
+            // Initialize an empty array for this temporary conversation if it doesn't exist yet
+            if (isMounted.current) {
+              loadedConversationsRef.current.add(selectedConversationId);
+            }
+          }
           return;
         }
 
@@ -1124,35 +1365,24 @@ export default function MessagesPage() {
         fetchInProgressRef.current[selectedConversationId] = true;
         
         // Check if we already have messages for this conversation
-        // Only fetch if we don't have messages or if it's a forced refresh
-        const hasExistingMessages = getStableMessages(selectedConversationId).length > 0;
+        // Always fetch messages when the selected conversation changes to ensure we have the latest data
+        console.log(`Loading messages for conversation: ${selectedConversationId}`);
         
-        if (!hasExistingMessages) {
-          console.log(`Loading messages for conversation: ${selectedConversationId}`);
+        try {
+          // Load the messages
+          await refreshMessages(selectedConversationId);
           
-          try {
-            // Load the messages
-            await refreshMessages(selectedConversationId);
-            
-            // Mark this conversation as loaded
-            if (isMounted.current) {
-              loadedConversationsRef.current.add(selectedConversationId);
-              
-              // Mark as read after loading messages - this is a selected conversation
-              if (isMounted.current) {
-                markConversationAsRead(selectedConversationId);
-              }
-            }
-          } catch (error) {
-            console.error(`Error loading messages:`, error);
-          }
-        } else {
-          console.log(`Using existing messages for conversation: ${selectedConversationId}`);
-          
-          // Still mark as read when selecting a conversation with existing messages
+          // Mark this conversation as loaded
           if (isMounted.current) {
-            markConversationAsRead(selectedConversationId);
+            loadedConversationsRef.current.add(selectedConversationId);
+            
+            // Mark as read after loading messages - this is a selected conversation
+            if (isMounted.current) {
+              markConversationAsRead(selectedConversationId);
+            }
           }
+        } catch (error) {
+          console.error(`Error loading messages:`, error);
         }
       } catch (error) {
         console.error(`Error loading messages for conversation ${selectedConversationId}:`, error);
@@ -1173,7 +1403,7 @@ export default function MessagesPage() {
       // Mark component as unmounted to prevent state updates after unmount
       isMounted.current = false;
     };
-  }, [selectedConversationId, refreshMessages, markConversationAsRead, getStableMessages, isTempConversation]);
+  }, [selectedConversationId, refreshMessages, markConversationAsRead, getStableMessages, isTempConversation, messages]);
 
   // Check if current conversation is temporary
   const isCurrentConversationTemp = selectedConversationId ? 
@@ -1230,7 +1460,7 @@ export default function MessagesPage() {
                   When you message a tutor, your conversations will appear here
                 </p>
                 <Button asChild size="sm" className="bg-primary hover:bg-primary/90 shadow-sm">
-                  <Link href="/tutors">Find Tutors</Link>
+                  <Link href="/tutors">Find Experts</Link>
                 </Button>
               </div>
             ) : (
@@ -1248,8 +1478,12 @@ export default function MessagesPage() {
                         // Set selected conversation ID first
                         setSelectedConversationId(convo.id);
                         
-                        // Check if conversation has unread messages before trying to mark as read
-                        if (hasUnreadMessages(convo.id)) {
+                        // Update URL without full page refresh to prevent reloading all conversations
+                        // Use router.replace instead of window.history.replaceState for more reliable navigation
+                        router.replace(`/dashboard/messages?conversationId=${convo.id}`, { scroll: false });
+                        
+                        // Check if this is a temporary conversation before trying to mark as read
+                        if (!isTempConversation(convo.id) && hasUnreadMessages(convo.id)) {
                           console.log(`Conversation ${convo.id} has unread messages, marking as read`);
                           markConversationAsRead(convo.id)
                             .then((success: any) => {
@@ -1262,8 +1496,7 @@ export default function MessagesPage() {
                             });
                         }
                       }
-                    }}
-                  >
+                    }}>
                     {selectedConversationId === convo.id && (
                       <div style={activeConversationBeforeStyle}></div>
                     )}
@@ -1290,8 +1523,8 @@ export default function MessagesPage() {
                         </div>
                         <div className="flex justify-between items-center mt-1">
                           <p className="text-xs text-muted-foreground truncate max-w-[160px]">
-                            {formatMessagePreview(convo.last_message)}
-                          </p>
+                              {formatMessagePreview(convo.last_message)}
+                            </p>
                           {isUserTyping(convo.id) ? (
                             <span className="text-xs text-primary flex items-center gap-1">
                               <span className="flex space-x-1">
@@ -1518,8 +1751,10 @@ export default function MessagesPage() {
                         const associatedSession = sessions.find(s => s.message_id === message.id);
                         
                         // Check if message is a session request - ONLY use the associated session
-                        // Do NOT check message content
-                        const isSessionRequest = message.isSessionRequest || Boolean(associatedSession);
+                        // Also check the sessionRequest property from the message
+                        const isSessionRequest = message.isSessionRequest || 
+                                               Boolean(associatedSession) || 
+                                               Boolean(message.sessionRequest);
                         
                         // Create a temporary session object for session request messages without a session
                         let sessionData = associatedSession;
@@ -1533,7 +1768,11 @@ export default function MessagesPage() {
                           let title = defaultTitle;
                           let scheduledFor = defaultScheduledFor;
                           
-                          if (message.content) {
+                          if (message.sessionRequest) {
+                            // Use the session request data from the message if available
+                            title = message.sessionRequest.title || defaultTitle;
+                            scheduledFor = message.sessionRequest.scheduledFor || defaultScheduledFor;
+                          } else if (message.content) {
                             try {
                               const parsed = parseSessionRequest(message.content);
                               // Only use parsed values if they're meaningful
@@ -1565,7 +1804,7 @@ export default function MessagesPage() {
                             messageElementRefs.current[message.id] = el;
                           }
                         };
-
+                        
                         return (
                           <div key={uniqueMessageKey} ref={setMessageRef}>
                             {/* Date header shown when date changes */}
@@ -1582,42 +1821,42 @@ export default function MessagesPage() {
                               {/* For normal messages */}
                               {!isSessionRequest && !associatedSession && (
                                 <div className="flex items-end gap-2 max-w-[85%]">
-                                  {!isFromMe && (
+                                {!isFromMe && (
                                     <Avatar className="h-7 w-7 border border-border/40 shadow-sm">
                                       <AvatarImage src={message.sender?.avatar_url || undefined} alt={message.sender?.display_name || 'User'} />
                                       <AvatarFallback className="text-xs bg-primary/10 text-primary">
                                         {message.sender?.display_name?.charAt(0) || '?'}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                  )}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                )}
                                   <div>
                                     <div 
                                       className={`px-4 py-2.5 rounded-2xl ${
-                                        isFromMe 
+                                      isFromMe
                                           ? "bg-primary text-primary-foreground shadow-sm hover:shadow-md transition-shadow" 
                                           : "bg-card dark:bg-card/80 border border-border/40 shadow-sm hover:shadow-md hover:bg-card/90 dark:hover:bg-card/90 transition-all"
-                                      }`}
-                                    >
+                                    }`}
+                                  >
                                       {message.content}
-                                    </div>
+                                  </div>
                                     <div className={`flex items-center text-xs text-muted-foreground mt-1 ${isFromMe ? 'justify-end pr-1' : 'justify-start pl-1'}`}>
                                       {formatMessageTime(message.created_at)}
                                       {isFromMe && (
                                         <span className="ml-1">{renderMessageStatus(message.status)}</span>
                                       )}
-                                    </div>
                                   </div>
-                                  {isFromMe && (
+                                </div>
+                                {isFromMe && (
                                     <Avatar className="h-7 w-7 border border-border/40 shadow-sm">
                                       <AvatarImage src={user.profilePic || undefined} alt={user.name || 'User'} />
                                       <AvatarFallback className="text-xs bg-primary/10 text-primary">
                                         {user.name?.charAt(0) || 'U'}
                                       </AvatarFallback>
-                                    </Avatar>
-                                  )}
-                                </div>
-                              )}
-                            
+                                  </Avatar>
+                                )}
+                              </div>
+                            )}
+
                               {/* Special handling for session request messages */}
                               {sessionData && (
                                 <div className="max-w-md w-full">
@@ -1637,9 +1876,9 @@ export default function MessagesPage() {
                                     {isFromMe && message.status && (
                                       <span className="ml-1">{renderMessageStatus(message.status)}</span>
                                     )}
-                                  </div>
-                                </div>
-                              )}
+                            </div>
+                        </div>
+                      )}
                             </div>
                           </div>
                         );
@@ -1658,7 +1897,7 @@ export default function MessagesPage() {
                         Select a conversation from the sidebar to view your messages
                       </p>
                       <Button asChild size="sm" className="bg-primary hover:bg-primary/90 shadow-sm">
-                        <Link href="/tutors">Find Tutors</Link>
+                        <Link href="/tutors">Find Experts</Link>
                       </Button>
                     </div>
                   </div>
@@ -1668,8 +1907,8 @@ export default function MessagesPage() {
               {/* Message input */}
               <div className="p-3 border-t border-border/40 bg-card/40 backdrop-blur-sm rounded-br-2xl">
                 <div className="flex items-center gap-2">
-                  <Input
-                    placeholder="Type a message..."
+                  <Input 
+                    placeholder="Type a message..." 
                     value={messageText}
                     onChange={handleInputChange}
                     onKeyDown={(e) => {
@@ -1681,7 +1920,7 @@ export default function MessagesPage() {
                     className="border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 bg-background/80 backdrop-blur-sm transition-all rounded-full"
                   />
                   <Button 
-                    onClick={handleSendMessage} 
+                    onClick={handleSendMessage}
                     disabled={!messageText.trim() || isCurrentConversationTemp && messageText.trim().length < 2}
                     className="bg-primary hover:bg-primary/90 shadow-sm hover:shadow-md transition-all rounded-full"
                     size="icon"
@@ -1702,7 +1941,7 @@ export default function MessagesPage() {
                   Select a conversation from the sidebar to view your messages
                 </p>
                 <Button asChild size="sm" className="bg-primary hover:bg-primary/90 shadow-sm">
-                  <Link href="/tutors">Find Tutors</Link>
+                  <Link href="/tutors">Find Experts</Link>
                 </Button>
               </div>
             </div>

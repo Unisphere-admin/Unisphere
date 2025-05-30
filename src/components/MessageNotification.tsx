@@ -87,35 +87,35 @@ export function MessageNotification() {
             });
           } else {
             // For recipients, only show if not already viewing this conversation
-            if (isOnMessagesPage && selectedConversationId === messageData.conversation_id) {
+          if (isOnMessagesPage && selectedConversationId === messageData.conversation_id) {
               console.log("Skipping recipient notification - already viewing conversation", messageData.conversation_id);
-              return;
-            }
-            
-            // Update last shown message
-            setLastShownMessageId(messageData.id);
-            
-            // Get sender name with fallback
+            return;
+          }
+          
+          // Update last shown message
+          setLastShownMessageId(messageData.id);
+          
+          // Get sender name with fallback
             const senderName = messageData.sender?.display_name || 
                               (messageData.sender?.first_name && messageData.sender?.last_name ? 
                                `${messageData.sender.first_name} ${messageData.sender.last_name}` : 
                                'Someone');
-            
+          
             // Create the notification for recipient
-            toast({
-              title: `Message from ${senderName}`,
-              description: messageData.content,
-              action: (
-                <ToastAction 
-                  altText="View" 
-                  onClick={() => { 
-                    router.push(`/dashboard/messages?conversationId=${messageData.conversation_id}`);
-                  }}
-                >
-                  View
-                </ToastAction>
-              ),
-            });
+          toast({
+            title: `Message from ${senderName}`,
+            description: messageData.content,
+            action: (
+              <ToastAction 
+                altText="View" 
+                onClick={() => { 
+                  router.push(`/dashboard/messages?conversationId=${messageData.conversation_id}`);
+                }}
+              >
+                View
+              </ToastAction>
+            ),
+          });
           }
           
           // Clear from localStorage to prevent duplicates

@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
   try {
     // Create a Supabase client with the correct API
     const supabase = await createRouteHandlerClientWithCookies();
-
+    
     // Check if user is authenticated first
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     // Sign out from Supabase Auth
     const { error } = await supabase.auth.signOut();
-
+    
     if (error) {
       console.error('Error signing out from Supabase:', error);
       return NextResponse.json({ error: error.message, status: "error" }, { status: 500 });

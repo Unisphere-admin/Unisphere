@@ -50,16 +50,16 @@ export function getInitials(profile: TutorProfile | StudentProfile | User | null
   return '';
 }
 
-export function getAvatarUrl(profile: TutorProfile | StudentProfile | User | null | undefined): string {
-  if (!profile) return '/placeholder.svg';
+export function getAvatarUrl(profile: TutorProfile | StudentProfile | User | null | undefined): string | null {
+  if (!profile) return null;
   
   // For profiles with avatar_url
   if ('avatar_url' in profile && profile.avatar_url) {
     // Validate and format the URL
     const avatarUrl = profile.avatar_url.trim();
     
-    // If empty after trimming, return placeholder
-    if (!avatarUrl) return '/placeholder.svg';
+    // If empty after trimming, return null to trigger fallback
+    if (!avatarUrl) return null;
     
     // If it's a relative path without leading slash, add one
     if (!avatarUrl.startsWith('http') && !avatarUrl.startsWith('/') && !avatarUrl.startsWith('data:')) {
@@ -69,6 +69,6 @@ export function getAvatarUrl(profile: TutorProfile | StudentProfile | User | nul
     return avatarUrl;
   }
   
-  // No avatar URL found
-  return '/placeholder.svg';
+  // No avatar URL found, return null to trigger fallback
+  return null;
 }

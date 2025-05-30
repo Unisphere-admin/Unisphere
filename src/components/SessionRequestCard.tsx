@@ -35,6 +35,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { SessionLink } from "@/components/SessionLink";
+import { getCsrfTokenFromStorage, CSRF_HEADER_NAME, useCsrfToken } from '@/lib/csrf/client';
 
 interface SessionRequestCardProps {
   messageId: string;
@@ -85,6 +86,7 @@ export function SessionRequestCard({
   const { sessions, refreshSessions } = useSessions();
   const { subscribeToConversation } = useRealtime();
   const { toast } = useToast();
+  const { fetchCsrfToken } = useCsrfToken();
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -127,6 +129,14 @@ export function SessionRequestCard({
           return;
         }
         
+        // First check the props for session details
+        // If title starts with "Session Request:", it's likely from a tutor
+        if (title && title.includes("Session Request")) {
+          console.log("Setting creator based on session title:", title);
+          // Sessions are typically created by tutors, so set creator as tutor
+          setIsCreatedByTutor(true);
+        }
+        
         const response = await fetch(`/api/messages?conversation_id=${conversationId}`, {
           credentials: 'include'
         });
@@ -142,17 +152,15 @@ export function SessionRequestCard({
           setMessageCreatorId(message.sender_id);
           setMessageContent(message.content);
           
-          // Determine if the message was created by a tutor
-          const messageCreator = message.sender;
-          setIsCreatedByTutor(messageCreator?.is_tutor || false);
-          
-          // We no longer check message content for session request pattern
-          // Instead, we'll rely on the database and sessionId prop
-          // If there's a sessionId, it means there's a valid session
-          
-          // Just store the message content for other uses
-          if (message.content) {
-            setMessageContent(message.content);
+          // Immediate check - if content starts with "Session Request:", it's likely from a tutor
+          if (message.content && message.content.trim().startsWith('Session Request:')) {
+            // Session requests are typically created by tutors
+            const messageCreator = message.sender;
+            setIsCreatedByTutor(messageCreator?.is_tutor || true);
+          } else {
+            // Otherwise use sender info to determine if created by tutor
+            const messageCreator = message.sender;
+            setIsCreatedByTutor(messageCreator?.is_tutor || false);
           }
         }
       } catch (error) {
@@ -163,7 +171,7 @@ export function SessionRequestCard({
     };
     
     fetchMessageDetails();
-  }, [messageId, conversationId, user?.role]);
+  }, [messageId, conversationId, user?.role, title]);
 
   // Fetch session if it doesn't exist yet but should
   useEffect(() => {
@@ -176,6 +184,17 @@ export function SessionRequestCard({
         console.log("Skipping session check for temporary conversation:", conversationId);
         setIsLoading(false);
         return;
+      }
+
+      // Check if the message content indicates this is a session request
+      if (messageContent && messageContent.trim().startsWith('Session Request:')) {
+        // This is definitely a session request, create a pending session placeholder
+        if (!pendingSession) {
+          setPendingSession({
+            title: messageContent.replace(/^Session Request: /, '').trim() || title || "Tutoring Session",
+            scheduledFor: scheduledFor || new Date().toISOString()
+          });
+        }
       }
       
       // Check if there's a session for this message in the database
@@ -219,40 +238,67 @@ export function SessionRequestCard({
       // We already have a session ID or don't need one
       setIsLoading(false);
     }
-  }, [messageId, conversationId, sessionId, refreshSessions]);
+  }, [messageId, conversationId, sessionId, refreshSessions, messageContent, title, scheduledFor]);
 
-  // Handle accepting a session request (for tutors)
+  // Try to determine the creator based on the session request object directly
+  useEffect(() => {
+    // If we already have a session request object from props, use it to determine creator
+    if (messageContent?.trim().startsWith('Session Request:') && isCreatedByTutor === null) {
+      // Session requests are typically created by tutors
+      console.log("Setting isCreatedByTutor based on message content pattern");
+      setIsCreatedByTutor(true);
+    }
+  }, [messageContent, isCreatedByTutor]);
+
+  // Handle accepting a session
   const handleAcceptSession = async () => {
-    if (!conversationId || !messageId || !user) return;
+    if (!conversationId || (!messageId && !sessionId) || !user) return;
+    
+    // Check if this is a temporary conversation ID first
+    const isTempConversation = conversationId.startsWith('temp-');
+    if (isTempConversation) {
+      console.error("Cannot manage session with temporary conversation ID");
+      toast({
+        title: "Action Required",
+        description: "Please send a message first to create a real conversation before managing sessions.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setLoading(true);
-    try {
-      // Check if this is a temporary conversation ID first
-      const isTempConversation = conversationId.startsWith('temp-');
-      if (isTempConversation) {
-        console.error("Cannot create session with temporary conversation ID");
-        toast({
-          title: "Action Required",
-          description: "Please send a message first to create a real conversation before scheduling a session.",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-      
-      // Log the user information for debugging
-      console.log("User accepting session:", {
-        userId: user.id,
-        role: user.role,
-        isTutor,
-        tokens: user.tokens
-      });
 
+    // Get CSRF token for API requests - force fetch a fresh token
+    let csrfToken: string | null = null;
+    try {
+      console.log("Fetching a fresh CSRF token for session acceptance...");
+      csrfToken = await fetchCsrfToken(true); // Force fetch a new token
+      
+      if (!csrfToken) {
+        throw new Error("Failed to fetch CSRF token");
+      }
+      console.log("Successfully fetched fresh CSRF token");
+    } catch (tokenError) {
+      console.error("Error fetching CSRF token:", tokenError);
+      toast({
+        title: "Security Error",
+        description: "Unable to verify your security token. Please refresh the page and try again.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+    
+    try {
       if (sessionId) {
-        // If sessionId already exists, we just need to update the status to 'accepted'
+        // Update existing session to accepted
+        console.log(`Accepting session ${sessionId} with CSRF token: ${csrfToken?.substring(0, 6)}...`);
         const response = await fetch("/api/tutoring-sessions", {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json", 
+            [CSRF_HEADER_NAME]: csrfToken
+          },
           body: JSON.stringify({
             session_id: sessionId,
             action: "update_status",
@@ -263,19 +309,16 @@ export function SessionRequestCard({
         
         if (!response.ok) {
           const errorData = await response.json();
-          console.error("Session acceptance error:", errorData);
+          console.error("Error accepting session:", errorData);
           
           // Enhanced token-related error detection
           const errorMessage = errorData.error || "Failed to accept session";
-          const errorLower = errorMessage.toLowerCase();
-          if (
-            errorLower.includes("token") || 
-            errorLower.includes("insufficient") ||
-            errorLower.includes("enough") ||
-            errorLower.includes("credit")
-          ) {
+          if (errorMessage.toLowerCase().includes("token") || 
+              errorMessage.toLowerCase().includes("csrf") ||
+              errorMessage.toLowerCase().includes("insufficient") ||
+              errorMessage.toLowerCase().includes("enough")) {
             toast({
-              title: "Insufficient Tokens",
+              title: errorMessage.toLowerCase().includes("token") ? "Security Token Error" : "Insufficient Tokens",
               description: errorMessage,
               variant: "destructive",
             });
@@ -289,15 +332,17 @@ export function SessionRequestCard({
         const data = await response.json();
         console.log("Session accepted successfully:", data.session);
       } else {
-        // Otherwise, we need to create a new session
-        // First, get the other participant ID from the conversation
+        // Need to fetch conversation first to get participants
         const conversationResponse = await fetch(`/api/conversations?conversation_id=${conversationId}`, {
+          headers: {
+            [CSRF_HEADER_NAME]: csrfToken
+          },
           credentials: 'include'
         });
         
         if (!conversationResponse.ok) {
           const errorText = await conversationResponse.text();
-          console.error(`Failed to fetch conversation details: ${errorText}`);
+          console.error(`Failed to fetch conversation: ${errorText}`);
           throw new Error("Failed to fetch conversation details");
         }
         
@@ -305,7 +350,7 @@ export function SessionRequestCard({
         const conversation = conversationData.conversation;
         
         if (!conversation) {
-          console.error("No conversation returned:", conversationData);
+          console.error("Conversation not found:", conversationData);
           throw new Error("Conversation not found");
         }
         
@@ -315,15 +360,15 @@ export function SessionRequestCard({
         );
         
         if (!otherParticipant) {
-          console.error("Participants in conversation:", conversation.participants);
+          console.error("Participants:", conversation.participants);
           throw new Error("Could not identify the other participant");
         }
         
         // Determine tutor and student IDs
-        const tutorId = isTutor ? user.id : otherParticipant.user_id;
-        const studentId = isTutor ? otherParticipant.user_id : user.id;
+        const tutorId = user.role === "tutor" ? user.id : otherParticipant.user_id;
+        const studentId = user.role === "tutor" ? otherParticipant.user_id : user.id;
         
-        console.log("Creating session with:", {
+        console.log("Creating accepted session with:", {
           conversationId,
           messageId,
           tutorId,
@@ -332,10 +377,13 @@ export function SessionRequestCard({
           scheduledFor
         });
         
-        // Create the session
+        // Create the session with accepted status
         const sessionResponse = await fetch("/api/tutoring-sessions", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            [CSRF_HEADER_NAME]: csrfToken
+          },
           body: JSON.stringify({
             conversation_id: conversationId,
             message_id: messageId,
@@ -350,19 +398,16 @@ export function SessionRequestCard({
         
         if (!sessionResponse.ok) {
           const errorData = await sessionResponse.json();
-          console.error("Session creation failed:", errorData);
+          console.error("Error creating session:", errorData);
           
           // Enhanced token-related error detection
           const errorMessage = errorData.error || "Failed to create session";
-          const errorLower = errorMessage.toLowerCase();
-          if (
-            errorLower.includes("token") || 
-            errorLower.includes("insufficient") ||
-            errorLower.includes("enough") ||
-            errorLower.includes("credit")
-          ) {
+          if (errorMessage.toLowerCase().includes("token") || 
+              errorMessage.toLowerCase().includes("csrf") ||
+              errorMessage.toLowerCase().includes("insufficient") ||
+              errorMessage.toLowerCase().includes("enough")) {
             toast({
-              title: "Insufficient Tokens",
+              title: errorMessage.toLowerCase().includes("token") ? "Security Token Error" : "Insufficient Tokens",
               description: errorMessage,
               variant: "destructive",
             });
@@ -375,24 +420,19 @@ export function SessionRequestCard({
         
         const sessionData = await sessionResponse.json();
         console.log("Session created successfully:", sessionData.session);
-        
-        if (!sessionData.session || !sessionData.session.id) {
-          console.error("No session ID returned:", sessionData);
-          throw new Error("Session was not properly created");
-        }
       }
       
       // No need to manually refresh sessions - realtime updates will handle this
       
       toast({
         title: "Session accepted",
-        description: "The tutoring session has been confirmed",
+        description: "The tutoring session has been accepted",
       });
     } catch (error) {
       console.error("Error accepting session:", error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to accept session",
+        description: error instanceof Error ? error.message : "Failed to accept the session",
         variant: "destructive",
       });
     } finally {
@@ -400,55 +440,78 @@ export function SessionRequestCard({
     }
   };
 
-  // Handle ready status toggle
+  // Handle ready toggle
   const handleReadyToggle = async () => {
-    if (!sessionId) return;
+    if (!sessionId || !user) return;
     
-    // Check if this is a temporary conversation ID first
-    const isTempConversation = conversationId.startsWith('temp-');
-    if (isTempConversation) {
-      console.error("Cannot update session with temporary conversation ID");
+    setUpdating(true);
+
+    // Get CSRF token for API requests - force fetch a fresh token
+    let csrfToken: string | null = null;
+    try {
+      console.log("Fetching a fresh CSRF token for ready toggle...");
+      csrfToken = await fetchCsrfToken(true); // Force fetch a new token
+      
+      if (!csrfToken) {
+        throw new Error("Failed to fetch CSRF token");
+      }
+      console.log("Successfully fetched fresh CSRF token");
+    } catch (tokenError) {
+      console.error("Error fetching CSRF token:", tokenError);
       toast({
-        title: "Action Required",
-        description: "Please send a message first to create a real conversation before managing sessions.",
+        title: "Security Error",
+        description: "Unable to verify your security token. Please refresh the page and try again.",
         variant: "destructive",
       });
+      setUpdating(false);
       return;
     }
-
-    setUpdating(true);
+    
     try {
-      const currentStatus = isTutor ? tutorReady : studentReady;
+      // Determine the current ready state based on user role
+      const isCurrentlyReady = user.role === "tutor" ? tutorReady : studentReady;
+      const newReadyState = !isCurrentlyReady;
       
+      console.log(`Toggling ready state from ${isCurrentlyReady} to ${newReadyState} for ${user.role}`);
+      console.log(`Using CSRF token: ${csrfToken?.substring(0, 6)}...`);
+      
+      // Update session ready status
       const response = await fetch("/api/tutoring-sessions", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          [CSRF_HEADER_NAME]: csrfToken
+        },
         body: JSON.stringify({
           session_id: sessionId,
           action: "set_ready",
-          is_ready: !currentStatus
+          is_ready: newReadyState
         }),
         credentials: 'include'
       });
       
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("Error updating ready status:", errorData);
         throw new Error(errorData.error || "Failed to update ready status");
       }
+      
+      const data = await response.json();
+      console.log("Ready status updated successfully:", data.session);
       
       // No need to manually refresh sessions - realtime updates will handle this
       
       toast({
-        title: currentStatus ? "Not Ready" : "Ready",
-        description: currentStatus 
-          ? "You've marked yourself as not ready for the session" 
-          : "You're ready for the session",
+        title: newReadyState ? "You're ready" : "Ready status removed",
+        description: newReadyState 
+          ? "You've marked yourself as ready for this session" 
+          : "You've removed your ready status",
       });
     } catch (error) {
       console.error("Error updating ready status:", error);
       toast({
         title: "Error",
-        description: "Failed to update ready status",
+        description: error instanceof Error ? error.message : "Failed to update ready status",
         variant: "destructive",
       });
     } finally {
@@ -458,25 +521,40 @@ export function SessionRequestCard({
 
   // Handle starting a session
   const handleStartSession = async () => {
-    if (!sessionId) return;
+    if (!sessionId || !user) return;
     
-    // Check if this is a temporary conversation ID first
-    const isTempConversation = conversationId.startsWith('temp-');
-    if (isTempConversation) {
-      console.error("Cannot start session with temporary conversation ID");
+    setLoading(true);
+
+    // Get CSRF token for API requests - force fetch a fresh token
+    let csrfToken: string | null = null;
+    try {
+      console.log("Fetching a fresh CSRF token for starting session...");
+      csrfToken = await fetchCsrfToken(true); // Force fetch a new token
+      
+      if (!csrfToken) {
+        throw new Error("Failed to fetch CSRF token");
+      }
+      console.log("Successfully fetched fresh CSRF token");
+    } catch (tokenError) {
+      console.error("Error fetching CSRF token:", tokenError);
       toast({
-        title: "Action Required",
-        description: "Please send a message first to create a real conversation before starting sessions.",
+        title: "Security Error",
+        description: "Unable to verify your security token. Please refresh the page and try again.",
         variant: "destructive",
       });
+      setLoading(false);
       return;
     }
     
-    setLoading(true);
     try {
+      console.log(`Starting session ${sessionId} with CSRF token: ${csrfToken?.substring(0, 6)}...`);
+      // Update session status to started
       const response = await fetch("/api/tutoring-sessions", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          [CSRF_HEADER_NAME]: csrfToken
+        },
         body: JSON.stringify({
           session_id: sessionId,
           action: "update_status",
@@ -487,18 +565,24 @@ export function SessionRequestCard({
       
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("Error starting session:", errorData);
         throw new Error(errorData.error || "Failed to start session");
       }
       
+      const data = await response.json();
+      console.log("Session started successfully:", data.session);
+      
       // No need to manually refresh sessions - realtime updates will handle this
       
-      // Navigate to the session page
-      window.location.href = `/session/${sessionId}`;
+      toast({
+        title: "Session started",
+        description: "The tutoring session has started",
+      });
     } catch (error) {
       console.error("Error starting session:", error);
       toast({
         title: "Error",
-        description: "Failed to start the session",
+        description: error instanceof Error ? error.message : "Failed to start the session",
         variant: "destructive",
       });
     } finally {
@@ -508,35 +592,40 @@ export function SessionRequestCard({
 
   // Handle ending a session
   const handleEndSession = async () => {
-    if (!sessionId) return;
-    
-    // Check if this is a temporary conversation ID first
-    const isTempConversation = conversationId.startsWith('temp-');
-    if (isTempConversation) {
-      console.error("Cannot end session with temporary conversation ID");
-      toast({
-        title: "Action Required",
-        description: "Please send a message first to create a real conversation before ending sessions.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // Only tutors can end sessions
-    if (!isTutor) {
-      toast({
-        title: "Permission Denied",
-        description: "Only tutors can end active sessions.",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!sessionId || !user) return;
     
     setLoading(true);
+
+    // Get CSRF token for API requests - force fetch a fresh token
+    let csrfToken: string | null = null;
     try {
+      console.log("Fetching a fresh CSRF token for ending session...");
+      csrfToken = await fetchCsrfToken(true); // Force fetch a new token
+      
+      if (!csrfToken) {
+        throw new Error("Failed to fetch CSRF token");
+      }
+      console.log("Successfully fetched fresh CSRF token");
+    } catch (tokenError) {
+      console.error("Error fetching CSRF token:", tokenError);
+      toast({
+        title: "Security Error",
+        description: "Unable to verify your security token. Please refresh the page and try again.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      console.log(`Ending session ${sessionId} with CSRF token: ${csrfToken?.substring(0, 6)}...`);
+      // Update session status to ended
       const response = await fetch("/api/tutoring-sessions", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          [CSRF_HEADER_NAME]: csrfToken
+        },
         body: JSON.stringify({
           session_id: sessionId,
           action: "update_status",
@@ -547,6 +636,7 @@ export function SessionRequestCard({
       
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("Error ending session:", errorData);
         throw new Error(errorData.error || "Failed to end session");
       }
       
@@ -585,12 +675,39 @@ export function SessionRequestCard({
     }
     
     setLoading(true);
+    setShowCancelDialog(false);
+
+    // Get CSRF token for API requests - force fetch a fresh token
+    let csrfToken: string | null = null;
+    try {
+      console.log("Fetching a fresh CSRF token for session cancellation...");
+      csrfToken = await fetchCsrfToken(true); // Force fetch a new token
+      
+      if (!csrfToken) {
+        throw new Error("Failed to fetch CSRF token");
+      }
+      console.log("Successfully fetched fresh CSRF token");
+    } catch (tokenError) {
+      console.error("Error fetching CSRF token:", tokenError);
+      toast({
+        title: "Security Error",
+        description: "Unable to verify your security token. Please refresh the page and try again.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+    
     try {
       if (sessionId) {
         // Update existing session to cancelled
+        console.log(`Cancelling session ${sessionId} with CSRF token: ${csrfToken?.substring(0, 6)}...`);
         const response = await fetch("/api/tutoring-sessions", {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json", 
+            [CSRF_HEADER_NAME]: csrfToken
+          },
           body: JSON.stringify({
             session_id: sessionId,
             action: "update_status",
@@ -606,10 +723,11 @@ export function SessionRequestCard({
           // Enhanced token-related error detection
           const errorMessage = errorData.error || "Failed to cancel session";
           if (errorMessage.toLowerCase().includes("token") || 
+              errorMessage.toLowerCase().includes("csrf") ||
               errorMessage.toLowerCase().includes("insufficient") ||
               errorMessage.toLowerCase().includes("enough")) {
             toast({
-              title: "Insufficient Tokens",
+              title: errorMessage.toLowerCase().includes("token") ? "Security Token Error" : "Insufficient Tokens",
               description: errorMessage,
               variant: "destructive",
             });
@@ -625,6 +743,9 @@ export function SessionRequestCard({
       } else {
         // Create a new session with cancelled status
         const conversationResponse = await fetch(`/api/conversations?conversation_id=${conversationId}`, {
+          headers: {
+            [CSRF_HEADER_NAME]: csrfToken
+          },
           credentials: 'include'
         });
         
@@ -668,7 +789,10 @@ export function SessionRequestCard({
         // Create the session with cancelled status
         const sessionResponse = await fetch("/api/tutoring-sessions", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            [CSRF_HEADER_NAME]: csrfToken
+          },
           body: JSON.stringify({
             conversation_id: conversationId,
             message_id: messageId,
@@ -688,10 +812,11 @@ export function SessionRequestCard({
           // Enhanced token-related error detection
           const errorMessage = errorData.error || "Failed to cancel session";
           if (errorMessage.toLowerCase().includes("token") || 
+              errorMessage.toLowerCase().includes("csrf") ||
               errorMessage.toLowerCase().includes("insufficient") ||
               errorMessage.toLowerCase().includes("enough")) {
             toast({
-              title: "Insufficient Tokens",
+              title: errorMessage.toLowerCase().includes("token") ? "Security Token Error" : "Insufficient Tokens",
               description: errorMessage,
               variant: "destructive",
             });
@@ -767,24 +892,31 @@ export function SessionRequestCard({
   // Generate message link for the session
   const messageLink = getMessageLink(conversationId, messageId);
 
-  // Determine who should see the accept button
-  // If tutor created session request - student should see accept button
-  // If student created session request - tutor should see accept button
+  // Update shouldShowAcceptButton to be more optimistic
   const shouldShowAcceptButton = () => {
-    // Don't show accept button if still loading or no session data is available yet
-    if (isLoading || isCreatedByTutor === null) return false;
-    
-    // Only show the accept button if we have a valid sessionId
-    // This prevents showing the button until the message is properly connected to a session
-    if (!sessionId) return false;
-    
-    if (isCreatedByTutor) {
-      // If tutor created it, student should accept
-      return !isTutor;
-    } else {
-      // If student created it, tutor should accept
-      return isTutor;
+    // If we already know whether the creator is a tutor, use that info
+    if (isCreatedByTutor !== null) {
+      // Don't show accept button if there's no session or message to work with
+      if (!sessionId && !messageId) return false;
+      
+      if (isCreatedByTutor) {
+        // If tutor created it, student should accept
+        return !isTutor;
+      } else {
+        // If student created it, tutor should accept
+        return isTutor;
+      }
     }
+    
+    // If we still don't know, but the message content indicates a session request,
+    // make an educated guess based on common patterns
+    if (messageContent && messageContent.trim().startsWith('Session Request:')) {
+      // Session requests are almost always created by tutors, so students should accept
+      return !isTutor;
+    }
+    
+    // If nothing else, don't show the button until we have proper information
+    return false;
   };
 
   // If the session is cancelled, render the cancelled card
@@ -835,7 +967,14 @@ export function SessionRequestCard({
   }
 
   // If we're in a pending state (detected session request but no session ID yet)
-  if (!sessionId && pendingSession && !isLoading) {
+  if (!sessionId && (pendingSession || (messageContent && messageContent.trim().startsWith('Session Request:')))) {
+    // Either we have an explicit pendingSession or we've detected this is a session request from content
+    // Create a placeholder session if needed
+    const placeholderSession = pendingSession || {
+      title: title || messageContent?.replace(/^Session Request: /, '').trim() || "Tutoring Session",
+      scheduledFor: scheduledFor || new Date().toISOString()
+    };
+    
     // We've detected this is likely a session request message, show placeholder card
     return (
       <Card className="bg-slate-50 border border-slate-200 shadow-sm dark:bg-slate-900/50 dark:border-slate-800 animate-pulse">
@@ -844,14 +983,14 @@ export function SessionRequestCard({
             <Calendar className="h-5 w-5 text-blue-600 mt-0.5" />
             <div className="flex-1">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-medium text-base">{pendingSession.title}</h3>
+                <h3 className="font-medium text-base">{placeholderSession.title}</h3>
                 <Badge variant="outline" className="text-blue-600 border-blue-400 bg-blue-50 dark:bg-blue-950/30 dark:text-blue-300 rounded-full px-4 py-0.5 font-medium">
-                  Loading...
+                  {isLoading ? "Loading..." : "Requested"}
                 </Badge>
               </div>
               <div className="flex items-center text-sm text-muted-foreground">
                 <Clock className="h-4 w-4 mr-1.5 text-muted-foreground/70" />
-                <span>{format(parseISO(pendingSession.scheduledFor), "EEE, MMM d, h:mm a")}</span>
+                <span>{format(parseISO(placeholderSession.scheduledFor), "EEE, MMM d, h:mm a")}</span>
               </div>
               <div className="flex items-center text-sm text-muted-foreground mt-1">
                 <span className="font-medium">
@@ -863,10 +1002,28 @@ export function SessionRequestCard({
                 </span>
               </div>
               <div className="mt-3 text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>Loading session...</span>
-                </div>
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>Loading session...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    {shouldShowAcceptButton() ? (
+                      <Button 
+                        variant="default" 
+                        size="sm" 
+                        onClick={handleAcceptSession}
+                        disabled={loading || isLoading}
+                      >
+                        {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                        Accept
+                      </Button>
+                    ) : (
+                      <span>{isTutor ? "Waiting for student to accept..." : "Waiting for tutor to accept..."}</span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
