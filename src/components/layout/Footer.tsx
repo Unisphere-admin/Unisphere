@@ -31,7 +31,7 @@ const Footer = () => {
               <span className="text-xl font-bold tracking-tight">Unisphere</span>
             </Link>
             <p className="mt-4 text-muted-foreground text-sm leading-relaxed">
-              Connecting students with expert tutors for personalized learning experiences. Find the perfect match for your educational journey.
+            Your all-in-one UK & US University preparation platform
             </p>
             <div className="mt-5 flex space-x-3">
               <Button variant="outline" size="icon" className="rounded-full h-9 w-9 shadow-sm border-border/40 hover:bg-primary/10 hover:text-primary hover:border-primary/20">
@@ -55,15 +55,9 @@ const Footer = () => {
           <div>
             <h3 className="text-base font-semibold mb-4 flex items-center gap-1.5">
               <span className="w-1 h-5 bg-primary/50 rounded-full"></span>
-              Quick Links
+              Resources
             </h3>
             <ul className="space-y-3">
-              <li>
-                <Link href="/" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
-                  <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
-                  <span className="transition-colors">Home</span>
-                </Link>
-              </li>
               <li>
                 <Link href="/about" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
                   <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
@@ -73,7 +67,7 @@ const Footer = () => {
               <li>
                 <Link href="/tutors" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
                   <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
-                  <span className="transition-colors">Find Experts</span>
+                  <span className="transition-colors">Browse Tutors</span>
                 </Link>
               </li>
               <li>
@@ -100,31 +94,37 @@ const Footer = () => {
               <li>
                 <a href="#" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
                   <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
-                  <span className="transition-colors">Mathematics</span>
+                  <span className="transition-colors">UK University Admissions</span>
                 </a>
               </li>
               <li>
                 <a href="#" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
                   <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
-                  <span className="transition-colors">Science</span>
+                  <span className="transition-colors">US University Admissions</span>
                 </a>
               </li>
               <li>
                 <a href="#" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
                   <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
-                  <span className="transition-colors">Languages</span>
+                  <span className="transition-colors">SAT/ACT</span>
                 </a>
               </li>
               <li>
                 <a href="#" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
                   <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
-                  <span className="transition-colors">Humanities</span>
+                  <span className="transition-colors">Extracurricular Building</span>
                 </a>
               </li>
               <li>
                 <a href="#" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
                   <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
-                  <span className="transition-colors">Computer Science</span>
+                  <span className="transition-colors">UK Admissions Tests</span>
+                </a>
+              </li>
+              <li>
+                <a href="#" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
+                  <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
+                  <span className="transition-colors">Subject Tutoring</span>
                 </a>
               </li>
             </ul>
@@ -136,14 +136,6 @@ const Footer = () => {
               Contact Us
             </h3>
             <div className="space-y-4">
-              <div className="flex items-start space-x-3">
-                <div className="mt-0.5 bg-primary/10 p-1.5 rounded-full">
-                  <MapPin className="h-4 w-4 text-primary" strokeWidth={2} />
-                </div>
-                <span className="text-sm text-muted-foreground">
-                  123 Education Street<br />Learning City, 54321
-                </span>
-              </div>
               <div className="flex items-center space-x-3">
                 <div className="bg-primary/10 p-1.5 rounded-full">
                   <Phone className="h-4 w-4 text-primary" strokeWidth={2} />

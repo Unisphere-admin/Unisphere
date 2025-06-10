@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { SessionLink } from "@/components/SessionLink";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Import Recharts components
 import {
@@ -144,8 +145,10 @@ const generateActivityData = (sessions: ActiveSession[]): ActivityData[] => {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { sessions, refreshSessions } = useSessions();
+  const { sessions, refreshSessions, loadingSessions } = useSessions();
   const messageContext = useMessages();
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
   
   // Debug log initial sessions data
   useEffect(() => {
@@ -154,6 +157,23 @@ export default function DashboardPage() {
       console.log("Session statuses:", sessions.map(s => s.status));
     }
   }, []);
+  
+  // Set initial load complete after a short delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setInitialLoadComplete(true);
+      // After initial load delay, continue showing loading if sessions are still loading
+      setLoadingData(loadingSessions);
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, [loadingSessions]);
+  
+  // Update loading state when loadingSessions changes
+  useEffect(() => {
+    if (!initialLoadComplete) return;
+    setLoadingData(loadingSessions);
+  }, [loadingSessions, initialLoadComplete]);
   
   // Derived state
   const [activityData, setActivityData] = useState<ActivityData[]>([]);
@@ -296,6 +316,54 @@ export default function DashboardPage() {
     
     return "Scheduled";
   };
+
+  // Show loading skeleton during initial load
+  if ((loadingData || !initialLoadComplete) && (!sessions || sessions.length === 0)) {
+    return (
+      <div className="space-y-8 relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background pointer-events-none -z-10"></div>
+        
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
+            <p className="text-muted-foreground mt-1">
+              {user?.name ? user.name.split(' ')[0] : 'User'}, here's an overview of your learning journey
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-10 w-24" />
+            <Skeleton className="h-10 w-24" />
+          </div>
+        </div>
+
+        {/* Stats loading skeletons */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Skeleton className="h-[140px] w-full rounded-xl" />
+          <Skeleton className="h-[140px] w-full rounded-xl" />
+          <Skeleton className="h-[140px] w-full rounded-xl" />
+        </div>
+        
+        {/* Activity chart skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Skeleton className="h-[300px] w-full rounded-xl" />
+          <Skeleton className="h-[300px] w-full rounded-xl" />
+        </div>
+        
+        {/* Sessions skeleton */}
+        <div className="space-y-2">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-primary" />
+            Upcoming Sessions
+          </h2>
+          <div className="space-y-3 mt-3">
+            <Skeleton className="h-[80px] w-full rounded-lg" />
+            <Skeleton className="h-[80px] w-full rounded-lg" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 relative">

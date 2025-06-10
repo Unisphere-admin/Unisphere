@@ -371,8 +371,10 @@ export default function LoginPage() {
         body: JSON.stringify({
           email: sanitizedEmail, 
         password,
+          confirmPassword,
           first_name: sanitizedFirstName, 
-          last_name: sanitizedLastName 
+          last_name: sanitizedLastName,
+          userType: 'student'
         }),
         credentials: 'include',
       });
@@ -456,16 +458,6 @@ export default function LoginPage() {
       </div>
       
       <div className="relative z-10 max-w-md w-full">
-        <div className="mb-8 text-center">
-          <Link href="/" className="mb-6 flex items-center gap-2">
-            <div className="bg-primary/10 p-1.5 rounded-md">
-              <Globe className="h-5 w-5 text-primary" />
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight">Unisphere</h1>
-          </Link>
-          <p className="mt-2 text-muted-foreground text-sm">Learn from the best, anytime, anywhere</p>
-        </div>
-        
         <Card className="border-border/40 shadow-xl backdrop-blur-sm bg-card/95">
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "login" | "signup")} className="w-full">
             <TabsList className="grid grid-cols-2 w-full mb-2 bg-muted/50">
@@ -550,8 +542,8 @@ export default function LoginPage() {
           
             <TabsContent value="signup" className="mt-0 pt-4">
               <CardHeader className="px-6 pb-2">
-                <CardTitle className="text-xl">Create an account</CardTitle>
-                <CardDescription>Enter your details to create a new account</CardDescription>
+                <CardTitle className="text-xl">Create Student Account</CardTitle>
+                <CardDescription>Enter your details to create a new student account</CardDescription>
               </CardHeader>
               <form onSubmit={handleSignup}>
                 <CardContent className="px-6 space-y-4">

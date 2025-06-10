@@ -105,10 +105,9 @@ export function useCsrfToken() {
     try {
       setIsLoading(true);
       
-      // Using a timestamp to bust cache and a random value to prevent collision
-      const timestamp = Date.now();
-      const random = Math.random().toString(36).substring(2, 8);
-      const url = `/api/csrf?t=${timestamp}&r=${random}`;
+      // Add cache-busting parameters
+      const requestId = Math.random().toString(36).substring(2, 15);
+      const url = `/api/csrf?t=${Date.now()}&r=${requestId}`;
       
       console.log(`Fetching fresh CSRF token from ${url}`);
       
@@ -117,57 +116,57 @@ export function useCsrfToken() {
         credentials: 'include',
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
+          'Pragma': 'no-cache',
+          'Expires': '0',
         },
-        // Don't follow redirects automatically
-        redirect: 'manual'
       });
       
-      // Check if we got redirected to login page
-      if (response.type === 'opaqueredirect' || response.status === 307) {
-        console.debug('Redirected to login page, user not authenticated');
-        isLoginPageRef.current = true;
-        failedAttemptsRef.current++;
-        return null;
-      }
-      
       if (!response.ok) {
+        // Check if it's an authentication error (expected for non-logged in users)
+        if (response.status === 401) {
+          // For auth errors, don't show a loud error, just a quiet log message
+          console.log('CSRF token not available - user not authenticated');
+          
+          // Clear any existing token to prevent using an old one
+          clearStoredCsrfToken();
+          
+          throw new Error('Not authenticated');
+        }
+        
+        // For other errors, handle normally
         const errorText = await response.text();
         throw new Error(`Failed to fetch CSRF token: ${response.status} ${errorText}`);
       }
       
-      // Reset counters on success
-      failedAttemptsRef.current = 0;
-      isLoginPageRef.current = false;
-      
       const data = await response.json();
-      // The server sends the token as either token or csrfToken
-      const newToken = data.token || data.csrfToken;
       
-      if (!newToken) {
-        console.error('Token response structure:', data);
-        throw new Error('No token received from server');
+      if (!data.token) {
+        throw new Error('Invalid CSRF token response');
       }
       
-      // Store the token for future requests
-      storeCsrfToken(newToken);
+      // Store the token
+      storeCsrfToken(data.token);
       
       // Only update state if component is still mounted
       if (isMountedRef.current) {
-        setToken(newToken);
+        setToken(data.token);
         lastFetchTimeRef.current = now;
       }
       
-      console.log(`CSRF token fetched successfully: ${newToken.substring(0, 6)}... at ${new Date().toISOString()}`);
-      return newToken;
-    } catch (err) {
-      console.error('Error fetching CSRF token:', err);
+      console.log(`CSRF token fetched successfully: ${data.token.substring(0, 6)}... at ${new Date().toISOString()}`);
+      return data.token;
+    } catch (error) {
+      // Only log detailed errors if they're not authentication-related
+      if (error instanceof Error && error.message !== 'Not authenticated') {
+        console.error('Error fetching CSRF token:', error);
+      }
+      
       failedAttemptsRef.current++;
       
       if (isMountedRef.current) {
-        setError(err instanceof Error ? err : new Error(String(err)));
+        setError(error instanceof Error ? error : new Error(String(error)));
       }
-      return null;
+      throw error;
     } finally {
       if (isMountedRef.current) {
         setIsLoading(false);
@@ -184,7 +183,14 @@ export function useCsrfToken() {
     
     // Initialize token on mount (but not on login page)
     if (!isLoginPageRef.current) {
-      fetchCsrfToken();
+      fetchCsrfToken().catch(err => {
+        // For auth errors, this is expected for non-logged in users
+        if (err instanceof Error && err.message === 'Not authenticated') {
+          console.log('Initialization - User not authenticated for CSRF token');
+        } else {
+          console.error('Error initializing CSRF token:', err);
+        }
+      });
     }
     
     // Set up interval to refresh token
@@ -193,7 +199,12 @@ export function useCsrfToken() {
       if (!isLoginPageRef.current && failedAttemptsRef.current < MAX_RETRY_ATTEMPTS) {
         console.log('Refreshing CSRF token...');
         fetchCsrfToken(true).catch(err => {
+          // For auth errors, this is expected for non-logged in users
+          if (err instanceof Error && err.message === 'Not authenticated') {
+            console.log('Refresh - User not authenticated for CSRF token');
+          } else {
           console.error('Error refreshing CSRF token:', err);
+          }
         });
       }
     }, TOKEN_REFRESH_INTERVAL);

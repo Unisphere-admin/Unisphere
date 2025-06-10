@@ -5,7 +5,8 @@ import { withCsrfProtection } from '@/lib/csrf/server';
 import { 
   createReview,
   getTutorReviews,
-  getTutorAverageRating
+  getTutorAverageRating,
+  getAllReviews
 } from '@/lib/db/reviews';
 
 // Export runtime config for improved performance
@@ -30,8 +31,67 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(req.url);
     const tutorId = searchParams.get('tutor_id');
+    const tutorIds = searchParams.get('tutor_ids')?.split(',').filter(Boolean);
     const averageOnly = searchParams.get('average_only') === 'true';
+    const type = searchParams.get('type');
     
+    // Handle 'type=all' parameter - fetch all reviews
+    if (type === 'all') {
+      try {
+        // Fetch all reviews from the database
+        const result = await getAllReviews();
+        return createJsonResponse({ reviews: result.reviews ?? [] });
+      } catch (error) {
+        console.error('Error handling all reviews request:', error);
+        return createJsonResponse({ 
+          error: 'Failed to fetch all reviews', 
+          reviews: [] 
+        }, 500);
+      }
+    }
+    
+    // Handle 'type=all:1' parameter - special case
+    if (type === 'all:1') {
+      try {
+        // Return an empty list as this is likely a client misuse
+        return createJsonResponse({ reviews: [] });
+      } catch (error) {
+        console.error('Error handling all:1 reviews request:', error);
+        return createJsonResponse({ 
+          error: 'Failed to fetch all reviews', 
+          reviews: [] 
+        }, 500);
+      }
+    }
+    
+    // Handle batch request for multiple tutor ratings
+    if (tutorIds && tutorIds.length > 0 && averageOnly) {
+      try {
+        const batchResults: Record<string, any> = {};
+        
+        // Use Promise.all to fetch all ratings in parallel
+        await Promise.all(
+          tutorIds.map(async (id) => {
+            const result = await getTutorAverageRating(id);
+            batchResults[id] = {
+              tutorId: id,
+              averageRating: result.averageRating ?? 0,
+              reviewCount: result.count ?? 0
+            };
+          })
+        );
+        
+        return createJsonResponse({ ratings: batchResults });
+      } catch (batchError) {
+        console.error('Error fetching batch ratings:', batchError);
+        return createJsonResponse({ 
+          error: 'Failed to fetch batch ratings', 
+          ratings: {} 
+        }, 500);
+      }
+    }
+    
+    // Original single tutor request handling
     if (!tutorId) {
       return createJsonResponse({ 
         error: 'Tutor ID is required', 

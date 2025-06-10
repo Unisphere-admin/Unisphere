@@ -515,10 +515,37 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
 
 export const useSessions = () => {
   const context = useContext(SessionContext);
-  
   if (!context) {
-    throw new Error('useSessions must be used within a SessionProvider');
+    throw new Error("useSessions must be used within a SessionProvider");
   }
   
-  return context;
+  const { 
+    activeSession, 
+    reviewHistory, 
+    startSession, 
+    endSession, 
+    submitReview,
+    getReviewsForTutor,
+    getSessionById,
+    loading,
+    sessions,
+    loadingSessions,
+    refreshSessions,
+    updateSession
+  } = context;
+  
+  return {
+    activeSession,
+    reviewHistory,
+    startSession,
+    endSession,
+    submitReview,
+    getReviewsForTutor,
+    getSessionById,
+    loading,
+    sessions,
+    loadingSessions,
+    refreshSessions,
+    updateSession
+  };
 };

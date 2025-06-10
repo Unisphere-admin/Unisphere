@@ -18,7 +18,9 @@ import {
   ArrowRight,
   GraduationCap,
   School,
-  X
+  X,
+  AlertCircle,
+  BookOpen
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +54,8 @@ import { Separator } from "@/components/ui/separator";
 import React from "react";
 import { validateSearchInput, sanitizeInput } from "@/lib/validation";
 import { toast } from "@/components/ui/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
+import { throttledFetch } from "@/utils/requestThrottler";
 
 // Define tutor profile type with more precise types
 interface TutorProfile {
@@ -210,7 +214,7 @@ const ReviewStars = ({ rating }: ReviewStarsProps) => {
         
         if (displayRating >= starValue) {
           // Full star
-          starClass = 'text-amber-500 fill-amber-500';
+          starClass = 'text-[#4ba896] fill-[#4ba896]';
         } else if (displayRating > i && displayRating < starValue) {
           // Partial star (more than i but less than i+1)
           return (
@@ -222,7 +226,7 @@ const ReviewStars = ({ rating }: ReviewStarsProps) => {
                 className="absolute inset-0 overflow-hidden" 
                 style={{ width: `${(displayRating - i) * 100}%` }}
               >
-                <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+                <Star className="h-4 w-4 text-[#4ba896] fill-[#4ba896]" />
               </div>
             </div>
           );
@@ -265,44 +269,194 @@ export default function TutorsPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
   const { reviewHistory } = useSessions();
-  const { data: apiTutors, isLoading: tutorsLoading, error: tutorsError, refresh: refreshTutors } = useCachedTutors();
+  const [tutors, setTutors] = useState<TutorProfile[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [selectedSchools, setSelectedSchools] = useState<string[]>([]);
   const [isSubjectFilterOpen, setIsSubjectFilterOpen] = useState(false);
   const [isSchoolFilterOpen, setIsSchoolFilterOpen] = useState(false);
   const [sortOrder, setSortOrder] = useState<"rating" | "name" | "popularity">("rating");
-  // State for storing tutor ratings from API
   const [tutorRatings, setTutorRatings] = useState<{[key: string]: TutorRating}>({});
+  const [loadingTutors, setLoadingTutors] = useState(true);
   const [loadingRatings, setLoadingRatings] = useState(false);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   
-  // Check for premium access
-  useEffect(() => {
-    if (!loading) {
-      const hasAccess = user?.role === 'tutor' || user?.has_access === true;
-      if (!user) {
-        router.replace('/login');
-      } else if (!hasAccess) {
-        console.log('User does not have premium access, redirecting to paywall');
-        router.replace('/paywall');
+  // Function to safely fetch data with retries and error handling
+  const fetchWithRetry = async (url: string, options: RequestInit = {}, maxRetries = 3): Promise<Response> => {
+    let lastError: any;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        // Add a small delay for retries
+        if (attempt > 0) {
+          await new Promise(r => setTimeout(r, 300 * attempt));
+        }
+        
+        const response = await fetch(url, {
+          ...options,
+          credentials: 'include',
+          headers: {
+            ...options.headers,
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
+        
+        return response;
+      } catch (error) {
+        lastError = error;
+        console.warn(`Fetch attempt ${attempt + 1}/${maxRetries + 1} failed:`, error);
       }
     }
-  }, [user, loading, router]);
+    
+    throw lastError;
+  };
+  
+  const fetchTutorsWithRetry = async () => {
+    setLoadingTutors(true);
+    setError(null);
+    
+    try {
+      // Attempt to fetch tutors
+      const response = await fetchWithRetry('/api/tutors');
+      
+      if (!response.ok) {
+        // Handle error response
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setTutors(data.tutors || []);
+    } catch (error) {
+      console.error("Error fetching tutors:", error);
+      setError("Failed to load tutors. Please try again.");
+      
+      // Schedule a retry
+      setTimeout(() => {
+        setRetryCount(prev => prev + 1);
+      }, 3000); // Retry after 3 seconds
+    } finally {
+      setLoadingTutors(false);
+    }
+  };
+  
+  // Fetch ratings for all tutors
+  const fetchTutorRatings = async () => {
+    setLoadingRatings(true);
+    
+    try {
+      // Check for cached ratings first
+      const cacheKey = 'cached_tutor_ratings';
+      const cachedRatings = localStorage.getItem(cacheKey);
+      
+      if (cachedRatings) {
+        try {
+          const parsed = JSON.parse(cachedRatings);
+          const cacheAge = Date.now() - (parsed.timestamp || 0);
+          
+          // Use cache if it's less than 5 minutes old
+          if (cacheAge < 5 * 60 * 1000) {
+            console.log('Using cached tutor ratings');
+            setTutorRatings(parsed.data || {});
+            setLoadingRatings(false);
+            return;
+          }
+        } catch (err) {
+          console.warn('Error parsing cached ratings:', err);
+        }
+      }
+      
+      // Fetch fresh ratings if no cache or cache is stale
+      let ratingsByTutor: {[key: string]: TutorRating} = {};
+      
+      if (tutors && tutors.length > 0) {
+        // Use new endpoint for ratings
+        try {
+          const response = await fetchWithRetry('/api/reviews?type=all');
+          
+          if (response.ok) {
+            const data = await response.json();
+            const { reviews } = data;
+            
+            if (Array.isArray(reviews)) {
+              // Process reviews into ratings by tutor
+              tutors.forEach(tutor => {
+                if (!tutor.id) return;
+                
+                const tutorReviews = reviews.filter((review: any) => 
+                  review.tutor_id === tutor.id || review.tutorId === tutor.id
+                );
+                
+                if (tutorReviews.length > 0) {
+                  const totalRating = tutorReviews.reduce((sum: number, review: any) => 
+                    sum + (review.rating || 0), 0
+                  );
+                  
+                  ratingsByTutor[tutor.id] = {
+                    tutorId: tutor.id,
+                    averageRating: totalRating / tutorReviews.length,
+                    reviewCount: tutorReviews.length
+                  };
+                }
+              });
+            }
+            
+            // Cache the ratings
+            localStorage.setItem(cacheKey, JSON.stringify({
+              data: ratingsByTutor,
+              timestamp: Date.now()
+            }));
+          }
+        } catch (err) {
+          console.warn('Error fetching ratings:', err);
+        }
+      }
+      
+      setTutorRatings(ratingsByTutor);
+    } catch (err) {
+      console.error('Error in fetchTutorRatings:', err);
+    } finally {
+      setLoadingRatings(false);
+    }
+  };
+  
+  // Set initial load complete after a short delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setInitialLoadComplete(true);
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, []);
 
-  // If still loading auth or user doesn't have access, don't render the actual content
-  if (loading || !user || !(user.role === 'tutor' || user.has_access === true)) {
+  // Load tutors data with retry capability
+  useEffect(() => {
+    fetchTutorsWithRetry();
+  }, [retryCount]);
+  
+  // Fetch ratings when tutors are loaded
+  useEffect(() => {
+    if (tutors.length > 0) {
+      fetchTutorRatings();
+    }
+  }, [tutors]);
+
+  // If data is still loading, show a loading indicator
+  if (loadingTutors && !initialLoadComplete && (!tutors || tutors.length === 0)) {
     return (
       <div className="flex items-center justify-center min-h-screen w-full">
         <div className="text-center">
           <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-primary" />
-          <h3 className="text-xl font-semibold">Loading...</h3>
+          <h3 className="text-xl font-semibold">Loading Tutors...</h3>
         </div>
       </div>
     );
   }
   
   // Ensure tutors is always an array of TutorProfile
-  const tutors: TutorProfile[] = Array.isArray(apiTutors) ? apiTutors : [];
+  // const tutors: TutorProfile[] = Array.isArray(tutors) ? tutors : [];
   
   // Extract all unique subjects from tutor profiles - improved to handle edge cases
   const allSubjects = tutors.length > 0 
@@ -384,47 +538,6 @@ export default function TutorsPage() {
   
   // Log the collected schools for debugging
   console.log("All schools collected:", filterSchools);
-
-  // Function to fetch ratings for all tutors
-  const fetchTutorRatings = async () => {
-    setLoadingRatings(true);
-    const ratingsMap: {[key: string]: TutorRating} = {};
-    
-    try {
-      // Fetch ratings for each tutor
-      for (const tutor of tutors) {
-        try {
-          const response = await fetch(`/api/reviews?tutor_id=${tutor.id}&average_only=true`, {
-            credentials: 'include'
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            ratingsMap[tutor.id] = {
-              tutorId: tutor.id,
-              averageRating: data.averageRating || 0,
-              reviewCount: data.count || 0
-            };
-          }
-        } catch (error) {
-          console.error(`Error fetching rating for tutor ${tutor.id}:`, error);
-        }
-      }
-      
-      setTutorRatings(ratingsMap);
-    } catch (error) {
-      console.error("Error fetching tutor ratings:", error);
-    } finally {
-      setLoadingRatings(false);
-    }
-  };
-  
-  // Fetch ratings when tutors are loaded
-  useEffect(() => {
-    if (tutors.length > 0) {
-      fetchTutorRatings();
-    }
-  }, [tutors]);
 
   // In the filteredTutors, improve the handling of education data for search
   const filteredTutors = tutors.filter((tutor: TutorProfile) => {
@@ -644,33 +757,43 @@ export default function TutorsPage() {
     );
   };
 
-  // Show loading indicator while fetching tutors
-  if (tutorsLoading) {
+  // Add error UI
+  if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen w-full">
-        <div className="text-center">
-          <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-primary" />
-          <h3 className="text-xl font-semibold">Loading tutors...</h3>
+      <div className="p-8 text-center">
+        <div className="bg-red-50 dark:bg-red-900/20 p-6 rounded-lg max-w-md mx-auto">
+          <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold mb-2">Failed to Load Tutors</h2>
+          <p className="mb-4 text-muted-foreground">{error}</p>
+          <Button 
+            onClick={() => {
+              setRetryCount(count => count + 1);
+            }}
+            className="mx-auto"
+          >
+            Try Again
+          </Button>
         </div>
       </div>
     );
   }
-
+  
+  // Return main content without ErrorBoundary since it's not available
   return (
     <div className="space-y-8 pb-12">
       {/* Hero Section */}
       <section className="relative py-20 md:py-28 overflow-hidden">
-        <div className="absolute inset-0 z-0 bg-gradient-to-b from-primary/5 via-background/95 to-muted/20">
-          <div className="absolute top-20 right-[20%] w-72 h-72 bg-primary/5 rounded-full blur-3xl opacity-70 animate-pulse" style={{animationDuration: '8s'}}></div>
-          <div className="absolute bottom-10 left-[10%] w-80 h-80 bg-secondary/5 rounded-full blur-3xl opacity-60 animate-pulse" style={{animationDuration: '12s'}}></div>
+        <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#c2dac2]/30 via-background/95 to-[#c2d8d2]/20">
+          <div className="absolute top-20 right-[20%] w-72 h-72 bg-[#84bc9c]/10 rounded-full blur-3xl opacity-70 animate-pulse" style={{animationDuration: '8s'}}></div>
+          <div className="absolute bottom-10 left-[10%] w-80 h-80 bg-[#84b7bd]/10 rounded-full blur-3xl opacity-60 animate-pulse" style={{animationDuration: '12s'}}></div>
         </div>
         <div className="container relative z-10 mx-auto px-4 md:px-6 max-w-screen-xl">
         <div className="max-w-3xl mx-auto text-center">
-            <Badge variant="outline" className="px-3 py-1 mb-4 text-sm bg-background/80 backdrop-blur-sm border-primary/20 shadow-sm">
-              <span className="text-primary font-medium">Premium</span> - Expert tutors
+            <Badge variant="outline" className="px-3 py-1 mb-4 text-sm bg-background/80 backdrop-blur-sm border-[#4ba896]/30 shadow-sm">
+              <span className="text-[#129490] font-medium">Premium</span> - Expert tutors
             </Badge>
             <h1 className="text-4xl font-bold tracking-tight mb-4 md:text-5xl">
-              Find Your Perfect <span className="text-primary">Tutor</span>
+              Find Your Perfect <span className="text-[#129490]">Tutor</span>
             </h1>
             <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
             Browse our network of expert tutors and find the right match for your learning needs
@@ -680,7 +803,7 @@ export default function TutorsPage() {
           <div className="relative max-w-xl mx-auto">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
             <Input
-                className="pl-10 h-12 bg-background/80 backdrop-blur-sm border-border/40 shadow-md focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
+                className="pl-10 h-12 bg-background/80 backdrop-blur-sm border-[#84bc9c]/30 shadow-md focus-visible:border-[#4ba896]/30 focus-visible:ring-1 focus-visible:ring-[#4ba896]/20 transition-all"
               placeholder="Search by name, subject, or keyword"
               value={searchTerm}
                 onChange={handleSearchChange}
@@ -697,10 +820,10 @@ export default function TutorsPage() {
             {/* Subject filter dropdown */}
             <DropdownMenu open={isSubjectFilterOpen} onOpenChange={setIsSubjectFilterOpen}>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="flex items-center gap-2 shadow-sm border-border/40 hover:bg-muted transition-colors">
-                  <Filter className="h-4 w-4 text-primary/80" strokeWidth={1.5} />
+                <Button variant="outline" className="flex items-center gap-2 shadow-sm border-[#84bc9c]/40 hover:bg-[#c2dac2]/10 transition-colors">
+                  <Filter className="h-4 w-4 text-[#4ba896]" strokeWidth={1.5} />
                   Subjects {selectedSubjects.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 bg-primary/10 text-primary border-none">
+                    <Badge variant="secondary" className="ml-1 bg-[#4ba896]/10 text-[#129490] border-none">
                       {selectedSubjects.length}
                     </Badge>
                   )}
@@ -754,10 +877,10 @@ export default function TutorsPage() {
             {/* School filter dropdown */}
               <DropdownMenu open={isSchoolFilterOpen} onOpenChange={setIsSchoolFilterOpen}>
                 <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="flex items-center gap-2 shadow-sm border-border/40 hover:bg-muted transition-colors">
-                  <School className="h-4 w-4 text-primary/80" strokeWidth={1.5} />
+                <Button variant="outline" className="flex items-center gap-2 shadow-sm border-[#84b7bd]/40 hover:bg-[#c2d8d2]/10 transition-colors">
+                  <School className="h-4 w-4 text-[#4b92a9]" strokeWidth={1.5} />
                   Schools {selectedSchools.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 bg-primary/10 text-primary border-none">
+                    <Badge variant="secondary" className="ml-1 bg-[#4b92a9]/10 text-[#126d94] border-none">
                       {selectedSchools.length}
                     </Badge>
                   )}
@@ -836,7 +959,7 @@ export default function TutorsPage() {
                 const newValue = value as "rating" | "name" | "popularity";
                 if (sortOrder !== newValue) {
                   setSortOrder(newValue);
-              }
+                }
               }}
             >
               <SelectTrigger className="w-[180px] shadow-sm border-border/40">
@@ -871,7 +994,7 @@ export default function TutorsPage() {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 auto-rows-fr">
             {sortedTutors.map((tutor: TutorProfile) => {
               const tutorId = tutor.id;
               const tutorName = `${tutor.first_name || ''} ${tutor.last_name || ''}`;
@@ -885,61 +1008,143 @@ export default function TutorsPage() {
               const reviewCount = tutorRating?.reviewCount || 0;
                 
               return (
-                <Card key={tutorId} className="overflow-hidden bg-card/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px] group">
-                  <div className="h-24 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-secondary/5 to-primary/10 group-hover:scale-105 transition-transform duration-500"></div>
+                <Card key={tutorId} className="overflow-hidden bg-card/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px] group flex flex-col h-full">
+                  {/* Card header with gradient background */}
+                  <div className="h-24 relative overflow-hidden w-full">
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#c2dac2] via-[#84bc9c] to-[#4ba896] group-hover:scale-105 transition-transform duration-500"></div>
                     <div className="absolute inset-0 bg-[url('/noise.png')] opacity-20"></div>
                   </div>
-                  <div className="p-6 relative">
+                  
+                  {/* Card content */}
+                  <div className="p-6 relative flex-1 flex flex-col h-full">
+                    {/* Avatar */}
                     <Avatar className="h-20 w-20 border-4 border-background absolute -top-10 left-6 shadow-md group-hover:shadow-lg transition-all">
-                      <AvatarImage 
-                        src={tutorImage ?? undefined} 
-                        alt={tutorName}
-                      />
-                      <AvatarFallback className="bg-gradient-to-br from-primary/30 to-primary/10 text-primary font-semibold">
-                        {tutor.first_name ? tutor.first_name.charAt(0).toUpperCase() : ''}
-                        {tutor.last_name ? tutor.last_name.charAt(0).toUpperCase() : 'T'}
-                      </AvatarFallback>
+                      {user?.has_access || user?.role === 'tutor' ? (
+                        <AvatarImage 
+                          src={tutorImage ?? undefined} 
+                          alt={tutorName}
+                        />
+                      ) : (
+                        <AvatarFallback className="bg-gradient-to-br from-[#84bc9c] to-[#4ba896] text-white font-semibold">
+                          {tutor.first_name ? tutor.first_name.charAt(0).toUpperCase() : ''}
+                          {tutor.last_name ? tutor.last_name.charAt(0).toUpperCase() : 'T'}
+                        </AvatarFallback>
+                      )}
                     </Avatar>
                     
-                    <div className="mt-12">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-xl font-medium">{tutorName}</h3>
-                        <div className="flex items-center">
+                    <div className="mt-12 flex flex-col h-full">
+                      {/* Header section - Name and rating */}
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-xl font-medium truncate">{tutorName}</h3>
+                        <div className="flex items-center shrink-0">
                           <ReviewStars rating={rating} />
                           {reviewCount > 0 && <span className="ml-1 text-xs text-muted-foreground">({reviewCount})</span>}
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-sm mt-1">
-                        <CheckCircle className="h-3.5 w-3.5" />
+                      {/* Education section */}
+                      <div className="text-xs text-muted-foreground mb-1">
+                        {/* Current education */}
+                        {(typeof tutor.current_education === 'string' && tutor.current_education.trim()) || 
+                         (Array.isArray(tutor.current_education) && tutor.current_education.length > 0) ? (
+                          <div className="flex items-center gap-1">
+                            <School className="h-3 w-3 text-[#129490] shrink-0" strokeWidth={2} />
+                            <span className="truncate">
+                              {typeof tutor.current_education === 'string' 
+                                ? tutor.current_education 
+                                : (Array.isArray(tutor.current_education) && tutor.current_education.length > 0
+                                   ? tutor.current_education[0] 
+                                   : "")}
+                              {tutor.year ? ` (${tutor.year})` : ''}
+                            </span>
+                          </div>
+                        ) : null}
+                        
+                        {/* Major - Always show if available */}
+                        {tutor.major ? (
+                          <div className="flex items-center gap-1 mt-1">
+                            <GraduationCap className="h-3 w-3 text-[#4b92a9] shrink-0" strokeWidth={2} />
+                            <span className="truncate">Major: {tutor.major}</span>
+                          </div>
+                        ) : null}
+                        
+                        {/* Previous education */}
+                        {Array.isArray(tutor.previous_education) && tutor.previous_education.length > 0 ? (
+                          <div className="flex items-center gap-1 mt-1">
+                            <School className="h-3 w-3 text-[#84b7bd] opacity-70 shrink-0" strokeWidth={2} />
+                            <span className="truncate opacity-80">
+                              Previously: {tutor.previous_education[0]}
+                              {tutor.previous_education.length > 1 && (
+                                <span className="opacity-70 text-[10px]"> +{tutor.previous_education.length - 1}</span>
+                              )}
+                            </span>
+                          </div>
+                        ) : null}
+                      </div>
+                      
+                      {/* Verified Badge */}
+                      <div className="flex items-center gap-1 text-[#4ba896] dark:text-[#84bc9c] text-sm mb-2">
+                        <CheckCircle className="h-3.5 w-3.5 shrink-0" />
                         <span>Verified Tutor</span>
                       </div>
                       
-                      <Separator className="my-3 opacity-50" />
+                      <Separator className="my-2 bg-[#c2d8d2]/50" />
                       
-                      <p className="text-sm text-muted-foreground">
-                        {tutorBio && tutorBio.length > 100 ? `${tutorBio.substring(0, 100)}...` : tutorBio || "Experienced tutor ready to help you succeed."}
-                      </p>
-                      
-                      <div className="flex items-center gap-3 text-sm text-muted-foreground mt-4 mb-5">
-                        <div className="flex items-center">
-                          <MapPin className="h-3.5 w-3.5 mr-1 text-primary/70" strokeWidth={2} />
-                        {tutorLocation}
+                      {/* Subjects section */}
+                      <div className="mb-3">
+                        <div className="flex items-center text-sm mb-1">
+                          <BookOpen className="h-3.5 w-3.5 mr-1.5 text-[#129490] shrink-0" strokeWidth={2} />
+                          <span className="font-medium">Subjects</span>
                         </div>
-                        <Separator orientation="vertical" className="h-4" />
-                        <div className="flex items-center">
-                          <GraduationCap className="h-3.5 w-3.5 mr-1 text-primary/70" strokeWidth={2} />
-                          {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
+                        <div className="flex flex-wrap gap-1 pl-5">
+                          {(typeof tutor.subjects === 'string' 
+                            ? tutor.subjects.split(',').map(s => s.trim()) 
+                            : Array.isArray(tutor.subjects) ? tutor.subjects : []
+                          ).slice(0, 3).map((subject, idx) => (
+                            <Badge key={idx} variant="outline" className="text-xs bg-[#c2d8d2]/30 border-[#84b7bd]/30">
+                              {subject}
+                            </Badge>
+                          ))}
+                          {(typeof tutor.subjects === 'string' 
+                            ? tutor.subjects.split(',') 
+                            : Array.isArray(tutor.subjects) ? tutor.subjects : []
+                          ).length > 3 && (
+                            <Badge variant="outline" className="text-xs bg-[#4b92a9]/10 border-[#4b92a9]/30 text-[#126d94]">
+                              +{(typeof tutor.subjects === 'string' 
+                                ? tutor.subjects.split(',') 
+                                : Array.isArray(tutor.subjects) ? tutor.subjects : []
+                              ).length - 3} more
+                            </Badge>
+                          )}
+                          {(!tutor.subjects || 
+                            (typeof tutor.subjects === 'string' && !tutor.subjects.trim()) || 
+                            (Array.isArray(tutor.subjects) && tutor.subjects.length === 0)) && (
+                            <span className="text-xs text-muted-foreground pl-1">Contact for subject information</span>
+                          )}
                         </div>
                       </div>
                       
-                      <Button asChild className="w-full shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all group-hover:translate-y-[-1px]">
-                        <Link href={`/tutors/${tutorId}`} className="flex items-center justify-center gap-1">
-                          View Profile
-                          <ArrowRight className="h-3.5 w-3.5 ml-1 group-hover:translate-x-0.5 transition-transform" />
-                        </Link>
-                      </Button>
+                      {/* Location and stats - Always at bottom */}
+                      <div className="mt-auto pt-2">
+                        <div className="flex items-center gap-3 text-sm text-muted-foreground mb-3">
+                          <div className="flex items-center">
+                            <MapPin className="h-3.5 w-3.5 mr-1 text-[#4ba896] shrink-0" strokeWidth={2} />
+                            <span className="truncate">{tutorLocation}</span>
+                          </div>
+                          <Separator orientation="vertical" className="h-4 bg-[#c2d8d2]/50" />
+                          <div className="flex items-center">
+                            <GraduationCap className="h-3.5 w-3.5 mr-1 text-[#4b92a9] shrink-0" strokeWidth={2} />
+                            <span>{reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}</span>
+                          </div>
+                        </div>
+                        
+                        <Button asChild className="w-full shadow-md hover:shadow-lg bg-[#129490] hover:bg-[#126d94] transition-all group-hover:translate-y-[-1px]">
+                          <Link href={`/tutors/${tutorId}`} className="flex items-center justify-center gap-1">
+                            View Profile
+                            <ArrowRight className="h-3.5 w-3.5 ml-1 group-hover:translate-x-0.5 transition-transform" />
+                          </Link>
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </Card>

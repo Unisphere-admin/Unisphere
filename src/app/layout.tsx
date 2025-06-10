@@ -19,6 +19,15 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'Unisphere - Global Knowledge Exchange',
   description: 'Connect with experts worldwide for personalized learning experiences',
+  icons: {
+    icon: [
+      { url: '/logo.png', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/logo.png' }
+    ],
+    shortcut: { url: '/logo.png' }
+  }
 };
 
 export default function RootLayout({

@@ -65,9 +65,7 @@ const Navbar = () => {
       <div className="w-full h-full px-4 md:px-8 flex items-center justify-between max-w-screen-xl mx-auto">
         <div className="flex items-center gap-4">
           <Link href="/" className="flex items-center space-x-2 group">
-            <div className="bg-primary/10 p-1.5 rounded-md group-hover:bg-primary/15 transition-colors">
-              <Globe className="h-5 w-5 text-primary" strokeWidth={2} />
-            </div>
+            <img src="/logo.png" alt="Unisphere Logo" className="h-8 w-auto" />
             <span className="text-xl font-bold tracking-tight">Unisphere</span>
           </Link>
           
@@ -76,19 +74,14 @@ const Navbar = () => {
               Home
             </Link>
             <Link href="/about" className="font-medium text-muted-foreground hover:text-foreground transition-colors">
-              About
+              About Us
             </Link>
-            {user && (
               <Link 
-                href={hasAccess ? "/tutors" : "/paywall"} 
-                className="font-medium text-muted-foreground hover:text-foreground transition-colors group relative flex items-center"
+              href="/tutors" 
+              className="font-medium text-muted-foreground hover:text-foreground transition-colors"
               >
-                Find Experts
-                {user && !hasAccess && (
-                  <Lock className="h-3.5 w-3.5 ml-1.5 text-muted-foreground group-hover:text-foreground" />
-                )}
+                Browse Tutors
               </Link>
-            )}
           </nav>
         </div>
         
@@ -124,7 +117,7 @@ const Navbar = () => {
                 <Button variant="ghost" size="sm" className="rounded-full h-9 pl-2 pr-2.5 gap-1 text-sm">
                   <Avatar className="h-7 w-7 border border-border/40">
                     <AvatarImage src={user.avatar_url || user.profilePic || undefined} alt={user.name || ''} />
-                    <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/5 text-primary font-medium text-xs">
+                    <AvatarFallback className="bg-gradient-to-br from-[#84bc9c]/80 to-[#4ba896]/50 text-white font-medium text-xs">
                       {getInitials(user) || 'U'}
                     </AvatarFallback>
                   </Avatar>
@@ -140,7 +133,7 @@ const Navbar = () => {
                     <p className="font-medium">{user.name || 'User'}</p>
                     <p className="text-xs text-muted-foreground">{user.email}</p>
                     {!hasAccess && !isTutor && (
-                      <div className="mt-1.5 text-xs px-1.5 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 rounded-md inline-flex items-center w-fit">
+                      <div className="mt-1.5 text-xs px-1.5 py-0.5 bg-[#c2dac2] text-[#126d94] dark:bg-[#4ba896]/20 dark:text-[#84b7bd] rounded-md inline-flex items-center w-fit">
                         <Lock className="h-3 w-3 mr-1" strokeWidth={2} /> Free account
                       </div>
                     )}
@@ -149,14 +142,14 @@ const Navbar = () => {
                 <DropdownMenuSeparator className="bg-border/40" />
                 <DropdownMenuItem className="focus:bg-muted">
                   <Link href={hasAccess ? "/dashboard" : "/paywall"} className="flex items-center w-full">
-                    <LayoutDashboard className="mr-2 h-4 w-4 text-primary/80" strokeWidth={2} />
+                    <LayoutDashboard className="mr-2 h-4 w-4 text-[#4ba896]" strokeWidth={2} />
                     Dashboard
                     {!hasAccess && <Lock className="ml-auto h-3 w-3 text-muted-foreground" strokeWidth={2} />}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem className="focus:bg-muted">
                   <Link href={hasAccess ? "/dashboard/messages" : "/paywall"} className="flex items-center w-full">
-                    <MessageSquare className="mr-2 h-4 w-4 text-primary/80" strokeWidth={2} />
+                    <MessageSquare className="mr-2 h-4 w-4 text-[#4ba896]" strokeWidth={2} />
                     Messages
                   {!hasAccess ? (
                       <Lock className="ml-auto h-3 w-3 text-muted-foreground" strokeWidth={2} />
@@ -167,14 +160,14 @@ const Navbar = () => {
                 </DropdownMenuItem>
                 <DropdownMenuItem className="focus:bg-muted">
                   <Link href="/dashboard/settings" className="flex items-center w-full">
-                    <Settings className="mr-2 h-4 w-4 text-primary/80" strokeWidth={2} />
+                    <Settings className="mr-2 h-4 w-4 text-[#4ba896]" strokeWidth={2} />
                     Settings
                   </Link>
                 </DropdownMenuItem>
                 {!hasAccess && !isTutor && (
                   <>
                     <DropdownMenuSeparator className="bg-border/40" />
-                    <DropdownMenuItem className="focus:bg-primary/10 text-primary">
+                    <DropdownMenuItem className="focus:bg-[#4ba896]/10 text-[#129490]">
                       <Link href="/paywall" className="flex items-center w-full">
                         <Lock className="mr-2 h-4 w-4" strokeWidth={2} />
                         Upgrade to Premium
@@ -191,7 +184,7 @@ const Navbar = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : showLoginButton ? (
-            <Button asChild size="sm" className="bg-primary hover:bg-primary/90 shadow-sm font-medium">
+            <Button asChild size="sm" className="bg-[#129490] hover:bg-[#126d94] shadow-sm font-medium">
               <Link href="/login" className="flex items-center gap-1.5">
                 <User className="h-4 w-4" strokeWidth={2} />
                 Login
@@ -210,9 +203,7 @@ const Navbar = () => {
               <nav className="flex flex-col gap-4 text-base pr-6">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <div className="bg-primary/10 p-1.5 rounded-md">
-                      <Globe className="h-5 w-5 text-primary" strokeWidth={2} />
-                    </div>
+                    <img src="/logo.png" alt="Unisphere Logo" className="h-8 w-auto" />
                     <span className="font-bold tracking-tight">Unisphere</span>
                   </div>
                   <Button
@@ -230,25 +221,22 @@ const Navbar = () => {
                   className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  <Home className="h-5 w-5 text-primary/70" strokeWidth={1.5} /> Home
+                  <Home className="h-5 w-5 text-[#4ba896]" strokeWidth={1.5} /> Home
                 </Link>
                 <Link 
                   href="/about" 
                   className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  <Globe className="h-5 w-5 text-primary/70" strokeWidth={1.5} /> About
+                  <Globe className="h-5 w-5 text-[#4ba896]" strokeWidth={1.5} /> About Us
                 </Link>
-                {user && (
-                  <Link 
-                    href={hasAccess ? "/tutors" : "/paywall"}
-                    className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    <Users className="h-5 w-5 text-primary/70" strokeWidth={1.5} /> Find Experts
-                    {user && !hasAccess && <Lock className="h-3.5 w-3.5 ml-1.5 text-muted-foreground" strokeWidth={2} />}
-                  </Link>
-                )}
+                <Link 
+                  href="/tutors"
+                  className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Users className="h-5 w-5 text-[#4ba896]" strokeWidth={1.5} /> Browse Tutors
+                </Link>
                 
                 {user && (
                   <>
@@ -258,7 +246,7 @@ const Navbar = () => {
                       className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
-                      <LayoutDashboard className="h-5 w-5 text-primary/70" strokeWidth={1.5} /> Dashboard
+                      <LayoutDashboard className="h-5 w-5 text-[#4ba896]" strokeWidth={1.5} /> Dashboard
                       {!hasAccess && <Lock className="h-3.5 w-3.5 ml-1.5 text-muted-foreground" strokeWidth={2} />}
                     </Link>
                     <Link 
@@ -266,7 +254,7 @@ const Navbar = () => {
                       className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors relative"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
-                      <MessageSquare className="h-5 w-5 text-primary/70" strokeWidth={1.5} /> Messages
+                      <MessageSquare className="h-5 w-5 text-[#4ba896]" strokeWidth={1.5} /> Messages
                       {!hasAccess ? (
                         <Lock className="h-3.5 w-3.5 ml-1.5 text-muted-foreground" strokeWidth={2} />
                       ) : unreadCount > 0 ? (
@@ -278,7 +266,7 @@ const Navbar = () => {
                       className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
-                      <Settings className="h-5 w-5 text-primary/70" strokeWidth={1.5} /> Settings
+                      <Settings className="h-5 w-5 text-[#4ba896]" strokeWidth={1.5} /> Settings
                     </Link>
                   </>
                 )}
@@ -286,7 +274,7 @@ const Navbar = () => {
                 {user && !hasAccess && !isTutor && (
                   <Link 
                     href="/paywall"
-                    className="flex items-center gap-3 p-2.5 bg-primary/10 text-primary hover:bg-primary/15 rounded-md mt-2"
+                    className="flex items-center gap-3 p-2.5 bg-[#4ba896]/10 text-[#129490] hover:bg-[#4ba896]/20 rounded-md mt-2"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
                     <Lock className="h-5 w-5" strokeWidth={1.5} /> Upgrade to Premium
@@ -296,7 +284,7 @@ const Navbar = () => {
                 {showLoginButton && (
                   <Button 
                     asChild
-                    className="mt-4 bg-primary hover:bg-primary/90 shadow-sm font-medium"
+                    className="mt-4 bg-[#129490] hover:bg-[#126d94] shadow-sm font-medium"
                   >
                     <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2">
                       <User className="h-4 w-4" strokeWidth={2} />

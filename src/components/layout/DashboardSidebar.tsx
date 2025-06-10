@@ -64,18 +64,12 @@ const DashboardSidebar = () => {
       href: "/dashboard/history",
       active: pathname === "/dashboard/history",
     },
-    {
-      title: isStudent ? "Find Experts" : "Subjects",
+    ...(isStudent ? [{
+      title: "Find Experts",
       icon: <BookOpen className="h-5 w-5" />,
-      href: isStudent ? "/tutors" : "/dashboard/subjects",
-      active: pathname === (isStudent ? "/tutors" : "/dashboard/subjects"),
-    },
-    {
-      title: "Resources",
-      href: "/resources",
-      icon: <Globe className="h-5 w-5" />,
-      badge: undefined
-    },
+      href: "/tutors",
+      active: pathname === "/tutors",
+    }] : []),
     {
       title: "Settings",
       icon: <Settings className="h-5 w-5" />,

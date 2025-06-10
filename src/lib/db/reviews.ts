@@ -197,3 +197,49 @@ export async function getReviewsByTutorId(tutorId: string): Promise<{
     return { reviews: [], error: errorMessage };
   }
 } 
+
+/**
+ * Get all reviews from the database - for API routes
+ * This should be used sparingly and for small datasets only
+ */
+export async function getAllReviews(): Promise<{
+  reviews: Review[];
+  error: string | null;
+}> {
+  try {
+    // Use anonymous client for public data
+    const supabase = createAnonymousClient();
+    
+    const { data, error } = await supabase
+      .from('reviews')
+      .select(`
+        *,
+        student:student_id(
+          first_name,
+          last_name
+        )
+      `)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Database error when fetching all reviews:', error.message);
+      return { reviews: [], error: error.message };
+    }
+    
+    // Transform the data to include student name
+    const reviews = data.map((review: any) => {
+      const student = review.student as any;
+      return {
+        ...review,
+        student_name: student ? `${student.first_name} ${student.last_name}` : 'Anonymous',
+        student: undefined
+      };
+    });
+    
+    return { reviews, error: null };
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error fetching all reviews';
+    console.error('Failed to get all reviews:', errorMessage);
+    return { reviews: [], error: errorMessage };
+  }
+} 

@@ -9,6 +9,7 @@ import Footer from "@/components/layout/Footer";
 import { toast } from "@/components/ui/sonner";
 import { initializeCache } from '@/lib/cacheInitializer';
 import { setupAuthCacheCheck } from '@/utils/authUtils';
+import { prefetchTutors } from '@/lib/tutorsCaching';
 
 interface ClientLayoutWrapperProps {
   children: ReactNode;
@@ -18,8 +19,10 @@ export default function ClientLayoutWrapper({ children }: ClientLayoutWrapperPro
   const { loading, silentLoading, user } = useAuth();
   const pathname = usePathname();
   const isDashboard = pathname?.startsWith('/dashboard');
+  const isTutorsPage = pathname?.startsWith('/tutors');
   const [isDev, setIsDev] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [cachePrefetched, setCachePrefetched] = useState(false);
   
   // Use ref instead of state to track initialization
   const cacheInitializedRef = useRef(false);
@@ -35,16 +38,32 @@ export default function ClientLayoutWrapper({ children }: ClientLayoutWrapperPro
     }
   }, [loading, initialLoad]);
   
-  // Initialize caching system when the app loads - only once
+  // Initialize caching system immediately when component mounts - only once
   useEffect(() => {
     if (!cacheInitializedRef.current) {
       console.log('Initializing cache system on application load');
       
-      // Initialize the cache system (works for both authenticated and unauthenticated users)
+      // Initialize the cache system immediately
       initializeCache();
       cacheInitializedRef.current = true;
+      
+      // Start prefetching key data for common routes
+      const prefetchCommonData = async () => {
+        try {
+          if (isDashboard || isTutorsPage) {
+            // Prioritize tutors data if on dashboard or tutors page
+            await prefetchTutors();
+          }
+          setCachePrefetched(true);
+        } catch (err) {
+          console.error('Error prefetching data:', err);
+          setCachePrefetched(true); // Consider prefetch complete even on error
+        }
+      };
+      
+      prefetchCommonData();
     }
-  }, []);
+  }, [isDashboard, isTutorsPage]);
   
   // Setup auth cache check on component mount - separate from cache initialization
   useEffect(() => {
@@ -52,9 +71,11 @@ export default function ClientLayoutWrapper({ children }: ClientLayoutWrapperPro
     setupAuthCacheCheck();
   }, []);
   
-  // Only show loading screen on initial authentication load
-  // Don't show loading for silent background refreshes
-  if (loading && initialLoad) {
+  // Show loading screen during initial auth load and critical data prefetch
+  // This prevents "no data" flashes
+  const showLoading = (loading && initialLoad) || (!cachePrefetched && isDashboard);
+  
+  if (showLoading) {
     return <AuthLoadingScreen />;
   }
 

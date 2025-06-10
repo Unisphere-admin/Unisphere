@@ -148,23 +148,49 @@ export function shouldProtectRoute(path: string): boolean {
  * Determines if a path requires premium access
  */
 export function requiresPremiumAccess(path: string): boolean {
-  // Special case: Settings page should be accessible to all authenticated users
-  if (path === '/dashboard/settings' || path.startsWith('/dashboard/settings/')) {
-    return false;
-  }
-  
-  // Special case: User profile API endpoints should be accessible to all authenticated users
+  // Exclude public pages and API endpoints
   if (
-    path.startsWith('/api/users/profile/') || 
-    path === '/api/users/profile' ||
-    path === '/api/users/update-email'
+    path === '/' || 
+    path === '/about' ||
+    path === '/login' || 
+    path === '/reset-password' ||
+    path === '/tutors' || // Allow access to the tutors list page
+    path.startsWith('/api/auth/')
   ) {
     return false;
   }
   
-  return PREMIUM_PATHS.some(premiumPath => 
-    path === premiumPath || path.startsWith(premiumPath + '/')
-  );
+  // Still require premium access for individual tutor profiles
+  if (path.match(/^\/tutors\/[^\/]+$/)) {
+    return true;
+  }
+  
+  // Premium required for dashboard and APIs
+  if (
+    path.startsWith('/dashboard') && 
+    path !== '/dashboard/settings' && 
+    !path.startsWith('/dashboard/settings/')
+  ) {
+    return true;
+  }
+  
+  // Session pages require premium
+  if (path.startsWith('/session')) {
+    return true;
+  }
+  
+  // API endpoints require premium except for auth and specific profile endpoints
+  if (
+    path.startsWith('/api/') && 
+    !path.startsWith('/api/auth/') &&
+    !path.startsWith('/api/users/profile/') && 
+    path !== '/api/users/profile' &&
+    path !== '/api/users/update-email'
+  ) {
+    return true;
+  }
+  
+  return false;
 }
 
 /**

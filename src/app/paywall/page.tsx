@@ -25,9 +25,9 @@ export default function PaywallPage() {
         </Badge>
         
         <div className="space-y-3">
-          <h1 className="text-3xl md:text-5xl font-bold">Premium Access Required</h1>
+          <h1 className="text-3xl md:text-5xl font-bold">Join Our Platform</h1>
           <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-            Unlock all premium features to enhance your learning experience with our top tutors.
+          Unlock access to our exclusive community of tutors and students
           </p>
         </div>
 
@@ -37,24 +37,25 @@ export default function PaywallPage() {
             <div className="flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 text-primary mx-auto mb-6 shadow-md">
               <Lock className="w-7 h-7" />
             </div>
-            <CardTitle className="text-center text-2xl">Get Premium Access</CardTitle>
-            <CardDescription className="text-center text-base mt-2">
-              Unlock all premium features with a subscription
-            </CardDescription>
+            <CardTitle className="text-center text-2xl">Start your journey</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6 relative z-10">
             <div className="space-y-3">
               <div className="flex items-center p-3 bg-primary/5 rounded-lg hover:bg-primary/10 transition-colors">
                 <CheckCircle className="mr-3 h-5 w-5 text-primary flex-shrink-0" />
-                <p className="font-medium">Access to advanced features</p>
+                <p className="font-medium">Access to all our tutors</p>
               </div>
               <div className="flex items-center p-3 bg-primary/5 rounded-lg hover:bg-primary/10 transition-colors">
                 <CheckCircle className="mr-3 h-5 w-5 text-primary flex-shrink-0" />
-                <p className="font-medium">Connect with more tutors</p>
+                <p className="font-medium">At 80% lower prices than local competition</p>
               </div>
               <div className="flex items-center p-3 bg-primary/5 rounded-lg hover:bg-primary/10 transition-colors">
                 <CheckCircle className="mr-3 h-5 w-5 text-primary flex-shrink-0" />
-                <p className="font-medium">Unlimited tutoring sessions</p>
+                <p className="font-medium">Book as many sessions as you’d like</p>
+              </div>
+              <div className="flex items-center p-3 bg-primary/5 rounded-lg hover:bg-primary/10 transition-colors">
+                <CheckCircle className="mr-3 h-5 w-5 text-primary flex-shrink-0" />
+                <p className="font-medium">Exclusive guides, communities and more</p>
               </div>
             </div>
           </CardContent>
@@ -62,12 +63,12 @@ export default function PaywallPage() {
             <Button className="w-full shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]" asChild>
               <Link href="/dashboard/settings" className="flex items-center justify-center">
                 <Sparkles className="mr-2 h-4 w-4" />
-                Upgrade Now
+                Gain Access Now
               </Link>
             </Button>
             <Button variant="outline" className="w-full border-border/40 hover:bg-primary/5 hover:border-primary/30 transition-all" asChild>
-              <Link href="/dashboard">
-                Return to Dashboard
+              <Link href="/">
+                Return to Home
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>

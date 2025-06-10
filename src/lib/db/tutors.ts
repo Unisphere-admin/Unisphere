@@ -12,6 +12,21 @@ export interface TutorBasic {
   major?: string | null;
 }
 
+// Interface for raw data with minimal fields
+interface TutorRawData {
+  id?: string;
+  search_id?: string;
+  first_name?: string;
+  last_name?: string;
+  description?: string;
+  avatar_url?: string;
+  subjects?: string[] | string | null;
+  major?: string | null;
+  current_education?: string | string[] | null;
+  previous_education?: string[] | null;
+  [key: string]: any; // Allow for other fields
+}
+
 export interface TutorProfile extends TutorBasic {
   extracurriculars?: string[] | null;
   current_education?: string | string[] | null;
@@ -35,10 +50,15 @@ const TUTOR_DETAIL_FIELDS = `
   year, major, "a-levels", gcse, spm, location
 `;
 
+// Fields for non-premium users (limited information)
+const NON_PREMIUM_FIELDS = `
+  avatar_url, subjects, major, current_education
+`;
+
 /**
  * Get a list of all tutors for display on the tutors page
  */
-export async function getAllTutors(): Promise<{
+export async function getAllTutors(hasPremiumAccess = false): Promise<{
   tutors: TutorBasic[];
   error: string | null;
 }> {
@@ -46,23 +66,43 @@ export async function getAllTutors(): Promise<{
     // Create a server client for this request
     const client = await createServerClientWithCookies();
     
+    // Use different fields based on premium access
+    const fields = hasPremiumAccess ? TUTOR_LIST_FIELDS : NON_PREMIUM_FIELDS;
+    
     const { data, error } = await client
       .from('tutor_profile')
-      .select(TUTOR_LIST_FIELDS)
-      .order('first_name', { ascending: true });
+      .select(fields)
+      .order('id', { ascending: true });
       
     if (error) {
       console.error('Error fetching tutors:', error.message);
       return { tutors: [], error: error.message };
     }
     
-    // Verify all tutors have search_id
-    const missingSearchIds = data?.filter(tutor => !tutor.search_id).length || 0;
-    if (missingSearchIds > 0) {
-      console.warn(`Warning: ${missingSearchIds} tutors missing search_id`);
+    // For non-premium users, create placeholder data for the restricted fields
+    if (!hasPremiumAccess && data) {
+      // Add generic placeholders for restricted fields
+      const processedTutors = (data as any as TutorRawData[]).map((tutor, index) => ({
+        ...tutor,
+        id: `tutor-${index}`, // Generic ID
+        search_id: `tutor-${index}`, // Generic search ID
+        first_name: `Tutor`, // Generic first name
+        last_name: `${index + 1}`, // Generic last name with number
+        description: "Upgrade to premium to see full tutor details." // Generic description
+      } as TutorBasic));
+      
+      return { tutors: processedTutors, error: null };
     }
     
-    return { tutors: data || [], error: null };
+    // Verify all tutors have search_id (for premium users only)
+    if (hasPremiumAccess) {
+      const missingSearchIds = (data as any as TutorRawData[])?.filter(tutor => !tutor.search_id).length || 0;
+    if (missingSearchIds > 0) {
+      console.warn(`Warning: ${missingSearchIds} tutors missing search_id`);
+      }
+    }
+    
+    return { tutors: (data as any as TutorBasic[]) || [], error: null };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Unexpected error fetching tutors:', errorMessage);

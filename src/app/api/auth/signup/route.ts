@@ -22,18 +22,45 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const { email, password, confirmPassword, userType, firstName, lastName } = body;
+        const { email, password, confirmPassword, userType, firstName, lastName, first_name, last_name } = body;
+        
+        // Debug the received body
+        console.log('Received signup body:', { 
+            email: email || 'missing', 
+            password: password ? '********' : 'missing',
+            confirmPassword: confirmPassword ? '********' : 'missing',
+            userType: userType || 'missing',
+            firstName: firstName || first_name || 'missing',
+            lastName: lastName || last_name || 'missing',
+            originalKeys: Object.keys(body)
+        });
+
+        // Handle both naming conventions for fields
+        const actualFirstName = firstName || first_name;
+        const actualLastName = lastName || last_name;
         const isTutor = userType === 'tutor';
 
+        // Reject tutor registrations - only students can register
+        if (isTutor) {
+            return new NextResponse(
+                JSON.stringify({ error: "Tutor accounts can only be created by administrators" }),
+                { 
+                    status: 403,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+        }
+
         // Validate required fields
-        if (!email || !password || !confirmPassword || !userType || !firstName || !lastName) {
+        if (!email || !password || !userType || !actualFirstName || !actualLastName) {
             const missingFields = [];
             if (!email) missingFields.push('email');
             if (!password) missingFields.push('password');
-            if (!confirmPassword) missingFields.push('confirm password');
             if (!userType) missingFields.push('user type');
-            if (!firstName) missingFields.push('first name');
-            if (!lastName) missingFields.push('last name');
+            if (!actualFirstName) missingFields.push('first name');
+            if (!actualLastName) missingFields.push('last name');
             
             console.error(`Missing required fields: ${missingFields.join(', ')}`);
             return new NextResponse(
@@ -49,7 +76,9 @@ export async function POST(req: NextRequest) {
 
         const supabase = await createRouteHandlerClientWithCookies();
 
-        if (password !== confirmPassword) {
+        // If confirmPassword is not present, assume it matches password
+        const passwordsMatch = !confirmPassword || password === confirmPassword;
+        if (!passwordsMatch) {
             return new NextResponse(
                 JSON.stringify({ error: "Passwords do not match" }),
                 { 
@@ -71,8 +100,8 @@ export async function POST(req: NextRequest) {
                 emailRedirectTo: `${url.origin}/api/auth/callback`,
                 data: {
                     is_tutor: isTutor,
-                    first_name: firstName,
-                    last_name: lastName
+                    first_name: actualFirstName,
+                    last_name: actualLastName
                 }
             }
         });
@@ -107,7 +136,7 @@ export async function POST(req: NextRequest) {
             userId: data.user.id, 
             email: data.user.email,
             userType: isTutor ? 'tutor' : 'student',
-            name: `${firstName} ${lastName}`
+            name: `${actualFirstName} ${actualLastName}`
         });
 
         // Profile creation is now handled by session API on sign-in

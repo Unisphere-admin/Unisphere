@@ -133,17 +133,6 @@ export default function ResetPasswordPage() {
       </div>
       
       <div className="max-w-md w-full px-4 py-8 relative z-10">
-        <div className="flex justify-center mb-6">
-          <div className="flex items-center gap-2">
-            <Link href="/" className="inline-flex items-center gap-2 mb-4">
-              <div className="bg-primary/10 p-2 rounded-md">
-                <Globe className="h-6 w-6 text-primary" strokeWidth={2} />
-              </div>
-              <h1 className="text-3xl font-bold">Unisphere</h1>
-            </Link>
-          </div>
-        </div>
-        
         <Card className="bg-card/80 backdrop-blur-sm border-border/40 shadow-xl hover:shadow-2xl transition-all">
           <CardHeader className="space-y-1">
             <div className="flex justify-center mb-2">

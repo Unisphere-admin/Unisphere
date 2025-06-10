@@ -35,23 +35,26 @@ export function useCachedData<T = any>(
   const isMounted = useRef(false);
   const refreshInProgress = useRef(false);
 
-  const [data, setData] = useState<T | null>(() => {
-    // Initialize with data from cache if available
-    return getFromCache<T>(cacheKey, ttl);
-  });
+  // Try to get initial data from cache immediately
+  const initialCachedData = getFromCache<T>(cacheKey, ttl);
   
-  const [isLoading, setIsLoading] = useState<boolean>(isCacheLoading(cacheKey));
+  const [data, setData] = useState<T | null>(initialCachedData);
+  const [isLoading, setIsLoading] = useState<boolean>(!initialCachedData || isCacheLoading(cacheKey));
   const [error, setError] = useState<Error | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   // Function to refresh data
   const refresh = useCallback(async (force: boolean = false) => {
     // Prevent concurrent refreshes
-    if (refreshInProgress.current) return null;
+    if (refreshInProgress.current) return data;
     
     refreshInProgress.current = true;
     setError(null);
-    setIsLoading(true);
+    
+    // Only set loading to true if we don't already have data to show
+    if (!data) {
+      setIsLoading(true);
+    }
     
     try {
       const result = await getAndCacheData<T>(
@@ -71,42 +74,37 @@ export function useCachedData<T = any>(
       const fetchError = err instanceof Error ? err : new Error(String(err));
       setError(fetchError);
       console.error(`Error fetching data for ${cacheKey}:`, fetchError);
-      return null;
+      return data; // Return existing data on error instead of null
     } finally {
       setIsLoading(false);
       refreshInProgress.current = false;
     }
-  }, [cacheKey, fetchFn, ttl, disableBackgroundRefresh]);
+  }, [cacheKey, fetchFn, ttl, disableBackgroundRefresh, data]);
 
   // Initialize from cache
   useEffect(() => {
-    // Get data from cache immediately if available
-    const cachedData = getFromCache<T>(cacheKey, ttl);
-    if (cachedData) {
-      setData(cachedData);
-      
-      // Get the cache item to check its age
-      try {
-        const cacheItemStr = localStorage.getItem(cacheKey);
-        if (cacheItemStr) {
-          const cacheItem = JSON.parse(cacheItemStr);
-          
-          // Update last updated timestamp from cache
-          if (cacheItem.lastUpdated) {
-            setLastUpdated(cacheItem.lastUpdated);
-          }
+    // Get cache item to check its age
+    try {
+      const cacheItemStr = localStorage.getItem(cacheKey);
+      if (cacheItemStr) {
+        const cacheItem = JSON.parse(cacheItemStr);
+        
+        // Update last updated timestamp from cache
+        if (cacheItem.lastUpdated) {
+          setLastUpdated(cacheItem.lastUpdated);
         }
-      } catch (err) {
-        console.warn(`Error checking cache data for ${cacheKey}:`, err);
       }
-    } 
+    } catch (err) {
+      console.warn(`Error checking cache data for ${cacheKey}:`, err);
+    }
   }, [cacheKey]); // Only run on cacheKey change
 
-  // Separate effect for background refresh
+  // Effect for background refresh - separate to avoid interference
   useEffect(() => {
-    // Get data from cache to check staleness
+    // Skip if refresh is disabled or already in progress
     if (disableBackgroundRefresh || refreshInProgress.current) return;
 
+    // Evaluate cache staleness
     try {
       const cacheItemStr = localStorage.getItem(cacheKey);
       if (cacheItemStr) {
@@ -115,16 +113,16 @@ export function useCachedData<T = any>(
         const cacheAge = now - (cacheItem.timestamp || 0);
         const maxAge = ttl || CACHE_CONFIG.CACHE_TTL;
         
-        // If cache is stale but not too old, use it but refresh in background
-        if (cacheAge > maxAge && !isMounted.current) {
-          // Wait until component is fully mounted
+        // If cache is stale, refresh in background - but with shorter delay to avoid race conditions
+        if (cacheAge > maxAge) {
           console.debug(`Cache for ${cacheKey} is stale (${cacheAge / 1000}s old), refreshing in background`);
           
           const timer = setTimeout(() => {
             if (!refreshInProgress.current) {
+              // Don't set loading state for background refreshes
               refresh(false).catch(console.error);
             }
-          }, 500); // Short delay to avoid refresh during mount
+          }, 300); // Reduced delay for background refresh
           
           return () => clearTimeout(timer);
         }
@@ -134,23 +132,32 @@ export function useCachedData<T = any>(
     }
   }, [cacheKey, ttl, refresh, disableBackgroundRefresh]);
 
-  // Effect to fetch if no cache is available
+  // Effect to fetch if no cache is available or on dependency changes
   useEffect(() => {
     if (!isMounted.current) {
       isMounted.current = true;
+      
+      // If we don't have data from cache, fetch immediately with a minimal delay
+      if (!data && !isLoading && !refreshInProgress.current) {
+        const timer = setTimeout(() => {
+          refresh(false).catch(console.error);
+        }, data ? initialFetchDelay : 100); // Shorter delay when no data exists
+        
+        return () => clearTimeout(timer);
+      }
+      
       return;
     }
     
-    const cachedData = getFromCache<T>(cacheKey, ttl);
-    if (!cachedData && !isLoading && !refreshInProgress.current) {
-      // If no cache data available, fetch after initial delay
+    // Only trigger refresh when dependencies change and component is already mounted
+    if (!refreshInProgress.current) {
       const timer = setTimeout(() => {
         refresh(false).catch(console.error);
       }, initialFetchDelay);
       
       return () => clearTimeout(timer);
     }
-  }, [cacheKey, ttl, refresh, initialFetchDelay, isLoading, ...dependencyArray]);
+  }, [cacheKey, ttl, refresh, initialFetchDelay, isLoading, data, ...dependencyArray]);
 
   return {
     data,

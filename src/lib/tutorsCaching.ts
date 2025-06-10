@@ -21,6 +21,59 @@ async function isAuthenticated(): Promise<boolean> {
 }
 
 /**
+ * Prefetch tutors data - modern implementation with proper promise handling
+ */
+export async function prefetchTutors(): Promise<boolean> {
+  try {
+    console.log('Prefetching tutors data for faster page loads');
+    
+    // Check if we already have cached tutors data
+    const cachedTutors = getFromCache(CACHE_CONFIG.TUTORS_CACHE_KEY, CACHE_CONFIG.TUTORS_CACHE_TTL);
+    
+    // If we have fresh cached data, we can exit early
+    if (cachedTutors) {
+      console.debug('Using existing cached tutors data');
+      return true;
+    }
+    
+    // Fetch fresh data from the API and cache it
+    const result = await getAndCacheData(
+      CACHE_CONFIG.TUTORS_CACHE_KEY,
+      async () => {
+        try {
+        const response = await fetch('/api/tutors', {
+          credentials: 'include',
+          headers: {
+            'Cache-Control': 'no-cache',
+          }
+        });
+        
+          // Even if there's a 401 error, the API now returns limited data for unauthenticated users
+          // so we should still get a successful response
+        if (!response.ok) {
+            console.warn(`Tutors API returned status: ${response.status}`);
+            return []; // Return empty array instead of throwing
+        }
+        
+        const data = await response.json();
+        return data.tutors || [];
+        } catch (error) {
+          console.warn("Network error fetching tutors:", error);
+          return []; // Return empty array for network errors
+        }
+      },
+      CACHE_CONFIG.TUTORS_CACHE_TTL
+    );
+    
+    console.debug('Tutors data prefetched and cached successfully');
+    return true;
+  } catch (error) {
+    console.warn("Error prefetching tutors (non-critical):", error);
+    return false;
+  }
+}
+
+/**
  * Fetch tutors with caching
  * @deprecated Use useCachedTutors from src/hooks/useCachedData.ts instead
  */
@@ -55,8 +108,14 @@ export async function fetchTutorsFromAPI(isBackgroundRefresh = false) {
       }
     });
     
+    // With the updated API, even unauthenticated requests should succeed
+    // but we'll handle errors gracefully just in case
     if (!response.ok) {
-      throw new Error(`Failed to fetch tutors: ${response.status}`);
+      console.warn(`Tutors API returned status: ${response.status}`);
+      
+      // Try to get from cache if API request fails
+      const cachedTutors = getFromCache(CACHE_CONFIG.TUTORS_CACHE_KEY);
+      return cachedTutors || [];
     }
     
     const data = await response.json();
@@ -66,7 +125,7 @@ export async function fetchTutorsFromAPI(isBackgroundRefresh = false) {
     
     return data.tutors || [];
   } catch (error) {
-    console.error("Error fetching tutors from API:", error);
+    console.warn("Network error fetching tutors:", error);
     
     // Try to get from cache if API request fails
     const cachedTutors = getFromCache(CACHE_CONFIG.TUTORS_CACHE_KEY);
