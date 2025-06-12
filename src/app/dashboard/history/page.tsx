@@ -57,7 +57,8 @@ export default function SessionHistoryPage() {
     }
   };
 
-  if (loadingSessions) {
+  // Only show loading spinner when there are no sessions available yet
+  if (loadingSessions && (!sessions || sessions.length === 0)) {
     return (
       <div className="flex items-center justify-center min-h-[500px]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

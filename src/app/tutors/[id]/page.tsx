@@ -553,7 +553,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                     </div>
 
                     <div className="mt-6">
-                      <h3 className="font-semibold text-lg mb-2">Subjects</h3>
+                      <h3 className="font-semibold text-lg mb-2">Services</h3>
                       {tutorSubjects && tutorSubjects.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
                           {tutorSubjects.map((subject, index) => (

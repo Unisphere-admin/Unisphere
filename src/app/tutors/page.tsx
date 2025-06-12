@@ -468,11 +468,33 @@ export default function TutorsPage() {
             return tutor.subjects
               .split(',')
               .map((s: string) => s.trim())
-              .filter((s: string) => s.length > 0); // Filter out empty strings
+              .filter((s: string) => s.length > 0)
+              // Group subjects together
+              .map((s: string) => {
+                const sLower = s.toLowerCase();
+                if (sLower.startsWith('uk admissions tests -')) {
+                  return 'UK Admissions tests';
+                }
+                if (sLower.startsWith('subject tutoring -')) {
+                  return 'Subject Tutoring';
+                }
+                return s;
+              }); 
           } else if (Array.isArray(tutor.subjects)) {
             return tutor.subjects
               .filter((s: any) => typeof s === 'string' && s.trim().length > 0)
-              .map((s: string) => s.trim());
+              .map((s: string) => s.trim())
+              // Group subjects together
+              .map((s: string) => {
+                const sLower = s.toLowerCase();
+                if (sLower.startsWith('uk admissions tests -')) {
+                  return 'UK Admissions tests';
+                }
+                if (sLower.startsWith('subject tutoring -')) {
+                  return 'Subject Tutoring';
+                }
+                return s;
+              });
           }
         }
         return [];
@@ -670,7 +692,20 @@ export default function TutorsPage() {
     
     // Check if tutor teaches any of the selected subjects
     const matchesSubjects = selectedSubjects.length === 0 || 
-      tutorSubjects.some(subject => selectedSubjects.includes(subject));
+      selectedSubjects.every(subject => {
+        // Special handling for grouped subjects
+        if (subject === 'UK Admissions tests') {
+          return tutorSubjects.some(tutorSubject => 
+            tutorSubject.toLowerCase().startsWith('uk admissions tests -')
+          );
+        }
+        if (subject === 'Subject Tutoring') {
+          return tutorSubjects.some(tutorSubject => 
+            tutorSubject.toLowerCase().startsWith('subject tutoring -')
+          );
+        }
+        return tutorSubjects.includes(subject);
+      });
       
     // Check if tutor is associated with any of the selected schools - prioritize education data
     const matchesSchools = selectedSchools.length === 0 ||
@@ -789,9 +824,7 @@ export default function TutorsPage() {
         </div>
         <div className="container relative z-10 mx-auto px-4 md:px-6 max-w-screen-xl">
         <div className="max-w-3xl mx-auto text-center">
-            <Badge variant="outline" className="px-3 py-1 mb-4 text-sm bg-background/80 backdrop-blur-sm border-[#4ba896]/30 shadow-sm">
-              <span className="text-[#129490] font-medium">Premium</span> - Expert tutors
-            </Badge>
+            
             <h1 className="text-4xl font-bold tracking-tight mb-4 md:text-5xl">
               Find Your Perfect <span className="text-[#129490]">Tutor</span>
             </h1>
@@ -804,7 +837,7 @@ export default function TutorsPage() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
             <Input
                 className="pl-10 h-12 bg-background/80 backdrop-blur-sm border-[#84bc9c]/30 shadow-md focus-visible:border-[#4ba896]/30 focus-visible:ring-1 focus-visible:ring-[#4ba896]/20 transition-all"
-              placeholder="Search by name, subject, or keyword"
+              placeholder="Search by university, subject, or keyword"
               value={searchTerm}
                 onChange={handleSearchChange}
             />
@@ -822,7 +855,7 @@ export default function TutorsPage() {
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="flex items-center gap-2 shadow-sm border-[#84bc9c]/40 hover:bg-[#c2dac2]/10 transition-colors">
                   <Filter className="h-4 w-4 text-[#4ba896]" strokeWidth={1.5} />
-                  Subjects {selectedSubjects.length > 0 && (
+                  Services {selectedSubjects.length > 0 && (
                     <Badge variant="secondary" className="ml-1 bg-[#4ba896]/10 text-[#129490] border-none">
                       {selectedSubjects.length}
                     </Badge>
@@ -1097,14 +1130,54 @@ export default function TutorsPage() {
                           <span className="font-medium">Subjects</span>
                         </div>
                         <div className="flex flex-wrap gap-1 pl-5">
-                          {(typeof tutor.subjects === 'string' 
-                            ? tutor.subjects.split(',').map(s => s.trim()) 
-                            : Array.isArray(tutor.subjects) ? tutor.subjects : []
-                          ).slice(0, 3).map((subject, idx) => (
-                            <Badge key={idx} variant="outline" className="text-xs bg-[#c2d8d2]/30 border-[#84b7bd]/30">
-                              {subject}
-                            </Badge>
-                          ))}
+                          {(() => {
+                            // Process subjects before displaying
+                            const rawSubjects = (typeof tutor.subjects === 'string' 
+                              ? tutor.subjects.split(',').map(s => s.trim()) 
+                              : Array.isArray(tutor.subjects) ? tutor.subjects : []
+                            );
+                            
+                            // Define patterns for grouped subjects
+                            const ukTestsPattern = /^uk admissions tests -/i;
+                            const subjectTutoringPattern = /^subject tutoring -/i;
+                            
+                            // Group subjects
+                            const ukTests = rawSubjects.filter(s => ukTestsPattern.test(s));
+                            const subjectTutoring = rawSubjects.filter(s => subjectTutoringPattern.test(s));
+                            const otherSubjects = rawSubjects.filter(s => 
+                              !ukTestsPattern.test(s) && !subjectTutoringPattern.test(s)
+                            );
+                            
+                            // Prepare processed subjects list
+                            const processedSubjects = [...otherSubjects];
+                            
+                            // Add grouped UK Admissions tests if there are any
+                            if (ukTests.length > 0) {
+                              // Extract test names from the UK tests subjects
+                              const testNames = ukTests.map(test => 
+                                test.replace(ukTestsPattern, '').trim()
+                              );
+                              const testDisplay = `UK Admissions tests - ${testNames.join(', ')}`;
+                              processedSubjects.unshift(testDisplay);
+                            }
+                            
+                            // Add grouped Subject Tutoring if there are any
+                            if (subjectTutoring.length > 0) {
+                              // Extract subject names
+                              const subjectNames = subjectTutoring.map(subject => 
+                                subject.replace(subjectTutoringPattern, '').trim()
+                              );
+                              const subjectDisplay = `Subject Tutoring - ${subjectNames.join(', ')}`;
+                              processedSubjects.unshift(subjectDisplay);
+                            }
+                            
+                            // Display the badges (up to 3)
+                            return processedSubjects.slice(0, 3).map((subject, idx) => (
+                              <Badge key={idx} variant="outline" className="text-xs bg-[#c2d8d2]/30 border-[#84b7bd]/30">
+                                {subject}
+                              </Badge>
+                            ));
+                          })()}
                           {(typeof tutor.subjects === 'string' 
                             ? tutor.subjects.split(',') 
                             : Array.isArray(tutor.subjects) ? tutor.subjects : []

@@ -21,7 +21,12 @@ import {
   CheckCheck,
   AlertCircle,
   MessageSquare,
-  Info
+  Info,
+  School,
+  BookOpen,
+  GraduationCap,
+  Clock,
+  Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -36,6 +41,7 @@ import {
   DialogTrigger,
   DialogClose,
   DialogFooter,
+  DialogDescription
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -49,6 +55,8 @@ import { SessionRequestCard, parseSessionRequest } from "@/components/SessionReq
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { validateText, sanitizeInput, checkForMaliciousContent, messageSchema } from "@/lib/validation";
 import { getCsrfTokenFromStorage, CSRF_HEADER_NAME, useCsrfToken } from '@/lib/csrf/client';
+import { Separator } from "@/components/ui/separator";
+import { Card } from "@/components/ui/card";
 
 // Define interface for messages returned from API
 interface Message {
@@ -95,17 +103,6 @@ interface ActiveSession {
   student_id?: string;
   conversation_id?: string;
   cost?: number | null;
-}
-
-interface StudentProfileData {
-  id: string;
-  first_name?: string;
-  last_name?: string;
-  intended_universities?: string;
-  intended_major?: string;
-  high_school_subjects?: string[] | string;
-  avatar_url?: string;
-  bio?: string;
 }
 
 // Create a standalone UnreadBadge component
@@ -164,6 +161,147 @@ const UnreadBadge = ({ conversation, messages, userId, selectedConversationId }:
   );
 };
 
+// Add this component for the user profile dialog
+const UserProfileDialog = ({ 
+  isOpen, 
+  onOpenChange,
+  userId,
+  displayName
+}: { 
+  isOpen: boolean; 
+  onOpenChange: (open: boolean) => void;
+  userId: string;
+  displayName: string;
+}) => {
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch user profile when dialog opens
+  useEffect(() => {
+    if (isOpen && userId) {
+      setLoading(true);
+      setError(null);
+
+      fetch(`/api/users/profile/${userId}`)
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`Failed to fetch profile: ${res.status}`);
+          }
+          return res.json();
+        })
+        .then(data => {
+          setProfile(data.profile);
+        })
+        .catch(err => {
+          console.error("Error fetching profile:", err);
+          setError("Failed to load student profile");
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [isOpen, userId]);
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Student Profile: {displayName}</DialogTitle>
+          <DialogDescription>
+            Student information to help personalize your tutoring
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : error ? (
+          <div className="text-center py-6 text-destructive">
+            {error}
+          </div>
+        ) : profile ? (
+          <div className="space-y-4 py-2">
+            {/* Basic Info */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-muted-foreground">Basic Information</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="text-sm">
+                  <span className="font-medium">First Name:</span> {profile.first_name}
+                </div>
+                <div className="text-sm">
+                  <span className="font-medium">Last Name:</span> {profile.last_name}
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Educational Info */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground">Educational Information</h3>
+              
+              {/* Intended Universities */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <GraduationCap className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Intended Universities</span>
+                </div>
+                <p className="text-sm pl-6">
+                  {profile.intended_universities || "Not specified"}
+                </p>
+              </div>
+              
+              {/* Intended Major */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <School className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Intended Major</span>
+                </div>
+                <p className="text-sm pl-6">
+                  {profile.intended_major || "Not specified"}
+                </p>
+              </div>
+              
+              {/* High School Subjects */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Current High School Subjects</span>
+                </div>
+                <div className="pl-6">
+                  {Array.isArray(profile.high_school_subjects) && profile.high_school_subjects.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {profile.high_school_subjects.map((subject: string, index: number) => (
+                        <Badge key={index} variant="outline" className="text-xs bg-muted/40">
+                          {subject}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : profile.high_school_subjects ? (
+                    <p className="text-sm">{profile.high_school_subjects}</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No subjects specified</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-6 text-muted-foreground">
+            No profile information available
+          </div>
+        )}
+        
+        <DialogFooter>
+          <Button onClick={() => onOpenChange(false)}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 export default function MessagesPage() {
   const { user } = useAuth();
   const { 
@@ -190,11 +328,28 @@ export default function MessagesPage() {
   } = useSessions();
   
   const { fetchCsrfToken } = useCsrfToken();
-  
   const { toast } = useToast();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const messageContainerRef = useRef<HTMLDivElement>(null);
+  const [newMessage, setNewMessage] = useState('');
+  const [showSessionDialog, setShowSessionDialog] = useState(false);
+  const [isSchedulingSession, setIsSchedulingSession] = useState(false);
+  const [sessionTitle, setSessionTitle] = useState('');
+  const [sessionDate, setSessionDate] = useState('');
+  const [sessionTime, setSessionTime] = useState('');
+  const [sessionCost, setSessionCost] = useState(1);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [sendMessageError, setSendMessageError] = useState<string | null>(null);
+  const [filteredConversations, setFilteredConversations] = useState<any[]>([]);
+  const [initialLoad, setInitialLoad] = useState(true);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const messageEndRef = useRef<HTMLDivElement>(null);
+  const lastScrollTopRef = useRef<number>(0);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isSendingRef = useRef<boolean>(false);
+  const [showUserProfileDialog, setShowUserProfileDialog] = useState(false);
   
   // Track initial page load status to control loading indicators
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -1065,7 +1220,7 @@ export default function MessagesPage() {
     if (!selectedConversationId) return false;
     
     // Check if there are any active typing users in this conversation
-    const conversationTypers = typingStates[selectedConversationId] || [];
+    const conversationTypers = isUserTyping[selectedConversationId] || [];
     
     // Filter out the current user's typing status
     const otherUserTyping = conversationTypers.some((typer: any) => 
@@ -1073,14 +1228,14 @@ export default function MessagesPage() {
     );
     
     return otherUserTyping;
-  }, [selectedConversationId, typingStates, user?.id]);
+  }, [selectedConversationId, isUserTyping, user?.id]);
 
   // Get the name of the person typing
   const getTypingDisplayName = useCallback(() => {
     if (!selectedConversationId || !currentConversation) return '';
     
     // Get typing users for the conversation (excluding the current user)
-    const typingUsers = (typingStates[selectedConversationId] || [])
+    const typingUsers = (isUserTyping[selectedConversationId] || [])
       .filter((typer: any) => typer.userId !== user?.id);
     
     // Get the first typing user's name
@@ -1091,7 +1246,7 @@ export default function MessagesPage() {
     
     // Fallback to conversation participant name if available
     return currentConversation.participant?.display_name || 'Someone';
-  }, [selectedConversationId, currentConversation, typingStates, user?.id]);
+  }, [selectedConversationId, currentConversation, isUserTyping, user?.id]);
 
   // Format timestamp for messages
   const formatMessageTime = (timestamp: string | undefined): string => {
@@ -1435,58 +1590,6 @@ export default function MessagesPage() {
     backgroundColor: '#3b82f6', // Blue-500 color
   };
 
-  // Add these new states for profile dialog
-  const [showProfileDialog, setShowProfileDialog] = useState<boolean>(false);
-  const [profileData, setProfileData] = useState<StudentProfileData | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState<boolean>(false);
-  
-  // Add function to fetch student profile
-  const fetchStudentProfile = async (studentId: string) => {
-    if (!studentId || user?.role !== 'tutor') return;
-    
-    try {
-      setLoadingProfile(true);
-      
-      // Use a direct API route that specifically fetches student profile data
-      // without checking if the user is a tutor
-      const response = await fetch(`/api/users/profile/${studentId}?profile_type=student`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch student profile: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      // The profile data is returned directly from the student_profile table
-      setProfileData(data.profile);
-      
-      console.log('Fetched student profile:', data.profile);
-      console.log('Student bio:', data.profile?.bio || 'No bio available');
-    } catch (error) {
-      console.error('Error fetching student profile:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load student profile",
-        variant: "destructive"
-      });
-    } finally {
-      setLoadingProfile(false);
-    }
-  };
-  
-  // Handler for opening the profile dialog
-  const handleOpenProfileDialog = (studentId: string) => {
-    if (!studentId || user?.role !== 'tutor') return;
-    
-    fetchStudentProfile(studentId);
-    setShowProfileDialog(true);
-  };
-
   return (
     <div className="min-h-[calc(100vh-4rem)] w-full  relative">
       <div className="absolute inset-0 from-primary/5 via-background to-muted/10 pointer-events-none"></div>
@@ -1508,7 +1611,7 @@ export default function MessagesPage() {
           </div>
           
           <div className="flex-grow overflow-auto ">
-            {loading && isInitialLoad && stableConversations.length === 0 ? (
+            {loading && isInitialLoad ? (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin text-primary" />
                 <span>Loading conversations...</span>
@@ -1621,64 +1724,86 @@ export default function MessagesPage() {
             <>
               {/* Chat header */}
               <div className="p-4 border-b border-border/40 flex items-center justify-between bg-card/40 backdrop-blur-sm shadow-sm rounded-tr-2xl">
-                <div
-                  className={`flex items-center gap-3 ${user?.role === 'tutor' && !currentConversation?.participant?.is_tutor ? 
-                    'cursor-pointer hover:bg-muted/60 rounded-md px-2 transition-all duration-200' : ''}`}
-                  onClick={() => {
-                    // Only allow tutors to view student profiles
-                    if (user?.role === 'tutor' && !currentConversation?.participant?.is_tutor && currentConversation?.participant?.id) {
-                      handleOpenProfileDialog(currentConversation.participant.id);
-                    }
-                  }}
-                >
+                <div className="flex items-center gap-3">
                   <Button 
                     variant="ghost" 
                     size="icon" 
                     className="md:hidden" 
-                    onClick={(e) => {
-                      e.stopPropagation(); // Prevent triggering the parent onClick
-                      setSelectedConversationId("");
-                    }}
+                    onClick={() => setSelectedConversationId("")}
                   >
                     <ChevronLeft className="h-5 w-5" />
                   </Button>
-                  <Avatar className="h-10 w-10 border border-border/40 shadow-sm">
-                    <AvatarImage src={currentConversation?.participant?.avatar_url || undefined} />
-                    <AvatarFallback className="bg-primary/10 text-primary">
-                      {currentConversation?.participant?.display_name?.charAt(0) || '?'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-base font-medium">{currentConversation?.participant?.display_name}</h2>
-                      {currentConversation?.participant?.is_tutor && (
-                        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-xs font-normal">
-                          Tutor
-                        </Badge>
-                      )}
-                      {/* Show info icon for tutors when looking at student profiles */}
-                      {user?.role === 'tutor' && !currentConversation?.participant?.is_tutor && (
-                        <div className="flex items-center ml-1">
-                          <Info className="h-3.5 w-3.5 text-primary/60 animate-pulse" />
-                          <span className="ml-1 text-xs text-primary/60">Click to view profile</span>
+                  
+                  {/* Make avatar and name clickable for tutors viewing student profiles */}
+                  {user?.role === 'tutor' && !currentConversation?.participant?.is_tutor ? (
+                    <div 
+                      className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => setShowUserProfileDialog(true)}
+                    >
+                      <Avatar className="h-10 w-10 border border-border/40 shadow-sm">
+                        <AvatarImage src={currentConversation?.participant?.avatar_url || undefined} />
+                        <AvatarFallback className="bg-primary/10 text-primary">
+                          {currentConversation?.participant?.display_name?.charAt(0) || '?'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-base font-medium">{currentConversation?.participant?.display_name}</h2>
+                          <Button variant="ghost" size="sm" className="h-6 px-2 py-0">
+                            <User className="h-3 w-3 mr-1" />
+                            <span className="text-xs">View Profile</span>
+                          </Button>
                         </div>
-                      )}
+                        <p className="text-xs text-muted-foreground">
+                          {isUserTyping(selectedConversationId) ? (
+                            <span className="text-primary animate-pulse flex items-center gap-1">
+                              <span className="flex space-x-1">
+                                <span className="h-1.5 w-1.5 bg-primary/70 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                                <span className="h-1.5 w-1.5 bg-primary/70 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                                <span className="h-1.5 w-1.5 bg-primary/70 rounded-full animate-bounce"></span>
+                              </span>
+                              <span>Typing</span>
+                            </span>
+                          ) : (
+                            "Online"
+                          )}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {isUserTyping(selectedConversationId) ? (
-                        <span className="text-primary animate-pulse flex items-center gap-1">
-                          <span className="flex space-x-1">
-                            <span className="h-1.5 w-1.5 bg-primary/70 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                            <span className="h-1.5 w-1.5 bg-primary/70 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                            <span className="h-1.5 w-1.5 bg-primary/70 rounded-full animate-bounce"></span>
-                          </span>
-                          <span>Typing</span>
-                        </span>
-                      ) : (
-                        "Online"
-                      )}
-                    </p>
-                  </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10 border border-border/40 shadow-sm">
+                        <AvatarImage src={currentConversation?.participant?.avatar_url || undefined} />
+                        <AvatarFallback className="bg-primary/10 text-primary">
+                          {currentConversation?.participant?.display_name?.charAt(0) || '?'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-base font-medium">{currentConversation?.participant?.display_name}</h2>
+                          {currentConversation?.participant?.is_tutor && (
+                            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-xs font-normal">
+                              Tutor
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {isUserTyping(selectedConversationId) ? (
+                            <span className="text-primary animate-pulse flex items-center gap-1">
+                              <span className="flex space-x-1">
+                                <span className="h-1.5 w-1.5 bg-primary/70 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                                <span className="h-1.5 w-1.5 bg-primary/70 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                                <span className="h-1.5 w-1.5 bg-primary/70 rounded-full animate-bounce"></span>
+                              </span>
+                              <span>Typing</span>
+                            </span>
+                          ) : (
+                            "Online"
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Schedule Session button - only shown to tutors */}
@@ -1791,7 +1916,7 @@ export default function MessagesPage() {
                 ref={scrollAreaRef} 
                 onScroll={handleScroll}
               >
-                {loadingMessages && isInitialLoad && (!selectedConversationId || !getStableMessages(selectedConversationId).length) ? (
+                {loadingMessages && isInitialLoad ? (
                   <div className="flex items-center justify-center h-full flex-grow">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   </div>
@@ -2030,117 +2155,16 @@ export default function MessagesPage() {
           )}
         </div>
       </div>
-
-      {/* Student Profile Dialog */}
-      <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Student Profile</DialogTitle>
-          </DialogHeader>
-          
-          {loadingProfile && !profileData ? (
-            <div className="flex flex-col items-center justify-center py-8 space-y-3">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Fetching student information...</p>
-            </div>
-          ) : profileData ? (
-            <div className="space-y-4 py-2">
-              <div className="flex items-center gap-4">
-                <Avatar className="h-16 w-16 border border-border/40 shadow-md">
-                  <AvatarImage src={profileData.avatar_url || undefined} />
-                  <AvatarFallback className="bg-primary/10 text-primary text-xl">
-                    {profileData.first_name?.charAt(0) || 'S'}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h3 className="text-lg font-medium">{profileData.first_name} {profileData.last_name}</h3>
-                  <p className="text-sm text-muted-foreground">Student</p>
-                </div>
-              </div>
-              
-              <div className="space-y-3 pt-2">
-                {/* Bio/About */}
-                {profileData.bio && (
-                  <div className="space-y-1">
-                    <h4 className="text-sm font-medium text-primary">About</h4>
-                    <p className="text-sm">
-                      {profileData.bio}
-                    </p>
-                  </div>
-                )}
-                
-                {/* Intended Universities */}
-                <div className="space-y-1">
-                  <h4 className="text-sm font-medium text-primary">Intended Universities</h4>
-                  <p className="text-sm">
-                    {profileData.intended_universities ? (
-                      profileData.intended_universities
-                    ) : (
-                      <span className="text-muted-foreground">Not specified</span>
-                    )}
-                  </p>
-                </div>
-                
-                {/* Intended Major */}
-                <div className="space-y-1">
-                  <h4 className="text-sm font-medium text-primary">Intended Major</h4>
-                  <p className="text-sm">
-                    {profileData.intended_major ? (
-                      profileData.intended_major
-                    ) : (
-                      <span className="text-muted-foreground">Not specified</span>
-                    )}
-                  </p>
-                </div>
-                
-                {/* Current High School Subjects */}
-                <div className="space-y-1">
-                  <h4 className="text-sm font-medium text-primary">Current High School Subjects</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {(() => {
-                      // First handle array format
-                      if (Array.isArray(profileData.high_school_subjects) && 
-                          profileData.high_school_subjects.length > 0) {
-                        return profileData.high_school_subjects.map((subject, index) => (
-                          <Badge key={index} variant="secondary" className="bg-muted">
-                            {subject}
-                          </Badge>
-                        ));
-                      } 
-                      // Then handle string format (comma-separated)
-                      else if (typeof profileData.high_school_subjects === 'string' && 
-                              profileData.high_school_subjects) {
-                        return profileData.high_school_subjects.split(',')
-                          .map(subject => subject.trim())
-                          .filter(subject => subject) // Filter out empty strings
-                          .map((subject, index) => (
-                            <Badge key={index} variant="secondary" className="bg-muted">
-                              {subject}
-                            </Badge>
-                          ));
-                      }
-                      // Default case - no subjects
-                      else {
-                        return (
-                          <span className="text-sm text-muted-foreground">Not specified</span>
-                        );
-                      }
-                    })()}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="py-4 text-center">
-              <p className="text-muted-foreground">Could not load student profile</p>
-            </div>
-          )}
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowProfileDialog(false)}>Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      
+      {/* Add the UserProfileDialog */}
+      {currentConversation?.participant && (
+        <UserProfileDialog
+          isOpen={showUserProfileDialog}
+          onOpenChange={setShowUserProfileDialog}
+          userId={currentConversation.participant.id}
+          displayName={currentConversation.participant.display_name || "User"}
+        />
+      )}
     </div>
   );
 } 

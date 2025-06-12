@@ -104,16 +104,31 @@ export interface Database {
           id: string
           first_name: string
           last_name: string
+          intended_universities?: string
+          intended_major?: string
+          high_school_subjects?: string[]
+          avatar_url?: string
+          bio?: string
         }
         Insert: {
           id: string
           first_name: string
           last_name: string
+          intended_universities?: string
+          intended_major?: string
+          high_school_subjects?: string[]
+          avatar_url?: string
+          bio?: string
         }
         Update: {
           id?: string
           first_name?: string
           last_name?: string
+          intended_universities?: string
+          intended_major?: string
+          high_school_subjects?: string[]
+          avatar_url?: string
+          bio?: string
         }
       }
     }

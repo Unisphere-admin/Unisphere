@@ -32,7 +32,12 @@ const baseProfileSchema = z.object({
 });
 
 // Schema for student profiles with email update
-const studentProfileSchema = baseProfileSchema.extend({});
+const studentProfileSchema = baseProfileSchema.extend({
+  intended_universities: z.string().max(500, "Must be less than 500 characters").optional(),
+  intended_major: z.string().max(100, "Must be less than 100 characters").optional(),
+  high_school_subjects: z.string().max(500, "Must be less than 500 characters")
+    .optional(),
+});
 
 // Schema for email updates specifically
 const emailSchema = z.object({
@@ -86,12 +91,25 @@ export default function SettingsPage() {
   // Determine if the user is a tutor
   const isTutor = user?.role === "tutor";
 
+  // Add effect to ensure CSRF token is available
+  useEffect(() => {
+    // Fetch CSRF token on mount if not available
+    if (!token) {
+      fetchCsrfToken().catch(err => {
+        console.warn('Failed to fetch initial CSRF token:', err);
+      });
+    }
+  }, [token, fetchCsrfToken]);
+
   // Create form based on user role
   const studentForm = useForm<StudentProfileFormValues>({
     resolver: zodResolver(studentProfileSchema),
     defaultValues: {
       first_name: "",
       last_name: "",
+      intended_universities: "",
+      intended_major: "",
+      high_school_subjects: "",
     },
   });
 
@@ -247,14 +265,22 @@ export default function SettingsPage() {
         tutorForm.reset({
           first_name: firstName,
           last_name: lastName,
-          // Use the profile data values
-          age: profileData.age || "",
+          // Convert age to string explicitly to ensure it's properly displayed in the form field
+          age: profileData.age?.toString() || "",
           bio: profileData.description || profileData.bio || "",
         });
       } else {
+        // Cast to include the new fields
+        const extendedProfile = profileData as any;
+        
         studentForm.reset({
           first_name: firstName,
           last_name: lastName,
+          intended_universities: extendedProfile.intended_universities || "",
+          intended_major: extendedProfile.intended_major || "",
+          high_school_subjects: Array.isArray(extendedProfile.high_school_subjects)
+            ? extendedProfile.high_school_subjects.join(', ')
+            : extendedProfile.high_school_subjects || "",
         });
         
         // Update email form separately
@@ -286,10 +312,18 @@ export default function SettingsPage() {
         return;
       }
       
-      // Update profile data (name)
+      // Process high_school_subjects as an array
+      const highSchoolSubjects = data.high_school_subjects 
+        ? data.high_school_subjects.split(',').map(s => s.trim()).filter(Boolean)
+        : [];
+      
+      // Update profile data
       const profileData = {
         first_name: data.first_name,
-        last_name: data.last_name
+        last_name: data.last_name,
+        intended_universities: data.intended_universities,
+        intended_major: data.intended_major,
+        high_school_subjects: highSchoolSubjects
       };
 
       const response = await fetch("/api/users/profile", {
@@ -408,7 +442,7 @@ export default function SettingsPage() {
         body: JSON.stringify({
           first_name: data.first_name,
           last_name: data.last_name,
-          age: data.age,
+          age: data.age ? data.age.toString() : undefined, // Ensure age is sent as a string
           bio: data.bio, // This will map to description in the database for tutors
         }),
         credentials: "include",
@@ -514,6 +548,23 @@ export default function SettingsPage() {
         return;
       }
       
+      // Ensure we have a CSRF token
+      let csrfToken = token;
+      if (!csrfToken) {
+        try {
+          console.log('No CSRF token available, fetching fresh token');
+          csrfToken = await fetchCsrfToken();
+          if (!csrfToken) {
+            throw new Error('Failed to fetch CSRF token');
+          }
+        } catch (csrfError) {
+          console.error('CSRF token fetch error:', csrfError);
+          setAvatarError('Authentication error. Please refresh the page and try again.');
+          toast.error('Authentication error. Please refresh the page and try again.');
+          return;
+        }
+      }
+      
       // Upload the avatar
       const { path, error } = await uploadAvatar(user.id, avatarFile, {
         maxSizeMB: 2,
@@ -542,7 +593,7 @@ export default function SettingsPage() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRF-Token": token || "",
+          "X-CSRF-Token": csrfToken || "",
         },
         body: JSON.stringify(profileData),
         credentials: "include",
@@ -890,7 +941,7 @@ export default function SettingsPage() {
               </form>
             </Form>
           ) : (
-            // Student profile form - Name only
+            // Student profile form - With new educational fields
             <Form {...studentForm}>
               <form onSubmit={studentForm.handleSubmit(onStudentSubmit)} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -922,6 +973,51 @@ export default function SettingsPage() {
                   />
                 </div>
 
+                <FormField
+                  control={studentForm.control}
+                  name="intended_universities"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Intended Universities</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Oxford, Cambridge, Harvard..." {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={studentForm.control}
+                  name="intended_major"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Intended Major</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Computer Science, Medicine, Engineering..." {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={studentForm.control}
+                  name="high_school_subjects"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Current High School Subjects</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Mathematics, Physics, Chemistry, Biology..." {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all" />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Enter subjects separated by commas (e.g., Math, Physics, Chemistry)
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <div className="flex justify-end">
                   <Button type="submit" disabled={profileLoading} className="shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]">
                     {profileLoading ? (
@@ -932,7 +1028,7 @@ export default function SettingsPage() {
                     ) : (
                       <>
                         <Save className="mr-2 h-4 w-4" />
-                        Save Name Changes
+                        Save Changes
                       </>
                     )}
                   </Button>

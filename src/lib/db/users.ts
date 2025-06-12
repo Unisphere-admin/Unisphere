@@ -21,6 +21,9 @@ export interface UserProfile {
   tokens?: number;
   subjects?: string;
   has_access?: boolean;
+  intended_universities?: string;
+  intended_major?: string;
+  high_school_subjects?: string[] | string;
 }
 
 // Fields for basic user info
@@ -395,7 +398,10 @@ export async function createUserProfileIfNeeded(
 
 export async function getUserProfileById(
   userId: string, 
-  authUser: AuthUser
+  authUser: AuthUser,
+  options?: {
+    profile_type?: 'student' | 'tutor';
+  }
 ): Promise<{
   profile: any;
   error: string | null;
@@ -408,7 +414,30 @@ export async function getUserProfileById(
     
     const supabase = await createRouteHandlerClientWithCookies();
     
-    // First check if user exists and get their role
+    // If profile_type is specified, use that directly without checking user role
+    if (options?.profile_type) {
+      // For security, only allow tutors to directly request student profiles
+      if (options.profile_type === 'student' && !authUser.is_tutor) {
+        return { profile: null, error: 'Access denied' };
+      }
+      
+      const profileTable = options.profile_type === 'tutor' ? 'tutor_profile' : 'student_profile';
+      
+      const { data: profileData, error: profileError } = await supabase
+        .from(profileTable)
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (profileError) {
+        console.error(`Error fetching ${options.profile_type} profile:`, profileError);
+        return { profile: null, error: `${options.profile_type} profile not found` };
+      }
+      
+      return { profile: profileData, error: null };
+    }
+    
+    // For regular profile requests, check user role first
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('id, is_tutor')
@@ -481,13 +510,18 @@ export async function updateUserProfile(
       if (updateData.first_name !== undefined) filteredUpdateData.first_name = updateData.first_name;
       if (updateData.last_name !== undefined) filteredUpdateData.last_name = updateData.last_name;
       if (updateData.age !== undefined) filteredUpdateData.age = updateData.age;
-      if (updateData.bio !== undefined) filteredUpdateData.bio = updateData.bio;
+      if (updateData.bio !== undefined) filteredUpdateData.description = updateData.bio;
+      if (updateData.description !== undefined) filteredUpdateData.description = updateData.description;
       if (updateData.avatar_url !== undefined) filteredUpdateData.avatar_url = updateData.avatar_url;
     } else {
       // Student profile fields that can be updated
       if (updateData.first_name !== undefined) filteredUpdateData.first_name = updateData.first_name;
       if (updateData.last_name !== undefined) filteredUpdateData.last_name = updateData.last_name;
       if (updateData.avatar_url !== undefined) filteredUpdateData.avatar_url = updateData.avatar_url;
+      if (updateData.intended_universities !== undefined) filteredUpdateData.intended_universities = updateData.intended_universities;
+      if (updateData.intended_major !== undefined) filteredUpdateData.intended_major = updateData.intended_major;
+      if (updateData.high_school_subjects !== undefined) filteredUpdateData.high_school_subjects = updateData.high_school_subjects;
+      if (updateData.bio !== undefined) filteredUpdateData.bio = updateData.bio;
     }
     
     // Only proceed if there are fields to update

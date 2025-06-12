@@ -21,15 +21,22 @@ async function getUserProfileHandler(
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
     
+    // Get the profile_type from query parameters
+    const { searchParams } = new URL(req.url);
+    const profileType = searchParams.get('profile_type') as 'student' | 'tutor' | null;
+    
     // Use the data layer function to get profile data
-    const { profile, error } = await getUserProfileById(userId, user);
+    const { profile, error } = await getUserProfileById(userId, user, 
+      profileType ? { profile_type: profileType } : undefined
+    );
     
     // Handle errors
     if (error) {
       // Map error messages to appropriate status codes
       if (error === 'Access denied') {
         return NextResponse.json({ error }, { status: 403 });
-      } else if (error === 'User not found' || error === 'Profile not found') {
+      } else if (error === 'User not found' || error === 'Profile not found' || 
+                error === 'student profile not found' || error === 'tutor profile not found') {
         return NextResponse.json({ error }, { status: 404 });
       } else {
         return NextResponse.json({ error }, { status: 500 });

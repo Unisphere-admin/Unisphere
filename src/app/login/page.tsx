@@ -148,6 +148,15 @@ export default function LoginPage() {
       const data = await response.json();
       
       if (data.user) {
+        // Clear any temporary conversations and mappings from previous sessions
+        try {
+          localStorage.removeItem('tempConversations');
+          localStorage.removeItem('tempToRealConversions');
+        } catch (e) {
+          console.warn('Failed to clear temporary conversations:', e);
+          // Continue login process even if this fails
+        }
+        
         // Once logged in, try to fetch a CSRF token for subsequent operations
         try {
           await fetchCsrfToken();

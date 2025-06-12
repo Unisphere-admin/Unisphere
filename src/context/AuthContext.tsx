@@ -158,6 +158,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Clear conversations cache
           localStorage.removeItem('conversations');
           
+          // Clear temporary conversations and their mappings
+          localStorage.removeItem('tempConversations');
+          localStorage.removeItem('tempToRealConversions');
+          
           // Clear user-specific items using a prefix pattern
           const localStorageKeys = Object.keys(localStorage);
           localStorageKeys.forEach(key => {

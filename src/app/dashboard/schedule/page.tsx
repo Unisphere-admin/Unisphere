@@ -436,7 +436,9 @@ export default function SchedulePage() {
     }
   };
 
-  if (loadingSessions) {
+  // Remove the loading condition that shows a spinner when loadingSessions is true
+  // Only show loading spinner when there are no sessions available yet
+  if (loadingSessions && (!sessions || sessions.length === 0)) {
     return (
       <div className="flex items-center justify-center min-h-[500px]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -534,9 +536,11 @@ export default function SchedulePage() {
               </div>
               <h3 className="text-xl font-medium mb-3">No upcoming sessions</h3>
               <p className="text-muted-foreground mb-6">You don't have any tutoring sessions scheduled</p>
-              <Button asChild className="shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]">
-                <Link href="/tutors">Find a Tutor</Link>
-              </Button>
+              {user?.role !== 'tutor' && (
+                <Button asChild className="shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]">
+                  <Link href="/tutors">Find a Tutor</Link>
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-4">

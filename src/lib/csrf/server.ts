@@ -138,15 +138,16 @@ export async function csrfMiddleware(
     // This is a bit tricky since we can't easily clone the request to read its body
     // without consuming it. In a real implementation, we might need to use a more
     // sophisticated approach.
-    console.warn("No CSRF token in header, checking next middleware layer will need to validate form data");
+    console.warn(`No CSRF token in header for ${req.method} ${req.nextUrl.pathname}`);
   }
   
   // Validate the stored token
   const { valid, token: storedToken } = await validateStoredToken();
   
   if (!valid || !storedToken) {
+    console.error(`CSRF validation failed: Token missing or expired for ${req.method} ${req.nextUrl.pathname}`);
     return NextResponse.json(
-      { error: "CSRF token missing or expired" },
+      { error: "CSRF token missing or expired", details: "Please refresh the page and try again" },
       { status: 403 }
     );
   }
@@ -154,9 +155,19 @@ export async function csrfMiddleware(
   // Compare tokens (from header first, then form if available)
   const tokenToValidate = requestToken || formToken;
   
-  if (!tokenToValidate || tokenToValidate !== storedToken) {
+  if (!tokenToValidate) {
+    console.error(`CSRF validation failed: No token provided in request for ${req.method} ${req.nextUrl.pathname}`);
     return NextResponse.json(
-      { error: "Invalid CSRF token" },
+      { error: "No CSRF token provided", details: "Authentication token is required for this operation" },
+      { status: 403 }
+    );
+  }
+  
+  if (tokenToValidate !== storedToken) {
+    console.error(`CSRF validation failed: Token mismatch for ${req.method} ${req.nextUrl.pathname}`);
+    console.error(`  Request token: ${tokenToValidate.substring(0, 6)}... vs Stored token: ${storedToken.substring(0, 6)}...`);
+    return NextResponse.json(
+      { error: "Invalid CSRF token", details: "Authentication token is invalid. Please refresh the page and try again" },
       { status: 403 }
     );
   }

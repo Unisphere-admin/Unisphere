@@ -40,9 +40,7 @@ export default function HomePage() {
         <div className="container relative z-10 mx-auto px-4 md:px-6 max-w-screen-xl">
           <div className="flex flex-col md:flex-row gap-12 items-center">
             <div className="flex-1 space-y-6">
-              <Badge variant="outline" className="px-3 py-1 mb-2 text-sm bg-background/80 backdrop-blur-sm border-[#4ba896]/20">
-                <span className="text-[#129490] font-medium">New</span> - Global knowledge exchange now available
-              </Badge>
+              
               <h1 className="font-bold tracking-tight text-4xl md:text-5xl lg:text-6xl">
               Your all-in-one UK & US preparation platform
               </h1>
@@ -59,25 +57,7 @@ export default function HomePage() {
                   <Link href="/about">Learn More</Link>
                 </Button>
               </div>
-              <div className="flex items-center gap-4 mt-6">
-                <div className="flex -space-x-3">
-                  <Avatar className="border-2 border-background h-9 w-9 ring-2 ring-background">
-                    <AvatarImage src="https://randomuser.me/api/portraits/women/32.jpg" alt="User" />
-                    <AvatarFallback>JS</AvatarFallback>
-                  </Avatar>
-                  <Avatar className="border-2 border-background h-9 w-9 ring-2 ring-background">
-                    <AvatarImage src="https://randomuser.me/api/portraits/men/42.jpg" alt="User" />
-                    <AvatarFallback>MR</AvatarFallback>
-                  </Avatar>
-                  <Avatar className="border-2 border-background h-9 w-9 ring-2 ring-background">
-                    <AvatarImage src="https://randomuser.me/api/portraits/women/22.jpg" alt="User" />
-                    <AvatarFallback>KL</AvatarFallback>
-                  </Avatar>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  <span className="font-medium">1,000+</span> students already learning
-                </p>
-              </div>
+              
             </div>
             <div className="flex-1 relative">
               <div className="relative w-full max-w-md mx-auto">
@@ -137,7 +117,7 @@ export default function HomePage() {
       <section className="py-20 md:py-32 w-full bg-card/80 backdrop-blur-sm border-y border-[#c2d8d2]/30">
         <div className="container mx-auto px-4 md:px-6 max-w-screen-xl">
           <div className="text-center max-w-2xl mx-auto mb-16">
-            <Badge className="mb-4 bg-[#4b92a9]/10 text-[#126d94] hover:bg-[#4b92a9]/20 border-none">How It Works</Badge>
+            <Badge className="mb-4 bg-[#4b92a9]/10 text-[#126d94] hover:bg-[#4b92a9]/20 border-none">How We Work</Badge>
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Your Path to Success</h2>
             <p className="text-lg text-muted-foreground">
               Follow our proven roadmap to maximize your university admission chances
@@ -251,10 +231,10 @@ export default function HomePage() {
         <div className="container mx-auto px-4 md:px-6 max-w-screen-xl relative z-10">
           <div className="text-center max-w-2xl mx-auto mb-16">
             <Badge className="mb-4 bg-[#4b92a9]/10 text-[#126d94] hover:bg-[#4b92a9]/20 border-none">Testimonials</Badge>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">What our students say
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">What Our Students Say
             </h2>
             <p className="text-lg text-muted-foreground">
-            Hear from students who've reached their goals with the help of UniSphere tutors.
+            Hear from students who've reached their goals with the help of UniSphere tutors
             </p>
           </div>
 

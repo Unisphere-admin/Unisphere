@@ -102,7 +102,7 @@ export default function AboutPage() {
               <div className="hover:translate-x-1 transition-transform duration-300">
                 <h3 className="text-2xl font-semibold mb-3">1. Join with a One-Time Fee</h3>
                 <p className="text-muted-foreground">
-                Pay a one-time fee to access UniSphere’s platform for as low as RM2,000. This unlocks everything you need to begin your journey, from finding tutors to using our exclusive guides, resources and communities
+                Pay a one-time access fee, unlock everything you need to begin your journey, from finding tutors to using our exclusive guides, resources and communities
                 </p>
               </div>
               
@@ -285,7 +285,7 @@ export default function AboutPage() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">
-                We're committed to providing the highest quality educational experience, with rigorous standards for our content and methodologies.
+              We’re committed to providing the highest quality admissions support through thoroughly vetted student mentors, curated resources, and proven strategies tailored to top global universities.
               </p>
             </CardContent>
           </Card>
@@ -299,7 +299,7 @@ export default function AboutPage() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">
-                We believe education should be accessible to all, and work to remove barriers of geography, schedule, and background.
+              We believe expert guidance should be affordable and within reach for every student. Our platform lowers barriers of cost and location, offering flexible, budget-friendly services for all.
               </p>
             </CardContent>
           </Card>
@@ -313,7 +313,9 @@ export default function AboutPage() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">
-                We continuously seek better ways to connect students with educational resources and enhance the learning experience through technology.
+              We continuously develop smarter ways to connect students with peer mentors and create new resources, using our platform to personalise the admissions journey and streamline every step. 
+
+
               </p>
             </CardContent>
           </Card>
@@ -338,7 +340,7 @@ export default function AboutPage() {
           </p>
             <Button asChild size="lg" className="bg-[#129490] hover:bg-[#126d94] shadow-md hover:shadow-lg transition-all hover:translate-y-[-2px]">
             <Link href="/tutors">
-                Begin your journey
+                Begin Your Journey
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>

@@ -59,19 +59,19 @@ export async function uploadAvatar(
       }
     }
 
-    // Create Supabase client
+    // Create Supabase client with auth headers (including CSRF token)
     const supabase = createClient();
 
     // Generate a unique filename with the original extension
     const fileExt = file.name.split('.').pop() || '';
     const fileName = `${userId}/${uuidv4()}.${fileExt}`;
 
-    // Upload the file
+    // Upload the file with authorization
     const { data, error } = await supabase.storage
       .from(AVATARS_BUCKET)
       .upload(fileName, file, {
         upsert: options.upsert || false,
-        contentType: file.type
+        contentType: file.type,
       });
 
     if (error) {

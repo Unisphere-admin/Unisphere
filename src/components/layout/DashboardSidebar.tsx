@@ -85,10 +85,7 @@ const DashboardSidebar = () => {
       <div className="px-6 mb-6">
         <Link href="/">
           <div className="flex items-center gap-3 px-2">
-            <div className="bg-primary/10 p-1.5 rounded-md">
-              <Globe className="h-5 w-5 text-primary" />
-            </div>
-            <span className="text-xl font-bold tracking-tight">Unisphere</span>
+            <img src="/logo-name.png" alt="Unisphere" className="h-8 w-auto" />
           </div>
         </Link>
       </div>

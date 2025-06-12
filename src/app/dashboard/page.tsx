@@ -317,7 +317,7 @@ export default function DashboardPage() {
     return "Scheduled";
   };
 
-  // Show loading skeleton during initial load
+  // Show loading skeleton only during initial load when there are no sessions available yet
   if ((loadingData || !initialLoadComplete) && (!sessions || sessions.length === 0)) {
     return (
       <div className="space-y-8 relative">
@@ -381,7 +381,7 @@ export default function DashboardPage() {
           <Button variant="outline" className="shadow-sm border-border/40 hover:border-primary/30 hover:bg-primary/5 transition-all" size="sm" asChild>
             <Link href="/dashboard/schedule">
               <Calendar className="h-4 w-4 mr-2" />
-              Schedule
+              Upcoming
             </Link>
           </Button>
           <Button className="shadow-md hover:shadow-lg transition-all bg-primary hover:bg-primary/90" size="sm" asChild>

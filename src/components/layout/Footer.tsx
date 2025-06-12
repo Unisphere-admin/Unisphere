@@ -25,10 +25,7 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12">
           <div>
             <Link href="/" className="flex items-center gap-2 transition hover:opacity-80 mb-6">
-              <div className="bg-primary/10 p-1.5 rounded-md">
-                <Globe className="h-5 w-5 text-primary" strokeWidth={1.5} />
-              </div>
-              <span className="text-xl font-bold tracking-tight">Unisphere</span>
+              <img src="/logo-name.png" alt="Unisphere" className="h-8 w-auto" />
             </Link>
             <p className="mt-4 text-muted-foreground text-sm leading-relaxed">
             Your all-in-one UK & US University preparation platform

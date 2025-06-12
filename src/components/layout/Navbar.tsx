@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Menu, X, User, LogOut, MessageSquare, Home, Globe, Users, LayoutDashboard, Lock, Bell, Settings, ChevronDown } from "lucide-react";
+import { Menu, X, User, LogOut, MessageSquare, Home, Globe, Users, LayoutDashboard, Lock, Bell, Settings, ChevronDown, CalendarPlus } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { BadgeIndicator } from "@/components/ui/badge-indicator";
@@ -59,14 +59,16 @@ const Navbar = () => {
   // Check if user has premium access
   const hasAccess = user?.role === 'tutor' || user?.has_access;
   const isTutor = user?.role === 'tutor';
+  
+  // Show consultation button only for non-logged in users or non-premium students
+  const showConsultationButton = !loading && (!user || (!hasAccess && !isTutor));
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur-md shadow-sm h-[var(--navbar-height)]">
       <div className="w-full h-full px-4 md:px-8 flex items-center justify-between max-w-screen-xl mx-auto">
         <div className="flex items-center gap-4">
           <Link href="/" className="flex items-center space-x-2 group">
-            <img src="/logo.png" alt="Unisphere Logo" className="h-8 w-auto" />
-            <span className="text-xl font-bold tracking-tight">Unisphere</span>
+            <img src="/logo-name.png" alt="Unisphere" className="h-8 w-auto" />
           </Link>
           
           <nav className="hidden md:flex items-center gap-8 text-sm ml-6">
@@ -191,6 +193,16 @@ const Navbar = () => {
               </Link>
             </Button>
           ) : null}
+
+          {/* Only show consultation button for non-logged in users or non-premium students */}
+          {showConsultationButton && (
+            <Button variant="outline" size="sm" asChild className="hidden md:flex items-center gap-1.5 border-primary/30 text-primary hover:bg-primary/5 shadow-sm">
+              <Link href="/consultation">
+                <CalendarPlus className="h-4 w-4 mr-1" strokeWidth={2} />
+                Book A Free Consultation
+              </Link>
+            </Button>
+          )}
           
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
             <SheetTrigger asChild>
@@ -203,8 +215,7 @@ const Navbar = () => {
               <nav className="flex flex-col gap-4 text-base pr-6">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <img src="/logo.png" alt="Unisphere Logo" className="h-8 w-auto" />
-                    <span className="font-bold tracking-tight">Unisphere</span>
+                    <img src="/logo-name.png" alt="Unisphere" className="h-8 w-auto" />
                   </div>
                   <Button
                     variant="ghost"
@@ -237,6 +248,17 @@ const Navbar = () => {
                 >
                   <Users className="h-5 w-5 text-[#4ba896]" strokeWidth={1.5} /> Browse Tutors
                 </Link>
+
+                {/* Only show consultation button for non-logged in users or non-premium students in mobile menu */}
+                {showConsultationButton && (
+                  <Link 
+                    href="/consultation"
+                    className="flex items-center gap-3 p-2.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-md"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <CalendarPlus className="h-5 w-5" strokeWidth={1.5} /> Book Free Consultation
+                  </Link>
+                )}
                 
                 {user && (
                   <>
