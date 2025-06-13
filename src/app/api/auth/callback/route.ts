@@ -4,6 +4,7 @@ import { createRouteHandlerClientWithCookies } from "@/lib/db/client";
 export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
+    const type = url.searchParams.get('type');
 
     if (!code) {
         return NextResponse.redirect(`${url.origin}/login?error=missing-code`);
@@ -32,18 +33,64 @@ export async function GET(req: NextRequest) {
             return NextResponse.redirect(`${url.origin}/login?error=no-session`);
         }
 
+        // Handle email verification specifically
+        if (type === 'email_change' || type === 'signup' || type === 'recovery') {
+            // For email verification, we need to make sure the user is properly authenticated
+            // Refresh the session to ensure all claims are updated
+            await supabase.auth.refreshSession();
+            
+            // If this is an email change, show success message
+            if (type === 'email_change') {
+                return NextResponse.redirect(`${url.origin}/dashboard/settings?email_verified=true`);
+            }
+            
+            // If this is account recovery, redirect to reset password
+            if (type === 'recovery') {
+                return NextResponse.redirect(`${url.origin}/reset-password?code=${code}`);
+            }
+        }
+
         // Check if user is a tutor
         const isTutor = session.user.user_metadata?.is_tutor === true;
         
-        // Profile creation is now handled by the session API
-        // Just redirect to the appropriate page based on user type
+        // Check if the user has premium access
+        const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('has_access')
+            .eq('id', session.user.id)
+            .single();
+            
+        if (userError) {
+            console.warn('Error fetching user premium status:', userError.message);
+        }
+        
+        const hasPremiumAccess = isTutor || userData?.has_access === true;
+        
+        // For new signups or regular logins
         if (isTutor) {
-            // For tutors, redirect to the tutor profile creation page
-            // This is their onboarding flow
+            // For tutors, check if they have completed onboarding
+            const { data: tutorProfile } = await supabase
+                .from('tutor_profile')
+                .select('id')
+                .eq('id', session.user.id)
+                .single();
+                
+            if (!tutorProfile) {
+                // Tutor needs to complete onboarding
             return NextResponse.redirect(`${url.origin}/profile/create/tutor`);
-        } else {
-            // For students, redirect to dashboard
+            }
+            
+            // Tutor has profile, redirect to dashboard
             return NextResponse.redirect(`${url.origin}/dashboard`);
+        } else {
+            // For students, check if they have premium access
+            if (hasPremiumAccess) {
+                // Premium students go to dashboard
+                return NextResponse.redirect(`${url.origin}/dashboard`);
+            } else {
+                // Non-premium students go to home page
+                return NextResponse.redirect(`${url.origin}/`);
+            }
         }
     } catch (err) {
         console.error('Unexpected error in auth callback:', err);

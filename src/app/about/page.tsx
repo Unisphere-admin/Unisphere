@@ -116,7 +116,7 @@ export default function AboutPage() {
               <div className="hover:translate-x-1 transition-transform duration-300">
                 <h3 className="text-2xl font-semibold mb-3">3. Book Sessions from as Short as 30 Minutes</h3>
                 <p className="text-muted-foreground mb-2">
-                Tutors on UniSphere set their own rates and availability, giving you full control over your schedule and budget. Whether you're stuck on a personal statement paragraph, need last-minute interview prep, or just want to ask a few key questions—there’s no need to commit to an hour-long session.
+                Tutors on UniSphere set their own rates and availability, giving you full control over your schedule and budget. Whether you're stuck on a personal statement paragraph, need last-minute interview prep, or just want to ask a few key questions—there's no need to commit to an hour-long session.
                 </p>
                 <h4 className="text-xl font-semibold mb-3">• Minimum session length: 30 minutes</h4>
                 <p className="text-muted-foreground mb-2">
@@ -128,14 +128,14 @@ export default function AboutPage() {
                 </p>
                 <h4 className="text-xl font-semibold mb-3">• Flexible</h4>
                 <p className="text-muted-foreground mb-2">
-                Trying a new tutor? Start with a 30-minute session to see if they’re the right fit. Want to follow up later? Just book another one on your terms.
+                Trying a new tutor? Start with a 30-minute session to see if they're the right fit. Want to follow up later? Just book another one on your terms.
                 </p>
               </div>
               <div className="hover:translate-x-1 transition-transform duration-300">
                 <h3 className="text-2xl font-semibold mb-3">4. Access Free Tools and a Vibrant Community
                 </h3>
                 <p className="text-muted-foreground">
-                Alongside personalised tutoring, you’ll gain access to: <br />
+                Alongside personalised tutoring, you'll gain access to: <br />
  • Application guides and timelines <br />
  • Recorded workshops and live Q&As <br />
  • A student-led community where you can share tips, ask questions, and initiate co-curricular projects together <br />
@@ -145,7 +145,7 @@ export default function AboutPage() {
                 <h3 className="text-2xl font-semibold mb-3">Why We Work
                 </h3>
                 <p className="text-muted-foreground">
-                The best guidance comes from those who’ve just gone through the process. Unlike many traditional agencies that assign you expensive graduates, UniSphere empowers you to choose affordable, up-to-date support—delivered by students who truly understand what it takes to succeed. Begin your journey with us. 
+                The best guidance comes from those who've just gone through the process. Unlike many traditional agencies that assign you expensive graduates, UniSphere empowers you to choose affordable, up-to-date support—delivered by students who truly understand what it takes to succeed. Begin your journey with us. 
                 </p>
               </div>
             </div>
@@ -176,36 +176,76 @@ export default function AboutPage() {
             Our platform makes it easy to connect and start learning
           </p>
         </div>
-        
-        <div className="grid md:grid-cols-3 gap-8 md:gap-12 px-4 md:px-8 relative z-10">
-          <div className="flex flex-col items-center text-center hover:translate-y-[-5px] transition-transform duration-300">
-            <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#84bc9c]/30 to-[#c2dac2]/30 flex items-center justify-center mb-6 shadow-sm">
-              <Users className="h-8 w-8 text-[#129490]" />
+
+        {/* Process Steps with Connected Line */}
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="relative mt-12">
+            {/* Grid for content - higher z-index */}
+            <div className="grid md:grid-cols-3 gap-8 md:gap-12 relative z-10">
+              {/* Step 1 */}
+              <div className="flex flex-col items-center text-center">
+                <div className="relative">
+                  <div className="h-16 w-16 bg-[#e3f0e6] rounded-full flex items-center justify-center mb-6">
+                  <Users className="h-8 w-8 text-[#129490]" />
+                  </div>
+                  {/* Number badge positioned at the top of circle */}
+                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-6 w-6 text-white text-xs font-bold bg-[#129490]">
+                    1
+                  </div>
+                </div>
+                
+                <h3 className="text-xl font-semibold mb-3">Find Your Path</h3>
+                <p className="text-muted-foreground">
+                Browse our extensive database of learning paths based on subject, expertise, and availability.
+                </p>
+              </div>
+              
+              {/* Step 2 */}
+              <div className="flex flex-col items-center text-center">
+                <div className="relative">
+                  <div className="h-16 w-16 bg-[#e3f0e6] rounded-full flex items-center justify-center mb-6">
+                  <Clock className="h-8 w-8 text-[#129490]" />
+                  </div>
+                  {/* Number badge positioned at the top of circle */}
+                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-6 w-6 text-white text-xs font-bold bg-[#129490]">
+                    2
+                  </div>
+                </div>
+                
+                <h3 className="text-xl font-semibold mb-3">Schedule Sessions
+                </h3>
+                <p className="text-muted-foreground">
+                Use our scheduling system to arrange sessions at times that work for you.
+                </p>
+              </div>
+              
+              {/* Step 3 */}
+              <div className="flex flex-col items-center text-center">
+                <div className="relative">
+                  <div className="h-16 w-16 bg-[#e3f0e6] rounded-full flex items-center justify-center mb-6">
+                    <Award className="h-12 w-12 text-[#129490]" />
+                  </div>
+                  {/* Number badge positioned at the top of circle */}
+                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-6 w-6 text-white text-xs font-bold bg-[#129490]">
+                    3
+                  </div>
+                </div>
+                
+                <h3 className="text-xl font-semibold mb-3">Learn & Succeed</h3>
+                <p className="text-muted-foreground">
+                Meet virtually for personalized learning experiences tailored to your needs and goals.
+                </p>
+              </div>
             </div>
-            <h3 className="text-xl font-semibold mb-3">1. Find Your Path</h3>
-            <p className="text-muted-foreground">
-              Browse our extensive database of learning paths based on subject, expertise, and availability.
-            </p>
-          </div>
-          
-          <div className="flex flex-col items-center text-center hover:translate-y-[-5px] transition-transform duration-300">
-            <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#84bc9c]/30 to-[#c2dac2]/30 flex items-center justify-center mb-6 shadow-sm">
-              <Clock className="h-8 w-8 text-[#129490]" />
-            </div>
-            <h3 className="text-xl font-semibold mb-3">2. Schedule Sessions</h3>
-            <p className="text-muted-foreground">
-              Use our scheduling system to arrange sessions at times that work for you.
-            </p>
-          </div>
-          
-          <div className="flex flex-col items-center text-center hover:translate-y-[-5px] transition-transform duration-300">
-            <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#84bc9c]/30 to-[#c2dac2]/30 flex items-center justify-center mb-6 shadow-sm">
-              <Award className="h-8 w-8 text-[#129490]" />
-            </div>
-            <h3 className="text-xl font-semibold mb-3">3. Learn & Succeed</h3>
-            <p className="text-muted-foreground">
-              Meet virtually for personalized learning experiences tailored to your needs and goals.
-            </p>
+            
+            {/* Horizontal line - lower z-index */}
+            <div className="hidden md:block absolute top-[2rem] left-[17%] right-[17%] h-[1px] bg-[#84bc9c] z-[-1]"></div>
+            
+            {/* Connection dots - same z-index as line */}
+            <div className="hidden md:block absolute top-[2rem] left-[calc(33.333%+8rem)] w-[4px] h-[4px] rounded-full bg-[#84bc9c] translate-y-[-1.5px] z-[-1]"></div>
+            <div className="hidden md:block absolute top-[2rem] left-[calc(33.333%-8rem)] w-[4px] h-[4px] rounded-full bg-[#84bc9c] translate-y-[-1.5px] z-[-1]"></div>
+            <div className="hidden md:block absolute top-[2rem] left-[calc(66.666%+8rem)] w-[4px] h-[4px] rounded-full bg-[#84bc9c] translate-y-[-1.5px] z-[-1]"></div>
+            <div className="hidden md:block absolute top-[2rem] left-[calc(66.666%-8rem)] w-[4px] h-[4px] rounded-full bg-[#84bc9c] translate-y-[-1.5px] z-[-1]"></div>
           </div>
         </div>
       </section>
@@ -285,7 +325,7 @@ export default function AboutPage() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">
-              We’re committed to providing the highest quality admissions support through thoroughly vetted student mentors, curated resources, and proven strategies tailored to top global universities.
+              We're committed to providing the highest quality admissions support through thoroughly vetted student mentors, curated resources, and proven strategies tailored to top global universities.
               </p>
             </CardContent>
           </Card>

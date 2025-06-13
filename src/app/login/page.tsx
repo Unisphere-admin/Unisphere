@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertCircle } from "lucide-react";
-import { createClient } from "@/utils/supabase/client";
+
 import { handleApiRedirect } from "@/lib/auth/apiRedirect";
 import { Separator } from "@/components/ui/separator";
 import { emailSchema, passwordSchema, nameSchema, sanitizeInput, checkForMaliciousContent } from "@/lib/validation";
@@ -26,7 +26,7 @@ import { useCsrfToken, addCsrfToken } from "@/lib/csrf/client";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { refreshUser } = useAuth();
+  const { refreshUser, user } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
   const [isLoading, setIsLoading] = useState(false);
@@ -168,8 +168,51 @@ export default function LoginPage() {
         // Refresh user data in the context
         await refreshUser(true);
         
-        // Navigate to redirect path or dashboard
-        router.push(redirectPath || '/dashboard');
+        // Fetch the user data directly from the session API to get the most up-to-date information
+        // This is important because the login API doesn't include the has_access field
+        const sessionResponse = await fetch('/api/auth/session', {
+          method: 'GET',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          },
+          credentials: 'include'
+        });
+        
+        let hasPremiumAccess = false;
+        
+        if (sessionResponse.ok) {
+          const sessionData = await sessionResponse.json();
+          const userData = sessionData.user;
+          
+          console.log('Session data after login:', userData);
+          
+          // Check if the user has premium access
+          hasPremiumAccess = 
+            userData?.role === 'tutor' || 
+            userData?.has_access === true;
+            
+          console.log('User has premium access:', hasPremiumAccess);
+        } else {
+          console.error('Failed to fetch session data after login');
+        }
+        
+        // Navigate based on user status
+        if (redirectPath) {
+          // If there's a specific redirect path, use it
+          console.log('Redirecting to:', redirectPath);
+          router.push(redirectPath);
+        } else if (hasPremiumAccess) {
+          // Premium users go to dashboard
+          console.log('User has premium access, redirecting to dashboard');
+          router.push('/dashboard');
+        } else {
+          // Non-premium users go to home page
+          console.log('User does not have premium access, redirecting to home page');
+          router.push('/');
+        }
+        
         return true;
       }
       

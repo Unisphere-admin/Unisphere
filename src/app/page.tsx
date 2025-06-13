@@ -45,7 +45,14 @@ export default function HomePage() {
               Your all-in-one UK & US preparation platform
               </h1>
               <p className="text-xl text-muted-foreground md:text-2xl max-w-[600px]">
-                Build your sphere of mentors to help with Personal Statements/Essays/Entrance Tests/Interviews
+                Build your sphere of mentors to help with 
+                <span className="inline-block animate-[fadeIn_1s_ease_forwards]" style={{opacity: 0}}> Personal Statements</span>
+                <span className="inline-block animate-[fadeIn_1s_ease_forwards]" style={{opacity: 0, animationDelay: '1000ms'}}>/</span>
+                <span className="inline-block animate-[fadeIn_1s_ease_forwards]" style={{opacity: 0, animationDelay: '1500ms'}}> Essays</span>
+                <span className="inline-block animate-[fadeIn_1s_ease_forwards]" style={{opacity: 0, animationDelay: '2000ms'}}>/</span>
+                <span className="inline-block animate-[fadeIn_1s_ease_forwards]" style={{opacity: 0, animationDelay: '2500ms'}}> Entrance Tests</span>
+                <span className="inline-block animate-[fadeIn_1s_ease_forwards]" style={{opacity: 0, animationDelay: '3000ms'}}>/</span>
+                <span className="inline-block animate-[fadeIn_1s_ease_forwards]" style={{opacity: 0, animationDelay: '3500ms'}}> Interviews</span>
               </p>
               <div className="flex flex-col sm:flex-row gap-4 mt-8">
                 <Button size="lg" className="shadow-md bg-[#129490] hover:bg-[#126d94] transition-all hover:shadow-lg hover:translate-y-[-2px] group">
@@ -136,12 +143,12 @@ export default function HomePage() {
                   {/* Number badge positioned at the top of circle */}
                   <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-8 w-8 text-white text-xs font-bold bg-[#129490]">
                     1
-                  </div>
+                </div>
                 </div>
                 
                 <h3 className="text-xl font-semibold mb-3">Join Our Platform</h3>
                 <p className="text-muted-foreground">
-                  For as low as a RM2,000 one-time fee, gain full access to our exclusive platform, where you can connect with the best tutors for the cheapest rates on the market.
+                For a one-time fee, gain full access to our exclusive platform, where you can connect with the best tutors for the cheapest rates on the market.
                 </p>
               </div>
               
@@ -154,7 +161,7 @@ export default function HomePage() {
                   {/* Number badge positioned at the top of circle */}
                   <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-8 w-8 text-white text-xs font-bold bg-[#129490]">
                     2
-                  </div>
+                </div>
                 </div>
                 
                 <h3 className="text-xl font-semibold mb-3">Connect with Tutors</h3>
@@ -172,7 +179,7 @@ export default function HomePage() {
                   {/* Number badge positioned at the top of circle */}
                   <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-8 w-8 text-white text-xs font-bold bg-[#129490]">
                     3
-                  </div>
+                </div>
                 </div>
                 
                 <h3 className="text-xl font-semibold mb-3">Personalised Guidance</h3>
@@ -190,7 +197,7 @@ export default function HomePage() {
                   {/* Number badge positioned at the top of circle */}
                   <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-8 w-8 text-white text-xs font-bold bg-[#129490]">
                     4
-                  </div>
+                </div>
                 </div>
                 
                 <h3 className="text-xl font-semibold mb-3">Maximise Admission Chances</h3>

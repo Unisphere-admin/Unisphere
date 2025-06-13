@@ -537,9 +537,9 @@ export default function SchedulePage() {
               <h3 className="text-xl font-medium mb-3">No upcoming sessions</h3>
               <p className="text-muted-foreground mb-6">You don't have any tutoring sessions scheduled</p>
               {user?.role !== 'tutor' && (
-                <Button asChild className="shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]">
-                  <Link href="/tutors">Find a Tutor</Link>
-                </Button>
+              <Button asChild className="shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]">
+                <Link href="/tutors">Find a Tutor</Link>
+              </Button>
               )}
             </div>
           ) : (

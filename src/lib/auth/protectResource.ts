@@ -109,7 +109,8 @@ export const PUBLIC_PATHS = [
   '/login',
   '/signup',
   '/reset-password',
-  '/paywall'
+  '/paywall',
+  '/consultation'
 ];
 
 /**
@@ -155,6 +156,7 @@ export function requiresPremiumAccess(path: string): boolean {
     path === '/login' || 
     path === '/reset-password' ||
     path === '/tutors' || // Allow access to the tutors list page
+    path === '/consultation' ||
     path.startsWith('/api/auth/')
   ) {
     return false;

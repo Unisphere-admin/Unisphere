@@ -68,18 +68,69 @@ type Review = {
   date?: string | Date;
 };
 
+// Helper function to extract file reference from URL
+function extractFileRefFromUrl(url: string): string | null {
+  if (!url) return null;
+  try {
+    // Try to parse as URL
+    let pathToUse = url;
+    
+    // Handle storage URLs from Supabase
+    if (url.includes('storage/v1/object')) {
+      // For storage URLs, extract the object path
+      const urlObj = new URL(url);
+      const pathParts = urlObj.pathname.split('/');
+      // Find the bucket name and file path
+      const bucketIndex = pathParts.indexOf('object');
+      if (bucketIndex >= 0 && bucketIndex + 2 < pathParts.length) {
+        // Return the full path including bucket name for consistent handling
+        return pathParts.slice(bucketIndex + 1).join('/');
+      }
+    } else if (url.startsWith('http')) {
+      // For other URLs, parse and get pathname
+      const urlObj = new URL(url);
+      pathToUse = urlObj.pathname;
+    }
+    
+    // If it's a simple path (not a URL), or we've extracted the pathname
+    if (pathToUse.startsWith('/')) {
+      pathToUse = pathToUse.substring(1); // Remove leading slash
+    }
+    
+    return pathToUse;
+  } catch (e) {
+    // If URL parsing fails, fall back to simple splitting
+    console.error('Error parsing URL:', e);
+    const parts = url.split('/');
+    return parts.slice(Math.max(0, parts.length - 2)).join('/'); // Return last 2 parts to include potential user ID folder
+  }
+}
+
 // Enhance Avatar component in the profile page to ensure it always has a fallback
 // Create a more robust function to handle tutor avatar
-const getTutorAvatarUrl = (tutor: any) => {
+const getTutorAvatarUrl = (tutor: any, hasPremiumAccess: boolean = false) => {
   if (!tutor) return null;
   
   // Check if avatar_url exists and is not empty
   if (tutor.avatar_url && typeof tutor.avatar_url === 'string' && tutor.avatar_url.trim() !== '') {
-    // If it's a relative path (no protocol), ensure it's properly formed
-    if (!tutor.avatar_url.startsWith('http') && !tutor.avatar_url.startsWith('/')) {
-      return `/${tutor.avatar_url}`;
+    const avatarUrl = tutor.avatar_url;
+    
+    // If user doesn't have premium access, use the blurred avatar API
+    if (!hasPremiumAccess) {
+      // Extract the file reference from the avatar URL
+      const avatarRef = extractFileRefFromUrl(avatarUrl);
+      
+      // If we can extract a reference, use the blurred avatar API with catch-all route
+      if (avatarRef) {
+        return `/api/avatars/${avatarRef}`;
+      }
     }
-    return tutor.avatar_url;
+    
+    // If it's a relative path (no protocol), ensure it's properly formed
+    if (!avatarUrl.startsWith('http') && !avatarUrl.startsWith('/')) {
+      return `/${avatarUrl}`;
+    }
+    return avatarUrl;
   }
   
   // Return null to trigger the AvatarFallback
@@ -353,13 +404,56 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
 
   // Get tutor data with fallbacks
   const tutorName = tutor ? `${tutor.first_name} ${tutor.last_name}`.trim() : 'Tutor Profile';
+  
+  // Debug the tutor subjects data
+  console.log('Raw tutor subjects data:', tutor?.subjects);
+  
   const tutorSubjects = tutor && tutor.subjects
     ? typeof tutor.subjects === 'string' 
       ? tutor.subjects.split(',').map(s => s.trim()) 
-      : []
+      : Array.isArray(tutor.subjects) ? tutor.subjects : []
     : [];
+    
+  console.log('Processed tutorSubjects array:', tutorSubjects);
+    
+  const ukTestsPattern = /^uk admissions tests -/i;
+  const subjectTutoringPattern = /^subject tutoring -/i;
+  
+  // Group subjects
+  const ukTests = tutorSubjects.filter(s => ukTestsPattern.test(s));
+  const subjectTutoring = tutorSubjects.filter(s => subjectTutoringPattern.test(s));
+  const otherSubjects = tutorSubjects.filter(s => 
+    !ukTestsPattern.test(s) && !subjectTutoringPattern.test(s)
+  );
+  
+  console.log('Grouped subjects:', { ukTests, subjectTutoring, otherSubjects });
+  
+  // Prepare processed subjects list
+  const processedSubjects = [...otherSubjects];
+  
+  // Add grouped UK Admissions tests if there are any
+  if (ukTests.length > 0) {
+    // Extract test names from the UK tests subjects
+    const testNames = ukTests.map(test => 
+      test.replace(ukTestsPattern, '').trim()
+    );
+    const testDisplay = `UK Admissions tests - ${testNames.join(', ')}`;
+    processedSubjects.unshift(testDisplay);
+  }
+  
+  // Add grouped Subject Tutoring if there are any
+  if (subjectTutoring.length > 0) {
+    // Extract subject names
+    const subjectNames = subjectTutoring.map(subject => 
+      subject.replace(subjectTutoringPattern, '').trim()
+    );
+    const subjectDisplay = `Subject Tutoring - ${subjectNames.join(', ')}`;
+    processedSubjects.unshift(subjectDisplay);
+  }
+  
+  console.log('Final processedSubjects:', processedSubjects);
   const tutorBio = tutor?.description || "No bio information available for this tutor.";
-  const tutorAvatar = getTutorAvatarUrl(tutor);
+  const tutorAvatar = getTutorAvatarUrl(tutor, user?.has_access === true || user?.role === 'tutor');
 
   // Log for debugging
   console.log(`Enhanced tutor avatar URL: ${tutorAvatar} for tutor: ${tutorName}`);
@@ -391,7 +485,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                 <div className="p-6 text-center relative">
                   <Avatar className="h-28 w-28 border-4 border-background shadow-md absolute -top-14 left-1/2 transform -translate-x-1/2">
                     <AvatarImage 
-                      src={getTutorAvatarUrl(tutor)} 
+                      src={tutorAvatar} 
                       alt={tutor?.first_name ? `${tutor.first_name} ${tutor.last_name || ''}` : 'Tutor'}
                     />
                     <AvatarFallback className="bg-gradient-to-br from-primary/30 to-primary/10 text-primary font-semibold text-xl">
@@ -450,21 +544,9 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                 
                 {/* Tutor Details */}
                 <div className="border-t border-gray-100">
-                  <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100">
-                    <div className="flex items-center text-muted-foreground">
-                      <Clock className="h-4 w-4 mr-2" />
-                      <span>Response Time</span>
-                    </div>
-                    <span className="font-medium">&lt; 2 hours</span>
-                  </div>
                   
-                  <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100">
-                    <div className="flex items-center text-muted-foreground">
-                      <BookOpen className="h-4 w-4 mr-2" />
-                      <span>Sessions Completed</span>
-                    </div>
-                    <span className="font-medium">32</span>
-                  </div>
+                  
+                  
                   
                   <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100">
                     <div className="flex items-center text-muted-foreground">
@@ -553,15 +635,35 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                     </div>
 
                     <div className="mt-6">
-                      <h3 className="font-semibold text-lg mb-2">Services</h3>
-                      {tutorSubjects && tutorSubjects.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {tutorSubjects.map((subject, index) => (
-                            <Badge key={index} variant="secondary">{subject}</Badge>
+                      <h3 className="font-semibold text-lg mb-2 flex items-center">
+                        <BookOpen className="h-5 w-5 mr-2 text-[#129490]" strokeWidth={1.5} />
+                        Services
+                      </h3>
+                      
+                      {processedSubjects && processedSubjects.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 pl-1">
+                          {processedSubjects.map((subject, index) => (
+                            <Badge key={index} variant="outline" className="text-sm bg-[#c2d8d2]/30 border-[#84b7bd]/30 hover:bg-[#c2d8d2]/50 transition-colors">
+                              {subject}
+                            </Badge>
                           ))}
+                          {tutorSubjects.length > processedSubjects.length && (
+                            <Badge variant="outline" className="text-sm bg-[#4b92a9]/10 border-[#4b92a9]/30 text-[#126d94]">
+                              +{tutorSubjects.length - processedSubjects.length} more
+                            </Badge>
+                          )}
+                        </div>
+                      ) : tutor?.major ? (
+                        <div className="flex flex-wrap gap-2 pl-1">
+                          <Badge variant="outline" className="text-sm bg-[#c2d8d2]/30 border-[#84b7bd]/30 hover:bg-[#c2d8d2]/50 transition-colors">
+                            {tutor.major} Tutoring
+                          </Badge>
+                          <Badge variant="outline" className="text-sm bg-[#c2d8d2]/30 border-[#84b7bd]/30 hover:bg-[#c2d8d2]/50 transition-colors">
+                            Academic Support
+                          </Badge>
                         </div>
                       ) : (
-                        <p className="text-muted-foreground">No subjects specified</p>
+                        <p className="text-muted-foreground pl-1">No services specified</p>
                       )}
                     </div>
 
@@ -607,14 +709,6 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                     <div className="mt-6">
                       <h3 className="font-semibold text-lg mb-2">SPM</h3>
                       <p>{tutorSpm || "N/A"}</p>
-                    </div>
-
-                    <div className="mt-6">
-                      <h3 className="font-semibold text-lg mb-2">Subjects</h3>
-                      <div className="flex items-center gap-1">
-                        <Globe className="h-4 w-4 mr-2" />
-                        <span>Subjects: {tutorSubjects?.join(", ")}</span>
-                      </div>
                     </div>
                   </CardContent>
                 </Card>

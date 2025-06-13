@@ -46,40 +46,33 @@ interface ActivityData {
 // Generate activity data based on provided sessions
 const generateActivityData = (sessions: ActiveSession[]): ActivityData[] => {
   try {
-  const today = new Date();
-    console.log("Today's date:", today.toISOString());
-    console.log("Today's date (local):", today.toDateString());
+    const today = new Date();
     
-    // Create an array for the last 7 days (including today)
-    const last7Days: ActivityData[] = [];
+    // Create an array for the last 6 months (including current month)
+    const last6Months: ActivityData[] = [];
     
-    for (let i = 6; i >= 0; i--) {
-      // Create date for each of the past 7 days
+    for (let i = 5; i >= 0; i--) {
+      // Create date for each of the past 6 months
       const date = new Date();
-      date.setDate(today.getDate() - i);
-      // Reset hours to start of day to avoid time comparison issues
+      date.setMonth(today.getMonth() - i);
+      // Reset to first day of month to avoid date comparison issues
+      date.setDate(1);
       date.setHours(0, 0, 0, 0);
       
-      // Format day name (e.g., "Mon", "Tue")
-      const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+      // Format month name (e.g., "Jan", "Feb")
+      const monthName = date.toLocaleDateString('en-US', { month: 'short' });
       
       // Add to our array with 0 sessions initially
-      last7Days.push({
-        name: dayName,
-    sessions: 0,
-        sortOrder: 6 - i, // 0 = 6 days ago, 6 = today (reversed to ensure today is the last day)
+      last6Months.push({
+        name: monthName,
+        sessions: 0,
+        sortOrder: 5 - i, // 0 = 5 months ago, 5 = current month (reversed to ensure current month is the last one)
         date: new Date(date) // Store the full date for comparison
       });
     }
     
-    // Log the number of sessions we're processing
-    console.log(`Processing ${sessions.length} sessions for activity chart`);
-    
-    // Log the dates we're checking against
-    console.log("Date ranges:", last7Days.map(d => d.date?.toDateString()));
-  
-    // Process each session to calculate daily activity
-  if (sessions && sessions.length > 0) {
+    // Process each session to calculate monthly activity
+    if (sessions && sessions.length > 0) {
       let processedCount = 0;
       let skippedCount = 0;
       
@@ -87,57 +80,42 @@ const generateActivityData = (sessions: ActiveSession[]): ActivityData[] => {
         try {
           // First check if the session has a valid end date
           if (!session.ended_at) {
-            console.log(`Session ${session.id} skipped: Missing ended_at timestamp`);
             skippedCount++;
             return;
           }
 
           const sessionDate = new Date(session.ended_at);
-          console.log(`Session ${index} (${session.id}): ended at ${session.ended_at}, date: ${sessionDate.toDateString()}`);
           
-          // Find matching day in our last7Days array
+          // Find matching month in our last6Months array
           let matched = false;
-          for (let i = 0; i < last7Days.length; i++) {
-            const dayData = last7Days[i];
+          for (let i = 0; i < last6Months.length; i++) {
+            const monthData = last6Months[i];
             
-            if (!dayData.date) continue;
+            if (!monthData.date) continue;
             
-            // Compare the date portion only (ignoring time)
-            const sessionDateStr = sessionDate.toDateString();
-            const dayDataStr = dayData.date.toDateString();
-            
-            if (sessionDateStr === dayDataStr) {
-              // Increment session count for this day
-              dayData.sessions += 1;
+            // Compare the month and year
+            if (sessionDate.getMonth() === monthData.date.getMonth() && 
+                sessionDate.getFullYear() === monthData.date.getFullYear()) {
+              // Increment session count for this month
+              monthData.sessions += 1;
               matched = true;
-              console.log(`  ✓ Session ${session.id} counted for ${dayData.name} (${dayDataStr})`);
               processedCount++;
               break;
-  }
+            }
           }
           
           if (!matched) {
-            console.log(`  ✗ Session ${session.id} date (${sessionDate.toDateString()}) outside of 7-day window`);
             skippedCount++;
           }
         } catch (err) {
-          console.error(`Error processing session ${session.id}:`, err);
           skippedCount++;
         }
       });
-      
-      console.log(`Activity chart processing complete: ${processedCount} sessions processed, ${skippedCount} skipped`);
     }
     
-    // Log the final activity data
-    console.log("Weekly activity data:", last7Days.map(d => 
-      `${d.name}: ${d.sessions} sessions (${d.date?.toDateString()})`
-    ));
-    
     // Return in chronological order (oldest to newest)
-    return last7Days.sort((a, b) => a.sortOrder - b.sortOrder);
+    return last6Months.sort((a, b) => a.sortOrder - b.sortOrder);
   } catch (error) {
-    console.error("Error generating activity data:", error);
     // Return an empty array as fallback
     return [];
   }
@@ -147,35 +125,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { sessions, refreshSessions, loadingSessions } = useSessions();
   const messageContext = useMessages();
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
-  const [loadingData, setLoadingData] = useState(true);
-  
-  // Debug log initial sessions data
-  useEffect(() => {
-    console.log("Initial sessions data:", sessions ? sessions.length : 0, "sessions");
-    if (sessions && sessions.length > 0) {
-      console.log("Session statuses:", sessions.map(s => s.status));
-    }
-  }, []);
-  
-  // Set initial load complete after a short delay
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setInitialLoadComplete(true);
-      // After initial load delay, continue showing loading if sessions are still loading
-      setLoadingData(loadingSessions);
-    }, 500);
-    
-    return () => clearTimeout(timer);
-  }, [loadingSessions]);
-  
-  // Update loading state when loadingSessions changes
-  useEffect(() => {
-    if (!initialLoadComplete) return;
-    setLoadingData(loadingSessions);
-  }, [loadingSessions, initialLoadComplete]);
-  
-  // Derived state
+  const [initialLoading, setInitialLoading] = useState(true);
   const [activityData, setActivityData] = useState<ActivityData[]>([]);
   const [totalHours, setTotalHours] = useState(0);
   
@@ -209,46 +159,35 @@ export default function DashboardPage() {
   const completedSessions = useMemo(() => {
     if (!sessions) return [];
     
-    console.log("All sessions:", sessions.map(s => ({
-      id: s.id,
-      status: s.status,
-      started_at: s.started_at,
-      ended_at: s.ended_at
-    })));
-    
     // Filter for any sessions that have an ended_at timestamp
     // We don't strictly require status='ended' as there might be data inconsistencies
     const filtered = sessions.filter(session => session.ended_at !== null && session.ended_at !== undefined);
     
-    console.log("Filtered sessions with ended_at:", filtered.length);
-    if (filtered.length > 0) {
-      console.log("Sessions with ended_at:", filtered.map(s => ({
-        id: s.id,
-        status: s.status,
-        ended_at: s.ended_at,
-        ended_date: new Date(s.ended_at || '').toDateString()
-      })));
-    }
-    
     return filtered;
   }, [sessions]);
   
-  // Fetch sessions data
+  // Initial data fetch
   useEffect(() => {
-    console.log("Refreshing sessions data...");
-    refreshSessions()
-      .then(() => {
-        console.log("Sessions refreshed successfully");
-        console.log("Sessions after refresh:", sessions ? sessions.length : 0);
-        if (sessions && sessions.length > 0) {
-          console.log("Session statuses after refresh:", sessions.map(s => ({ 
-            id: s.id,
-            status: s.status,
-            ended_at: s.ended_at ? 'yes' : 'no'
-          })));
-        }
-      })
-      .catch(err => console.error("Error refreshing sessions:", err));
+    const fetchInitialData = async () => {
+      try {
+        await refreshSessions();
+      } finally {
+        // Set initial loading to false after first data fetch completes
+        setInitialLoading(false);
+      }
+    };
+    
+    fetchInitialData();
+    
+    // Set up refresh interval (optional)
+    const intervalId = setInterval(() => {
+      // Silently refresh data in the background
+      refreshSessions().catch(() => {
+        // Silent error handling for background refresh
+      });
+    }, 60000); // Refresh every minute
+    
+    return () => clearInterval(intervalId);
   }, [refreshSessions]);
   
   // Calculate total tutoring hours from session history - only from ended sessions
@@ -271,21 +210,10 @@ export default function DashboardPage() {
     
   // Generate activity data from completed sessions only
   useEffect(() => {
-    console.log("Generating weekly activity data from completed sessions:", completedSessions.length);
     if (completedSessions.length > 0) {
-      // Debug output for each completed session
-      completedSessions.forEach((session, index) => {
-        try {
-          const endedAt = session.ended_at ? new Date(session.ended_at).toISOString() : 'missing';
-          const dayStr = session.ended_at ? new Date(session.ended_at).toDateString() : 'missing';
-          console.log(`Completed session ${index}: ID=${session.id}, ended_at=${endedAt}, day=${dayStr}`);
-        } catch (err) {
-          console.error(`Error processing session ${session.id} for debugging:`, err);
-        }
-      });
+      // Generate chart data from these sessions
+      setActivityData(generateActivityData(completedSessions));
     }
-    // Generate chart data from these sessions
-    setActivityData(generateActivityData(completedSessions));
   }, [completedSessions]);
 
   // Get next session time
@@ -317,8 +245,8 @@ export default function DashboardPage() {
     return "Scheduled";
   };
 
-  // Show loading skeleton only during initial load when there are no sessions available yet
-  if ((loadingData || !initialLoadComplete) && (!sessions || sessions.length === 0)) {
+  // Show loading skeleton only during initial load
+  if (initialLoading) {
     return (
       <div className="space-y-8 relative">
         <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background pointer-events-none -z-10"></div>
@@ -464,73 +392,85 @@ export default function DashboardPage() {
               Completed Sessions
             </CardTitle>
               <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
-                Last 7 Days
+                Last 6 Months
               </Badge>
             </div>
             <CardDescription>
-              Your session activity over time
+              Your monthly session activity
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <RechartsBarChart
-                  data={activityData}
-                  margin={{
-                    top: 10,
-                    right: 10,
-                    left: -20,
-                    bottom: 0,
-                  }}
-                >
-                  <defs>
-                    <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.9} />
-                      <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.6} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.4} />
-                  <XAxis 
-                    dataKey="name"
-                    tickFormatter={(value, index) => {
-                      const item = activityData[index];
-                      return item ? item.name : value;
+              {activityData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsBarChart
+                    data={activityData}
+                    margin={{
+                      top: 10,
+                      right: 10,
+                      left: -20,
+                      bottom: 0,
                     }}
-                    axisLine={{ stroke: 'var(--border)', strokeOpacity: 0.4 }}
-                    tick={{ fill: 'var(--muted-foreground)' }}
-                  />
-                  <YAxis 
-                    allowDecimals={false}
-                    axisLine={{ stroke: 'var(--border)', strokeOpacity: 0.4 }}
-                    tick={{ fill: 'var(--muted-foreground)' }}
-                  />
-                  <Tooltip 
-                    formatter={(value) => [`${value} sessions`, 'Sessions']}
-                    contentStyle={{
-                      backgroundColor: 'var(--card)',
-                      borderRadius: '0.5rem',
-                      border: '1px solid var(--border)',
-                      boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
-                    }}
-                    labelFormatter={(label, payload) => {
-                      if (payload && payload[0]) {
-                        const item = activityData.find(d => d.name === label);
-                        if (item && item.date) {
-                          return `${label} (${item.date.toLocaleDateString()})`;
+                  >
+                    <defs>
+                      <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.9} />
+                        <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.6} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.4} />
+                    <XAxis 
+                      dataKey="name"
+                      tickFormatter={(value, index) => {
+                        const item = activityData[index];
+                        return item ? item.name : value;
+                      }}
+                      axisLine={{ stroke: 'var(--border)', strokeOpacity: 0.4 }}
+                      tick={{ fill: 'var(--muted-foreground)' }}
+                    />
+                    <YAxis 
+                      allowDecimals={false}
+                      axisLine={{ stroke: 'var(--border)', strokeOpacity: 0.4 }}
+                      tick={{ fill: 'var(--muted-foreground)' }}
+                    />
+                    <Tooltip 
+                      formatter={(value) => [`${value} sessions`, 'Sessions']}
+                      contentStyle={{
+                        backgroundColor: 'var(--card)',
+                        borderRadius: '0.5rem',
+                        border: '1px solid var(--border)',
+                        boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
+                      }}
+                      labelFormatter={(label, payload) => {
+                        if (payload && payload[0]) {
+                          const item = activityData.find(d => d.name === label);
+                          if (item && item.date) {
+                            return `${label} ${item.date.getFullYear()}`;
+                          }
                         }
-                      }
-                      return label;
-                    }}
-                  />
-                  <Bar 
-                    dataKey="sessions" 
-                    fill="url(#barGradient)" 
-                    radius={[4, 4, 0, 0]} 
-                    opacity={0.9}
-                    animationDuration={1500}
-                  />
-                </RechartsBarChart>
-              </ResponsiveContainer>
+                        return label;
+                      }}
+                    />
+                    <Bar 
+                      dataKey="sessions" 
+                      fill="url(#barGradient)" 
+                      radius={[4, 4, 0, 0]} 
+                      opacity={0.9}
+                      animationDuration={1500}
+                    />
+                  </RechartsBarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center p-6">
+                    <BarChartIcon className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" strokeWidth={1.5} />
+                    <h3 className="text-lg font-medium mb-1">No session data</h3>
+                    <p className="text-muted-foreground text-sm max-w-[240px]">
+                      Complete your first tutoring session to see monthly activity data
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

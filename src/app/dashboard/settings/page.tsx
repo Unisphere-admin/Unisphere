@@ -53,10 +53,23 @@ const tutorProfileSchema = baseProfileSchema.extend({
   bio: z.string().max(500, "Bio must be less than 500 characters").optional(),
 });
 
+// Update the password schema to include the current password
+const passwordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  password: z.string()
+    .min(8, "Password must be at least 8 characters")
+    .max(100, "Password must be less than 100 characters"),
+  confirmPassword: z.string()
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"]
+});
+
 // Type for the form values
 type StudentProfileFormValues = z.infer<typeof studentProfileSchema>;
 type EmailFormValues = z.infer<typeof emailSchema>;
 type TutorProfileFormValues = z.infer<typeof tutorProfileSchema>;
+type PasswordFormValues = z.infer<typeof passwordSchema>;
 
 // Interface for the user profile data from API
 interface UserProfile {
@@ -75,9 +88,12 @@ export default function SettingsPage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
   const [profileData, setProfileData] = useState<UserProfile | null>(null);
   const [emailUpdateStatus, setEmailUpdateStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [emailError, setEmailError] = useState("");
+  const [passwordUpdateStatus, setPasswordUpdateStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [passwordError, setPasswordError] = useState("");
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [authError, setAuthError] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -87,6 +103,25 @@ export default function SettingsPage() {
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { token, fetchCsrfToken } = useCsrfToken();
+
+  // Check for email verification success from URL
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const emailVerified = searchParams.get('email_verified');
+    
+    if (emailVerified === 'true') {
+      // Show success message
+      toast.success("Email verified successfully!");
+      
+      // Remove the query parameter from URL without page reload
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('email_verified');
+      window.history.replaceState({}, '', newUrl);
+      
+      // Refresh user data to get updated email
+      refreshUser(true);
+    }
+  }, [refreshUser]);
 
   // Determine if the user is a tutor
   const isTutor = user?.role === "tutor";
@@ -130,34 +165,40 @@ export default function SettingsPage() {
     },
   });
 
+  // Add password form
+  const passwordForm = useForm<PasswordFormValues>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: {
+      currentPassword: "",
+      password: "",
+      confirmPassword: ""
+    },
+  });
+
   // Helper function to ensure a valid authentication session
   const ensureAuthSession = useCallback(async () => {
     try {
-      const supabase = createClient();
+      // Call the session API endpoint to verify and refresh the session if needed
+      const response = await fetch('/api/auth/session', {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        credentials: 'include'
+      });
       
-      // Check if we have a session and refresh it if needed
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError || !session) {
-        console.error("Session error:", sessionError);
+      if (response.status === 401) {
+        console.error("Session error: Unauthorized");
         setAuthError(true);
         return false;
       }
       
-      // Check if token is about to expire and refresh if needed
-      const expiresAt = session.expires_at ? new Date(session.expires_at * 1000) : null;
-      const now = new Date();
-      const timeLeft = expiresAt ? expiresAt.getTime() - now.getTime() : 0;
-      
-      // If less than 5 minutes left or expiry unknown, refresh the token
-      if (!expiresAt || timeLeft < 5 * 60 * 1000) {
-        const { error: refreshError } = await supabase.auth.refreshSession();
-        
-        if (refreshError) {
-          console.error("Failed to refresh session:", refreshError);
+      if (!response.ok) {
+        console.error("Session error:", response.statusText);
           setAuthError(true);
           return false;
-        }
       }
       
       // Session is valid
@@ -646,6 +687,77 @@ export default function SettingsPage() {
     }
   };
 
+  // Update the password form handler
+  const onPasswordSubmit = async (data: PasswordFormValues) => {
+    if (!user) return;
+    
+    // Reset password status
+    setPasswordLoading(true);
+    setPasswordUpdateStatus('idle');
+    setPasswordError("");
+
+    try {
+      // Ensure session is valid before making the request
+      const isSessionValid = await ensureAuthSession();
+      if (!isSessionValid) {
+        toast.error("Session expired. Please sign in again.");
+        router.push("/login");
+        return;
+      }
+
+      // First verify the current password by making an API call
+      const verifyResponse = await fetch('/api/auth/verify-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': token || '',
+        },
+        body: JSON.stringify({ 
+          email: user.email || '',
+          password: data.currentPassword 
+        }),
+        credentials: 'include',
+      });
+      
+      if (!verifyResponse.ok) {
+        setPasswordError("Current password is incorrect");
+        setPasswordUpdateStatus('error');
+        toast.error("Current password is incorrect");
+        setPasswordLoading(false);
+        return;
+      }
+      
+      // If current password is correct, update to new password using the API
+      const updateResponse = await fetch('/api/auth/update-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': token || '',
+        },
+        body: JSON.stringify({ password: data.password }),
+        credentials: 'include',
+      });
+
+      if (!updateResponse.ok) {
+        const errorData = await updateResponse.json();
+        setPasswordError(errorData.error || "Failed to update password");
+        setPasswordUpdateStatus('error');
+        toast.error("Failed to update password");
+      } else {
+        setPasswordUpdateStatus('success');
+        toast.success("Password updated successfully");
+        passwordForm.reset();
+      }
+    } catch (error) {
+      console.error("Error updating password:", error);
+      setPasswordError("An error occurred while updating your password");
+      setPasswordUpdateStatus('error');
+      toast.error("Failed to update password");
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   // Show loading only on initial page load
   if (initialLoading) {
     return (
@@ -1126,6 +1238,115 @@ export default function SettingsPage() {
               </form>
             </Form>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Add Password Change Card */}
+      <Card className="mb-6 bg-card/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-lg transition-all">
+        <CardHeader>
+          <CardTitle>Change Password</CardTitle>
+          <CardDescription>
+            Update your account password
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...passwordForm}>
+            <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
+              <FormField
+                control={passwordForm.control}
+                name="currentPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Current Password</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="password" 
+                        placeholder="Your current password" 
+                        {...field} 
+                        className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={passwordForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>New Password</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="password" 
+                        placeholder="New password" 
+                        {...field} 
+                        className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={passwordForm.control}
+                name="confirmPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Confirm Password</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="password" 
+                        placeholder="Confirm new password" 
+                        {...field} 
+                        className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              {passwordUpdateStatus === 'success' && (
+                <Alert className="bg-green-50 border-green-200 text-green-800">
+                  <AlertDescription>
+                    Password updated successfully.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {passwordUpdateStatus === 'error' && (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    {passwordError || "Failed to update password. Please try again."}
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              <div className="flex justify-end">
+                <Button 
+                  type="submit" 
+                  variant="outline"
+                  disabled={passwordLoading}
+                  className="shadow-sm border-border/40 hover:bg-primary/5 hover:border-primary/30 transition-all"
+                >
+                  {passwordLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Updating Password...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Update Password
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </Form>
         </CardContent>
       </Card>
     </div>

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClientWithCookies } from "@/lib/db/client";
+import { csrfMiddleware } from "@/lib/csrf/server";
+import { getAuthUser } from "@/lib/auth/protectResource";
 
 export async function GET(req: NextRequest) {
     try {
@@ -29,8 +31,31 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     try {
+        // Get the authenticated user
+        const authUser = await getAuthUser();
+        if (!authUser) {
+            return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+        }
+        
+        // Check CSRF token
+        const csrfError = await csrfMiddleware(req, authUser);
+        if (csrfError) {
+            return csrfError;
+        }
+        
+        // Check if request is JSON or form data
+        let password: string;
+        const contentType = req.headers.get('content-type') || '';
+        
+        if (contentType.includes('application/json')) {
+            // Handle JSON request
+            const body = await req.json();
+            password = body.password;
+        } else {
+            // Handle form data request (for backward compatibility)
         const formData = await req.formData();
-        const password = String(formData.get('password'));
+            password = String(formData.get('password'));
+        }
 
         if (!password || password.length < 6) {
             return NextResponse.json({ 
@@ -45,7 +70,7 @@ export async function POST(req: NextRequest) {
 
         if (userError || !user) {
             console.error('No authenticated user found:', userError);
-            return NextResponse.redirect(new URL('/login?error=no-session', req.url));
+            return NextResponse.json({ error: 'No authenticated user found' }, { status: 401 });
         }
 
         // Update the user's password
@@ -58,10 +83,10 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Failed to update password' }, { status: 500 });
         }
 
-        // Success - redirect to login with success message
-        return NextResponse.redirect(new URL('/login?success=password-updated', req.url));
+        // Success
+        return NextResponse.json({ success: true, message: 'Password updated successfully' });
     } catch (error) {
         console.error('Error updating password:', error);
-        return NextResponse.redirect(new URL('/login?error=server-error', req.url));
+        return NextResponse.json({ error: 'Server error' }, { status: 500 });
     }
 }
