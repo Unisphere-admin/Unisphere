@@ -26,18 +26,7 @@ const nextConfig = {
   },
   experimental: {
     optimizeCss: true,
-    turbo: {
-      rules: {
-        // Force Turborepack to consider CSS modules in its graph
-        '**/*.module.css': {
-          type: 'style',
-        },
-        '**/*.css': {
-          type: 'style',
-        }
-      }
-    }
-  },
+  }
 }
 
 export default nextConfig 
