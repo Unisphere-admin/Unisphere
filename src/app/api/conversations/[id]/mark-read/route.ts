@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { markConversationAsRead } from '@/lib/db/messages';
 import { AuthUser } from '@/lib/auth/protectResource';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
-import { withCsrfProtection } from '@/lib/csrf/server';
+import { withCsrfProtection } from '@/lib/csrf-next';
 
 // Set edge runtime for better performance
 export const runtime = 'edge';

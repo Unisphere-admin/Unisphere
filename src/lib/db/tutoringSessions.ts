@@ -56,7 +56,7 @@ async function _createTutoringSessionRequest(
       return { session: null, error: null, authError: securityError };
     }
     
-    // Allow both tutors and students to create session requests with appropriate checks
+    // Only allow tutors to create session requests
     if (authUser.is_tutor) {
       // Tutor is creating a request - verify they are the tutor in the request
       if (authUser.id !== tutorId) {
@@ -68,24 +68,17 @@ async function _createTutoringSessionRequest(
           return { session: null, error: "Student does not have enough tokens to create this session." };
         }
       } else {
-      const { user: studentProfile, error: studentProfileError } = await getUserProfile(studentId);
-      if (studentProfileError || !studentProfile) {
-        return { session: null, error: "Could not retrieve student profile to check tokens." };
-      }
-      if (!studentProfile.tokens || studentProfile.tokens <= 0) {
-        return { session: null, error: "Student does not have enough tokens to create this session." };
+        const { user: studentProfile, error: studentProfileError } = await getUserProfile(studentId);
+        if (studentProfileError || !studentProfile) {
+          return { session: null, error: "Could not retrieve student profile to check tokens." };
+        }
+        if (!studentProfile.tokens || studentProfile.tokens <= 0) {
+          return { session: null, error: "Student does not have enough tokens to create this session." };
         }
       }
     } else {
-      // Student is creating a request - verify they are the student in the request
-      if (authUser.id !== studentId) {
-        return { session: null, error: 'Not authorized to create session request for this student' };
-      }
-      // Check student's (self) tokens - use provided tokens if available, otherwise use authUser tokens
-      const tokens = studentTokens !== undefined ? studentTokens : authUser.tokens || 0;
-      if (tokens <= 0) {
-        return { session: null, error: "You do not have enough tokens to request this session." };
-      }
+      // Student is trying to create a request - disallow this action
+      return { session: null, error: 'Only tutors can create tutoring sessions' };
     }
     
     // Create client
@@ -660,6 +653,11 @@ export async function createTutoringSessionRequest(
   try {
     console.log('Creating tutoring session request with auth user:', user.id);
     
+    // Check if user is a tutor
+    if (!user.is_tutor) {
+      return { session: null, error: 'Only tutors can create tutoring sessions' };
+    }
+    
     // Simply pass through to the authenticated handler
     return _createTutoringSessionRequest(
       user,
@@ -741,7 +739,7 @@ export const updateSessionStatusAuth = withAuth(async function _updateSessionSta
   } else if (status === 'ended') {
     // Only tutor can end
      if (authUser.id !== existingSession.tutor_id) {
-          return { session: null, error: "Only the tutor can end the session."};
+          return { session: null, error: "Only the tutor can end the session. Students are not permitted to end sessions."};
       }
   }
 

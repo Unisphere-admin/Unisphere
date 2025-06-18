@@ -50,8 +50,9 @@ export default function ClientLayoutWrapper({ children }: ClientLayoutWrapperPro
       // Start prefetching key data for common routes
       const prefetchCommonData = async () => {
         try {
-          if (isDashboard || isTutorsPage) {
-            // Prioritize tutors data if on dashboard or tutors page
+          // Only prefetch tutors data if on dashboard or tutors page
+          // No need to prefetch premium data if user doesn't have access
+          if ((isDashboard || isTutorsPage) && (user?.has_access || user?.role === 'tutor')) {
             await prefetchTutors();
           }
           setCachePrefetched(true);
@@ -63,7 +64,7 @@ export default function ClientLayoutWrapper({ children }: ClientLayoutWrapperPro
       
       prefetchCommonData();
     }
-  }, [isDashboard, isTutorsPage]);
+  }, [isDashboard, isTutorsPage, user?.has_access, user?.role]);
   
   // Setup auth cache check on component mount - separate from cache initialization
   useEffect(() => {

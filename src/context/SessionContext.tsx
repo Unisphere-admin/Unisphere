@@ -263,6 +263,12 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       throw new Error("You must be logged in to end a session");
     }
     
+    // Check if user is a tutor
+    if (user.role !== 'tutor') {
+      console.log('User is not a tutor, cannot end session');
+      throw new Error("Only tutors are permitted to end sessions");
+    }
+    
     // Check if user has premium access before making API calls
     const hasPremiumAccess = await checkPremiumAccess();
     if (!hasPremiumAccess && user.role !== 'tutor') {

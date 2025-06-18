@@ -1235,15 +1235,20 @@ export function SessionRequestCard({
                   </SessionLink>
                 )}
                 {isTutor && (
-                  <Button
-                    variant="default" 
-                    size="sm"
-                    className="bg-red-600 hover:bg-red-700"
+                  <Button 
+                    variant="destructive"
                     onClick={handleEndSession}
                     disabled={loading}
+                    className={isInMessagesPage ? "w-full" : ""}
                   >
-                    {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                    End Session
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Ending...
+                      </>
+                    ) : (
+                      <>End Session</>
+                    )}
                   </Button>
                 )}
               </div>

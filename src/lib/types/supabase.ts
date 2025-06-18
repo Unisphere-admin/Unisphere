@@ -106,7 +106,7 @@ export interface Database {
           last_name: string
           intended_universities?: string
           intended_major?: string
-          high_school_subjects?: string[]
+          current_subjects?: string[]
           avatar_url?: string
           bio?: string
         }
@@ -116,7 +116,7 @@ export interface Database {
           last_name: string
           intended_universities?: string
           intended_major?: string
-          high_school_subjects?: string[]
+          current_subjects?: string[]
           avatar_url?: string
           bio?: string
         }
@@ -126,7 +126,7 @@ export interface Database {
           last_name?: string
           intended_universities?: string
           intended_major?: string
-          high_school_subjects?: string[]
+          current_subjects?: string[]
           avatar_url?: string
           bio?: string
         }

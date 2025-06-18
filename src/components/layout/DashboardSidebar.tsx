@@ -65,7 +65,7 @@ const DashboardSidebar = () => {
       active: pathname === "/dashboard/history",
     },
     ...(isStudent ? [{
-      title: "Find Experts",
+      title: "Find a Tutor",
       icon: <BookOpen className="h-5 w-5" />,
       href: "/tutors",
       active: pathname === "/tutors",

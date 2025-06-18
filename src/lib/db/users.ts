@@ -23,7 +23,7 @@ export interface UserProfile {
   has_access?: boolean;
   intended_universities?: string;
   intended_major?: string;
-  high_school_subjects?: string[] | string;
+  current_subjects?: string[] | string;
 }
 
 // Fields for basic user info
@@ -520,7 +520,8 @@ export async function updateUserProfile(
       if (updateData.avatar_url !== undefined) filteredUpdateData.avatar_url = updateData.avatar_url;
       if (updateData.intended_universities !== undefined) filteredUpdateData.intended_universities = updateData.intended_universities;
       if (updateData.intended_major !== undefined) filteredUpdateData.intended_major = updateData.intended_major;
-      if (updateData.high_school_subjects !== undefined) filteredUpdateData.high_school_subjects = updateData.high_school_subjects;
+      if (updateData.high_school_subjects !== undefined) filteredUpdateData.current_subjects = updateData.high_school_subjects;
+      if (updateData.current_subjects !== undefined) filteredUpdateData.current_subjects = updateData.current_subjects;
       if (updateData.bio !== undefined) filteredUpdateData.bio = updateData.bio;
     }
     

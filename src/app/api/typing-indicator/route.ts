@@ -3,7 +3,7 @@ import { AuthUser } from '@/lib/auth/protectResource';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 import { verifyConversationParticipant } from '@/lib/db/securityUtils';
-import { withCsrfProtection } from '@/lib/csrf/server';
+import { withCsrfProtection } from '@/lib/csrf-next';
 
 async function typingIndicatorHandler(
   req: NextRequest,

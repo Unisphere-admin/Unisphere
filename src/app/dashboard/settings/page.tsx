@@ -35,8 +35,9 @@ const baseProfileSchema = z.object({
 const studentProfileSchema = baseProfileSchema.extend({
   intended_universities: z.string().max(500, "Must be less than 500 characters").optional(),
   intended_major: z.string().max(100, "Must be less than 100 characters").optional(),
-  high_school_subjects: z.string().max(500, "Must be less than 500 characters")
+  current_subjects: z.string().max(500, "Must be less than 500 characters")
     .optional(),
+  bio: z.string().max(500, "Bio must be less than 500 characters").optional(),
 });
 
 // Schema for email updates specifically
@@ -144,7 +145,8 @@ export default function SettingsPage() {
       last_name: "",
       intended_universities: "",
       intended_major: "",
-      high_school_subjects: "",
+      current_subjects: "",
+      bio: "",
     },
   });
 
@@ -319,9 +321,10 @@ export default function SettingsPage() {
           last_name: lastName,
           intended_universities: extendedProfile.intended_universities || "",
           intended_major: extendedProfile.intended_major || "",
-          high_school_subjects: Array.isArray(extendedProfile.high_school_subjects)
-            ? extendedProfile.high_school_subjects.join(', ')
-            : extendedProfile.high_school_subjects || "",
+          current_subjects: Array.isArray(extendedProfile.current_subjects)
+            ? extendedProfile.current_subjects.join(', ')
+            : extendedProfile.current_subjects || "",
+          bio: extendedProfile.bio || "",
         });
         
         // Update email form separately
@@ -353,9 +356,9 @@ export default function SettingsPage() {
         return;
       }
       
-      // Process high_school_subjects as an array
-      const highSchoolSubjects = data.high_school_subjects 
-        ? data.high_school_subjects.split(',').map(s => s.trim()).filter(Boolean)
+      // Process current_subjects as an array
+      const currentSubjects = data.current_subjects 
+        ? data.current_subjects.split(',').map(s => s.trim()).filter(Boolean)
         : [];
       
       // Update profile data
@@ -364,7 +367,8 @@ export default function SettingsPage() {
         last_name: data.last_name,
         intended_universities: data.intended_universities,
         intended_major: data.intended_major,
-        high_school_subjects: highSchoolSubjects
+        current_subjects: currentSubjects,
+        bio: data.bio,
       };
 
       const response = await fetch("/api/users/profile", {
@@ -1115,16 +1119,34 @@ export default function SettingsPage() {
 
                 <FormField
                   control={studentForm.control}
-                  name="high_school_subjects"
+                  name="current_subjects"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Current High School Subjects</FormLabel>
+                      <FormLabel>Current Subjects</FormLabel>
                       <FormControl>
                         <Input placeholder="Mathematics, Physics, Chemistry, Biology..." {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all" />
                       </FormControl>
                       <p className="text-xs text-muted-foreground mt-1">
                         Enter subjects separated by commas (e.g., Math, Physics, Chemistry)
                       </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={studentForm.control}
+                  name="bio"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bio</FormLabel>
+                      <FormControl>
+                        <textarea 
+                          className="flex min-h-[120px] w-full rounded-md border border-input bg-background/80 backdrop-blur-sm px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm focus-visible:border-primary/30 transition-all"
+                          placeholder="Tell students about yourself..."
+                          {...field}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

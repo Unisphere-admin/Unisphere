@@ -70,21 +70,39 @@ export function useTutorProfile(id: string | undefined) {
 
     const fetchTutor = async () => {
       try {
-        const { data, error } = await supabase
-          .from('tutor_profile')
-          .select('*')
-          .eq('id', id)
-          .single();
+        // First try to fetch from the public API
+        const response = await fetch(`/api/tutors/${id}`, {
+          method: 'GET',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          },
+          credentials: 'include'
+        });
 
-        if (error) {
-          if (error.code === 'PGRST116') {
-            // No rows returned
-            setTutor(null);
+        if (response.ok) {
+          const data = await response.json();
+          setTutor(data.tutor);
+        } else if (response.status === 404) {
+          // Tutor not found in public API, try fetching directly
+          const { data, error } = await supabase
+            .from('tutor_profile')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+          if (error) {
+            if (error.code === 'PGRST116') {
+              // No rows returned
+              setTutor(null);
+            } else {
+              throw error;
+            }
           } else {
-            throw error;
+            setTutor(data);
           }
         } else {
-          setTutor(data);
+          throw new Error(`API returned status ${response.status}`);
         }
       } catch (err) {
         console.error('Error fetching tutor:', err);

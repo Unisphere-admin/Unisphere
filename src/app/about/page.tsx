@@ -156,9 +156,9 @@ export default function AboutPage() {
               <div className="absolute -z-10 -bottom-6 -right-6 w-32 h-32 bg-[#84b7bd]/20 rounded-full blur-2xl animate-pulse" style={{animationDuration: '15s'}} />
               <div className="absolute inset-0 bg-gradient-to-r from-[#84bc9c]/10 via-transparent to-[#84b7bd]/10 rounded-xl blur-xl transform -translate-y-4 translate-x-4 opacity-60"></div>
               <img 
-                src="/placeholder.svg" 
+                src="/ourplatform.png" 
                 alt="Our journey"
-                className="rounded-lg shadow-xl max-w-md relative z-10"
+                className="rounded-lg max-w-md relative z-10"
               />
             </div>
           </div>

@@ -225,53 +225,47 @@ export default function LoginPage() {
 
   // Reset password function - updated with validation
   const resetPassword = async (email: string) => {
-    const sanitizedEmail = sanitizeInput(email);
-    
-    try {
-      // Validate email
-      emailSchema.parse(sanitizedEmail);
-    } catch (err: any) {
-      setError(err.errors?.[0]?.message || "Invalid email address");
-      return;
-    }
-    
-    // Check for malicious content
-    if (checkForMaliciousContent(sanitizedEmail)) {
-      setError("Invalid input detected");
+    if (!email) {
+      setError("Please enter your email");
       return;
     }
     
     setIsLoading(true);
+    setError("");
     
     try {
-      // Create a FormData instance for the request
-      const formData = new FormData();
-      formData.append("email", sanitizedEmail);
+      console.log(`Initiating password reset for: ${email}`);
       
-      // Only add CSRF token if it exists
-      if (token) {
-        formData.append("csrfToken", token);
-      }
+      // Use Supabase client directly
+      const { createClient } = await import('@/utils/supabase/client');
+      const supabase = createClient();
       
-      const headers: HeadersInit = {};
+      // Send password reset email using magic link approach
+      console.log('Sending password reset email with redirectTo:', `${window.location.origin}/reset-password`);
       
-      // Only add CSRF token if it exists
-      if (token) {
-        headers['X-CSRF-Token'] = token;
-      }
-      
-      // Call the API route using fetch with CSRF token
-      const response = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers,
-        body: formData,
-        credentials: 'include',
+      // First try the resetPasswordForEmail method
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to send reset email');
+      // If that fails, fall back to the signInWithOtp method which is more reliable
+      if (error) {
+        console.log('resetPasswordForEmail failed, trying signInWithOtp instead:', error);
+        
+        const { error: otpError } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: `${window.location.origin}/reset-password`,
+          }
+        });
+        
+        if (otpError) {
+          console.error('OTP sign-in error:', otpError);
+          throw new Error(otpError.message || 'Failed to send reset email');
+        }
       }
+      
+      console.log('Password reset email sent successfully');
       
       toast({
         title: "Password reset email sent",

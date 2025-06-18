@@ -10,7 +10,7 @@ import {
   isStaticAssetPath
 } from './protectResource';
 import { createRouteHandlerClientWithCookies } from '../db/client';
-import { csrfMiddleware } from "@/lib/csrf/server";
+import { csrfMiddleware } from "@/lib/csrf-next";
 
 /**
  * Validates a request to ensure it has a valid authenticated user.
@@ -37,6 +37,11 @@ export async function validateRequest(req: NextRequest): Promise<{
       
     // Check if this path requires protection
     if (shouldProtectRoute(path)) {
+      // Special case for tutor API endpoints - allow without authentication
+      if (path.startsWith('/api/tutors/') || path.match(/^\/tutors\/[^\/]+$/)) {
+        return { user: null, errorResponse: null };
+      }
+      
       // If no user is logged in, redirect to login
       if (!authUser) {
         return { user: null, errorResponse: redirectToLogin(req) };
@@ -52,7 +57,7 @@ export async function validateRequest(req: NextRequest): Promise<{
     // Skip CSRF validation for auth-related endpoints
     if (authUser && req.method !== "GET" && !path.startsWith("/api/auth/") && !path.startsWith("/api/csrf")) {
       // Apply CSRF validation
-      const csrfResponse = await csrfMiddleware(req, authUser);
+      const csrfResponse = await csrfMiddleware(req);
       
       // If CSRF validation fails, return the error response
       if (csrfResponse) {

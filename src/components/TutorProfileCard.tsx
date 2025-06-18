@@ -104,6 +104,8 @@ const TutorProfileCard = ({ tutor, reviews = [], loading = false }: TutorProfile
           </div>
           
           <div className="flex justify-between items-center">
+            {/* Star rating display commented out due to insufficient data */}
+            {/*
             <div className="flex items-center">
               <div className="flex">
                 {[1, 2, 3, 4, 5].map((star) => (
@@ -123,6 +125,8 @@ const TutorProfileCard = ({ tutor, reviews = [], loading = false }: TutorProfile
                   : "No reviews yet"}
               </span>
             </div>
+            */}
+            <div className="flex-grow"></div> {/* Spacer to maintain layout */}
             <Link href={`/tutors/${tutor.search_id || tutor.id}`} className="text-primary font-medium text-sm hover:underline">
               View Profile
             </Link>

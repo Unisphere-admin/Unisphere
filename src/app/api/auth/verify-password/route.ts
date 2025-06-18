@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClientWithCookies } from "@/lib/db/client";
-import { csrfMiddleware } from "@/lib/csrf/server";
+import { csrfMiddleware } from "@/lib/csrf-next";
 import { getAuthUser } from "@/lib/auth/protectResource";
 
 export async function POST(req: NextRequest) {
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     }
     
     // Check CSRF token
-    const csrfError = await csrfMiddleware(req, authUser);
+    const csrfError = await csrfMiddleware(req);
     if (csrfError) {
       return csrfError;
     }

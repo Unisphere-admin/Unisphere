@@ -102,6 +102,8 @@ export const PUBLIC_PATHS = [
   '/api/auth',
   '/api/tutors',
   '/api/reviews',
+  // Allow individual tutor profiles without authentication
+  '/api/tutors/',
   // Public pages
   '/',
   '/about',
@@ -110,7 +112,8 @@ export const PUBLIC_PATHS = [
   '/signup',
   '/reset-password',
   '/paywall',
-  '/consultation'
+  '/consultation',
+  '/become-a-tutor'
 ];
 
 /**
@@ -157,15 +160,21 @@ export function requiresPremiumAccess(path: string): boolean {
     path === '/reset-password' ||
     path === '/tutors' || // Allow access to the tutors list page
     path === '/consultation' ||
-    path.startsWith('/api/auth/')
+    path === '/become-a-tutor' ||
+    path.startsWith('/api/auth/') ||
+    path.startsWith('/api/tutors/') || // Allow access to individual tutor API endpoints
+    path.match(/^\/tutors\/[^\/]+$/) // Allow access to individual tutor profile pages
   ) {
     return false;
   }
   
-  // Still require premium access for individual tutor profiles
+  // NO LONGER require premium access for individual tutor profiles
+  // Remove this condition
+  /* 
   if (path.match(/^\/tutors\/[^\/]+$/)) {
     return true;
   }
+  */
   
   // Premium required for dashboard and APIs
   if (

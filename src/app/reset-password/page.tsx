@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
@@ -21,30 +22,95 @@ export default function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [hasSession, setHasSession] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(true);
   
-  // Check if user has a valid session
+  // Check if user has a valid session for password reset
   useEffect(() => {
     const checkSession = async () => {
       try {
-        // Use our auth API to check session status
-        const response = await fetch('/api/auth/session', {
-          method: 'GET',
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache'
+        // Import the Supabase client first
+        const { createClient } = await import('@/utils/supabase/client');
+        const supabase = createClient();
+        
+        // Check if we came from a password reset link
+        const code = searchParams.get('code');
+        
+        if (code) {
+          // If we have a code, we'll try to verify it's valid
+          setIsVerifying(true);
+          console.log('Found code in URL, attempting to verify session');
+          
+          try {
+            // First check if we already have a session
+            const { data: sessionData } = await supabase.auth.getSession();
+            
+            if (sessionData?.session) {
+              console.log('Already have a valid session');
+              setHasSession(true);
+              
+              // Remove the code from the URL to prevent reuse
+              window.history.replaceState({}, '', '/reset-password');
+              return;
+            }
+            
+            // If no session, we'll try a different approach
+            // Instead of relying on PKCE, we'll use a simpler verification
+            // Just check if we can get the user - if this succeeds, we have a valid session
+            const { data: userData, error: userError } = await supabase.auth.getUser();
+            
+            if (!userError && userData?.user) {
+              console.log('Successfully verified user from code');
+              setHasSession(true);
+              
+              // Remove the code from the URL to prevent reuse
+              window.history.replaceState({}, '', '/reset-password');
+              return;
+            }
+            
+            // If we still don't have a session, try one more approach
+            // Use the signInWithOtp method which works with the same code
+            const { error: otpError } = await supabase.auth.verifyOtp({
+              type: 'recovery',
+              token_hash: code
+            });
+            
+            if (otpError) {
+              console.error('OTP verification error:', otpError);
+              throw new Error('Invalid reset code');
+            }
+            
+            // If we get here, we should have a session
+            const { data: finalCheck } = await supabase.auth.getSession();
+            
+            if (finalCheck?.session) {
+              console.log('Successfully established session after OTP verification');
+              setHasSession(true);
+              
+              // Remove the code from the URL to prevent reuse
+              window.history.replaceState({}, '', '/reset-password');
+              return;
+            }
+            
+            throw new Error('Could not establish a session');
+          } catch (verificationError) {
+            console.error('Verification error:', verificationError);
+            throw new Error('Invalid reset code');
           }
-        });
-        
-        if (!response.ok) {
-          throw new Error('Invalid session');
         }
         
-        const data = await response.json();
-        if (!data.user) {
-          throw new Error('No active session');
+        // If no code, check if there's an existing session
+        console.log('No code in URL, checking for existing session');
+        const { data } = await supabase.auth.getSession();
+        
+        if (data?.session) {
+          console.log('Found existing session');
+          setHasSession(true);
+          return;
         }
         
-        setHasSession(true);
+        console.log('No active session found');
+        // No valid session found
+        throw new Error('No active session');
       } catch (error) {
         console.error('Session check error:', error);
         toast({
@@ -53,11 +119,13 @@ export default function ResetPasswordPage() {
           variant: "destructive"
         });
         router.push("/login");
+      } finally {
+        setIsVerifying(false);
       }
     };
     
     checkSession();
-  }, [router, toast]);
+  }, [router, toast, searchParams]);
   
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,24 +149,32 @@ export default function ResetPasswordPage() {
     setIsLoading(true);
     
     try {
-      const formData = new FormData();
-      formData.append("password", password);
+      // Import the Supabase client directly
+      const { createClient } = await import('@/utils/supabase/client');
+      const supabase = createClient();
       
-      const response = await fetch('/api/auth/update-password', {
-        method: 'POST',
-        body: formData
+      console.log('Attempting to update password');
+      
+      // Update the password directly using Supabase client
+      const { error } = await supabase.auth.updateUser({
+        password: password
       });
       
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to reset password");
+      if (error) {
+        console.error('Error updating password:', error);
+        throw new Error(error.message || "Failed to reset password");
       }
+      
+      console.log('Password updated successfully');
       
       toast({
         title: "Password updated",
         description: "Your password has been reset successfully. You can now log in with your new password.",
         variant: "default"
       });
+      
+      // Sign out to ensure clean login with new password
+      await supabase.auth.signOut();
       
       router.push("/login?success=password-updated");
       
@@ -110,7 +186,7 @@ export default function ResetPasswordPage() {
     }
   };
   
-  if (!hasSession) {
+  if (isVerifying) {
     return (
       <div className="min-h-screen with-navbar flex items-center justify-center bg-gradient-to-b from-primary/5 via-background to-background">
         <div className="absolute inset-0 z-0">
@@ -120,6 +196,27 @@ export default function ResetPasswordPage() {
         <div className="text-center relative z-10">
           <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary" />
           <p className="mt-2">Verifying your reset link...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!hasSession) {
+    return (
+      <div className="min-h-screen with-navbar flex items-center justify-center bg-gradient-to-b from-primary/5 via-background to-background">
+        <div className="absolute inset-0 z-0">
+          <div className="absolute top-20 right-[20%] w-72 h-72 bg-primary/5 rounded-full blur-3xl opacity-70 animate-pulse" style={{animationDuration: '8s'}}></div>
+          <div className="absolute bottom-10 left-[10%] w-80 h-80 bg-secondary/5 rounded-full blur-3xl opacity-60 animate-pulse" style={{animationDuration: '12s'}}></div>
+        </div>
+        <div className="text-center relative z-10">
+          <div className="p-3 rounded-full bg-destructive/20 mx-auto mb-4 inline-flex">
+            <Lock className="h-6 w-6 text-destructive" />
+          </div>
+          <h2 className="text-xl font-semibold mb-2">Invalid Reset Link</h2>
+          <p className="text-muted-foreground mb-4">Your password reset link is invalid or has expired.</p>
+          <Button asChild>
+            <Link href="/login">Back to Login</Link>
+          </Button>
         </div>
       </div>
     );

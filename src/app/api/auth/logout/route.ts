@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 import { revalidatePath } from 'next/cache';
-import { clearCsrfToken } from "@/lib/csrf/server";
 
 // Ensure this route is never cached
 export const dynamic = 'force-dynamic';
@@ -16,12 +15,6 @@ export async function POST(request: NextRequest) {
     if (!user) {
       // User is already logged out
       console.log('User already logged out');
-      // Still try to clear the CSRF token
-      try {
-        await clearCsrfToken();
-      } catch (csrfError) {
-        console.error('Error clearing CSRF token but continuing:', csrfError);
-      }
       return NextResponse.json({ success: true, status: "already-logged-out" });
     }
 
@@ -42,13 +35,6 @@ export async function POST(request: NextRequest) {
         console.error('Error revalidating cache:', cacheError);
         // Don't fail the request if cache revalidation fails
       }
-    }
-    
-    // Clear CSRF token cookie
-    try {
-      await clearCsrfToken();
-    } catch (csrfError) {
-      console.error('Error clearing CSRF token but continuing:', csrfError);
     }
     
     console.log('User successfully logged out, all auth cookies cleared and cache invalidated');

@@ -14,7 +14,7 @@ import {
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 import { createClient } from '@supabase/supabase-js';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
-import { withCsrfProtection } from '@/lib/csrf/server';
+import { withCsrfProtection } from '@/lib/csrf-next';
 
 // Export runtime config for improved performance
 export const runtime = 'edge';

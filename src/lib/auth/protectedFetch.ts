@@ -1,11 +1,5 @@
 import { saveApiRequestForRetry } from './apiRedirect';
 import { createClient } from "@/utils/supabase/client";
-import { 
-  addCsrfToken, 
-  getCsrfTokenFromStorage as getTokenFromStorage,
-  storeCsrfToken as storeToken,
-  clearStoredCsrfToken as clearToken
-} from "@/lib/csrf/client";
 
 /**
  * Interface for fetch options with optional body
@@ -18,6 +12,37 @@ interface FetchOptions extends RequestInit {
  * Flag to prevent multiple parallel auth refreshes
  */
 let refreshingAuth = false;
+
+/**
+ * Get the CSRF token from headers
+ */
+async function getCsrfToken(): Promise<string | null> {
+  try {
+    const response = await fetch('/api/csrf', {
+      method: 'GET',
+      credentials: 'include', // Required for cookies
+      headers: {
+        'Cache-Control': 'no-cache', // Prevent caching
+      },
+    });
+
+    if (!response.ok) {
+      console.error('Failed to fetch CSRF token:', response.status);
+      return null;
+    }
+
+    // Get the token from the header
+    const csrfToken = response.headers.get('X-CSRF-Token');
+    if (!csrfToken) {
+      console.error('No CSRF token found in response');
+    }
+
+    return csrfToken;
+  } catch (error) {
+    console.error('Error fetching CSRF token:', error);
+    return null;
+  }
+}
 
 /**
  * Attempt to refresh the auth token if it's expired or will expire soon
@@ -114,32 +139,7 @@ async function refreshAuthToken(): Promise<boolean> {
 }
 
 /**
- * Get CSRF token from cookies or local storage
- * @deprecated Use getTokenFromStorage from csrf/client directly
- */
-function getCsrfTokenFromStorage(): string | null {
-  return getTokenFromStorage();
-}
-
-/**
- * Store CSRF token in local storage for client-side access
- * @deprecated Use storeToken from csrf/client directly
- */
-export function storeCsrfToken(token: string): void {
-  storeToken(token);
-}
-
-/**
- * Clear CSRF token from storage
- * @deprecated Use clearToken from csrf/client directly
- */
-export function clearStoredCsrfToken(): void {
-  clearToken();
-}
-
-/**
- * A wrapper around the fetch API that handles authentication redirects
- * and saves the request for retry after login
+ * A wrapper around the fetch API that handles authentication redirects and CSRF protection
  * 
  * @param endpoint The API endpoint to call
  * @param options Fetch options including method, headers, body, etc.
@@ -147,8 +147,7 @@ export function clearStoredCsrfToken(): void {
  */
 export async function protectedFetch<T = any>(
   endpoint: string,
-  options: FetchOptions = {},
-  csrfToken?: string
+  options: FetchOptions = {}
 ): Promise<T> {
   // Prepare the options
   const fetchOptions: RequestInit = {
@@ -160,20 +159,20 @@ export async function protectedFetch<T = any>(
     credentials: 'include', // Always include credentials for cookies
   };
 
+  // For non-GET requests, add CSRF token
+  if (options.method && options.method !== 'GET') {
+    const csrfToken = await getCsrfToken();
+    if (csrfToken) {
+      (fetchOptions.headers as Record<string, string>)['X-CSRF-Token'] = csrfToken;
+    }
+  }
+
   // Convert body to JSON string if present
   if (options.body && typeof options.body === 'object') {
     fetchOptions.body = JSON.stringify(options.body);
   }
 
-  // Get CSRF token from param, storage, or do nothing
-  const token = csrfToken || getCsrfTokenFromStorage();
-  
-  // If we have a token and this is not a GET request, add CSRF token
-  if (token && options.method && options.method !== 'GET') {
-    addCsrfToken(fetchOptions, token);
-  }
-
-  // Try to refresh the token first
+  // Try to refresh the auth token first
   await refreshAuthToken();
 
   try {
@@ -181,7 +180,7 @@ export async function protectedFetch<T = any>(
 
     // Handle redirect response (middleware will redirect to login page)
     if (response.redirected && response.url.includes('/login')) {
-      // Try one more refresh
+      // Try one more auth refresh
       const refreshed = await refreshAuthToken();
       
       if (refreshed) {
@@ -212,35 +211,40 @@ export async function protectedFetch<T = any>(
       throw new Error('Authentication required. Please log in.');
     }
 
-    // Handle CSRF token refresh if needed
-    if (response.status === 403) {
-      const responseData = await response.json();
-      
-      // If error is related to CSRF, try to get a new token and retry
-      if (responseData.error && responseData.error.includes('CSRF')) {
-        try {
-          // Fetch a new CSRF token
-          const tokenResponse = await fetch('/api/csrf', {
-            credentials: 'include',
-          });
-          
-          if (tokenResponse.ok) {
-            const { csrfToken: newToken } = await tokenResponse.json();
-            
-            // Store the new token
-            storeCsrfToken(newToken);
-            
-            // Retry the original request with the new token
-            return protectedFetch<T>(endpoint, options, newToken);
-          }
-        } catch (error) {
-          console.error('Error refreshing CSRF token:', error);
-        }
-      }
-    }
-
     // Handle HTTP errors
     if (!response.ok) {
+      // For CSRF errors, retry with a fresh token
+    if (response.status === 403) {
+        try {
+          const errorData = await response.json();
+          if (errorData?.error?.includes('CSRF') || errorData?.message?.includes('CSRF')) {
+            console.log('CSRF validation failed. Retrying with fresh token.');
+            
+            // Get a fresh token and retry
+            const csrfToken = await getCsrfToken();
+            
+            if (csrfToken) {
+              // Update headers with new token
+              (fetchOptions.headers as Record<string, string>)['X-CSRF-Token'] = csrfToken;
+              
+              // Retry the request
+              const retryResponse = await fetch(endpoint, fetchOptions);
+          
+              if (retryResponse.ok) {
+                return await retryResponse.json();
+              }
+              
+              const retryErrorData = await retryResponse.json().catch(() => null);
+              throw new Error(
+                retryErrorData?.error || `Request failed with status ${retryResponse.status}`
+              );
+            }
+          }
+        } catch (e) {
+          // If we can't parse the response as JSON, continue with the normal error handling
+        }
+      }
+      
       const errorData = await response.json().catch(() => null);
       throw new Error(
         errorData?.error || `Request failed with status ${response.status}`

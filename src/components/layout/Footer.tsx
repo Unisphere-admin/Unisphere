@@ -68,24 +68,19 @@ const Footer = () => {
                 </Link>
               </li>
               <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
+                <Link href="/become-a-tutor" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
                   <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
                   <span className="transition-colors">Become a Tutor</span>
-                </a>
+                </Link>
               </li>
-              <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
-                  <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
-                  <span className="transition-colors">FAQs</span>
-                </a>
-              </li>
+              
             </ul>
           </div>
           
           <div>
             <h3 className="text-base font-semibold mb-4 flex items-center gap-1.5">
               <span className="w-1 h-5 bg-primary/50 rounded-full"></span>
-              Subjects
+              Services
             </h3>
             <ul className="space-y-3">
               <li>
@@ -155,17 +150,7 @@ const Footer = () => {
           <p className="text-sm text-muted-foreground/80">
             © {new Date().getFullYear()} Unisphere. All rights reserved.
           </p>
-          <div className="flex flex-wrap justify-center gap-6">
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Privacy Policy
-            </a>
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Terms of Service
-            </a>
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Cookie Policy
-            </a>
-          </div>
+    
         </div>
       </div>
       

@@ -1,21 +1,33 @@
-'use client';
+/**
+ * CSRF Protection Module
+ * 
+ * This module exports all necessary functions and constants for CSRF protection
+ * throughout the application.
+ */
 
-// We only export client-side safe utilities from this main entry point
+// Re-export server-side functions
 export {
+  generateCsrfToken,
+  refreshCsrfToken,
+  validateStoredToken,
+  clearCsrfToken,
+  csrfMiddleware,
+  withCsrfProtection,
+  CSRF_COOKIE_NAME,
   CSRF_HEADER_NAME,
-  CSRF_FORM_FIELD,
+  CSRF_FORM_FIELD
+} from './server';
+
+// Re-export client-side functions
+export {
   useCsrfToken,
-  addCsrfToken,
-  storeCsrfToken,
   getCsrfTokenFromStorage,
+  storeCsrfToken,
   clearStoredCsrfToken,
+  addCsrfToken,
+  isTokenExpired,
   createProtectedFetchWithCsrf
 } from './client';
 
-// Server-side functions should be imported directly from './server'
-// DO NOT import these in client components:
-// - generateCsrfToken
-// - validateStoredToken
-// - clearCsrfToken (server version)
-// - csrfMiddleware
-// - withCsrfProtection 
+// Re-export context provider
+export { CsrfProvider, useCsrf } from '@/context/CsrfContext'; 

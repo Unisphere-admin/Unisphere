@@ -21,19 +21,19 @@ interface Consultant {
 const consultants: Consultant[] = [
   {
     id: "joshua",
-    name: "Joshua",
+    name: "Joshua Ooi",
     university: "Columbia University",
     initials: "JC"
   },
   {
     id: "justin",
-    name: "Justin",
+    name: "Justin Lee",
     university: "Oxford University",
     initials: "JO"
   },
   {
     id: "matthew",
-    name: "Matthew",
+    name: "Matthew Tang",
     university: "Yale University",
     initials: "MY"
   }
@@ -159,7 +159,7 @@ export default function ConsultationPage() {
         <div className="bg-muted/30 rounded-xl p-8 border border-border/40 shadow-sm">
           <h2 className="text-2xl font-semibold mb-6">Our Consultants</h2>
           <p className="text-muted-foreground mb-4">
-            Our team of expert consultants is ready to help you with your educational journey:
+            Our team of expert consultants are ready to help you with your educational journey:
           </p>
 
           <div className="space-y-4 mb-8">

@@ -52,7 +52,7 @@ const TUTOR_DETAIL_FIELDS = `
 
 // Fields for non-premium users (limited information)
 const NON_PREMIUM_FIELDS = `
-  avatar_url, subjects, major, current_education
+  avatar_url, subjects, major, current_education, previous_education
 `;
 
 /**

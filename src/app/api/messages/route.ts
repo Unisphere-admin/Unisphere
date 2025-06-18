@@ -4,7 +4,7 @@ import { AuthUser } from '@/lib/auth/protectResource';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 import { validateText, sanitizeInput, checkForMaliciousContent } from "@/lib/validation";
-import { withCsrfProtection } from "@/lib/csrf/server";
+import { withCsrfProtection } from "@/lib/csrf-next";
 
 // Export runtime config for improved performance
 export const runtime = 'edge';

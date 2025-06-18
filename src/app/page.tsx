@@ -230,7 +230,7 @@ export default function HomePage() {
       </section>
 
       {/* Testimonials */}
-      <section className="py-20 md:py-32 w-full bg-gradient-to-b from-[#c2dac2]/10 via-background/95 to-[#c2d8d2]/20 relative overflow-hidden">
+      {/* <section className="py-20 md:py-32 w-full bg-gradient-to-b from-[#c2dac2]/10 via-background/95 to-[#c2d8d2]/20 relative overflow-hidden">
         <div className="absolute inset-0 z-0">
           <div className="absolute top-40 right-[30%] w-72 h-72 bg-[#84bc9c]/10 rounded-full blur-3xl opacity-60 animate-pulse" style={{animationDuration: '10s'}}></div>
           <div className="absolute bottom-20 left-[20%] w-80 h-80 bg-[#84b7bd]/10 rounded-full blur-3xl opacity-50 animate-pulse" style={{animationDuration: '15s'}}></div>
@@ -322,12 +322,12 @@ export default function HomePage() {
           <div className="mt-16 text-center">
             <Button size="lg" className="bg-[#4ba896]/10 text-[#129490] hover:bg-[#4ba896]/20 hover:shadow-md transition-all border-[#c2d8d2]/40 hover:translate-y-[-2px] group">
               <Link href="/tutors" className="flex items-center gap-2">
-                Begin Your Global Journey <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
+                Begin Your Journey <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
               </Link>
             </Button>
           </div>
         </div>
-      </section>
+      </section> */}
     </div>
   );
 } 

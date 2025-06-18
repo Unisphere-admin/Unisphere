@@ -103,7 +103,7 @@ interface StudentProfileData {
   last_name?: string;
   intended_universities?: string;
   intended_major?: string;
-  high_school_subjects?: string[] | string;
+  current_subjects?: string[] | string;
   avatar_url?: string;
   bio?: string;
 }
@@ -716,6 +716,16 @@ export default function MessagesPage() {
       return;
     }
 
+    // Ensure only tutors can create sessions
+    if (user.role !== 'tutor') {
+      toast({
+        title: "Permission Denied",
+        description: "Only tutors can schedule tutoring sessions.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Validate input fields
     // Title validation
     const titleValidation = validateText(sessionTitle, { min: 3, max: 100 });
@@ -767,16 +777,6 @@ export default function MessagesPage() {
       toast({
         title: "Action Required",
         description: "Please send a message first to create a real conversation before scheduling a session.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Ensure only tutors can create sessions
-    if (user.role !== 'tutor') {
-      toast({
-        title: "Permission Denied",
-        description: "Only tutors can schedule tutoring sessions.",
         variant: "destructive",
       });
       return;
@@ -1520,11 +1520,16 @@ export default function MessagesPage() {
                 </div>
                 <h3 className="text-lg font-medium mb-2">No conversations yet</h3>
                 <p className="text-sm text-muted-foreground/70 mt-1 mb-6 max-w-[240px]">
-                  When you message a tutor, your conversations will appear here
+                  {user?.role === 'tutor' 
+                    ? "When you message a student, your conversations will appear here"
+                    : "When you message a tutor, your conversations will appear here"
+                  }
                 </p>
-                <Button asChild size="sm" className="bg-primary hover:bg-primary/90 shadow-sm">
-                  <Link href="/tutors">Find Experts</Link>
-                </Button>
+                {user?.role !== 'tutor' && (
+                  <Button asChild size="sm" className="bg-primary hover:bg-primary/90 shadow-sm">
+                    <Link href="/tutors">Find a Tutor</Link>
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="divide-y divide-border/30">
@@ -1978,9 +1983,11 @@ export default function MessagesPage() {
                       <p className="text-muted-foreground max-w-xs mx-auto mb-6">
                         Select a conversation from the sidebar to view your messages
                       </p>
-                      <Button asChild size="sm" className="bg-primary hover:bg-primary/90 shadow-sm">
-                        <Link href="/tutors">Find Experts</Link>
-                      </Button>
+                      {user?.role !== 'tutor' && (
+                        <Button asChild size="sm" className="bg-primary hover:bg-primary/90 shadow-sm">
+                          <Link href="/tutors">Find a Tutor</Link>
+                        </Button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -2022,9 +2029,11 @@ export default function MessagesPage() {
                 <p className="text-muted-foreground max-w-xs mx-auto mb-6">
                   Select a conversation from the sidebar to view your messages
                 </p>
-                <Button asChild size="sm" className="bg-primary hover:bg-primary/90 shadow-sm">
-                  <Link href="/tutors">Find Experts</Link>
-                </Button>
+                {user?.role !== 'tutor' && (
+                  <Button asChild size="sm" className="bg-primary hover:bg-primary/90 shadow-sm">
+                    <Link href="/tutors">Find a Tutor</Link>
+                  </Button>
+                )}
               </div>
             </div>
           )}
@@ -2099,18 +2108,18 @@ export default function MessagesPage() {
                   <div className="flex flex-wrap gap-1">
                     {(() => {
                       // First handle array format
-                      if (Array.isArray(profileData.high_school_subjects) && 
-                          profileData.high_school_subjects.length > 0) {
-                        return profileData.high_school_subjects.map((subject, index) => (
+                      if (Array.isArray(profileData.current_subjects) && 
+                          profileData.current_subjects.length > 0) {
+                        return profileData.current_subjects.map((subject, index) => (
                           <Badge key={index} variant="secondary" className="bg-muted">
                             {subject}
                           </Badge>
                         ));
                       } 
                       // Then handle string format (comma-separated)
-                      else if (typeof profileData.high_school_subjects === 'string' && 
-                              profileData.high_school_subjects) {
-                        return profileData.high_school_subjects.split(',')
+                      else if (typeof profileData.current_subjects === 'string' && 
+                              profileData.current_subjects) {
+                        return profileData.current_subjects.split(',')
                           .map(subject => subject.trim())
                           .filter(subject => subject) // Filter out empty strings
                           .map((subject, index) => (

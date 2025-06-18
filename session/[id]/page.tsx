@@ -408,6 +408,16 @@ export default function SessionPage() {
   const handleEndSession = async () => {
     if (!sessionData) return;
     
+    // Client-side role check for extra security
+    if (user?.role !== 'tutor') {
+      toast({
+        title: "Permission Denied", 
+        description: "Only tutors are permitted to end sessions.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     try {
       await endSession(sessionData.id);
       
@@ -824,12 +834,14 @@ export default function SessionPage() {
                 <div className="flex-1"></div>
                 
                 <div className="flex flex-col gap-2">
-                  <Button 
-                    variant="destructive" 
-                    onClick={handleEndSession}
-                  >
-                    End Session
-                  </Button>
+                  {user?.role === 'tutor' && (
+                    <Button 
+                      variant="destructive" 
+                      onClick={handleEndSession}
+                    >
+                      End Session
+                    </Button>
+                  )}
                   
                   <AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
                     <AlertDialogTrigger asChild>

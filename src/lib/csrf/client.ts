@@ -6,37 +6,114 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 export const CSRF_HEADER_NAME = "X-CSRF-Token";
 export const CSRF_FORM_FIELD = "csrfToken";
 
+// Configuration
+const CSRF_STORAGE_KEY = 'csrfToken';
+const CSRF_REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
+const CSRF_LAST_FETCH_KEY = 'csrfLastFetch';
+const MAX_RETRY_ATTEMPTS = 3;
+const RETRY_DELAY = 2000; // 2 seconds
+
 /**
- * Store CSRF token in local storage for client-side access
+ * Store CSRF token in memory and sessionStorage for better security
+ * (localStorage is more vulnerable to XSS)
  */
+let inMemoryToken: string | null = null;
+
 export function storeCsrfToken(token: string): void {
   if (typeof window === 'undefined') {
     return;
   }
   
-  localStorage.setItem('csrfToken', token);
+  try {
+    // Store in memory (primary storage)
+    inMemoryToken = token;
+    
+    // Also store in sessionStorage as backup
+    // This helps when the page refreshes but session is maintained
+    sessionStorage.setItem(CSRF_STORAGE_KEY, token);
+    sessionStorage.setItem(CSRF_LAST_FETCH_KEY, Date.now().toString());
+  } catch (error) {
+    console.error('Error storing CSRF token:', error);
+  }
 }
 
 /**
- * Get CSRF token from local storage
+ * Get CSRF token from memory first, fallback to sessionStorage
  */
 export function getCsrfTokenFromStorage(): string | null {
   if (typeof window === 'undefined') {
     return null;
   }
   
-  return localStorage.getItem('csrfToken');
+  // Prefer memory token if available
+  if (inMemoryToken) {
+    return inMemoryToken;
+  }
+  
+  try {
+    // Fall back to sessionStorage
+    const token = sessionStorage.getItem(CSRF_STORAGE_KEY);
+    
+    // If found in sessionStorage but not in memory, restore it to memory
+    if (token) {
+      inMemoryToken = token;
+    }
+    
+    return token;
+  } catch (error) {
+    console.error('Error retrieving CSRF token:', error);
+    return null;
+  }
 }
 
 /**
- * Clear CSRF token from storage
+ * Clear CSRF token from all storage mechanisms
  */
 export function clearStoredCsrfToken(): void {
   if (typeof window === 'undefined') {
     return;
   }
   
-  localStorage.removeItem('csrfToken');
+  try {
+    // Clear from memory
+    inMemoryToken = null;
+    
+    // Clear from sessionStorage
+    sessionStorage.removeItem(CSRF_STORAGE_KEY);
+    sessionStorage.removeItem(CSRF_LAST_FETCH_KEY);
+    
+    // Also clear from localStorage if it might be there from previous versions
+    localStorage.removeItem(CSRF_STORAGE_KEY);
+    localStorage.removeItem(CSRF_LAST_FETCH_KEY);
+  } catch (error) {
+    console.error('Error clearing CSRF token:', error);
+  }
+}
+
+/**
+ * Check if stored token is likely expired based on our client-side tracking
+ */
+export function isTokenExpired(): boolean {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+  
+  try {
+    const lastFetchStr = sessionStorage.getItem(CSRF_LAST_FETCH_KEY);
+    if (!lastFetchStr) {
+      return true;
+    }
+    
+    const lastFetch = parseInt(lastFetchStr, 10);
+    if (isNaN(lastFetch)) {
+      return true;
+    }
+    
+    return Date.now() - lastFetch > CSRF_REFRESH_INTERVAL;
+  } catch (error) {
+    console.error('Error checking token expiration:', error);
+    return true; // Assume expired on error
+  }
 }
 
 /**
@@ -60,24 +137,39 @@ export function useCsrfToken() {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const lastFetchTimeRef = useRef<number>(0);
   const failedAttemptsRef = useRef<number>(0);
-  const TOKEN_REFRESH_INTERVAL = 25 * 60 * 1000; // 25 minutes
-  const MAX_RETRY_ATTEMPTS = 3; // Limit retry attempts
-  const isMountedRef = useRef(true); // Track component mount state
-  const isLoginPageRef = useRef(false); // Track if we're on the login page
+  const isMountedRef = useRef(true);
+  const fetchingRef = useRef<boolean>(false);
+  const fetchPromiseRef = useRef<Promise<string | null> | null>(null);
+  
+  // Used to track if the current page is the login page
+  const isLoginPageRef = useRef(false);
+  useEffect(() => {
+    isLoginPageRef.current = window.location.pathname.includes('/login');
+  }, []);
   
   // Reset error state when trying again
   const resetError = useCallback(() => {
     if (error) setError(null);
   }, [error]);
   
+  /**
+   * Fetch a new CSRF token from the server
+   */
   const fetchCsrfToken = useCallback(async (force: boolean = false): Promise<string | null> => {
+    // If already fetching, return the existing promise
+    if (fetchingRef.current && fetchPromiseRef.current) {
+      return fetchPromiseRef.current;
+    }
+    
+    // Create a new fetch promise
+    fetchingRef.current = true;
+    fetchPromiseRef.current = (async () => {
+      try {
     resetError();
     
     // If we're on login page, don't keep retrying
-    if (isLoginPageRef.current && window.location.pathname.includes('/login')) {
-      console.debug('On login page, skipping CSRF token fetch');
+        if (isLoginPageRef.current) {
       return null;
     }
     
@@ -87,157 +179,198 @@ export function useCsrfToken() {
       return null;
     }
     
-    // If we already have a token and it's not forced, return it
+        // Check if we can use the existing token
+        if (!force && !isTokenExpired()) {
     const existingToken = getCsrfTokenFromStorage();
-    
-    // Check if token is recent enough (less than 25 minutes old)
-    const now = Date.now();
-    const isTooOld = lastFetchTimeRef.current > 0 && 
-                     now - lastFetchTimeRef.current > TOKEN_REFRESH_INTERVAL;
-    
-    // Return existing token if it exists, is not forced, and not too old
-    if (existingToken && !force && !isTooOld) {
-      console.log('Using existing CSRF token from storage');
+          if (existingToken) {
       setToken(existingToken);
       return existingToken;
+          }
     }
     
-    try {
       setIsLoading(true);
       
       // Add cache-busting parameters
-      const requestId = Math.random().toString(36).substring(2, 15);
-      const url = `/api/csrf?t=${Date.now()}&r=${requestId}`;
-      
-      console.log(`Fetching fresh CSRF token from ${url}`);
+        const timestamp = Date.now();
+        const randomId = Math.random().toString(36).substring(2, 15);
+        const url = `/api/csrf?t=${timestamp}&r=${randomId}`;
       
       const response = await fetch(url, {
         method: 'GET',
         credentials: 'include',
+          cache: 'no-cache',
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache',
-          'Expires': '0',
         },
       });
       
       if (!response.ok) {
-        // Check if it's an authentication error (expected for non-logged in users)
+          // If unauthorized, don't show loud errors
         if (response.status === 401) {
-          // For auth errors, don't show a loud error, just a quiet log message
-          console.log('CSRF token not available - user not authenticated');
-          
-          // Clear any existing token to prevent using an old one
           clearStoredCsrfToken();
+            return null;
+          }
           
-          throw new Error('Not authenticated');
-        }
-        
-        // For other errors, handle normally
         const errorText = await response.text();
         throw new Error(`Failed to fetch CSRF token: ${response.status} ${errorText}`);
       }
       
-      const data = await response.json();
+        // Get token from header
+        const csrfToken = response.headers.get('X-CSRF-Token');
       
-      if (!data.token) {
-        throw new Error('Invalid CSRF token response');
+        if (!csrfToken) {
+          throw new Error('No CSRF token found in response');
       }
       
-      // Store the token
-      storeCsrfToken(data.token);
+        // Store the token in our storage mechanisms
+        storeCsrfToken(csrfToken);
       
-      // Only update state if component is still mounted
+        // Reset failed attempts counter on success
+        failedAttemptsRef.current = 0;
+        
+        // Update state if component is still mounted
       if (isMountedRef.current) {
-        setToken(data.token);
-        lastFetchTimeRef.current = now;
+          setToken(csrfToken);
       }
       
-      console.log(`CSRF token fetched successfully: ${data.token.substring(0, 6)}... at ${new Date().toISOString()}`);
-      return data.token;
+        return csrfToken;
     } catch (error) {
-      // Only log detailed errors if they're not authentication-related
-      if (error instanceof Error && error.message !== 'Not authenticated') {
-        console.error('Error fetching CSRF token:', error);
-      }
-      
       failedAttemptsRef.current++;
       
       if (isMountedRef.current) {
         setError(error instanceof Error ? error : new Error(String(error)));
       }
-      throw error;
+        
+        // Implement retry with exponential backoff if needed
+        if (failedAttemptsRef.current < MAX_RETRY_ATTEMPTS) {
+          const backoffDelay = RETRY_DELAY * Math.pow(2, failedAttemptsRef.current - 1);
+          console.log(`CSRF token fetch failed, retrying in ${backoffDelay}ms`);
+          await new Promise(resolve => setTimeout(resolve, backoffDelay));
+          return fetchCsrfToken(force);
+        }
+        
+        return null;
     } finally {
       if (isMountedRef.current) {
         setIsLoading(false);
       }
-    }
-  }, [resetError]);
+        fetchingRef.current = false;
+        fetchPromiseRef.current = null;
+      }
+    })();
+    
+    return fetchPromiseRef.current;
+  }, [error, resetError]);
   
-  // Set up automatic token refresh
+  /**
+   * Force refresh the token
+   */
+  const refreshToken = useCallback(async (): Promise<string | null> => {
+    return fetchCsrfToken(true);
+  }, [fetchCsrfToken]);
+  
+  /**
+   * Get token, fetching a new one only if necessary
+   */
+  const getToken = useCallback(async (): Promise<string | null> => {
+    // First check if we already have a valid token
+    const existingToken = getCsrfTokenFromStorage();
+    if (existingToken && !isTokenExpired()) {
+      return existingToken;
+    }
+    
+    // Otherwise fetch a new one
+    return fetchCsrfToken();
+  }, [fetchCsrfToken]);
+  
+  // Initialize token and set up refresh interval
   useEffect(() => {
     isMountedRef.current = true;
     
-    // Check if we're on login page
-    isLoginPageRef.current = window.location.pathname.includes('/login');
-    
-    // Initialize token on mount (but not on login page)
+    // Initial fetch
     if (!isLoginPageRef.current) {
-      fetchCsrfToken().catch(err => {
-        // For auth errors, this is expected for non-logged in users
-        if (err instanceof Error && err.message === 'Not authenticated') {
-          console.log('Initialization - User not authenticated for CSRF token');
-        } else {
-          console.error('Error initializing CSRF token:', err);
-        }
-      });
+      fetchCsrfToken().catch(() => {}); // Errors are already handled internally
     }
     
-    // Set up interval to refresh token
+    // Periodic refresh
     const intervalId = setInterval(() => {
-      // Only refresh if we're not on login page and we haven't failed too many times
-      if (!isLoginPageRef.current && failedAttemptsRef.current < MAX_RETRY_ATTEMPTS) {
-        console.log('Refreshing CSRF token...');
-        fetchCsrfToken(true).catch(err => {
-          // For auth errors, this is expected for non-logged in users
-          if (err instanceof Error && err.message === 'Not authenticated') {
-            console.log('Refresh - User not authenticated for CSRF token');
-          } else {
-          console.error('Error refreshing CSRF token:', err);
-          }
-        });
+      // Check if token needs refreshing
+      if (!isLoginPageRef.current && isTokenExpired() && failedAttemptsRef.current < MAX_RETRY_ATTEMPTS) {
+        fetchCsrfToken().catch(() => {});
       }
-    }, TOKEN_REFRESH_INTERVAL);
+    }, 60000); // Check every minute
     
-    // Cleanup interval on unmount
     return () => {
       isMountedRef.current = false;
       clearInterval(intervalId);
     };
   }, [fetchCsrfToken]);
   
-  return { token, isLoading, error, fetchCsrfToken };
+  return {
+    token,
+    isLoading,
+    error,
+    fetchToken: fetchCsrfToken,
+    fetchCsrfToken,
+    refreshToken,
+    getToken
+  };
 }
 
 /**
  * Function to create protected fetch requests with CSRF tokens
  */
-export function createProtectedFetchWithCsrf(token: string | null) {
+export function createProtectedFetchWithCsrf(tokenProvider: () => Promise<string | null>) {
   return async (url: string, options: RequestInit = {}): Promise<Response> => {
+    // Get method, defaults to GET
+    const method = options.method || 'GET';
+    
     // Start with default options
     const fetchOptions: RequestInit = {
       ...options,
       credentials: 'include', // Always include credentials for cookies
     };
     
-    // Add CSRF token for non-GET requests if available
-    if (token && options.method && options.method !== 'GET') {
+    // For non-GET requests, add CSRF token
+    if (method !== 'GET') {
+      try {
+        const token = await tokenProvider();
+        if (token) {
       const headers = new Headers(options.headers || {});
       headers.set(CSRF_HEADER_NAME, token);
       fetchOptions.headers = headers;
+        }
+      } catch (error) {
+        console.error('Error getting CSRF token for fetch:', error);
+      }
     }
     
     // Make the request
-    return fetch(url, fetchOptions);
+    const response = await fetch(url, fetchOptions);
+    
+    // If we get a 403 with CSRF error, try to refresh token and retry once
+    if (response.status === 403) {
+      try {
+        const errorData = await response.json();
+        if (errorData.error && errorData.error.includes('CSRF')) {
+          // Try to refresh token
+          const newToken = await tokenProvider();
+          if (newToken) {
+            // Retry the request with new token
+            const headers = new Headers(options.headers || {});
+            headers.set(CSRF_HEADER_NAME, newToken);
+            return fetch(url, {
+              ...fetchOptions,
+              headers
+            });
+          }
+        }
+      } catch (e) {
+        // If we can't parse the response as JSON, just return the original response
+      }
+    }
+    
+    return response;
   };
 } 

@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Menu, X, User, LogOut, MessageSquare, Home, Globe, Users, LayoutDashboard, Lock, Bell, Settings, ChevronDown, CalendarPlus } from "lucide-react";
+import { Menu, X, User, LogOut, MessageSquare, Home, Globe, Users, LayoutDashboard, Lock, Bell, Settings, ChevronDown, CalendarPlus, GraduationCap } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { BadgeIndicator } from "@/components/ui/badge-indicator";
@@ -78,12 +78,12 @@ const Navbar = () => {
             <Link href="/about" className="font-medium text-muted-foreground hover:text-foreground transition-colors">
               About Us
             </Link>
-              <Link 
+            <Link 
               href="/tutors" 
               className="font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Browse Tutors
-              </Link>
+            >
+              Browse Tutors
+            </Link>
           </nav>
         </div>
         

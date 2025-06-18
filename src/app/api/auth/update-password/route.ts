@@ -1,30 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClientWithCookies } from "@/lib/db/client";
-import { csrfMiddleware } from "@/lib/csrf/server";
+import { csrfMiddleware } from "@/lib/csrf-next";
 import { getAuthUser } from "@/lib/auth/protectResource";
 
 export async function GET(req: NextRequest) {
     try {
-    const url = new URL(req.url);
-    const code = url.searchParams.get('code');
+        const url = new URL(req.url);
+        const code = url.searchParams.get('code');
+        
+        // Code verifier might be stored in cookies by Supabase
+        // We don't need to manually handle it as Supabase client will
+        // extract it from cookies automatically
 
-    if (!code) {
+        if (!code) {
             console.error('No code provided for password reset');
             return NextResponse.redirect(new URL('/login?error=missing-code', req.url));
-    }
+        }
 
         const supabase = await createRouteHandlerClientWithCookies();
 
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        // Exchange the code for a session
+        // Supabase will automatically use the code verifier from cookies
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
         if (error) {
             console.error('Error exchanging code for session:', error);
             return NextResponse.redirect(new URL('/login?error=invalid-code', req.url));
         }
 
+        if (!data || !data.session) {
+            console.error('No session returned from code exchange');
+            return NextResponse.redirect(new URL('/login?error=no-session', req.url));
+        }
+
+        // Successfully exchanged code for session, redirect to reset password page
+        console.log('Successfully exchanged code for session, user can now reset password');
+        
+        // Redirect to reset-password without the code parameter to avoid reusing it
         return NextResponse.redirect(new URL('/reset-password', req.url));
     } catch (error) {
-        console.error('Error exchanging code for session:', error);
+        console.error('Error handling password reset link:', error);
         return NextResponse.redirect(new URL('/login?error=server-error', req.url));
     }
 }
@@ -38,7 +53,7 @@ export async function POST(req: NextRequest) {
         }
         
         // Check CSRF token
-        const csrfError = await csrfMiddleware(req, authUser);
+        const csrfError = await csrfMiddleware(req);
         if (csrfError) {
             return csrfError;
         }
@@ -53,13 +68,19 @@ export async function POST(req: NextRequest) {
             password = body.password;
         } else {
             // Handle form data request (for backward compatibility)
-        const formData = await req.formData();
+            const formData = await req.formData();
             password = String(formData.get('password'));
         }
 
-        if (!password || password.length < 6) {
+        if (!password) {
             return NextResponse.json({ 
-                error: 'Password must be at least 6 characters long' 
+                error: 'Password is required' 
+            }, { status: 400 });
+        }
+        
+        if (password.length < 8) {
+            return NextResponse.json({ 
+                error: 'Password must be at least 8 characters long' 
             }, { status: 400 });
         }
 
@@ -74,19 +95,26 @@ export async function POST(req: NextRequest) {
         }
 
         // Update the user's password
-        const { error } = await supabase.auth.updateUser({
+        const { data, error } = await supabase.auth.updateUser({
             password
         });
 
         if (error) {
             console.error('Error updating password:', error);
-            return NextResponse.json({ error: 'Failed to update password' }, { status: 500 });
+            return NextResponse.json({ 
+                error: error.message || 'Failed to update password' 
+            }, { status: 500 });
         }
 
         // Success
-        return NextResponse.json({ success: true, message: 'Password updated successfully' });
+        return NextResponse.json({ 
+            success: true, 
+            message: 'Password updated successfully' 
+        });
     } catch (error) {
         console.error('Error updating password:', error);
-        return NextResponse.json({ error: 'Server error' }, { status: 500 });
+        return NextResponse.json({ 
+            error: error instanceof Error ? error.message : 'Server error' 
+        }, { status: 500 });
     }
 }

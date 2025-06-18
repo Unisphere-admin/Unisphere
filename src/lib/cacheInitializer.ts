@@ -38,13 +38,46 @@ export function initializeCache(): void {
 async function prefetchAllData(): Promise<void> {
   console.debug('Prefetching all data for authenticated user');
   
-  // Start all prefetch operations in parallel
+  // Get user data to check permissions
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  // Check if user has premium access or is a tutor
+  let hasPremiumAccess = false;
+  let isTutor = false;
+  
+  try {
+    // Fetch user data from the database to check access
+    if (user?.id) {
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('is_tutor, has_access')
+        .eq('id', user.id)
+        .single();
+      
+      if (!error && userData) {
+        hasPremiumAccess = userData.has_access || false;
+        isTutor = userData.is_tutor || false;
+      }
+    }
+  } catch (error) {
+    console.error('Error checking user permissions:', error);
+  }
+  
+  // Always prefetch these resources for authenticated users
   const prefetchPromises: Promise<unknown>[] = [
     prefetchTutors(),
-    prefetchUserProfile(),
-    prefetchConversations(),
-    prefetchSessions()
+    prefetchUserProfile()
   ];
+  
+  // Only prefetch premium resources if user has access or is a tutor
+  if (hasPremiumAccess || isTutor) {
+    console.debug('User has premium access or is a tutor, prefetching premium resources');
+    prefetchPromises.push(prefetchConversations());
+    prefetchPromises.push(prefetchSessions());
+  } else {
+    console.debug('User does not have premium access, skipping premium resources');
+  }
   
   // Wait for all prefetch operations to complete
   try {
@@ -167,6 +200,11 @@ async function prefetchConversations(): Promise<void> {
           }
         });
         
+        if (response.status === 403) {
+          console.debug('Access to conversations denied (403) - user likely does not have premium access');
+          return []; // Return empty array instead of throwing
+        }
+        
         if (!response.ok) {
           throw new Error(`Failed to fetch conversations: ${response.status}`);
         }
@@ -179,7 +217,8 @@ async function prefetchConversations(): Promise<void> {
     
     console.debug('Conversations data prefetched and cached');
   } catch (error) {
-    console.error('Error prefetching conversations:', error);
+    // Log but don't rethrow - this prevents unhandled promise rejections
+    console.debug('Error prefetching conversations - this is expected for non-premium users');
   }
 }
 
@@ -199,7 +238,8 @@ async function prefetchSessions(): Promise<void> {
         const userId = userData.user?.id;
         
         if (!userId) {
-          throw new Error('User not authenticated');
+          console.debug('User not authenticated, skipping sessions prefetch');
+          return []; // Return empty array instead of throwing
         }
         
         // Include user_id and user_type parameters
@@ -209,6 +249,11 @@ async function prefetchSessions(): Promise<void> {
             'Cache-Control': 'no-cache',
           }
         });
+        
+        if (response.status === 403) {
+          console.debug('Access to tutoring sessions denied (403) - user likely does not have premium access');
+          return []; // Return empty array instead of throwing
+        }
         
         if (!response.ok) {
           throw new Error(`Failed to fetch tutoring sessions: ${response.status}`);
@@ -222,7 +267,8 @@ async function prefetchSessions(): Promise<void> {
     
     console.debug('Tutoring sessions data prefetched and cached');
   } catch (error) {
-    console.error('Error prefetching tutoring sessions:', error);
+    // Log but don't rethrow - this prevents unhandled promise rejections
+    console.debug('Error prefetching tutoring sessions - this is expected for non-premium users');
   }
 }
 

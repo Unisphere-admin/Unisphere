@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthUser } from '@/lib/auth/protectResource';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
-import { withCsrfProtection } from '@/lib/csrf/server';
+import { withCsrfProtection } from '@/lib/csrf-next';
 import { 
   createReview,
   getTutorReviews,

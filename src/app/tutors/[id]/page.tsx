@@ -28,6 +28,8 @@ import {
   MessageCircle,
   Video,
   Globe,
+  Sparkles,
+  ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -147,20 +149,17 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
   const { subscribeToConversation } = useRealtime();
 
   // Check for premium access
+  const hasPremiumAccess = user?.role === 'tutor' || user?.has_access === true;
+
+  // If user is not logged in, redirect to login
   useEffect(() => {
-    if (!loading) {
-      const hasAccess = user?.role === 'tutor' || user?.has_access === true;
-      if (!user) {
-        router.replace('/login');
-      } else if (!hasAccess) {
-        console.log('User does not have premium access, redirecting to paywall');
-        router.replace('/paywall');
-      }
+    if (!loading && !user) {
+      router.replace('/login');
     }
   }, [user, loading, router]);
 
-  // If still loading auth or user doesn't have access, don't render the actual content
-  if (loading || !user || !(user.role === 'tutor' || user.has_access === true)) {
+  // If still loading auth or user is not logged in, show loading
+  if (loading || !user) {
     return (
       <div className="flex items-center justify-center min-h-screen w-full">
         <div className="text-center">
@@ -475,6 +474,14 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
 
   return (
     <div className="page-content">
+      {!hasPremiumAccess && (
+        <div className="text-center mb-8">
+          <p className="text-md text-[#126d94] font-medium">
+            Unlock premium access to our website to view tutors' full profiles and book sessions
+          </p>
+        </div>
+      )}
+
       <div className="content-section">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Left Sidebar - Tutor Info */}
@@ -497,6 +504,8 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                     <h2 className="text-2xl font-bold">{tutorName}</h2>
                   </div>
                   
+                  {/* Star rating display commented out due to insufficient data */}
+                  {/* 
                   <div className="flex items-center justify-center gap-1 mt-2">
                     {[...Array(5)].map((_, i) => {
                       // Calculate if this should be a full, partial or empty star
@@ -510,9 +519,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                         // Partial star (more than i but less than i+1)
                         return (
                           <div key={i} className="relative">
-                            {/* Empty star background */}
                             <Star className="h-5 w-5 text-muted-foreground" />
-                            {/* Filled overlay with a clip to the percentage */}
                             <div 
                               className="absolute inset-0 overflow-hidden" 
                               style={{ width: `${(averageRating - i) * 100}%` }}
@@ -524,10 +531,10 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                       }
                       
                       return (
-                      <Star
-                        key={i}
+                        <Star
+                          key={i}
                           className={`h-5 w-5 ${starClass}`}
-                      />
+                        />
                       );
                     })}
                     <span className="ml-2 font-medium">
@@ -535,6 +542,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                     </span>
                     <span className="ml-1 text-muted-foreground">({tutorReviews.length})</span>
                   </div>
+                  */}
                   
                   <div className="flex items-center justify-center gap-1 mt-2 text-green-600 text-sm">
                     <CheckCircle className="h-4 w-4" />
@@ -544,10 +552,6 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                 
                 {/* Tutor Details */}
                 <div className="border-t border-gray-100">
-                  
-                  
-                  
-                  
                   <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100">
                     <div className="flex items-center text-muted-foreground">
                       <Cake className="h-4 w-4 mr-2" />
@@ -565,13 +569,23 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                   </div>
                 </div>
                 
-                {/* Message Button - Only shown to students */}
+                {/* Message Button - Only shown to students with premium access */}
                 <div className="p-6 pt-4">
                   {user && user.role !== 'tutor' ? (
-                    <Button className="w-full" onClick={handleMessageTutor}>
-                          <MessageSquare className="h-4 w-4 mr-2" />
-                          Message Tutor
-                        </Button>
+                    hasPremiumAccess ? (
+                      <Button className="w-full" onClick={handleMessageTutor}>
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Message Tutor
+                      </Button>
+                    ) : (
+                      <Button 
+                        className="w-full bg-gradient-to-r from-[#4ba896] to-[#126d94]" 
+                        onClick={() => router.push('/paywall')}
+                      >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Unlock Premium
+                      </Button>
+                    )
                   ) : (
                     <Button className="w-full" disabled={true}>
                       <User className="h-4 w-4 mr-2" />
@@ -583,242 +597,280 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
             </div>
           </div>
           
-          {/* Main Content */}
+          {/* Main Content - Show blurred version for non-premium users */}
           <div className="md:col-span-2">
-            {/* Tabs */}
-            <Tabs defaultValue="about" className="w-full">
-              <div className="border-b mb-6">
-                <TabsList className="w-full justify-start bg-transparent border-0 p-0 space-x-8">
-                  <TabsTrigger value="about" className="border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-2 rounded-none">About</TabsTrigger>
-                  <TabsTrigger value="reviews" className="border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-2 rounded-none">Reviews</TabsTrigger>
-                </TabsList>
+            {!hasPremiumAccess && (
+              <div className="relative">
+                <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+                  <div className="text-center max-w-md p-6">
+                    <Sparkles className="h-12 w-12 mx-auto mb-4 text-[#4ba896]" />
+                    <h3 className="text-2xl font-bold mb-2">Premium Content</h3>
+                    <p className="text-muted-foreground mb-6">
+                      Upgrade to premium to view full tutor profiles, message tutors, and book sessions.
+                    </p>
+                    <Button 
+                      onClick={() => router.push('/paywall')}
+                      className="bg-gradient-to-r from-[#4ba896] to-[#126d94] hover:from-[#129490] hover:to-[#126d94]"
+                      size="lg"
+                    >
+                      Upgrade Now
+                    </Button>
+                  </div>
+                </div>
               </div>
-              
-              {/* About Tab */}
-              <TabsContent value="about" className="mt-0">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>About {tutorName}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-gray-700 whitespace-pre-line">{tutorBio || "N/A"}</p>
+            )}
+            
+            <div className={!hasPremiumAccess ? "filter blur-sm" : ""}>
+              {/* Tabs */}
+              <Tabs defaultValue="about" className="w-full">
+                <div className="border-b mb-6">
+                  <TabsList className="w-full justify-start bg-transparent border-0 p-0 space-x-8">
+                    <TabsTrigger value="about" className="border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-2 rounded-none">About</TabsTrigger>
+                    <TabsTrigger value="reviews" className="border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-2 rounded-none">Reviews</TabsTrigger>
+                  </TabsList>
+                </div>
+                
+                {/* About Tab */}
+                <TabsContent value="about" className="mt-0">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>About {tutorName}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-gray-700 whitespace-pre-line">{tutorBio || "N/A"}</p>
 
-                    <div className="mt-6">
-                      <h3 className="font-semibold text-lg mb-2">Education</h3>
-                      <div className="flex items-start gap-3 mb-3">
-                        <GraduationCap className="h-5 w-5 text-primary mt-0.5" />
-                        <div>
-                          <div className="font-medium">{tutorEducation || "N/A"}</div>
-                          {(tutorMajor || tutorYear) && (
-                            <div className="text-muted-foreground">
-                              {tutorMajor || "N/A"}{tutorYear ? `, ${tutorYear}` : ''}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {tutorPreviousEducation && tutorPreviousEducation.length > 0 ? (
-                        <>
-                          {tutorPreviousEducation.map((edu, index) => (
-                            <div key={index} className="flex items-start gap-3 mb-3 pl-8">
-                              <School className="h-4 w-4 text-muted-foreground mt-0.5" />
-                              <div className="text-muted-foreground">{edu}</div>
-                            </div>
-                          ))}
-                        </>
-                      ) : (
-                        <div className="flex items-start gap-3 mb-3 pl-8">
-                          <School className="h-4 w-4 text-muted-foreground mt-0.5" />
-                          <div className="text-muted-foreground">Previous education: N/A</div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-6">
-                      <h3 className="font-semibold text-lg mb-2 flex items-center">
-                        <BookOpen className="h-5 w-5 mr-2 text-[#129490]" strokeWidth={1.5} />
-                        Services
-                      </h3>
-                      
-                      {processedSubjects && processedSubjects.length > 0 ? (
-                        <div className="flex flex-wrap gap-2 pl-1">
-                          {processedSubjects.map((subject, index) => (
-                            <Badge key={index} variant="outline" className="text-sm bg-[#c2d8d2]/30 border-[#84b7bd]/30 hover:bg-[#c2d8d2]/50 transition-colors">
-                              {subject}
-                            </Badge>
-                          ))}
-                          {tutorSubjects.length > processedSubjects.length && (
-                            <Badge variant="outline" className="text-sm bg-[#4b92a9]/10 border-[#4b92a9]/30 text-[#126d94]">
-                              +{tutorSubjects.length - processedSubjects.length} more
-                            </Badge>
-                          )}
-                        </div>
-                      ) : tutor?.major ? (
-                        <div className="flex flex-wrap gap-2 pl-1">
-                          <Badge variant="outline" className="text-sm bg-[#c2d8d2]/30 border-[#84b7bd]/30 hover:bg-[#c2d8d2]/50 transition-colors">
-                            {tutor.major} Tutoring
-                          </Badge>
-                          <Badge variant="outline" className="text-sm bg-[#c2d8d2]/30 border-[#84b7bd]/30 hover:bg-[#c2d8d2]/50 transition-colors">
-                            Academic Support
-                          </Badge>
-                        </div>
-                      ) : (
-                        <p className="text-muted-foreground pl-1">No services specified</p>
-                      )}
-                    </div>
-
-                    <div className="mt-6">
-                      <h3 className="font-semibold text-lg mb-2">Extracurricular Activities</h3>
-                      {tutorExtracurriculars && tutorExtracurriculars.length > 0 ? (
-                        <ul className="list-disc pl-5 space-y-1">
-                          {tutorExtracurriculars.map((activity, index) => (
-                            <li key={index}>{activity}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-muted-foreground">No extracurricular activities specified</p>
-                      )}
-                    </div>
-
-                    <div className="mt-6">
-                      <h3 className="font-semibold text-lg mb-2">A-Levels</h3>
-                      {tutorALevels && tutorALevels.length > 0 ? (
-                        <ul className="list-disc pl-5 space-y-1">
-                          {tutorALevels.map((level, index) => (
-                            <li key={index}>{level}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-muted-foreground">No A-Levels specified</p>
-                      )}
-                    </div>
-
-                    <div className="mt-6">
-                      <h3 className="font-semibold text-lg mb-2">GCSEs</h3>
-                      {tutorGcse && tutorGcse.length > 0 ? (
-                        <ul className="list-disc pl-5 space-y-1">
-                          {tutorGcse.map((gcse, index) => (
-                            <li key={index}>{gcse}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-muted-foreground">No GCSEs specified</p>
-                      )}
-                    </div>
-
-                    <div className="mt-6">
-                      <h3 className="font-semibold text-lg mb-2">SPM</h3>
-                      <p>{tutorSpm || "N/A"}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-              
-              {/* Reviews Tab */}
-              <TabsContent value="reviews" className="mt-0">
-                <Card className="border-0 shadow-none">
-                  <CardHeader>
-                    <CardTitle>Rating Overview</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8">
-                      <div className="flex flex-col items-center mb-6 md:mb-0">
-                        <div className="text-5xl font-bold text-primary">{averageRating.toFixed(1)}</div>
-                        <div className="flex mt-2">
-                          {[...Array(5)].map((_, i) => (
-                            <Star
-                              key={i}
-                              className={`h-4 w-4 ${
-                                i < Math.floor(averageRating) 
-                                  ? 'text-amber-500 fill-amber-500' 
-                                  : 'text-muted-foreground'
-                              }`}
-                            />
-                          ))}
-                        </div>
-                        <div className="text-sm text-muted-foreground mt-1">{tutorReviews.length} reviews</div>
-                      </div>
-                      
-                      <div className="flex-1 md:ml-8 space-y-2 w-full md:w-auto">
-                        {[5, 4, 3, 2, 1].map((rating) => (
-                          <div key={rating} className="flex items-center gap-2">
-                            <div className="w-8 text-right">{rating} ★</div>
-                            <Progress
-                              className="h-2 flex-1"
-                              value={tutorReviews.length > 0 
-                                ? (ratingDistribution[5 - rating] / tutorReviews.length) * 100 
-                                : 0
-                              }
-                            />
-                            <div className="text-muted-foreground text-xs w-16">
-                              {tutorReviews.length > 0 
-                                ? `${ratingDistribution[5 - rating]} (${((ratingDistribution[5 - rating] / tutorReviews.length) * 100).toFixed(0)}%)` 
-                                : '0 (0%)'
-                              }
-                            </div>
+                      <div className="mt-6">
+                        <h3 className="font-semibold text-lg mb-2">Education</h3>
+                        <div className="flex items-start gap-3 mb-3">
+                          <GraduationCap className="h-5 w-5 text-primary mt-0.5" />
+                          <div>
+                            <div className="font-medium">{tutorEducation || "N/A"}</div>
+                            {(tutorMajor || tutorYear) && (
+                              <div className="text-muted-foreground">
+                                {tutorMajor || "N/A"}{tutorYear ? `, ${tutorYear}` : ''}
+                              </div>
+                            )}
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {tutorReviews.length > 0 ? (
-                      <div className="space-y-6">
-                        {tutorReviews.map((review, index) => {
-                          // Get review content safely based on the structure
-                          let reviewContent = "No comment provided.";
-                          
-                          if ('review' in review && review.review) {
-                            reviewContent = String(review.review);
-                          } else if ('comment' in review && review.comment) {
-                            reviewContent = String(review.comment);
-                          }
-                          
-                          // Get review date safely
-                          const reviewDate = new Date('date' in review ? review.date : 
-                                               'created_at' in review ? review.created_at : 
-                                               new Date()).toLocaleDateString();
-                          
-                          return (
-                            <div key={index} className="border-b border-gray-100 pb-6 last:border-0">
-                              <div className="flex items-center justify-between mb-3">
-                                <h3 className="font-medium">Anonymous Student</h3>
-                                <div className="flex items-center">
-                                  {[...Array(5)].map((_, i) => (
-                                    <Star
-                                      key={i}
-                                      className={`h-4 w-4 ${
-                                        i < (review.rating || 0) 
-                                          ? 'text-amber-500 fill-amber-500' 
-                                          : 'text-muted-foreground'
-                                      }`}
-                                    />
-                                  ))}
-                                </div>
+                        </div>
+                        
+                        {tutorPreviousEducation && tutorPreviousEducation.length > 0 ? (
+                          <>
+                            {tutorPreviousEducation.map((edu, index) => (
+                              <div key={index} className="flex items-start gap-3 mb-3 pl-8">
+                                <School className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="text-muted-foreground">{edu}</div>
                               </div>
-                              <p className="text-gray-700 whitespace-pre-line">
-                                {reviewContent}
-                              </p>
-                              <div className="mt-3 text-sm text-muted-foreground">
-                                {reviewDate}
+                            ))}
+                          </>
+                        ) : (
+                          <div className="flex items-start gap-3 mb-3 pl-8">
+                            <School className="h-4 w-4 text-muted-foreground mt-0.5" />
+                            <div className="text-muted-foreground">Previous education: N/A</div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-6">
+                        <h3 className="font-semibold text-lg mb-2 flex items-center">
+                          <BookOpen className="h-5 w-5 mr-2 text-[#129490]" strokeWidth={1.5} />
+                          Services
+                        </h3>
+                        
+                        {processedSubjects && processedSubjects.length > 0 ? (
+                          <div className="flex flex-wrap gap-2 pl-1">
+                            {processedSubjects.map((subject, index) => (
+                              <Badge key={index} variant="outline" className="text-sm bg-[#c2d8d2]/30 border-[#84b7bd]/30 hover:bg-[#c2d8d2]/50 transition-colors">
+                                {subject}
+                              </Badge>
+                            ))}
+                            {tutorSubjects.length > processedSubjects.length && (
+                              <Badge variant="outline" className="text-sm bg-[#4b92a9]/10 border-[#4b92a9]/30 text-[#126d94]">
+                                +{tutorSubjects.length - processedSubjects.length} more
+                              </Badge>
+                            )}
+                          </div>
+                        ) : tutor?.major ? (
+                          <div className="flex flex-wrap gap-2 pl-1">
+                            <Badge variant="outline" className="text-sm bg-[#c2d8d2]/30 border-[#84b7bd]/30 hover:bg-[#c2d8d2]/50 transition-colors">
+                              {tutor.major} Tutoring
+                            </Badge>
+                            <Badge variant="outline" className="text-sm bg-[#c2d8d2]/30 border-[#84b7bd]/30 hover:bg-[#c2d8d2]/50 transition-colors">
+                              Academic Support
+                            </Badge>
+                          </div>
+                        ) : (
+                          <p className="text-muted-foreground pl-1">No services specified</p>
+                        )}
+                      </div>
+
+                      <div className="mt-6">
+                        <h3 className="font-semibold text-lg mb-2">Extracurricular Activities</h3>
+                        {tutorExtracurriculars && tutorExtracurriculars.length > 0 ? (
+                          <ul className="list-disc pl-5 space-y-1">
+                            {tutorExtracurriculars.map((activity, index) => (
+                              <li key={index}>{activity}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-muted-foreground">No extracurricular activities specified</p>
+                        )}
+                      </div>
+
+                      <div className="mt-6">
+                        <h3 className="font-semibold text-lg mb-2">A-Levels</h3>
+                        {tutorALevels && tutorALevels.length > 0 ? (
+                          <ul className="list-disc pl-5 space-y-1">
+                            {tutorALevels.map((level, index) => (
+                              <li key={index}>{level}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-muted-foreground">No A-Levels specified</p>
+                        )}
+                      </div>
+
+                      <div className="mt-6">
+                        <h3 className="font-semibold text-lg mb-2">GCSEs</h3>
+                        {tutorGcse && tutorGcse.length > 0 ? (
+                          <ul className="list-disc pl-5 space-y-1">
+                            {tutorGcse.map((gcse, index) => (
+                              <li key={index}>{gcse}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-muted-foreground">No GCSEs specified</p>
+                        )}
+                      </div>
+
+                      <div className="mt-6">
+                        <h3 className="font-semibold text-lg mb-2">SPM</h3>
+                        <p>{tutorSpm || "N/A"}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+                
+                {/* Reviews Tab */}
+                <TabsContent value="reviews" className="mt-0">
+                  <Card className="border-0 shadow-none">
+                    <CardHeader>
+                      <CardTitle>Rating Overview</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {/* Rating overview section commented out due to insufficient data */}
+                      {/* 
+                      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8">
+                        <div className="flex flex-col items-center mb-6 md:mb-0">
+                          <div className="text-5xl font-bold text-primary">{averageRating.toFixed(1)}</div>
+                          <div className="flex mt-2">
+                            {[...Array(5)].map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`h-4 w-4 ${
+                                  i < Math.floor(averageRating) 
+                                    ? 'text-amber-500 fill-amber-500' 
+                                    : 'text-muted-foreground'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <div className="text-sm text-muted-foreground mt-1">{tutorReviews.length} reviews</div>
+                        </div>
+                        
+                        <div className="flex-1 md:ml-8 space-y-2 w-full md:w-auto">
+                          {[5, 4, 3, 2, 1].map((rating) => (
+                            <div key={rating} className="flex items-center gap-2">
+                              <div className="w-8 text-right">{rating} ★</div>
+                              <Progress
+                                className="h-2 flex-1"
+                                value={tutorReviews.length > 0 
+                                  ? (ratingDistribution[5 - rating] / tutorReviews.length) * 100 
+                                  : 0
+                                }
+                              />
+                              <div className="text-muted-foreground text-xs w-16">
+                                {tutorReviews.length > 0 
+                                  ? `${ratingDistribution[5 - rating]} (${((ratingDistribution[5 - rating] / tutorReviews.length) * 100).toFixed(0)}%)` 
+                                  : '0 (0%)'
+                                }
                               </div>
                             </div>
-                          );
-                        })}
+                          ))}
+                        </div>
                       </div>
-                    ) : (
+                      */}
+                      
+                      {/* Replace review display with simple message */}
                       <div className="text-center py-10">
                         <div className="text-5xl mb-4 opacity-20">★</div>
-                        <h3 className="text-xl font-medium mb-2">No reviews yet</h3>
+                        <h3 className="text-xl font-medium mb-2">Reviews Coming Soon</h3>
                         <p className="text-muted-foreground">
-                          This tutor doesn't have any reviews yet. Be the first to leave one after your session.
+                          We're currently collecting reviews from students. Check back later for ratings and reviews.
                         </p>
-                        <Button className="mt-6">Book a Session</Button>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
+                      
+                      {/* Review listing section commented out due to insufficient data */}
+                      {/*
+                      {tutorReviews.length > 0 ? (
+                        <div className="space-y-6">
+                          {tutorReviews.map((review, index) => {
+                            // Get review content safely based on the structure
+                            let reviewContent = "No comment provided.";
+                            
+                            if ('review' in review && review.review) {
+                              reviewContent = String(review.review);
+                            } else if ('comment' in review && review.comment) {
+                              reviewContent = String(review.comment);
+                            }
+                            
+                            // Get review date safely
+                            const reviewDate = new Date('date' in review ? review.date : 
+                                                 'created_at' in review ? review.created_at : 
+                                                 new Date()).toLocaleDateString();
+                            
+                            return (
+                              <div key={index} className="border-b border-gray-100 pb-6 last:border-0">
+                                <div className="flex items-center justify-between mb-3">
+                                  <h3 className="font-medium">Anonymous Student</h3>
+                                  <div className="flex items-center">
+                                    {[...Array(5)].map((_, i) => (
+                                      <Star
+                                        key={i}
+                                        className={`h-4 w-4 ${
+                                          i < (review.rating || 0) 
+                                            ? 'text-amber-500 fill-amber-500' 
+                                            : 'text-muted-foreground'
+                                        }`}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                                <p className="text-gray-700 whitespace-pre-line">
+                                  {reviewContent}
+                                </p>
+                                <div className="mt-3 text-sm text-muted-foreground">
+                                  {reviewDate}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-center py-10">
+                          <div className="text-5xl mb-4 opacity-20">★</div>
+                          <h3 className="text-xl font-medium mb-2">No reviews yet</h3>
+                          <p className="text-muted-foreground">
+                            This tutor doesn't have any reviews yet. Be the first to leave one after your session.
+                          </p>
+                          <Button className="mt-6">Book a Session</Button>
+                        </div>
+                      )}
+                      */}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            </div>
           </div>
         </div>
       </div>

@@ -56,6 +56,7 @@ import { validateSearchInput, sanitizeInput } from "@/lib/validation";
 import { toast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { throttledFetch } from "@/utils/requestThrottler";
+import Image from "next/image";
 
 // Define tutor profile type with more precise types
 interface TutorProfile {
@@ -293,47 +294,9 @@ interface ReviewStarsProps {
   rating: number;
 }
 
+// Empty placeholder component
 const ReviewStars = ({ rating }: ReviewStarsProps) => {
-  // Ensure rating is valid (0 stars if no reviews)
-  const displayRating = rating || 0;
-  
-  return (
-    <div className="flex items-center">
-      {[...Array(5)].map((_, i) => {
-        // Calculate if this should be a full, partial or empty star
-        const starValue = i + 1;
-        let starClass = 'text-muted-foreground'; // Empty star by default
-        
-        if (displayRating >= starValue) {
-          // Full star
-          starClass = 'text-[#4ba896] fill-[#4ba896]';
-        } else if (displayRating > i && displayRating < starValue) {
-          // Partial star (more than i but less than i+1)
-          return (
-            <div key={i} className="relative">
-              {/* Empty star background */}
-              <Star className="h-4 w-4 text-muted-foreground" />
-              {/* Filled overlay with a clip to the percentage */}
-              <div 
-                className="absolute inset-0 overflow-hidden" 
-                style={{ width: `${(displayRating - i) * 100}%` }}
-              >
-                <Star className="h-4 w-4 text-[#4ba896] fill-[#4ba896]" />
-              </div>
-            </div>
-          );
-        }
-        
-        return (
-        <Star
-          key={i}
-            className={`h-4 w-4 ${starClass}`}
-        />
-        );
-      })}
-      <span className="ml-2 text-sm font-medium">{displayRating.toFixed(1)}</span>
-    </div>
-  );
+  return null; // Return nothing
 };
 
 // Custom checkbox item that doesn't close the dropdown
@@ -374,6 +337,61 @@ function extractSearchableText(field: string | string[] | null | undefined): str
   return [];
 }
 
+// Function to get the university logo path based on university name
+const getUniversityLogo = (universityName: string | null | undefined): string | null => {
+  if (!universityName) return null;
+  
+  // Normalize the university name for comparison
+  const normalizedName = universityName.toLowerCase().trim();
+  
+  // Map of university name patterns to their logo files
+  const universityLogoMap: Record<string, string> = {
+    'oxford': '/Unilogos/oxford.png',
+    'cambridge': '/Unilogos/cambridge.jpg',
+    'harvard': '/Unilogos/harvard.png',
+    'stanford': '/Unilogos/stanford.png',
+    'yale': '/Unilogos/yale.png',
+    'berkeley': '/Unilogos/berkeley.png',
+    'caltech': '/Unilogos/caltech.png',
+    'chicago': '/Unilogos/chicago.png',
+    'columbia': '/Unilogos/columbia.png',
+    'cornell': '/Unilogos/cornell.png',
+    'imperial': '/Unilogos/imperial.png',
+    'london school of economics': '/Unilogos/london school of economics.png',
+    'lse': '/Unilogos/london school of economics.png',
+    'ucl': '/Unilogos/university college london.jpg',
+    'university college london': '/Unilogos/university college london.jpg'
+  };
+  
+  // Find the matching university logo
+  for (const [pattern, logoPath] of Object.entries(universityLogoMap)) {
+    if (normalizedName.includes(pattern)) {
+      return logoPath;
+    }
+  }
+  
+  return null;
+};
+
+// Function to extract the university name from current_education
+const extractUniversityName = (education: string | string[] | null | undefined): string | null => {
+  if (!education) return null;
+  
+  // If education is an array, use the first item
+  const educationText = Array.isArray(education) ? education[0] : education;
+  
+  // Common patterns to extract university names
+  if (educationText.includes(' at ')) {
+    return educationText.split(' at ')[1].trim();
+  }
+  
+  if (educationText.includes(', ')) {
+    return educationText.split(', ')[0].trim();
+  }
+  
+  return educationText;
+};
+
 export default function TutorsPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
@@ -393,6 +411,9 @@ export default function TutorsPage() {
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  
+  // Check if user has premium access
+  const hasPremiumAccess = user?.has_access || user?.role === 'tutor';
   
   // Function to safely fetch data with retries and error handling
   const fetchWithRetry = async (url: string, options: RequestInit = {}, maxRetries = 3): Promise<Response> => {
@@ -842,22 +863,27 @@ export default function TutorsPage() {
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.target.value;
     
-    // Validate and sanitize the search input
-    const { valid, value, error } = validateSearchInput(input);
-    
-    if (valid) {
-      setSearchTerm(value);
-    } else {
-      // If invalid, truncate or use last valid value
-      setSearchTerm(value); // using the sanitized version
+    // Validate and sanitize the search input but preserve spaces
+    try {
+      // Only remove dangerous characters, but keep spaces
+      const sanitized = input
+        .replace(/<[^>]*>/g, '')  // Remove HTML tags
+        .replace(/[;'"\\]/g, '');  // Remove special characters that could be used for injection
       
-      if (error) {
+      // Limit length
+      if (sanitized.length > 100) {
+        setSearchTerm(sanitized.substring(0, 100));
         toast({
           variant: "destructive",
           title: "Search error",
-          description: error
+          description: "Search term is too long"
         });
+      } else {
+        setSearchTerm(sanitized);
       }
+    } catch (error) {
+      // If there's an error, just set the raw input
+      setSearchTerm(input);
     }
   };
 
@@ -931,9 +957,18 @@ export default function TutorsPage() {
             <h1 className="text-4xl font-bold tracking-tight mb-4 md:text-5xl">
               Find Your Perfect <span className="text-[#129490]">Tutor</span>
             </h1>
+      
+          {hasPremiumAccess && (
             <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Browse our network of expert tutors and find the right match for your learning needs
-          </p>
+               Browse our network of expert tutors and find the right match for your learning needs.
+            </p>
+          )}
+
+          {!hasPremiumAccess && (
+            <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
+               Browse our network of expert tutors and find the right match for your learning needs. Unlock premium access to our website to view tutors' full profiles and book sessions.
+            </p>
+          )}
           
             {/* Search Bar with improved styling */}
           <div className="relative max-w-xl mx-auto">
@@ -1238,28 +1273,51 @@ export default function TutorsPage() {
                     
                     {/* University Logo Circle */}
                     <div className="h-24 w-24 rounded-full border-4 border-background absolute -top-12 left-20 shadow-md overflow-hidden bg-white z-10">
-                      {/* University logo would go here - for now using a placeholder */}
-                      {typeof tutor.current_education === 'string' && tutor.current_education.trim() ? (
-                        <div className="h-full w-full flex items-center justify-center bg-white p-1">
-                          <div className="text-xs text-center font-medium text-[#4b92a9]">
-                            {tutor.current_education.split(' ').slice(0, 2).map(word => word[0]).join('')}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center bg-white">
-                          <School className="h-10 w-10 text-[#4b92a9]/40" />
-                        </div>
-                      )}
+                      {/* Get university information */}
+                      {(() => {
+                        const universityName = extractUniversityName(tutor.current_education);
+                        const universityLogo = getUniversityLogo(universityName);
+                        
+                        if (universityLogo) {
+                          return (
+                            <div className="h-full w-full flex items-center justify-center bg-white p-1">
+                              <Image 
+                                src={universityLogo} 
+                                alt={universityName || "University"} 
+                                width={96} 
+                                height={96} 
+                                className="object-contain"
+                              />
+                            </div>
+                          );
+                        } else if (typeof tutor.current_education === 'string' && tutor.current_education.trim()) {
+                          return (
+                            <div className="h-full w-full flex items-center justify-center bg-white p-1">
+                              <div className="text-xs text-center font-medium text-[#4b92a9]">
+                                {tutor.current_education.split(' ').slice(0, 2).map(word => word[0]).join('')}
+                              </div>
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div className="h-full w-full flex items-center justify-center bg-white">
+                              <School className="h-10 w-10 text-[#4b92a9]/40" />
+                            </div>
+                          );
+                        }
+                      })()}
                     </div>
                     
                     <div className="mt-12 flex flex-col h-full">
                       {/* Header section - Name and rating */}
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="text-xl font-medium truncate">{tutorName}</h3>
+                        {/* Commenting out rating display due to insufficient data
                         <div className="flex items-center shrink-0">
                           <ReviewStars rating={rating} />
                           {reviewCount > 0 && <span className="ml-1 text-xs text-muted-foreground">({reviewCount})</span>}
                         </div>
+                        */}
                       </div>
                       
                       {/* Education section */}
@@ -1391,19 +1449,33 @@ export default function TutorsPage() {
                             <MapPin className="h-3.5 w-3.5 mr-1 text-[#4ba896] shrink-0" strokeWidth={2} />
                             <span className="truncate">{tutorLocation}</span>
                           </div>
+                          {/* Comment out the reviews count
                           <Separator orientation="vertical" className="h-4 bg-[#c2d8d2]/50" />
                           <div className="flex items-center">
                             <GraduationCap className="h-3.5 w-3.5 mr-1 text-[#4b92a9] shrink-0" strokeWidth={2} />
                             <span>{reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}</span>
                           </div>
+                          */}
                         </div>
                         
-                        <Button asChild className="w-full shadow-md hover:shadow-lg bg-[#129490] hover:bg-[#126d94] transition-all group-hover:translate-y-[-1px]">
-                          <Link href={`/tutors/${tutorId}`} className="flex items-center justify-center gap-1">
-                            View Profile
-                            <ArrowRight className="h-3.5 w-3.5 ml-1 group-hover:translate-x-0.5 transition-transform" />
-                          </Link>
-                        </Button>
+                        {hasPremiumAccess ? (
+                          <Button asChild className="w-full shadow-md hover:shadow-lg bg-[#129490] hover:bg-[#126d94] transition-all group-hover:translate-y-[-1px]">
+                            <Link href={`/tutors/${tutorId}`} className="flex items-center justify-center gap-1">
+                              View Profile
+                              <ArrowRight className="h-3.5 w-3.5 ml-1 group-hover:translate-x-0.5 transition-transform" />
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() => router.push('/paywall')}
+                            className="w-full shadow-md hover:shadow-lg bg-gradient-to-r from-[#4ba896] to-[#126d94] hover:from-[#129490] hover:to-[#126d94] transition-all group-hover:translate-y-[-1px]"
+                          >
+                            <div className="flex items-center justify-center gap-1">
+                              <Sparkles className="h-3.5 w-3.5 mr-1" />
+                              Unlock Premium
+                            </div>
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
