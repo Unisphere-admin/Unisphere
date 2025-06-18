@@ -8,9 +8,12 @@ export const runtime = 'edge';
 // Use dynamic to prevent caching for this authenticated endpoint
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const { id } = params;
+    const { id } = await params;
     
     console.log(`[TUTOR API] Received request for tutor with ID: ${id}`);
     
@@ -22,7 +25,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
 
     // Validate the user (but don't require authentication)
-    const { user } = await validateRequest(req);
+    const { user } = await validateRequest(request);
     console.log(`[TUTOR API] Request auth status: ${user ? 'Authenticated' : 'Not authenticated'}`);
     
     // Determine if user has premium access

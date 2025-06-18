@@ -40,12 +40,10 @@ export async function generateCsrfToken(userId?: string): Promise<string> {
     const cookieValue = JSON.stringify(tokenData);
     
     // Get cookie store
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     
     // Store token in HTTP-only cookie with appropriate settings
-    cookieStore.set({
-      name: CSRF_COOKIE_NAME,
-      value: cookieValue,
+    cookieStore.set(CSRF_COOKIE_NAME, cookieValue, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -75,7 +73,7 @@ export async function generateCsrfToken(userId?: string): Promise<string> {
 export async function validateStoredToken(userId?: string): Promise<{ valid: boolean; token?: string; error?: string }> {
   try {
     // Get token from cookie
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const tokenCookie = cookieStore.get(CSRF_COOKIE_NAME);
     
     if (!tokenCookie?.value) {
@@ -130,7 +128,8 @@ export async function refreshCsrfToken(userId?: string, forceRefresh = false): P
       // If token is valid and not too old, return it
       if (valid && token) {
         // Get token data to check age
-        const tokenCookie = cookies().get(CSRF_COOKIE_NAME);
+        const cookieStore = await cookies();
+        const tokenCookie = cookieStore.get(CSRF_COOKIE_NAME);
         if (tokenCookie?.value) {
           try {
             const tokenData: TokenData = JSON.parse(tokenCookie.value);
@@ -165,7 +164,8 @@ export async function refreshCsrfToken(userId?: string, forceRefresh = false): P
  */
 export async function clearCsrfToken(): Promise<void> {
   try {
-    cookies().set({
+    const cookieStore = await cookies();
+    cookieStore.set({
       name: CSRF_COOKIE_NAME,
       value: "",
       expires: new Date(0),
