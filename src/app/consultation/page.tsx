@@ -185,7 +185,7 @@ export default function ConsultationPage() {
             <div>
               <h3 className="font-medium">Contact us to book a session</h3>
               <p className="text-sm text-muted-foreground">
-                Send a whatapp message to <span className="font-medium text-primary">+60 14-360 8123</span>
+                Send a WhatsApp message to <span className="font-medium text-primary">+60 14-360 8123</span>
               </p>
             </div>
           </div>

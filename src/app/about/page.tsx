@@ -30,29 +30,27 @@ export default function AboutPage() {
       {/* Hero section */}
       <section className="py-16 md:py-24 relative overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <div className="absolute top-20 right-[20%] w-72 h-72 bg-[#84bc9c]/10 rounded-full blur-3xl opacity-70 animate-pulse" style={{animationDuration: '8s'}}></div>
+          <div className="absolute top-20 right-[20%] w-72 h-72 bg-[#84b4cc]/10 rounded-full blur-3xl opacity-70 animate-pulse" style={{animationDuration: '8s'}}></div>
           <div className="absolute bottom-10 left-[10%] w-80 h-80 bg-[#84b7bd]/10 rounded-full blur-3xl opacity-60 animate-pulse" style={{animationDuration: '12s'}}></div>
         </div>
         
         <div className="grid md:grid-cols-2 gap-12 items-center relative z-10">
           <div>
             <div className="flex items-center gap-4 mb-8">
-              <div className="bg-[#4ba896]/10 p-4 rounded-md">
-                <Globe className="h-6 w-6 text-[#129490]" />
-              </div>
+              
               <h1 className="text-4xl md:text-5xl font-bold tracking-tight">About Us</h1>
             </div>
             <p className="text-xl text-muted-foreground mb-8">
             UniSphere was founded with a simple vision: to connect students with mentors from top global universities, making world-class admissions support more personalised and affordable than ever.
 
             </p>
-            <Button asChild size="lg" className="bg-[#129490] hover:bg-[#126d94] shadow-md hover:shadow-lg transition-all hover:translate-y-[-2px]">
+            <Button asChild size="lg" className="bg-[#128ca0] hover:bg-[#126d94] shadow-md hover:shadow-lg transition-all hover:translate-y-[-2px]">
               <Link href="/tutors">Learn More</Link>
             </Button>
           </div>
           <div className="relative">
-            <div className="absolute -z-10 top-1/4 left-1/4 w-1/2 h-1/2 bg-[#84bc9c]/10 rounded-full blur-3xl" />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#84bc9c]/10 via-transparent to-[#84b7bd]/10 rounded-xl blur-xl transform -translate-y-4 translate-x-4 opacity-60"></div>
+            <div className="absolute -z-10 top-1/4 left-1/4 w-1/2 h-1/2 bg-[#84b4cc]/10 rounded-full blur-3xl" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#84b4cc]/10 via-transparent to-[#84b7bd]/10 rounded-xl blur-xl transform -translate-y-4 translate-x-4 opacity-60"></div>
             <img 
               src="/placeholder.svg" 
               alt="Students Learning"
@@ -63,19 +61,19 @@ export default function AboutPage() {
       </section>
 
       {/* Stats section */}
-      <section className="py-12 bg-[#c2dac2]/20 backdrop-blur-sm border border-[#c2d8d2]/30 rounded-2xl shadow-sm">
+      <section className="py-12 bg-[#c7e4e3]/20 backdrop-blur-sm border border-[#c2d8d2]/30 rounded-2xl shadow-sm">
         <div className="px-4 md:px-8">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-8 text-center">
             <div className="hover:scale-105 transition-transform duration-300">
-              <div className="text-4xl font-bold text-[#129490] mb-2">20+</div>
+              <div className="text-4xl font-bold text-[#128ca0] mb-2">20+</div>
               <div className="text-muted-foreground">Tutors</div>
             </div>
             <div className="hover:scale-105 transition-transform duration-300">
-              <div className="text-4xl font-bold text-[#129490] mb-2">10+</div>
+              <div className="text-4xl font-bold text-[#128ca0] mb-2">10+</div>
               <div className="text-muted-foreground">Services offered</div>
             </div>
             <div className="hover:scale-105 transition-transform duration-300">
-              <div className="text-4xl font-bold text-[#129490] mb-2">50+</div>
+              <div className="text-4xl font-bold text-[#128ca0] mb-2">50+</div>
               <div className="text-muted-foreground">Courses/Majors</div>
             </div>
           </div>
@@ -154,7 +152,7 @@ export default function AboutPage() {
           <div className="order-1 md:order-2 flex justify-center">
             <div className="relative">
               <div className="absolute -z-10 -bottom-6 -right-6 w-32 h-32 bg-[#84b7bd]/20 rounded-full blur-2xl animate-pulse" style={{animationDuration: '15s'}} />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#84bc9c]/10 via-transparent to-[#84b7bd]/10 rounded-xl blur-xl transform -translate-y-4 translate-x-4 opacity-60"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-[#84b4cc]/10 via-transparent to-[#84b7bd]/10 rounded-xl blur-xl transform -translate-y-4 translate-x-4 opacity-60"></div>
               <img 
                 src="/ourplatform.png" 
                 alt="Our journey"
@@ -166,8 +164,8 @@ export default function AboutPage() {
       </section>
 
       {/* How It Works */}
-      <section className="py-16 md:py-24 bg-[#c2dac2]/20 backdrop-blur-sm border border-[#c2d8d2]/30 rounded-2xl shadow-sm relative overflow-hidden">
-        <div className="absolute inset-0 z-0 bg-gradient-to-b from-background/10 via-[#84bc9c]/5 to-background/10"></div>
+      <section className="py-16 md:py-24 bg-[#c7e4e3]/20 backdrop-blur-sm border border-[#c2d8d2]/30 rounded-2xl shadow-sm relative overflow-hidden">
+        <div className="absolute inset-0 z-0 bg-gradient-to-b from-background/10 via-[#84b4cc]/5 to-background/10"></div>
         
         <div className="max-w-3xl mx-auto text-center mb-16 relative z-10">
           <Badge className="mb-4 bg-[#4b92a9]/10 text-[#126d94] hover:bg-[#4b92a9]/20 transition-colors">Simple Process</Badge>
@@ -185,11 +183,11 @@ export default function AboutPage() {
               {/* Step 1 */}
               <div className="flex flex-col items-center text-center">
                 <div className="relative">
-                  <div className="h-16 w-16 bg-[#e3f0e6] rounded-full flex items-center justify-center mb-6">
-                  <Users className="h-8 w-8 text-[#129490]" />
+                  <div className="h-16 w-16 bg-[#c7e4e4] rounded-full flex items-center justify-center mb-6">
+                  <Users className="h-8 w-8 text-[#128ca0]" />
                   </div>
                   {/* Number badge positioned at the top of circle */}
-                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-6 w-6 text-white text-xs font-bold bg-[#129490]">
+                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-6 w-6 text-white text-xs font-bold bg-[#128ca0]">
                     1
                   </div>
                 </div>
@@ -203,11 +201,11 @@ export default function AboutPage() {
               {/* Step 2 */}
               <div className="flex flex-col items-center text-center">
                 <div className="relative">
-                  <div className="h-16 w-16 bg-[#e3f0e6] rounded-full flex items-center justify-center mb-6">
-                  <Clock className="h-8 w-8 text-[#129490]" />
+                  <div className="h-16 w-16 bg-[#c7e4e4] rounded-full flex items-center justify-center mb-6">
+                  <Clock className="h-8 w-8 text-[#128ca0]" />
                   </div>
                   {/* Number badge positioned at the top of circle */}
-                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-6 w-6 text-white text-xs font-bold bg-[#129490]">
+                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-6 w-6 text-white text-xs font-bold bg-[#128ca0]">
                     2
                   </div>
                 </div>
@@ -222,11 +220,11 @@ export default function AboutPage() {
               {/* Step 3 */}
               <div className="flex flex-col items-center text-center">
                 <div className="relative">
-                  <div className="h-16 w-16 bg-[#e3f0e6] rounded-full flex items-center justify-center mb-6">
-                    <Award className="h-12 w-12 text-[#129490]" />
+                  <div className="h-16 w-16 bg-[#c7e4e4] rounded-full flex items-center justify-center mb-6">
+                    <Award className="h-12 w-12 text-[#128ca0]" />
                   </div>
                   {/* Number badge positioned at the top of circle */}
-                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-6 w-6 text-white text-xs font-bold bg-[#129490]">
+                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-6 w-6 text-white text-xs font-bold bg-[#128ca0]">
                     3
                   </div>
                 </div>
@@ -239,13 +237,13 @@ export default function AboutPage() {
             </div>
             
             {/* Horizontal line - lower z-index */}
-            <div className="hidden md:block absolute top-[2rem] left-[17%] right-[17%] h-[1px] bg-[#84bc9c] z-[-1]"></div>
+            <div className="hidden md:block absolute top-[2rem] left-[17%] right-[17%] h-[1px] bg-[#84b4cc] z-[-1]"></div>
             
             {/* Connection dots - same z-index as line */}
-            <div className="hidden md:block absolute top-[2rem] left-[calc(33.333%+8rem)] w-[4px] h-[4px] rounded-full bg-[#84bc9c] translate-y-[-1.5px] z-[-1]"></div>
-            <div className="hidden md:block absolute top-[2rem] left-[calc(33.333%-8rem)] w-[4px] h-[4px] rounded-full bg-[#84bc9c] translate-y-[-1.5px] z-[-1]"></div>
-            <div className="hidden md:block absolute top-[2rem] left-[calc(66.666%+8rem)] w-[4px] h-[4px] rounded-full bg-[#84bc9c] translate-y-[-1.5px] z-[-1]"></div>
-            <div className="hidden md:block absolute top-[2rem] left-[calc(66.666%-8rem)] w-[4px] h-[4px] rounded-full bg-[#84bc9c] translate-y-[-1.5px] z-[-1]"></div>
+            <div className="hidden md:block absolute top-[2rem] left-[calc(33.333%+8rem)] w-[4px] h-[4px] rounded-full bg-[#84b4cc] translate-y-[-1.5px] z-[-1]"></div>
+            <div className="hidden md:block absolute top-[2rem] left-[calc(33.333%-8rem)] w-[4px] h-[4px] rounded-full bg-[#84b4cc] translate-y-[-1.5px] z-[-1]"></div>
+            <div className="hidden md:block absolute top-[2rem] left-[calc(66.666%+8rem)] w-[4px] h-[4px] rounded-full bg-[#84b4cc] translate-y-[-1.5px] z-[-1]"></div>
+            <div className="hidden md:block absolute top-[2rem] left-[calc(66.666%-8rem)] w-[4px] h-[4px] rounded-full bg-[#84b4cc] translate-y-[-1.5px] z-[-1]"></div>
           </div>
         </div>
       </section>
@@ -253,11 +251,11 @@ export default function AboutPage() {
       {/* Team section */}
       <section className="py-16 md:py-24 relative overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <div className="absolute bottom-20 left-[20%] w-80 h-80 bg-[#84bc9c]/10 rounded-full blur-3xl opacity-50 animate-pulse" style={{animationDuration: '15s'}}></div>
+          <div className="absolute bottom-20 left-[20%] w-80 h-80 bg-[#84b4cc]/10 rounded-full blur-3xl opacity-50 animate-pulse" style={{animationDuration: '15s'}}></div>
         </div>
         
         <div className="max-w-3xl mx-auto text-center mb-16 relative z-10">
-          <Badge className="mb-4 bg-[#4ba896]/10 text-[#129490] hover:bg-[#4ba896]/20 transition-colors">Our People</Badge>
+          <Badge className="mb-4 bg-[#4ba896]/10 text-[#128ca0] hover:bg-[#4ba896]/20 transition-colors">Our People</Badge>
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Our Team</h2>
           <p className="text-xl text-muted-foreground">
           The dedicated co-founders behind UniSphere
@@ -290,7 +288,7 @@ export default function AboutPage() {
           ].map((member) => (
             <div key={member.name} className="flex flex-col items-center text-center group">
               <div className="relative mb-4">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#84bc9c]/20 to-[#84b7bd]/20 rounded-full blur-md transform scale-90 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div className="absolute inset-0 bg-gradient-to-br from-[#84b4cc]/20 to-[#84b7bd]/20 rounded-full blur-md transform scale-90 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 <Avatar className="h-24 w-24 border-2 border-background shadow-md group-hover:scale-105 transition-transform">
                 <AvatarImage src={member.image} />
                 <AvatarFallback>{member.name.charAt(0)}</AvatarFallback>
@@ -304,8 +302,8 @@ export default function AboutPage() {
       </section>
 
       {/* Values section */}
-      <section className="py-16 md:py-24 bg-[#c2dac2]/20 backdrop-blur-sm border border-[#c2d8d2]/30 rounded-2xl shadow-sm relative overflow-hidden">
-        <div className="absolute inset-0 z-0 bg-gradient-to-b from-background/10 via-[#84bc9c]/5 to-background/10"></div>
+      <section className="py-16 md:py-24 bg-[#c7e4e3]/20 backdrop-blur-sm border border-[#c2d8d2]/30 rounded-2xl shadow-sm relative overflow-hidden">
+        <div className="absolute inset-0 z-0 bg-gradient-to-b from-background/10 via-[#84b4cc]/5 to-background/10"></div>
         
         <div className="max-w-3xl mx-auto text-center mb-16 relative z-10">
           <Badge className="mb-4 bg-[#4b92a9]/10 text-[#126d94] hover:bg-[#4b92a9]/20 transition-colors">What We Stand For</Badge>
@@ -318,8 +316,8 @@ export default function AboutPage() {
         <div className="grid md:grid-cols-3 gap-8 px-4 md:px-8 relative z-10">
           <Card className="bg-background/80 backdrop-blur-sm border-[#c2d8d2]/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px]">
             <CardHeader className="flex flex-row items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-[#84bc9c]/30 to-[#c2dac2]/30 flex items-center justify-center shadow-sm">
-                <Globe className="h-6 w-6 text-[#129490]" />
+              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-[#84b4cc]/30 to-[#c7e4e3]/30 flex items-center justify-center shadow-sm">
+                <Globe className="h-6 w-6 text-[#128ca0]" />
               </div>
               <CardTitle>Educational Excellence</CardTitle>
             </CardHeader>
@@ -332,8 +330,8 @@ export default function AboutPage() {
           
           <Card className="bg-background/80 backdrop-blur-sm border-[#c2d8d2]/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px]">
             <CardHeader className="flex flex-row items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-[#84bc9c]/30 to-[#c2dac2]/30 flex items-center justify-center shadow-sm">
-                <CheckCircle className="h-6 w-6 text-[#129490]" />
+              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-[#84b4cc]/30 to-[#c7e4e3]/30 flex items-center justify-center shadow-sm">
+                <CheckCircle className="h-6 w-6 text-[#128ca0]" />
               </div>
               <CardTitle>Accessibility</CardTitle>
             </CardHeader>
@@ -346,8 +344,8 @@ export default function AboutPage() {
           
           <Card className="bg-background/80 backdrop-blur-sm border-[#c2d8d2]/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px]">
             <CardHeader className="flex flex-row items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-[#84bc9c]/30 to-[#c2dac2]/30 flex items-center justify-center shadow-sm">
-                <Star className="h-6 w-6 text-[#129490]" />
+              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-[#84b4cc]/30 to-[#c7e4e3]/30 flex items-center justify-center shadow-sm">
+                <Star className="h-6 w-6 text-[#128ca0]" />
               </div>
               <CardTitle>Innovation</CardTitle>
             </CardHeader>
@@ -364,9 +362,9 @@ export default function AboutPage() {
 
       {/* CTA section */}
       <section className="py-16 md:py-24 relative">
-        <div className="bg-gradient-to-br from-[#84bc9c]/10 via-[#c2dac2]/10 to-[#84b7bd]/10 backdrop-blur-sm border border-[#c2d8d2]/30 rounded-2xl p-8 md:p-12 text-center shadow-lg relative overflow-hidden">
+        <div className="bg-gradient-to-br from-[#84b4cc]/10 via-[#c7e4e3]/10 to-[#84b7bd]/10 backdrop-blur-sm border border-[#c2d8d2]/30 rounded-2xl p-8 md:p-12 text-center shadow-lg relative overflow-hidden">
           <div className="absolute inset-0 z-0">
-            <div className="absolute bottom-0 right-0 w-64 h-64 bg-[#84bc9c]/10 rounded-full blur-3xl opacity-70"></div>
+            <div className="absolute bottom-0 right-0 w-64 h-64 bg-[#84b4cc]/10 rounded-full blur-3xl opacity-70"></div>
             <div className="absolute top-0 left-0 w-64 h-64 bg-[#84b7bd]/10 rounded-full blur-3xl opacity-70"></div>
           </div>
           
@@ -378,7 +376,7 @@ export default function AboutPage() {
 
 
           </p>
-            <Button asChild size="lg" className="bg-[#129490] hover:bg-[#126d94] shadow-md hover:shadow-lg transition-all hover:translate-y-[-2px]">
+            <Button asChild size="lg" className="bg-[#128ca0] hover:bg-[#126d94] shadow-md hover:shadow-lg transition-all hover:translate-y-[-2px]">
             <Link href="/tutors">
                 Begin Your Journey
               <ArrowRight className="ml-2 h-4 w-4" />

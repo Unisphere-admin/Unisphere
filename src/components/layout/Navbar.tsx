@@ -64,7 +64,7 @@ const Navbar = () => {
   const showConsultationButton = !loading && (!user || (!hasAccess && !isTutor));
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur-md shadow-sm h-[var(--navbar-height)]">
+    <header className="fixed top-0 left-0 right-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur-sm shadow-sm h-[var(--navbar-height)]">
       <div className="w-full h-full px-4 md:px-8 flex items-center justify-between max-w-screen-xl mx-auto">
         <div className="flex items-center gap-4">
           <Link href="/" className="flex items-center space-x-2 group">
@@ -119,7 +119,7 @@ const Navbar = () => {
                 <Button variant="ghost" size="sm" className="rounded-full h-9 pl-2 pr-2.5 gap-1 text-sm">
                   <Avatar className="h-7 w-7 border border-border/40">
                     <AvatarImage src={user.avatar_url || user.profilePic || undefined} alt={user.name || ''} />
-                    <AvatarFallback className="bg-gradient-to-br from-[#84bc9c]/80 to-[#4ba896]/50 text-white font-medium text-xs">
+                    <AvatarFallback className="bg-gradient-to-br from-[#84b4cc]/80 to-[#4ba896]/50 text-white font-medium text-xs">
                       {getInitials(user) || 'U'}
                     </AvatarFallback>
                   </Avatar>
@@ -135,7 +135,7 @@ const Navbar = () => {
                     <p className="font-medium">{user.name || 'User'}</p>
                     <p className="text-xs text-muted-foreground">{user.email}</p>
                     {!hasAccess && !isTutor && (
-                      <div className="mt-1.5 text-xs px-1.5 py-0.5 bg-[#c2dac2] text-[#126d94] dark:bg-[#4ba896]/20 dark:text-[#84b7bd] rounded-md inline-flex items-center w-fit">
+                      <div className="mt-1.5 text-xs px-1.5 py-0.5 bg-[#c7e4e3] text-[#126d94] dark:bg-[#4ba896]/20 dark:text-[#84b7bd] rounded-md inline-flex items-center w-fit">
                         <Lock className="h-3 w-3 mr-1" strokeWidth={2} /> Free account
                       </div>
                     )}
@@ -169,7 +169,7 @@ const Navbar = () => {
                 {!hasAccess && !isTutor && (
                   <>
                     <DropdownMenuSeparator className="bg-border/40" />
-                    <DropdownMenuItem className="focus:bg-[#4ba896]/10 text-[#129490]">
+                    <DropdownMenuItem className="focus:bg-[#4ba896]/10 text-[#128ca0]">
                       <Link href="/paywall" className="flex items-center w-full">
                         <Lock className="mr-2 h-4 w-4" strokeWidth={2} />
                         Upgrade to Premium
@@ -186,7 +186,7 @@ const Navbar = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : showLoginButton ? (
-            <Button asChild size="sm" className="bg-[#129490] hover:bg-[#126d94] shadow-sm font-medium">
+            <Button asChild size="sm" className="bg-[#128ca0] hover:bg-[#126d94] shadow-sm font-medium">
               <Link href="/login" className="flex items-center gap-1.5">
                 <User className="h-4 w-4" strokeWidth={2} />
                 Login
@@ -296,7 +296,7 @@ const Navbar = () => {
                 {user && !hasAccess && !isTutor && (
                   <Link 
                     href="/paywall"
-                    className="flex items-center gap-3 p-2.5 bg-[#4ba896]/10 text-[#129490] hover:bg-[#4ba896]/20 rounded-md mt-2"
+                    className="flex items-center gap-3 p-2.5 bg-[#4ba896]/10 text-[#128ca0] hover:bg-[#4ba896]/20 rounded-md mt-2"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
                     <Lock className="h-5 w-5" strokeWidth={1.5} /> Upgrade to Premium
@@ -306,7 +306,7 @@ const Navbar = () => {
                 {showLoginButton && (
                   <Button 
                     asChild
-                    className="mt-4 bg-[#129490] hover:bg-[#126d94] shadow-sm font-medium"
+                    className="mt-4 bg-[#128ca0] hover:bg-[#126d94] shadow-sm font-medium"
                   >
                     <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2">
                       <User className="h-4 w-4" strokeWidth={2} />

@@ -360,10 +360,14 @@ const getUniversityLogo = (universityName: string | null | undefined): string | 
     'uchicago': '/Unilogos/UChicago Logo.png',
     'chicago': '/Unilogos/UChicago Logo.png',
     'university of chicago': '/Unilogos/UChicago Logo.png',
-    'berkeley': '/Unilogos/UCBerkley Logo.png',
-    'uc berkeley': '/Unilogos/UCBerkley Logo.png',
+    'berkeley': '/Unilogos/UCBerkeley Logo.png',
+    'uc berkeley': '/Unilogos/UCBerkeley Logo.png',
+    'university of california, berkeley': '/Unilogos/UCBerkeley Logo.png',
+    'university of california berkeley': '/Unilogos/UCBerkeley Logo.png',
     'davis': '/Unilogos/UCDavis Logo.png',
     'uc davis': '/Unilogos/UCDavis Logo.png',
+    'university of california, davis': '/Unilogos/UCDavis Logo.png',
+    'university of california davis': '/Unilogos/UCDavis Logo.png',
     'mit': '/Unilogos/MIT Logo.png',
     'massachusetts institute of technology': '/Unilogos/MIT Logo.png',
     'nyu': '/Unilogos/NYU Logo.png',
@@ -383,6 +387,22 @@ const getUniversityLogo = (universityName: string | null | undefined): string | 
     'durham university': '/Unilogos/Durham Logo.png'
   };
   
+  // Special handling for UC schools
+  if (normalizedName.includes('university of california')) {
+    // Check for specific UC campus
+    const ucCampuses = [
+      { name: 'berkeley', logo: '/Unilogos/UCBerkeley Logo.png' },
+      { name: 'davis', logo: '/Unilogos/UCDavis Logo.png' },
+      // Add other UC campuses if logos are available
+    ];
+    
+    for (const campus of ucCampuses) {
+      if (normalizedName.includes(campus.name)) {
+        return campus.logo;
+      }
+    }
+  }
+  
   // Find the matching university logo
   for (const [pattern, logoPath] of Object.entries(universityLogoMap)) {
     if (normalizedName.includes(pattern)) {
@@ -390,6 +410,18 @@ const getUniversityLogo = (universityName: string | null | undefined): string | 
     }
   }
   
+  // Implement additional fuzzy matching for UC schools
+  // This is a fallback in case the specific format doesn't match
+  if (normalizedName.includes('uc ') || normalizedName.includes('u.c.')) {
+    if (normalizedName.includes('berk')) {
+      return '/Unilogos/UCBerkeley Logo.png';
+    }
+    if (normalizedName.includes('dav')) {
+      return '/Unilogos/UCDavis Logo.png';
+    }
+  }
+  
+  console.log(`No logo found for university: "${universityName}"`);
   return null;
 };
 
@@ -399,6 +431,15 @@ const extractUniversityName = (education: string | string[] | null | undefined):
   
   // If education is an array, use the first item
   const educationText = Array.isArray(education) ? education[0] : education;
+  
+  // Special handling for specific patterns
+  if (educationText.includes('University of California')) {
+    // Return the full UC name including campus
+    const matches = educationText.match(/University of California,?\s+[A-Za-z]+/i);
+    if (matches && matches[0]) {
+      return matches[0];
+    }
+  }
   
   // Common patterns to extract university names
   if (educationText.includes(' at ')) {
@@ -967,15 +1008,15 @@ export default function TutorsPage() {
     <div className="space-y-8 pb-12">
       {/* Hero Section */}
       <section className="relative py-20 md:py-28 overflow-hidden">
-        <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#c2dac2]/30 via-background/95 to-[#c2d8d2]/20">
-          <div className="absolute top-20 right-[20%] w-72 h-72 bg-[#84bc9c]/10 rounded-full blur-3xl opacity-70 animate-pulse" style={{animationDuration: '8s'}}></div>
+        <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#c7e4e3]/30 via-background/95 to-[#c2d8d2]/20">
+          <div className="absolute top-20 right-[20%] w-72 h-72 bg-[#84b4cc]/10 rounded-full blur-3xl opacity-70 animate-pulse" style={{animationDuration: '8s'}}></div>
           <div className="absolute bottom-10 left-[10%] w-80 h-80 bg-[#84b7bd]/10 rounded-full blur-3xl opacity-60 animate-pulse" style={{animationDuration: '12s'}}></div>
         </div>
         <div className="container relative z-10 mx-auto px-4 md:px-6 max-w-screen-xl">
         <div className="max-w-3xl mx-auto text-center">
             
             <h1 className="text-4xl font-bold tracking-tight mb-4 md:text-5xl">
-              Find Your Perfect <span className="text-[#129490]">Tutor</span>
+              Find Your Perfect <span className="text-[#128ca0]">Tutor</span>
             </h1>
       
           {hasPremiumAccess && (
@@ -994,7 +1035,7 @@ export default function TutorsPage() {
           <div className="relative max-w-xl mx-auto">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
             <Input
-                className="pl-10 h-12 bg-background/80 backdrop-blur-sm border-[#84bc9c]/30 shadow-md focus-visible:border-[#4ba896]/30 focus-visible:ring-1 focus-visible:ring-[#4ba896]/20 transition-all"
+                className="pl-10 h-12 bg-background/80 backdrop-blur-sm border-[#84b4cc]/30 shadow-md focus-visible:border-[#4ba896]/30 focus-visible:ring-1 focus-visible:ring-[#4ba896]/20 transition-all"
               placeholder="Search by university, subject, or keyword"
               value={searchTerm}
                 onChange={handleSearchChange}
@@ -1011,10 +1052,10 @@ export default function TutorsPage() {
             {/* Subject filter dropdown */}
             <DropdownMenu open={isSubjectFilterOpen} onOpenChange={setIsSubjectFilterOpen}>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="flex items-center gap-2 shadow-sm border-[#84bc9c]/40 hover:bg-[#c2dac2]/10 transition-colors">
+                <Button variant="outline" className="flex items-center gap-2 shadow-sm border-[#84b4cc]/40 hover:bg-[#c7e4e3]/10 transition-colors">
                   <Filter className="h-4 w-4 text-[#4ba896]" strokeWidth={1.5} />
                   Services {selectedSubjects.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 bg-[#4ba896]/10 text-[#129490] border-none">
+                    <Badge variant="secondary" className="ml-1 bg-[#4ba896]/10 text-[#128ca0] border-none">
                       {selectedSubjects.length}
                     </Badge>
                   )}
@@ -1273,7 +1314,7 @@ export default function TutorsPage() {
                 <Card key={tutorId} className="overflow-hidden bg-card/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px] group flex flex-col h-full">
                   {/* Card header with gradient background */}
                   <div className="h-24 relative overflow-hidden w-full">
-                    <div className="absolute inset-0 bg-gradient-to-r from-[#c2dac2] via-[#84bc9c] to-[#4ba896] group-hover:scale-105 transition-transform duration-500"></div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#c7e4e3] via-[#84b4cc] to-[#4ba896] group-hover:scale-105 transition-transform duration-500"></div>
                     <div className="absolute inset-0 bg-[url('/noise.png')] opacity-20"></div>
                   </div>
                   
@@ -1285,7 +1326,7 @@ export default function TutorsPage() {
                           src={user?.has_access || user?.role === 'tutor' ? tutorImage ?? undefined : avatarUrl ?? undefined} 
                           alt={tutorName}
                         />
-                        <AvatarFallback className="bg-gradient-to-br from-[#84bc9c] to-[#4ba896] text-white font-semibold">
+                        <AvatarFallback className="bg-gradient-to-br from-[#84b4cc] to-[#4ba896] text-white font-semibold">
                           {tutor.first_name ? tutor.first_name.charAt(0).toUpperCase() : ''}
                           {tutor.last_name ? tutor.last_name.charAt(0).toUpperCase() : 'T'}
                         </AvatarFallback>
@@ -1347,7 +1388,7 @@ export default function TutorsPage() {
                         {(typeof tutor.current_education === 'string' && tutor.current_education.trim()) || 
                          (Array.isArray(tutor.current_education) && tutor.current_education.length > 0) ? (
                           <div className="flex items-center gap-1">
-                            <School className="h-3 w-3 text-[#129490] shrink-0" strokeWidth={2} />
+                            <School className="h-3 w-3 text-[#128ca0] shrink-0" strokeWidth={2} />
                             <span className="truncate">
                               {typeof tutor.current_education === 'string' 
                                 ? tutor.current_education 
@@ -1382,7 +1423,7 @@ export default function TutorsPage() {
                       </div>
                       
                       {/* Verified Badge */}
-                      <div className="flex items-center gap-1 text-[#4ba896] dark:text-[#84bc9c] text-sm mb-2">
+                      <div className="flex items-center gap-1 text-[#4ba896] dark:text-[#84b4cc] text-sm mb-2">
                         <CheckCircle className="h-3.5 w-3.5 shrink-0" />
                         <span>Verified Tutor</span>
                       </div>
@@ -1392,7 +1433,7 @@ export default function TutorsPage() {
                       {/* Subjects section */}
                       <div className="mb-3">
                         <div className="flex items-center text-sm mb-1">
-                          <BookOpen className="h-3.5 w-3.5 mr-1.5 text-[#129490] shrink-0" strokeWidth={2} />
+                          <BookOpen className="h-3.5 w-3.5 mr-1.5 text-[#128ca0] shrink-0" strokeWidth={2} />
                           <span className="font-medium">Services</span>
                         </div>
                         <div className="flex flex-wrap gap-1 pl-5">
@@ -1480,7 +1521,7 @@ export default function TutorsPage() {
                         </div>
                         
                         {hasPremiumAccess ? (
-                        <Button asChild className="w-full shadow-md hover:shadow-lg bg-[#129490] hover:bg-[#126d94] transition-all group-hover:translate-y-[-1px]">
+                        <Button asChild className="w-full shadow-md hover:shadow-lg bg-[#128ca0] hover:bg-[#126d94] transition-all group-hover:translate-y-[-1px]">
                           <Link href={`/tutors/${tutorId}`} className="flex items-center justify-center gap-1">
                             View Profile
                             <ArrowRight className="h-3.5 w-3.5 ml-1 group-hover:translate-x-0.5 transition-transform" />
@@ -1489,7 +1530,7 @@ export default function TutorsPage() {
                         ) : (
                           <Button
                             onClick={() => router.push('/paywall')}
-                            className="w-full shadow-md hover:shadow-lg bg-gradient-to-r from-[#4ba896] to-[#126d94] hover:from-[#129490] hover:to-[#126d94] transition-all group-hover:translate-y-[-1px]"
+                            className="w-full shadow-md hover:shadow-lg bg-gradient-to-r from-[#4ba896] to-[#126d94] hover:from-[#128ca0] hover:to-[#126d94] transition-all group-hover:translate-y-[-1px]"
                           >
                             <div className="flex items-center justify-center gap-1">
                               <Sparkles className="h-3.5 w-3.5 mr-1" />

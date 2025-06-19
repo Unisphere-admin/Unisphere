@@ -32,13 +32,10 @@ export default function HomePage() {
   return (
     <div className="flex flex-col w-full with-navbar">
       {/* Hero Section */}
-      <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-b from-[#c2dac2]/30 via-background/95 to-[#c2d8d2]/20">
-        <div className="absolute inset-0 z-0">
-          <div className="absolute top-20 right-[20%] w-72 h-72 bg-[#84bc9c]/10 rounded-full blur-3xl opacity-70 animate-pulse" style={{animationDuration: '8s'}}></div>
-          <div className="absolute bottom-10 left-[10%] w-80 h-80 bg-[#84b7bd]/10 rounded-full blur-3xl opacity-60 animate-pulse" style={{animationDuration: '12s'}}></div>
-        </div>
-        <div className="container relative z-10 mx-auto px-4 md:px-6 max-w-screen-xl">
-          <div className="flex flex-col md:flex-row gap-12 items-center">
+      <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-b from-[#c7e4e3]/30 via-background/95 to-[#c2d8d2]/20">
+        
+        <div className="container relative z-10 mx-auto px-4 md:px-6 max-w-screen-xl h-full">
+          <div className="flex flex-col md:flex-row gap-12 items-center h-full">
             <div className="flex-1 space-y-6">
               
               <h1 className="font-bold tracking-tight text-4xl md:text-5xl lg:text-6xl">
@@ -55,66 +52,28 @@ export default function HomePage() {
                 <span className="inline-block animate-[fadeIn_1s_ease_forwards]" style={{opacity: 0, animationDelay: '3500ms'}}> Interviews</span>
               </p>
               <div className="flex flex-col sm:flex-row gap-4 mt-8">
-                <Button size="lg" className="shadow-md bg-[#129490] hover:bg-[#126d94] transition-all hover:shadow-lg hover:translate-y-[-2px] group">
+                <Button size="lg" className="shadow-md bg-[#128ca0] hover:bg-[#126d94] transition-all hover:shadow-lg hover:translate-y-[-2px] group">
                   <Link href="/tutors" className="flex items-center gap-2">
                     Explore Now <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
                   </Link>
                 </Button>
-                <Button size="lg" variant="outline" className="border-[#c2d8d2]/60 hover:border-[#84bc9c]/60 hover:bg-[#c2dac2]/10 transition-all">
+                <Button size="lg" variant="outline" className="border-[#c2d8d2]/60 hover:border-[#84b4cc]/60 hover:bg-[#c7e4e3]/10 transition-all">
                   <Link href="/about">Learn More</Link>
                 </Button>
               </div>
               
             </div>
-            <div className="flex-1 relative">
-              <div className="relative w-full max-w-md mx-auto">
-                <div className="absolute inset-0 bg-gradient-to-r from-[#84bc9c]/20 via-[#c2d8d2]/20 to-[#84b7bd]/20 rounded-2xl blur-xl transform -translate-y-4 translate-x-4 animate-pulse" style={{animationDuration: '10s'}}></div>
-                <div className="relative z-10 bg-card/95 border border-border/40 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden hover:shadow-2xl transition-all duration-300 hover:translate-y-[-3px] group">
-                  <div className="absolute inset-0 bg-gradient-to-r from-[#c2dac2]/10 via-transparent to-[#c2d8d2]/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="flex-1 relative ">
+              <div className="relative w-full max-w-md justify-center items-center mx-auto">
+                
                   <img
-                    src="https://images.unsplash.com/photo-1546521343-4eb2c01aa44b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1035&q=80"
+                    src="/uniandlogo.png"
                     alt="Online Learning"
-                    className="w-full rounded-t-xl object-cover h-64 group-hover:scale-105 transition-transform duration-700"
+                    className="w-full rounded-t-xl object-cover group-hover:scale-105 transition-transform duration-700"
+                    style={{height: '31rem'}}
                   />
-                  <div className="p-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Badge className="px-3 py-1 bg-[#4ba896]/10 text-[#129490] hover:bg-[#4ba896]/20 transition-colors border-[#4ba896]/20">
-                          Featured
-                        </Badge>
-                        <Badge className="px-3 py-1 bg-[#4b92a9]/10 text-[#126d94] hover:bg-[#4b92a9]/20 transition-colors border-[#4b92a9]/20">
-                          Popular
-                        </Badge>
-                      </div>
-                    </div>
-                    <h3 className="text-lg font-semibold">Mathematics & Sciences</h3>
-                    <p className="text-sm text-muted-foreground">Master complex concepts with our interactive learning platform</p>
-                    <Separator className="bg-[#c2d8d2]/50" />
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-[#4ba896]" />
-                        <span>Flexible scheduling</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MessageCircle className="h-4 w-4 text-[#4ba896]" />
-                        <span>Personalized support</span>
-                      </div>
-                    </div>
-                  </div>
+        
                 </div>
-                <div className="absolute top-5 -right-10 bg-card/80 backdrop-blur-sm p-4 rounded-xl shadow-md border border-border/40 animate-in slide-in-from-right-5 duration-500">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5 text-[#129490]" />
-                    <span className="text-sm font-medium">Interactive Learning</span>
-                  </div>
-                </div>
-                <div className="absolute -bottom-6 -left-8 bg-card/80 backdrop-blur-sm p-4 rounded-xl shadow-md border border-border/40 animate-in slide-in-from-left-5 duration-500">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-[#129490]" />
-                    <span className="text-sm font-medium">Top-Rated Platform</span>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -137,11 +96,11 @@ export default function HomePage() {
               {/* Step 1 */}
               <div className="flex flex-col items-center text-center">
                 <div className="relative">
-                  <div className="h-28 w-28 bg-[#e3f0e6] rounded-full flex items-center justify-center mb-6">
-                    <PanelsTopLeft className="h-12 w-12 text-[#129490]" />
+                  <div className="h-28 w-28 bg-[#c7e4e4] rounded-full flex items-center justify-center mb-6">
+                    <PanelsTopLeft className="h-12 w-12 text-[#128ca0]" />
                   </div>
                   {/* Number badge positioned at the top of circle */}
-                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-8 w-8 text-white text-xs font-bold bg-[#129490]">
+                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-8 w-8 text-white text-xs font-bold bg-[#128ca0]">
                     1
                 </div>
                 </div>
@@ -155,11 +114,11 @@ export default function HomePage() {
               {/* Step 2 */}
               <div className="flex flex-col items-center text-center">
                 <div className="relative">
-                  <div className="h-28 w-28 bg-[#e3f0e6] rounded-full flex items-center justify-center mb-6">
-                    <School className="h-12 w-12 text-[#129490]" />
+                  <div className="h-28 w-28 bg-[#c7e4e4] rounded-full flex items-center justify-center mb-6">
+                    <School className="h-12 w-12 text-[#128ca0]" />
                   </div>
                   {/* Number badge positioned at the top of circle */}
-                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-8 w-8 text-white text-xs font-bold bg-[#129490]">
+                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-8 w-8 text-white text-xs font-bold bg-[#128ca0]">
                     2
                 </div>
                 </div>
@@ -173,11 +132,11 @@ export default function HomePage() {
               {/* Step 3 */}
               <div className="flex flex-col items-center text-center">
                 <div className="relative">
-                  <div className="h-28 w-28 bg-[#e3f0e6] rounded-full flex items-center justify-center mb-6">
-                    <FileEdit className="h-12 w-12 text-[#129490]" />
+                  <div className="h-28 w-28 bg-[#c7e4e4] rounded-full flex items-center justify-center mb-6">
+                    <FileEdit className="h-12 w-12 text-[#128ca0]" />
                   </div>
                   {/* Number badge positioned at the top of circle */}
-                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-8 w-8 text-white text-xs font-bold bg-[#129490]">
+                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-8 w-8 text-white text-xs font-bold bg-[#128ca0]">
                     3
                 </div>
                 </div>
@@ -191,11 +150,11 @@ export default function HomePage() {
               {/* Step 4 */}
               <div className="flex flex-col items-center text-center">
                 <div className="relative">
-                  <div className="h-28 w-28 bg-[#e3f0e6] rounded-full flex items-center justify-center mb-6">
-                    <Award className="h-12 w-12 text-[#129490]" />
+                  <div className="h-28 w-28 bg-[#c7e4e4] rounded-full flex items-center justify-center mb-6">
+                    <Award className="h-12 w-12 text-[#128ca0]" />
                   </div>
                   {/* Number badge positioned at the top of circle */}
-                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-8 w-8 text-white text-xs font-bold bg-[#129490]">
+                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-8 w-8 text-white text-xs font-bold bg-[#128ca0]">
                     4
                 </div>
                 </div>
@@ -208,19 +167,19 @@ export default function HomePage() {
             </div>
             
             {/* Create one continuous horizontal line through all circles */}
-            <div className="hidden md:block absolute top-[4.1rem] left-[12%] right-[12%] h-[1px] bg-[#84bc9c] z-0"></div>
+            <div className="hidden md:block absolute top-[4.1rem] left-[12%] right-[12%] h-[1px] bg-[#84b4cc] z-0"></div>
             
             {/* Add connection dots at the edges of each circle */}
-            <div className="hidden md:block absolute top-[4.1rem] left-[calc(25%-4em)] w-[4px] h-[4px] rounded-full bg-[#84bc9c] transform translate-y-[-1.5px] z-0"></div>
-            <div className="hidden md:block absolute top-[4.1rem] left-[calc(25%+4em)] w-[4px] h-[4px] rounded-full bg-[#84bc9c] transform translate-y-[-1.5px] z-0"></div>
-            <div className="hidden md:block absolute top-[4.1rem] left-[calc(50%-4em)] w-[4px] h-[4px] rounded-full bg-[#84bc9c] transform translate-y-[-1.5px] z-0"></div>
-            <div className="hidden md:block absolute top-[4.1rem] left-[calc(50%+4em)] w-[4px] h-[4px] rounded-full bg-[#84bc9c] transform translate-y-[-1.5px] z-0"></div>
-            <div className="hidden md:block absolute top-[4.1rem] left-[calc(75%-4em)] w-[4px] h-[4px] rounded-full bg-[#84bc9c] transform translate-y-[-1.5px] z-0"></div>
-            <div className="hidden md:block absolute top-[4.1rem] left-[calc(75%+4em)] w-[4px] h-[4px] rounded-full bg-[#84bc9c] transform translate-y-[-1.5px] z-0"></div>
+            <div className="hidden md:block absolute top-[4.1rem] left-[calc(25%-4em)] w-[4px] h-[4px] rounded-full bg-[#84b4cc] transform translate-y-[-1.5px] z-0"></div>
+            <div className="hidden md:block absolute top-[4.1rem] left-[calc(25%+4em)] w-[4px] h-[4px] rounded-full bg-[#84b4cc] transform translate-y-[-1.5px] z-0"></div>
+            <div className="hidden md:block absolute top-[4.1rem] left-[calc(50%-4em)] w-[4px] h-[4px] rounded-full bg-[#84b4cc] transform translate-y-[-1.5px] z-0"></div>
+            <div className="hidden md:block absolute top-[4.1rem] left-[calc(50%+4em)] w-[4px] h-[4px] rounded-full bg-[#84b4cc] transform translate-y-[-1.5px] z-0"></div>
+            <div className="hidden md:block absolute top-[4.1rem] left-[calc(75%-4em)] w-[4px] h-[4px] rounded-full bg-[#84b4cc] transform translate-y-[-1.5px] z-0"></div>
+            <div className="hidden md:block absolute top-[4.1rem] left-[calc(75%+4em)] w-[4px] h-[4px] rounded-full bg-[#84b4cc] transform translate-y-[-1.5px] z-0"></div>
           </div>
 
           <div className="mt-16 text-center">
-            <Button size="lg" className="bg-[#129490] hover:bg-[#126d94] shadow-md hover:shadow-lg transition-all hover:translate-y-[-2px] group">
+            <Button size="lg" className="bg-[#128ca0] hover:bg-[#126d94] shadow-md hover:shadow-lg transition-all hover:translate-y-[-2px] group">
               <Link href="/tutors" className="flex items-center gap-2">
                 Start Your Journey <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
               </Link>
@@ -230,9 +189,9 @@ export default function HomePage() {
       </section>
 
       {/* Testimonials */}
-      {/* <section className="py-20 md:py-32 w-full bg-gradient-to-b from-[#c2dac2]/10 via-background/95 to-[#c2d8d2]/20 relative overflow-hidden">
+      {/* <section className="py-20 md:py-32 w-full bg-gradient-to-b from-[#c7e4e3]/10 via-background/95 to-[#c2d8d2]/20 relative overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <div className="absolute top-40 right-[30%] w-72 h-72 bg-[#84bc9c]/10 rounded-full blur-3xl opacity-60 animate-pulse" style={{animationDuration: '10s'}}></div>
+          <div className="absolute top-40 right-[30%] w-72 h-72 bg-[#84b4cc]/10 rounded-full blur-3xl opacity-60 animate-pulse" style={{animationDuration: '10s'}}></div>
           <div className="absolute bottom-20 left-[20%] w-80 h-80 bg-[#84b7bd]/10 rounded-full blur-3xl opacity-50 animate-pulse" style={{animationDuration: '15s'}}></div>
         </div>
         <div className="container mx-auto px-4 md:px-6 max-w-screen-xl relative z-10">
@@ -320,7 +279,7 @@ export default function HomePage() {
           </div>
 
           <div className="mt-16 text-center">
-            <Button size="lg" className="bg-[#4ba896]/10 text-[#129490] hover:bg-[#4ba896]/20 hover:shadow-md transition-all border-[#c2d8d2]/40 hover:translate-y-[-2px] group">
+            <Button size="lg" className="bg-[#4ba896]/10 text-[#128ca0] hover:bg-[#4ba896]/20 hover:shadow-md transition-all border-[#c2d8d2]/40 hover:translate-y-[-2px] group">
               <Link href="/tutors" className="flex items-center gap-2">
                 Begin Your Journey <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
               </Link>

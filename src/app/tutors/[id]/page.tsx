@@ -610,7 +610,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                     </p>
                     <Button 
                       onClick={() => router.push('/paywall')}
-                      className="bg-gradient-to-r from-[#4ba896] to-[#126d94] hover:from-[#129490] hover:to-[#126d94]"
+                      className="bg-gradient-to-r from-[#4ba896] to-[#126d94] hover:from-[#128ca0] hover:to-[#126d94]"
                       size="lg"
                     >
                       Upgrade Now
@@ -672,7 +672,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
 
                     <div className="mt-6">
                       <h3 className="font-semibold text-lg mb-2 flex items-center">
-                        <BookOpen className="h-5 w-5 mr-2 text-[#129490]" strokeWidth={1.5} />
+                        <BookOpen className="h-5 w-5 mr-2 text-[#128ca0]" strokeWidth={1.5} />
                         Services
                       </h3>
                       

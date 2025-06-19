@@ -16,53 +16,56 @@
   :root {
     /* Base teal/blue-green color palette with hex definitions */
     --light-mint: 140 30% 90%; /* #daeadc */
-    --pale-moss: 150 25% 85%; /* #c2dac2 */
+    --pale-moss: 150 25% 85%; /* #c7e4e3 */
     --sea-foam: 155 35% 75%; /* #9ed0b5 */
-    --mint-green: 160 34% 68%; /* #84bc9c */
+    --mint-green: 160 34% 68%; /* #84b4cc */
     --light-teal: 175 30% 65%; /* #84b7bd */
     --medium-teal: 178 38% 55%; /* #4ba896 */
-    --teal: 180 78% 32%; /* #129490 */
+    --teal: 180 78% 32%; /* #128ca0 */
     --blue-teal: 190 60% 32%; /* #126d94 */
     --dark-teal: 185 78% 25%; /* #0e6b68 */
     
     /* UI theming variables using our color palette */
-    --background: 140 30% 98%;
-    --foreground: 180 45% 25%;
+    /* --background: 140 30% 98%; */
+    --background: 186 30% 92%;
+    /* --foreground: 180 45% 25%; */
+    --foreground: 198, 78%, 28%;
 
-    --card: 0 0% 100%;
+    --card: 186 30% 93%;
     --card-foreground: 180 45% 25%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 180 45% 25%;
 
-    --primary: 180 78% 32%; /* #129490 (teal) */
+    --primary: 180 78% 32%; /* #128ca0 (teal) */
     --primary-foreground: 140 30% 98%;
 
     --secondary: 190 60% 32%; /* #126d94 (blue-teal) */
     --secondary-foreground: 0 0% 100%;
 
     --muted: 150 25% 95%;
-    --muted-foreground: 180 30% 35%;
+    /* --muted-foreground: 180 30% 35%; */
+    --muted-foreground: 203, 36%, 38%;
 
-    --accent: 160 34% 68%; /* #84bc9c (mint-green) */
+    --accent: 160 34% 68%; /* #84b4cc (mint-green) */
     --accent-foreground: 185 78% 25%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 150 25% 85%; /* #c2dac2 (pale-moss) */
-    --input: 150 25% 85%;  /* #c2dac2 (pale-moss) */
+    --border: 150 25% 85%; /* #c7e4e3 (pale-moss) */
+    --input: 150 25% 85%;  /* #c7e4e3 (pale-moss) */
     --ring: 178 38% 55%;   /* #4ba896 (medium-teal) */
 
     --radius: 0.5rem;
 
     --sidebar-background: 150 25% 95%; /* Lighter version of pale-moss */
     --sidebar-foreground: 180 45% 25%;
-    --sidebar-primary: 180 78% 32%; /* #129490 (teal) */
+    --sidebar-primary: 180 78% 32%; /* #128ca0 (teal) */
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 160 34% 68%; /* #84bc9c (mint-green) */
+    --sidebar-accent: 160 34% 68%; /* #84b4cc (mint-green) */
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 150 25% 85%; /* #c2dac2 (pale-moss) */
+    --sidebar-border: 150 25% 85%; /* #c7e4e3 (pale-moss) */
     --sidebar-ring: 178 38% 55%;   /* #4ba896 (medium-teal) */
 
     --navbar-height: 64px;
@@ -81,7 +84,7 @@
     --primary: 178 38% 55%; /* #4ba896 (medium-teal) - brighter in dark mode */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 160 34% 68%; /* #84bc9c (mint-green) */
+    --secondary: 160 34% 68%; /* #84b4cc (mint-green) */
     --secondary-foreground: 0 0% 100%;
 
     --muted: 180 20% 20%;
@@ -135,7 +138,7 @@
 
 @layer components {
   .hero-gradient {
-    @apply bg-gradient-to-b from-[#c2dac2] via-[#84bc9c] to-background;
+    @apply bg-gradient-to-b from-[#c7e4e3] via-[#84b4cc] to-background;
   }
 
   .card-hover {
