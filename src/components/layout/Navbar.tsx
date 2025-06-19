@@ -119,7 +119,7 @@ const Navbar = () => {
                 <Button variant="ghost" size="sm" className="rounded-full h-9 pl-2 pr-2.5 gap-1 text-sm">
                   <Avatar className="h-7 w-7 border border-border/40">
                     <AvatarImage src={user.avatar_url || user.profilePic || undefined} alt={user.name || ''} />
-                    <AvatarFallback className="bg-gradient-to-br from-[#84b4cc]/80 to-[#4ba896]/50 text-white font-medium text-xs">
+                    <AvatarFallback className="bg-gradient-to-br from-[#84b4cc]/80 to-[#3e5461]/50 text-white font-medium text-xs">
                       {getInitials(user) || 'U'}
                     </AvatarFallback>
                   </Avatar>
@@ -135,7 +135,7 @@ const Navbar = () => {
                     <p className="font-medium">{user.name || 'User'}</p>
                     <p className="text-xs text-muted-foreground">{user.email}</p>
                     {!hasAccess && !isTutor && (
-                      <div className="mt-1.5 text-xs px-1.5 py-0.5 bg-[#c7e4e3] text-[#126d94] dark:bg-[#4ba896]/20 dark:text-[#84b7bd] rounded-md inline-flex items-center w-fit">
+                      <div className="mt-1.5 text-xs px-1.5 py-0.5 bg-[#c7e4e3] text-[#126d94] dark:bg-[#3e5461]/20 dark:text-[#84b7bd] rounded-md inline-flex items-center w-fit">
                         <Lock className="h-3 w-3 mr-1" strokeWidth={2} /> Free account
                       </div>
                     )}
@@ -144,14 +144,14 @@ const Navbar = () => {
                 <DropdownMenuSeparator className="bg-border/40" />
                 <DropdownMenuItem className="focus:bg-muted">
                   <Link href={hasAccess ? "/dashboard" : "/paywall"} className="flex items-center w-full">
-                    <LayoutDashboard className="mr-2 h-4 w-4 text-[#4ba896]" strokeWidth={2} />
+                    <LayoutDashboard className="mr-2 h-4 w-4 text-[#3e5461]" strokeWidth={2} />
                     Dashboard
                     {!hasAccess && <Lock className="ml-auto h-3 w-3 text-muted-foreground" strokeWidth={2} />}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem className="focus:bg-muted">
                   <Link href={hasAccess ? "/dashboard/messages" : "/paywall"} className="flex items-center w-full">
-                    <MessageSquare className="mr-2 h-4 w-4 text-[#4ba896]" strokeWidth={2} />
+                    <MessageSquare className="mr-2 h-4 w-4 text-[#3e5461]" strokeWidth={2} />
                     Messages
                   {!hasAccess ? (
                       <Lock className="ml-auto h-3 w-3 text-muted-foreground" strokeWidth={2} />
@@ -162,14 +162,14 @@ const Navbar = () => {
                 </DropdownMenuItem>
                 <DropdownMenuItem className="focus:bg-muted">
                   <Link href="/dashboard/settings" className="flex items-center w-full">
-                    <Settings className="mr-2 h-4 w-4 text-[#4ba896]" strokeWidth={2} />
+                    <Settings className="mr-2 h-4 w-4 text-[#3e5461]" strokeWidth={2} />
                     Settings
                   </Link>
                 </DropdownMenuItem>
                 {!hasAccess && !isTutor && (
                   <>
                     <DropdownMenuSeparator className="bg-border/40" />
-                    <DropdownMenuItem className="focus:bg-[#4ba896]/10 text-[#128ca0]">
+                    <DropdownMenuItem className="focus:bg-[#3e5461]/10 text-[#128ca0]">
                       <Link href="/paywall" className="flex items-center w-full">
                         <Lock className="mr-2 h-4 w-4" strokeWidth={2} />
                         Upgrade to Premium
@@ -232,21 +232,21 @@ const Navbar = () => {
                   className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  <Home className="h-5 w-5 text-[#4ba896]" strokeWidth={1.5} /> Home
+                  <Home className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Home
                 </Link>
                 <Link 
                   href="/about" 
                   className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  <Globe className="h-5 w-5 text-[#4ba896]" strokeWidth={1.5} /> About Us
+                  <Globe className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> About Us
                 </Link>
                 <Link 
                   href="/tutors"
                   className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  <Users className="h-5 w-5 text-[#4ba896]" strokeWidth={1.5} /> Browse Tutors
+                  <Users className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Browse Tutors
                 </Link>
 
                 {/* Only show consultation button for non-logged in users or non-premium students in mobile menu */}
@@ -268,7 +268,7 @@ const Navbar = () => {
                       className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
-                      <LayoutDashboard className="h-5 w-5 text-[#4ba896]" strokeWidth={1.5} /> Dashboard
+                      <LayoutDashboard className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Dashboard
                       {!hasAccess && <Lock className="h-3.5 w-3.5 ml-1.5 text-muted-foreground" strokeWidth={2} />}
                     </Link>
                     <Link 
@@ -276,7 +276,7 @@ const Navbar = () => {
                       className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors relative"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
-                      <MessageSquare className="h-5 w-5 text-[#4ba896]" strokeWidth={1.5} /> Messages
+                      <MessageSquare className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Messages
                       {!hasAccess ? (
                         <Lock className="h-3.5 w-3.5 ml-1.5 text-muted-foreground" strokeWidth={2} />
                       ) : unreadCount > 0 ? (
@@ -288,7 +288,7 @@ const Navbar = () => {
                       className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
-                      <Settings className="h-5 w-5 text-[#4ba896]" strokeWidth={1.5} /> Settings
+                      <Settings className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Settings
                     </Link>
                   </>
                 )}
@@ -296,7 +296,7 @@ const Navbar = () => {
                 {user && !hasAccess && !isTutor && (
                   <Link 
                     href="/paywall"
-                    className="flex items-center gap-3 p-2.5 bg-[#4ba896]/10 text-[#128ca0] hover:bg-[#4ba896]/20 rounded-md mt-2"
+                    className="flex items-center gap-3 p-2.5 bg-[#3e5461]/10 text-[#128ca0] hover:bg-[#3e5461]/20 rounded-md mt-2"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
                     <Lock className="h-5 w-5" strokeWidth={1.5} /> Upgrade to Premium

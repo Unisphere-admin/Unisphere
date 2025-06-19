@@ -64,7 +64,7 @@ export default function HomePage() {
               
             </div>
             <div className="flex-1 relative ">
-              <div className="relative w-full max-w-md justify-center items-center mx-auto">
+              <div className="relative w-full justify-center items-center mx-auto" style={{maxWidth: '40rem'}}>
                 
                   <img
                     src="/uniandlogo.png"
@@ -207,7 +207,7 @@ export default function HomePage() {
           <div className="grid md:grid-cols-3 gap-6 lg:gap-10">
             <Card className="bg-card/50 backdrop-blur-sm border-[#c2d8d2]/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px]">
               <CardHeader className="pb-2">
-                <div className="flex text-[#4ba896] mb-1">
+                <div className="flex text-[#3e5461] mb-1">
                   
                 </div>
               </CardHeader>
@@ -217,7 +217,7 @@ export default function HomePage() {
                   The personalized approach made all the difference."
                 </p>
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10 ring-2 ring-[#4ba896]/20">
+                  <Avatar className="h-10 w-10 ring-2 ring-[#3e5461]/20">
                     <AvatarImage src="https://randomuser.me/api/portraits/women/32.jpg" />
                     <AvatarFallback>JS</AvatarFallback>
                   </Avatar>
@@ -231,7 +231,7 @@ export default function HomePage() {
 
             <Card className="bg-card/50 backdrop-blur-sm border-[#c2d8d2]/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px]">
               <CardHeader className="pb-2">
-                <div className="flex text-[#4ba896] mb-1">
+                <div className="flex text-[#3e5461] mb-1">
                   
                 </div>
               </CardHeader>
@@ -241,7 +241,7 @@ export default function HomePage() {
                   I can now confidently hold conversations in Spanish!"
                 </p>
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10 ring-2 ring-[#4ba896]/20">
+                  <Avatar className="h-10 w-10 ring-2 ring-[#3e5461]/20">
                     <AvatarImage src="https://randomuser.me/api/portraits/men/42.jpg" />
                     <AvatarFallback>AP</AvatarFallback>
                   </Avatar>
@@ -255,7 +255,7 @@ export default function HomePage() {
 
             <Card className="bg-card/50 backdrop-blur-sm border-[#c2d8d2]/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px]">
               <CardHeader className="pb-2">
-                <div className="flex text-[#4ba896] mb-1">
+                <div className="flex text-[#3e5461] mb-1">
                  
                 </div>
               </CardHeader>
@@ -265,7 +265,7 @@ export default function HomePage() {
                   around my busy work schedule. Highly recommend!"
                 </p>
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10 ring-2 ring-[#4ba896]/20">
+                  <Avatar className="h-10 w-10 ring-2 ring-[#3e5461]/20">
                     <AvatarImage src="https://randomuser.me/api/portraits/women/22.jpg" />
                     <AvatarFallback>MJ</AvatarFallback>
                   </Avatar>
@@ -279,7 +279,7 @@ export default function HomePage() {
           </div>
 
           <div className="mt-16 text-center">
-            <Button size="lg" className="bg-[#4ba896]/10 text-[#128ca0] hover:bg-[#4ba896]/20 hover:shadow-md transition-all border-[#c2d8d2]/40 hover:translate-y-[-2px] group">
+            <Button size="lg" className="bg-[#3e5461]/10 text-[#128ca0] hover:bg-[#3e5461]/20 hover:shadow-md transition-all border-[#c2d8d2]/40 hover:translate-y-[-2px] group">
               <Link href="/tutors" className="flex items-center gap-2">
                 Begin Your Journey <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
               </Link>

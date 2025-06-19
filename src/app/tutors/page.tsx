@@ -1035,7 +1035,7 @@ export default function TutorsPage() {
           <div className="relative max-w-xl mx-auto">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
             <Input
-                className="pl-10 h-12 bg-background/80 backdrop-blur-sm border-[#84b4cc]/30 shadow-md focus-visible:border-[#4ba896]/30 focus-visible:ring-1 focus-visible:ring-[#4ba896]/20 transition-all"
+                className="pl-10 h-12 bg-background/80 backdrop-blur-sm border-[#84b4cc]/30 shadow-md focus-visible:border-[#3e5461]/30 focus-visible:ring-1 focus-visible:ring-[#3e5461]/20 transition-all"
               placeholder="Search by university, subject, or keyword"
               value={searchTerm}
                 onChange={handleSearchChange}
@@ -1053,9 +1053,9 @@ export default function TutorsPage() {
             <DropdownMenu open={isSubjectFilterOpen} onOpenChange={setIsSubjectFilterOpen}>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="flex items-center gap-2 shadow-sm border-[#84b4cc]/40 hover:bg-[#c7e4e3]/10 transition-colors">
-                  <Filter className="h-4 w-4 text-[#4ba896]" strokeWidth={1.5} />
+                  <Filter className="h-4 w-4 text-[#3e5461]" strokeWidth={1.5} />
                   Services {selectedSubjects.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 bg-[#4ba896]/10 text-[#128ca0] border-none">
+                    <Badge variant="secondary" className="ml-1 bg-[#3e5461]/10 text-[#128ca0] border-none">
                       {selectedSubjects.length}
                     </Badge>
                   )}
@@ -1314,7 +1314,7 @@ export default function TutorsPage() {
                 <Card key={tutorId} className="overflow-hidden bg-card/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px] group flex flex-col h-full">
                   {/* Card header with gradient background */}
                   <div className="h-24 relative overflow-hidden w-full">
-                    <div className="absolute inset-0 bg-gradient-to-r from-[#c7e4e3] via-[#84b4cc] to-[#4ba896] group-hover:scale-105 transition-transform duration-500"></div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#c7e4e3] via-[#84b4cc] to-[#3e5461] group-hover:scale-105 transition-transform duration-500"></div>
                     <div className="absolute inset-0 bg-[url('/noise.png')] opacity-20"></div>
                   </div>
                   
@@ -1326,7 +1326,7 @@ export default function TutorsPage() {
                           src={user?.has_access || user?.role === 'tutor' ? tutorImage ?? undefined : avatarUrl ?? undefined} 
                           alt={tutorName}
                         />
-                        <AvatarFallback className="bg-gradient-to-br from-[#84b4cc] to-[#4ba896] text-white font-semibold">
+                        <AvatarFallback className="bg-gradient-to-br from-[#84b4cc] to-[#3e5461] text-white font-semibold">
                           {tutor.first_name ? tutor.first_name.charAt(0).toUpperCase() : ''}
                           {tutor.last_name ? tutor.last_name.charAt(0).toUpperCase() : 'T'}
                         </AvatarFallback>
@@ -1423,7 +1423,7 @@ export default function TutorsPage() {
                       </div>
                       
                       {/* Verified Badge */}
-                      <div className="flex items-center gap-1 text-[#4ba896] dark:text-[#84b4cc] text-sm mb-2">
+                      <div className="flex items-center gap-1 text-[#3e5461] dark:text-[#84b4cc] text-sm mb-2">
                         <CheckCircle className="h-3.5 w-3.5 shrink-0" />
                         <span>Verified Tutor</span>
                       </div>
@@ -1508,7 +1508,7 @@ export default function TutorsPage() {
                       <div className="mt-auto pt-2">
                         <div className="flex items-center gap-3 text-sm text-muted-foreground mb-3">
                           <div className="flex items-center">
-                            <MapPin className="h-3.5 w-3.5 mr-1 text-[#4ba896] shrink-0" strokeWidth={2} />
+                            <MapPin className="h-3.5 w-3.5 mr-1 text-[#3e5461] shrink-0" strokeWidth={2} />
                             <span className="truncate">{tutorLocation}</span>
                           </div>
                           {/* Comment out the reviews count
@@ -1530,7 +1530,7 @@ export default function TutorsPage() {
                         ) : (
                           <Button
                             onClick={() => router.push('/paywall')}
-                            className="w-full shadow-md hover:shadow-lg bg-gradient-to-r from-[#4ba896] to-[#126d94] hover:from-[#128ca0] hover:to-[#126d94] transition-all group-hover:translate-y-[-1px]"
+                            className="w-full shadow-md hover:shadow-lg bg-gradient-to-r from-[#3e5461] to-[#126d94] hover:from-[#128ca0] hover:to-[#126d94] transition-all group-hover:translate-y-[-1px]"
                           >
                             <div className="flex items-center justify-center gap-1">
                               <Sparkles className="h-3.5 w-3.5 mr-1" />

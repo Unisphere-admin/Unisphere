@@ -22,7 +22,7 @@ export default function BecomeATutorPage() {
       </div>
 
       <Card className="shadow-lg border-border/40">
-        <CardHeader className="bg-gradient-to-r from-[#4ba896]/10 to-[#126d94]/10">
+        <CardHeader className="bg-gradient-to-r from-[#3e5461]/10 to-[#126d94]/10">
           <CardTitle className="text-2xl text-center">Contact Us</CardTitle>
         </CardHeader>
         <CardContent className="p-8 text-center">

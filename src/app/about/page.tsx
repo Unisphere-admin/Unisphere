@@ -255,7 +255,7 @@ export default function AboutPage() {
         </div>
         
         <div className="max-w-3xl mx-auto text-center mb-16 relative z-10">
-          <Badge className="mb-4 bg-[#4ba896]/10 text-[#128ca0] hover:bg-[#4ba896]/20 transition-colors">Our People</Badge>
+          <Badge className="mb-4 bg-[#3e5461]/10 text-[#128ca0] hover:bg-[#3e5461]/20 transition-colors">Our People</Badge>
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Our Team</h2>
           <p className="text-xl text-muted-foreground">
           The dedicated co-founders behind UniSphere

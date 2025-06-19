@@ -579,7 +579,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                         </Button>
                     ) : (
                       <Button 
-                        className="w-full bg-gradient-to-r from-[#4ba896] to-[#126d94]" 
+                        className="w-full bg-gradient-to-r from-[#3e5461] to-[#126d94]" 
                         onClick={() => router.push('/paywall')}
                       >
                         <Sparkles className="h-4 w-4 mr-2" />
@@ -603,14 +603,14 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
               <div className="relative">
                 <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
                   <div className="text-center max-w-md p-6">
-                    <Sparkles className="h-12 w-12 mx-auto mb-4 text-[#4ba896]" />
+                    <Sparkles className="h-12 w-12 mx-auto mb-4 text-[#3e5461]" />
                     <h3 className="text-2xl font-bold mb-2">Premium Content</h3>
                     <p className="text-muted-foreground mb-6">
                       Upgrade to premium to view full tutor profiles, message tutors, and book sessions.
                     </p>
                     <Button 
                       onClick={() => router.push('/paywall')}
-                      className="bg-gradient-to-r from-[#4ba896] to-[#126d94] hover:from-[#128ca0] hover:to-[#126d94]"
+                      className="bg-gradient-to-r from-[#3e5461] to-[#126d94] hover:from-[#128ca0] hover:to-[#126d94]"
                       size="lg"
                     >
                       Upgrade Now

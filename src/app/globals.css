@@ -20,7 +20,7 @@
     --sea-foam: 155 35% 75%; /* #9ed0b5 */
     --mint-green: 160 34% 68%; /* #84b4cc */
     --light-teal: 175 30% 65%; /* #84b7bd */
-    --medium-teal: 178 38% 55%; /* #4ba896 */
+    --medium-teal: 178 38% 55%; /* #3e5461 */
     --teal: 180 78% 32%; /* #128ca0 */
     --blue-teal: 190 60% 32%; /* #126d94 */
     --dark-teal: 185 78% 25%; /* #0e6b68 */
@@ -34,10 +34,10 @@
     --card: 186 30% 93%;
     --card-foreground: 180 45% 25%;
 
-    --popover: 0 0% 100%;
+    --popover: 186 30% 93%;
     --popover-foreground: 180 45% 25%;
 
-    --primary: 180 78% 32%; /* #128ca0 (teal) */
+    --primary: 186 30% 50%; /* #128ca0 (teal) */
     --primary-foreground: 140 30% 98%;
 
     --secondary: 190 60% 32%; /* #126d94 (blue-teal) */
@@ -47,7 +47,7 @@
     /* --muted-foreground: 180 30% 35%; */
     --muted-foreground: 203, 36%, 38%;
 
-    --accent: 160 34% 68%; /* #84b4cc (mint-green) */
+    --accent: 186 34% 68%; /* #84b4cc (mint-green) */
     --accent-foreground: 185 78% 25%;
 
     --destructive: 0 84% 60%;
@@ -55,7 +55,7 @@
 
     --border: 150 25% 85%; /* #c7e4e3 (pale-moss) */
     --input: 150 25% 85%;  /* #c7e4e3 (pale-moss) */
-    --ring: 178 38% 55%;   /* #4ba896 (medium-teal) */
+    --ring: 178 38% 55%;   /* #3e5461 (medium-teal) */
 
     --radius: 0.5rem;
 
@@ -66,7 +66,7 @@
     --sidebar-accent: 160 34% 68%; /* #84b4cc (mint-green) */
     --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 150 25% 85%; /* #c7e4e3 (pale-moss) */
-    --sidebar-ring: 178 38% 55%;   /* #4ba896 (medium-teal) */
+    --sidebar-ring: 178 38% 55%;   /* #3e5461 (medium-teal) */
 
     --navbar-height: 64px;
   }
@@ -81,7 +81,7 @@
     --popover: 180 35% 15%;
     --popover-foreground: 150 15% 90%;
 
-    --primary: 178 38% 55%; /* #4ba896 (medium-teal) - brighter in dark mode */
+    --primary: 178 38% 55%; /* #3e5461 (medium-teal) - brighter in dark mode */
     --primary-foreground: 0 0% 100%;
 
     --secondary: 160 34% 68%; /* #84b4cc (mint-green) */
@@ -98,16 +98,16 @@
 
     --border: 180 20% 25%;
     --input: 180 20% 25%;
-    --ring: 178 38% 55%; /* #4ba896 (medium-teal) */
+    --ring: 178 38% 55%; /* #3e5461 (medium-teal) */
 
     --sidebar-background: 180 30% 18%;
     --sidebar-foreground: 150 15% 90%;
-    --sidebar-primary: 178 38% 55%; /* #4ba896 (medium-teal) */
+    --sidebar-primary: 178 38% 55%; /* #3e5461 (medium-teal) */
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 180 20% 25%;
     --sidebar-accent-foreground: 150 15% 90%;
     --sidebar-border: 180 25% 25%;
-    --sidebar-ring: 178 38% 55%; /* #4ba896 (medium-teal) */
+    --sidebar-ring: 178 38% 55%; /* #3e5461 (medium-teal) */
   }
 
   * {
