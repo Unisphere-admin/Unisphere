@@ -414,8 +414,8 @@ export default function DashboardPage() {
                   >
                     <defs>
                       <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.9} />
-                        <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.6} />
+                        <stop offset="0%" stopColor="#128ca0" stopOpacity={0.9} />
+                        <stop offset="100%" stopColor="#84b4cc" stopOpacity={0.7} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.4} />
@@ -426,17 +426,17 @@ export default function DashboardPage() {
                         return item ? item.name : value;
                       }}
                       axisLine={{ stroke: 'var(--border)', strokeOpacity: 0.4 }}
-                      tick={{ fill: 'var(--muted-foreground)' }}
+                      tick={{ fill: 'var(--card-foreground)' }}
                     />
                     <YAxis 
                       allowDecimals={false}
                       axisLine={{ stroke: 'var(--border)', strokeOpacity: 0.4 }}
-                      tick={{ fill: 'var(--muted-foreground)' }}
+                      tick={{ fill: 'var(--card-foreground)' }}
                     />
                     <Tooltip 
                       formatter={(value) => [`${value} sessions`, 'Sessions']}
                       contentStyle={{
-                        backgroundColor: 'var(--card)',
+                        backgroundColor: 'var(--card-foreground)',
                         borderRadius: '0.5rem',
                         border: '1px solid var(--border)',
                         boxShadow: '0 2px 5px rgba(0,0,0,0.1)'

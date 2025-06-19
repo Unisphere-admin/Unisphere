@@ -1314,7 +1314,7 @@ export default function TutorsPage() {
                 <Card key={tutorId} className="overflow-hidden bg-card/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px] group flex flex-col h-full">
                   {/* Card header with gradient background */}
                   <div className="h-24 relative overflow-hidden w-full">
-                    <div className="absolute inset-0 bg-gradient-to-r from-[#c7e4e3] via-[#84b4cc] to-[#3e5461] group-hover:scale-105 transition-transform duration-500"></div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#c7e4e3] via-[#84b4cc] to-[#128ca1] group-hover:scale-105 transition-transform duration-500"></div>
                     <div className="absolute inset-0 bg-[url('/noise.png')] opacity-20"></div>
                   </div>
                   
@@ -1326,7 +1326,7 @@ export default function TutorsPage() {
                           src={user?.has_access || user?.role === 'tutor' ? tutorImage ?? undefined : avatarUrl ?? undefined} 
                           alt={tutorName}
                         />
-                        <AvatarFallback className="bg-gradient-to-br from-[#84b4cc] to-[#3e5461] text-white font-semibold">
+                        <AvatarFallback className="bg-gradient-to-br from-[#84b4cc] to-[#128ca1] text-white font-semibold">
                           {tutor.first_name ? tutor.first_name.charAt(0).toUpperCase() : ''}
                           {tutor.last_name ? tutor.last_name.charAt(0).toUpperCase() : 'T'}
                         </AvatarFallback>
