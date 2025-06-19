@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, ControllerRenderProps, FieldPath } from "react-hook-form";
+import { useForm, ControllerRenderProps, FieldPath, useFieldArray } from "react-hook-form";
 import * as z from "zod";
-import { Loader2, Save, Mail, AlertCircle, Upload, X, Camera, User, Trash2 } from "lucide-react";
+import { Loader2, Save, Mail, AlertCircle, Upload, X, Camera, User, Trash2, Plus, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,9 @@ import Image from "next/image";
 import { uploadAvatar } from "@/utils/supabase/storage";
 import { AvatarEditor } from "@/components/AvatarEditor";
 import { useCsrfToken } from "@/lib/csrf/client";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Define the base schema for profile fields
 const baseProfileSchema = z.object({
@@ -52,6 +55,7 @@ const tutorProfileSchema = baseProfileSchema.extend({
     .transform((val: string) => (val === "" ? undefined : val))
     .optional(),
   bio: z.string().max(500, "Bio must be less than 500 characters").optional(),
+  subjects: z.array(z.string()).optional(),
 });
 
 // Update the password schema to include the current password
@@ -81,6 +85,7 @@ interface UserProfile {
   bio?: string; // Alternative field name
   age?: string;
   avatar_url?: string;
+  subjects?: string[] | string | null;
 }
 
 export default function SettingsPage() {
@@ -104,6 +109,21 @@ export default function SettingsPage() {
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { token, fetchCsrfToken } = useCsrfToken();
+  
+  // Service options for tutors
+  const serviceOptions = [
+    "Extracurricular building",
+    "Interviews",
+    "SAT",
+    "Subject Tutoring",
+    "UK Admissions tests",
+    "UK University Admissions",
+    "US University Admissions"
+  ];
+  
+  // State for subcategory inputs
+  const [newSubjectTutoring, setNewSubjectTutoring] = useState("");
+  const [newUKAdmissionsTest, setNewUKAdmissionsTest] = useState("");
 
   // Check for email verification success from URL
   useEffect(() => {
@@ -164,6 +184,7 @@ export default function SettingsPage() {
       last_name: "",
       age: "",
       bio: "",
+      subjects: [],
     },
   });
 
@@ -213,54 +234,91 @@ export default function SettingsPage() {
     }
   }, []);
 
-  // Fetch the full profile data from the API - keep existing UI if refreshing
+  // Fetch profile data
   const fetchProfileData = useCallback(async (silent = false) => {
-    if (!user?.id) return;
+    if (!user) return;
+    
+    // Use a loading timeout to avoid flickering loading states for fast responses
+    let loadingTimeout: NodeJS.Timeout | null = null;
+    
+    if (!silent) {
+      // Set a timeout to show loading state only if the request takes longer than 300ms
+      loadingTimeout = setTimeout(() => {
+        setInitialLoading(true);
+      }, 300);
+    }
     
     try {
-      // Ensure we have a valid session before making API calls
+      // Ensure session is valid before making the request
       const isSessionValid = await ensureAuthSession();
       if (!isSessionValid) {
-        if (!silent) {
-          toast.error("Session expired. Please sign in again.");
-          router.push("/login");
-        }
+        toast.error("Session expired. Please sign in again.");
+        router.push("/login");
         return;
       }
       
-      if (!silent) {
-        setProfileLoading(true);
-      }
-      
-      // Only show loading indicator on initial load
-      if (!hasLoadedOnce) {
-        setInitialLoading(true);
-      }
-      
-      // Fetch detailed profile data
       const response = await fetch(`/api/users/profile/${user.id}`, {
+        method: "GET",
         headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          "Pragma": "no-cache",
+          "Expires": "0"
         },
+        credentials: "include"
       });
       
       if (response.status === 401) {
-        // Handle unauthorized errors specially
         setAuthError(true);
-        if (!silent) {
-          toast.error("Session expired. Please sign in again.");
-          router.push("/login");
-        }
-        return;
+        throw new Error("Unauthorized");
       }
-
+      
       if (!response.ok) {
-        throw new Error(`Failed to fetch profile data: ${response.status}`);
+        throw new Error(`Failed to fetch profile: ${response.status}`);
       }
       
       const data = await response.json();
+      
+      // Update profile data
       setProfileData(data.profile);
+      
+      // Format subjects if they exist
+      let formattedSubjects: string[] = [];
+      if (data.profile.subjects) {
+        if (typeof data.profile.subjects === 'string') {
+          // Try to parse as JSON first
+          try {
+            formattedSubjects = JSON.parse(data.profile.subjects);
+          } catch (e) {
+            // If not JSON, split by comma
+            formattedSubjects = data.profile.subjects.split(',').map((s: string) => s.trim());
+          }
+        } else if (Array.isArray(data.profile.subjects)) {
+          formattedSubjects = data.profile.subjects;
+        }
+      }
+      
+      // Populate the appropriate form based on user role
+      if (user.role === 'tutor') {
+        tutorForm.reset({
+          first_name: data.profile.first_name || "",
+          last_name: data.profile.last_name || "",
+          age: data.profile.age || "",
+          bio: data.profile.bio || data.profile.description || "",
+          subjects: formattedSubjects || [],
+        });
+      } else {
+        studentForm.reset({
+          first_name: data.profile.first_name || "",
+          last_name: data.profile.last_name || "",
+          intended_universities: data.profile.intended_universities || "",
+          intended_major: data.profile.intended_major || "",
+          current_subjects: Array.isArray(data.profile.current_subjects) 
+            ? data.profile.current_subjects.join(", ") 
+            : data.profile.current_subjects || "",
+          bio: data.profile.bio || "",
+        });
+      }
+      
       setHasLoadedOnce(true);
     } catch (error) {
       console.error("Error fetching profile:", error);
@@ -268,10 +326,16 @@ export default function SettingsPage() {
         toast.error("Failed to load profile data");
       }
     } finally {
-      setProfileLoading(false);
-      setInitialLoading(false);
+      // Clear the loading timeout if it exists
+      if (loadingTimeout) {
+        clearTimeout(loadingTimeout);
+      }
+      
+      if (!silent) {
+        setInitialLoading(false);
+      }
     }
-  }, [user?.id, hasLoadedOnce, ensureAuthSession, router]);
+  }, [user, router, tutorForm, studentForm, ensureAuthSession]);
 
   // Handle session expiry and redirect if needed
   useEffect(() => {
@@ -294,7 +358,17 @@ export default function SettingsPage() {
     if (!user) {
       router.push("/login");
     } else {
-      fetchProfileData();
+      // Check if we've loaded the settings page before
+      const hasViewedSettings = localStorage.getItem('hasViewedSettings');
+      
+      // If we've loaded before, fetch data silently
+      if (hasViewedSettings === 'true') {
+        fetchProfileData(true); // Silent fetch
+      } else {
+        fetchProfileData(false); // Show loading state
+        // Remember that we've loaded the settings page
+        localStorage.setItem('hasViewedSettings', 'true');
+      }
     }
   }, [user, router, fetchProfileData]);
 
@@ -304,6 +378,22 @@ export default function SettingsPage() {
       const firstName = profileData.first_name || "";
       const lastName = profileData.last_name || "";
       
+      // Format subjects if they exist
+      let formattedSubjects: string[] = [];
+      if (profileData.subjects) {
+        if (typeof profileData.subjects === 'string') {
+          // Try to parse as JSON first
+          try {
+            formattedSubjects = JSON.parse(profileData.subjects);
+          } catch (e) {
+            // If not JSON, split by comma
+            formattedSubjects = profileData.subjects.split(',').map((s: string) => s.trim());
+          }
+        } else if (Array.isArray(profileData.subjects)) {
+          formattedSubjects = profileData.subjects;
+        }
+      }
+      
       if (isTutor) {
         tutorForm.reset({
           first_name: firstName,
@@ -311,6 +401,7 @@ export default function SettingsPage() {
           // Convert age to string explicitly to ensure it's properly displayed in the form field
           age: profileData.age?.toString() || "",
           bio: profileData.description || profileData.bio || "",
+          subjects: formattedSubjects || [],
         });
       } else {
         // Cast to include the new fields
@@ -489,6 +580,7 @@ export default function SettingsPage() {
           last_name: data.last_name,
           age: data.age ? data.age.toString() : undefined, // Ensure age is sent as a string
           bio: data.bio, // This will map to description in the database for tutors
+          subjects: data.subjects, // Add subjects array to the request
         }),
         credentials: "include",
       });
@@ -762,11 +854,223 @@ export default function SettingsPage() {
     }
   };
 
-  // Show loading only on initial page load
-  if (initialLoading) {
+  // Function to handle adding multiple comma-separated subjects
+  const handleAddMultipleSubjects = (input: string, prefix: string) => {
+    if (!input.trim()) return;
+    
+    const currentSubjects = tutorForm.getValues("subjects") || [];
+    const newSubjects = input.split(',')
+      .map(item => item.trim())
+      .filter(item => item !== '')
+      .map(item => `${prefix}${item}`);
+    
+    // Add only unique subjects
+    const uniqueNewSubjects = newSubjects.filter(subject => 
+      !currentSubjects.includes(subject)
+    );
+    
+    if (uniqueNewSubjects.length > 0) {
+      tutorForm.setValue("subjects", [...currentSubjects, ...uniqueNewSubjects]);
+    }
+  };
+
+  // Function to check if a subject belongs to a service category
+  const subjectBelongsToService = (subject: string, service: string): boolean => {
+    if (!subject) return false;
+    
+    // Convert both to lowercase for case-insensitive comparison
+    const subjectLower = subject.toLowerCase();
+    const serviceLower = service.toLowerCase();
+    
+    // Direct match (case insensitive)
+    if (subjectLower === serviceLower) return true;
+    
+    // Check with or without spaces around the dash (case insensitive)
+    return subjectLower.startsWith(`${serviceLower} - `) || 
+           subjectLower.startsWith(`${serviceLower}- `) || 
+           subjectLower.startsWith(`${serviceLower} -`) || 
+           subjectLower.startsWith(`${serviceLower}-`);
+  };
+  
+  // Function to extract subcategory from subject
+  const extractSubcategory = (subject: string, service: string): string => {
+    if (!subject) return "";
+    
+    // Convert to lowercase for case-insensitive comparison
+    const subjectLower = subject.toLowerCase();
+    const serviceLower = service.toLowerCase();
+    
+    if (subjectLower === serviceLower) return "";
+    
+    // Try different dash formats with case insensitivity
+    // But return the original case of the subcategory
+    if (subjectLower.startsWith(`${serviceLower} - `)) {
+      return subject.substring(service.length + 3); // " - " is 3 characters
+    }
+    if (subjectLower.startsWith(`${serviceLower}- `)) {
+      return subject.substring(service.length + 2); // "- " is 2 characters
+    }
+    if (subjectLower.startsWith(`${serviceLower} -`)) {
+      return subject.substring(service.length + 2); // " -" is 2 characters
+    }
+    if (subjectLower.startsWith(`${serviceLower}-`)) {
+      return subject.substring(service.length + 1); // "-" is 1 character
+    }
+    
+    return "";
+  };
+
+  // Debug effect to log subjects data changes
+  useEffect(() => {
+    const subjects = tutorForm.watch("subjects");
+    console.log("Subjects data changed:", subjects);
+    
+    if (Array.isArray(subjects) && subjects.length > 0) {
+      // Log each subject and which service it belongs to
+      subjects.forEach(subject => {
+        for (const service of serviceOptions) {
+          if (subjectBelongsToService(subject, service)) {
+            console.log(`Subject "${subject}" belongs to service "${service}"`);
+            if (subject !== service) {
+              console.log(`  Subcategory: "${extractSubcategory(subject, service)}"`);
+            }
+            break;
+          }
+        }
+      });
+    }
+  }, [tutorForm.watch("subjects")]);
+
+  // Create a skeleton loading component
+  const SettingsSkeleton = () => (
+    <div className="space-y-8 animate-pulse">
+      {/* Profile Picture Card Skeleton */}
+      <Card className="mb-8 bg-card/80 backdrop-blur-sm border-border/40 shadow-md">
+        <CardHeader>
+          <div className="h-6 w-40 bg-muted rounded-md mb-1"></div>
+          <div className="h-4 w-64 bg-muted/70 rounded-md"></div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center sm:flex-row sm:items-start gap-6">
+            <div className="h-32 w-32 rounded-full bg-muted/80"></div>
+            <div className="w-full space-y-4">
+              <div className="h-9 w-full sm:w-40 bg-muted/80 rounded-md"></div>
+              <div className="flex gap-2">
+                <div className="h-9 w-full sm:w-32 bg-muted/80 rounded-md"></div>
+                <div className="h-9 w-full sm:w-32 bg-muted/80 rounded-md"></div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Profile Settings Card Skeleton */}
+      <Card className="mb-8 bg-card/80 backdrop-blur-sm border-border/40 shadow-md">
+        <CardHeader>
+          <div className="h-6 w-40 bg-muted rounded-md mb-1"></div>
+          <div className="h-4 w-64 bg-muted/70 rounded-md"></div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div className="h-4 w-24 bg-muted/80 rounded-md"></div>
+                <div className="h-10 w-full bg-muted/60 rounded-md"></div>
+              </div>
+              <div className="space-y-2">
+                <div className="h-4 w-24 bg-muted/80 rounded-md"></div>
+                <div className="h-10 w-full bg-muted/60 rounded-md"></div>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <div className="h-4 w-24 bg-muted/80 rounded-md"></div>
+              <div className="h-10 w-full bg-muted/60 rounded-md"></div>
+            </div>
+            
+            <div className="space-y-2">
+              <div className="h-4 w-24 bg-muted/80 rounded-md"></div>
+              <div className="h-32 w-full bg-muted/60 rounded-md"></div>
+            </div>
+            
+            {isTutor && (
+              <div className="space-y-2">
+                <div className="h-4 w-32 bg-muted/80 rounded-md"></div>
+                <div className="h-64 w-full bg-muted/60 rounded-md"></div>
+              </div>
+            )}
+            
+            <div className="flex justify-end">
+              <div className="h-10 w-32 bg-muted/80 rounded-md"></div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Email Settings Card Skeleton */}
+      <Card className="mb-6 bg-card/80 backdrop-blur-sm border-border/40 shadow-md">
+        <CardHeader>
+          <div className="h-6 w-40 bg-muted rounded-md mb-1"></div>
+          <div className="h-4 w-64 bg-muted/70 rounded-md"></div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="h-4 w-24 bg-muted/80 rounded-md"></div>
+              <div className="h-10 w-full bg-muted/60 rounded-md"></div>
+            </div>
+            <div className="flex justify-end">
+              <div className="h-10 w-32 bg-muted/80 rounded-md"></div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Password Card Skeleton */}
+      <Card className="mb-6 bg-card/80 backdrop-blur-sm border-border/40 shadow-md">
+        <CardHeader>
+          <div className="h-6 w-40 bg-muted rounded-md mb-1"></div>
+          <div className="h-4 w-64 bg-muted/70 rounded-md"></div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="space-y-2">
+                <div className="h-4 w-24 bg-muted/80 rounded-md"></div>
+                <div className="h-10 w-full bg-muted/60 rounded-md"></div>
+              </div>
+            ))}
+            <div className="flex justify-end">
+              <div className="h-10 w-40 bg-muted/80 rounded-md"></div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  // Show loading only on initial page load and if we haven't loaded before
+  if (initialLoading && !hasLoadedOnce) {
     return (
       <div className="flex items-center justify-center h-[50vh]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Show skeleton for silent loading
+  if (!hasLoadedOnce && !initialLoading) {
+    return (
+      <div className="container max-w-3xl py-8 relative min-h-[calc(100vh-var(--navbar-height)-2rem)]">
+        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background pointer-events-none -z-10"></div>
+        <div className="space-y-0.5 mb-6">
+          <h2 className="text-2xl font-bold">Settings</h2>
+          <p className="text-muted-foreground">
+            Manage your account settings and profile information
+          </p>
+        </div>
+        <Separator className="my-6 opacity-70" />
+        <SettingsSkeleton />
       </div>
     );
   }
@@ -791,7 +1095,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="container max-w-3xl py-8 relative">
+    <div className="container max-w-3xl py-8 relative min-h-[calc(100vh-var(--navbar-height)-2rem)]">
       {/* Add subtle background gradient */}
       <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background pointer-events-none -z-10"></div>
       
@@ -1038,6 +1342,222 @@ export default function SettingsPage() {
                     </FormItem>
                   )}
                 />
+
+                {/* Services Selection */}
+                <div className="space-y-4">
+                  <FormLabel>Services</FormLabel>
+                  <p className="text-sm text-muted-foreground -mt-2">
+                    Select the services you offer. For Subject tutoring and UK admissions tests, you can add specific subjects or tests.
+                  </p>
+                  <div className="bg-muted/30 p-4 rounded-md border border-border/40">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {serviceOptions.map((service) => (
+                        <div key={service} className="flex items-start space-x-2">
+                          <Checkbox 
+                            id={`service-${service}`}
+                            checked={
+                              // Check if the exact service is included
+                              (tutorForm.watch("subjects") || []).includes(service) || 
+                              // Or if any subcategory of this service exists
+                              (tutorForm.watch("subjects") || []).some(subject => 
+                                subjectBelongsToService(subject, service)
+                              )
+                            }
+                            onCheckedChange={(checked) => {
+                              console.log("Service toggled:", service, "to", checked);
+                              console.log("Current subjects:", tutorForm.getValues("subjects"));
+                              
+                              const currentSubjects = tutorForm.getValues("subjects") || [];
+                              
+                              if (checked) {
+                                // Add the service if not already present
+                                if (!currentSubjects.includes(service)) {
+                                  tutorForm.setValue("subjects", [...currentSubjects, service]);
+                                  console.log("Added service:", service);
+                                  console.log("Updated subjects:", tutorForm.getValues("subjects"));
+                                }
+                              } else {
+                                // Remove the service and any subcategories
+                                const filteredSubjects = currentSubjects.filter(
+                                  subject => !subjectBelongsToService(subject, service)
+                                );
+                                tutorForm.setValue("subjects", filteredSubjects);
+                                console.log("Removed service:", service);
+                                console.log("Updated subjects:", tutorForm.getValues("subjects"));
+                              }
+                            }}
+                          />
+                          <div className="space-y-1 leading-none">
+                            <Label 
+                              htmlFor={`service-${service}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                              {service}
+                            </Label>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Subject Tutoring Subcategories */}
+                    {tutorForm.watch("subjects")?.some(subject => 
+                      subjectBelongsToService(subject, "Subject Tutoring")
+                    ) && (
+                      <div className="mt-4 border-t border-border/30 pt-4">
+                        <Label className="text-sm font-medium mb-2 block">Subject Tutoring Areas</Label>
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {tutorForm.watch("subjects")
+                            ?.filter(subject => subjectBelongsToService(subject, "Subject Tutoring") && subject !== "Subject Tutoring")
+                            .map((subject) => {
+                              const subjectName = extractSubcategory(subject, "Subject Tutoring");
+                              return (
+                                <Badge 
+                                  key={subject} 
+                                  variant="secondary"
+                                  className="flex items-center gap-1 bg-primary/10 text-primary border-primary/20"
+                                >
+                                  {subjectName}
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
+                                    onClick={() => {
+                                      const currentSubjects = tutorForm.getValues("subjects") || [];
+                                      const filteredSubjects = currentSubjects.filter(s => s !== subject);
+                                      tutorForm.setValue("subjects", filteredSubjects);
+                                    }}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </Badge>
+                              );
+                            })}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input 
+                            placeholder="Add subjects (comma-separated, e.g. Mathematics, Physics)"
+                            value={newSubjectTutoring}
+                            onChange={(e) => setNewSubjectTutoring(e.target.value)}
+                            className="flex-1 h-9 bg-background/80"
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-9 border-primary/30 hover:bg-primary/5"
+                            onClick={() => {
+                              if (newSubjectTutoring.trim()) {
+                                handleAddMultipleSubjects(newSubjectTutoring, "Subject Tutoring - ");
+                                setNewSubjectTutoring("");
+                              }
+                            }}
+                          >
+                            <Plus className="h-4 w-4 mr-1" /> Add
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          You can enter multiple subjects separated by commas
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* UK Admissions Tests Subcategories */}
+                    {tutorForm.watch("subjects")?.some(subject => 
+                      subjectBelongsToService(subject, "UK Admissions tests")
+                    ) && (
+                      <div className="mt-4 border-t border-border/30 pt-4">
+                        <Label className="text-sm font-medium mb-2 block">UK Admissions Tests</Label>
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {tutorForm.watch("subjects")
+                            ?.filter(subject => subjectBelongsToService(subject, "UK Admissions tests") && subject !== "UK Admissions tests")
+                            .map((subject) => {
+                              const testName = extractSubcategory(subject, "UK Admissions tests");
+                              return (
+                                <Badge 
+                                  key={subject} 
+                                  variant="secondary"
+                                  className="flex items-center gap-1 bg-primary/10 text-primary border-primary/20"
+                                >
+                                  {testName}
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
+                                    onClick={() => {
+                                      const currentSubjects = tutorForm.getValues("subjects") || [];
+                                      const filteredSubjects = currentSubjects.filter(s => s !== subject);
+                                      tutorForm.setValue("subjects", filteredSubjects);
+                                    }}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </Badge>
+                              );
+                            })}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input 
+                            placeholder="Add tests (comma-separated, e.g. BMAT, LNAT, TSA)"
+                            value={newUKAdmissionsTest}
+                            onChange={(e) => setNewUKAdmissionsTest(e.target.value)}
+                            className="flex-1 h-9 bg-background/80"
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-9 border-primary/30 hover:bg-primary/5"
+                            onClick={() => {
+                              if (newUKAdmissionsTest.trim()) {
+                                handleAddMultipleSubjects(newUKAdmissionsTest, "UK Admissions tests - ");
+                                setNewUKAdmissionsTest("");
+                              }
+                            }}
+                          >
+                            <Plus className="h-4 w-4 mr-1" /> Add
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          You can enter multiple tests separated by commas
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Display selected services */}
+                    {Array.isArray(tutorForm.watch("subjects")) && tutorForm.watch("subjects")!.length > 0 && (
+                      <div className="mt-4 pt-2">
+                        <p className="text-xs text-muted-foreground mb-2">Selected services:</p>
+                        <ScrollArea className="h-24 rounded-md border border-border/40 p-2">
+                          <div className="space-y-1">
+                            {(tutorForm.watch("subjects") || []).map((subject) => (
+                              <div key={subject} className="text-xs flex items-center justify-between group">
+                                <div className="flex items-center">
+                                  <Tag className="h-3 w-3 mr-2 text-primary" strokeWidth={2} />
+                                  {subject}
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={() => {
+                                    const currentSubjects = tutorForm.getValues("subjects") || [];
+                                    const filteredSubjects = currentSubjects.filter(s => s !== subject);
+                                    tutorForm.setValue("subjects", filteredSubjects);
+                                  }}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
                 <div className="flex justify-end">
                   <Button type="submit" disabled={profileLoading} className="shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]">

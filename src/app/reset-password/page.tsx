@@ -72,13 +72,13 @@ export default function ResetPasswordPage() {
             const { error: otpError } = await supabase.auth.verifyOtp({
               type: 'recovery',
               token_hash: code
-            });
-            
+        });
+        
             if (otpError) {
               console.error('OTP verification error:', otpError);
               throw new Error('Invalid reset code');
-            }
-            
+        }
+        
             // If we get here, we should have a session
             const { data: finalCheck } = await supabase.auth.getSession();
             

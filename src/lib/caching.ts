@@ -248,7 +248,7 @@ export async function getAndCacheData<T>(
     if (errorString.includes('403') || errorString.toLowerCase().includes('forbidden')) {
       console.debug(`Permission denied (403) for ${key} - this is expected for non-premium users or when not authenticated`);
     } else {
-      console.error(`Error fetching data for ${key}:`, error);
+    console.error(`Error fetching data for ${key}:`, error);
     }
     delete pendingRefreshes[key];
     throw error;
@@ -280,7 +280,7 @@ function refreshCacheInBackground<T>(
     if (errorString.includes('403') || errorString.toLowerCase().includes('forbidden')) {
       console.debug(`Background refresh permission denied (403) for ${key} - this is expected for non-premium users`);
     } else {
-      console.error(`Background refresh failed for ${key}:`, error);
+    console.error(`Background refresh failed for ${key}:`, error);
     }
     delete pendingRefreshes[key];
     throw error;

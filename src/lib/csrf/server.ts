@@ -166,11 +166,11 @@ export async function clearCsrfToken(): Promise<void> {
   try {
     const cookieStore = await cookies();
     cookieStore.set({
-      name: CSRF_COOKIE_NAME,
-      value: "",
-      expires: new Date(0),
-      path: "/"
-    });
+    name: CSRF_COOKIE_NAME,
+    value: "",
+    expires: new Date(0),
+    path: "/"
+  });
   } catch (error) {
     console.error("Error clearing CSRF token:", error);
   }
@@ -200,38 +200,38 @@ export async function csrfMiddleware(
   
   try {
     // Get token from header
-    const requestToken = req.headers.get(CSRF_HEADER_NAME);
-    
-    if (!requestToken) {
+  const requestToken = req.headers.get(CSRF_HEADER_NAME);
+  
+  if (!requestToken) {
       console.error(`CSRF validation failed: No token in header for ${req.method} ${req.nextUrl.pathname}`);
-      return NextResponse.json(
+    return NextResponse.json(
         { error: "CSRF token missing", details: "No CSRF token provided in request" },
-        { status: 403 }
-      );
-    }
-    
+      { status: 403 }
+    );
+  }
+  
     // Validate the stored token using the user ID for additional security
     const { valid, token: storedToken, error } = await validateStoredToken(user?.id);
-    
+  
     if (!valid || !storedToken) {
       console.error(`CSRF validation failed: ${error || "Token invalid/expired"} for ${req.method} ${req.nextUrl.pathname}`);
-      return NextResponse.json(
+    return NextResponse.json(
         { error: "CSRF token invalid", details: "Authentication token is invalid or expired. Please refresh the page and try again" },
-        { status: 403 }
-      );
-    }
-    
+      { status: 403 }
+    );
+  }
+  
     // Compare tokens using constant-time comparison to prevent timing attacks
     if (!constantTimeEqual(requestToken, storedToken)) {
-      console.error(`CSRF validation failed: Token mismatch for ${req.method} ${req.nextUrl.pathname}`);
-      return NextResponse.json(
+    console.error(`CSRF validation failed: Token mismatch for ${req.method} ${req.nextUrl.pathname}`);
+    return NextResponse.json(
         { error: "CSRF token mismatch", details: "Authentication token is invalid. Please refresh the page and try again" },
-        { status: 403 }
-      );
-    }
-    
-    // If validation passes, return null to continue to the next middleware/handler
-    return null;
+      { status: 403 }
+    );
+  }
+  
+  // If validation passes, return null to continue to the next middleware/handler
+  return null;
   } catch (error) {
     console.error(`CSRF middleware error for ${req.method} ${req.nextUrl.pathname}:`, error);
     return NextResponse.json(
@@ -265,20 +265,20 @@ export function withCsrfProtection<T extends any[], R>(
 ): (...args: T) => Promise<R> {
   return async (...args: T): Promise<R> => {
     try {
-      // The first argument should be the request
-      const req = args[0] as NextRequest;
-      const user = args[1] as AuthUser;
-      
-      // Apply CSRF middleware
-      const csrfResponse = await csrfMiddleware(req, user);
-      
-      // If CSRF validation fails, throw an error
-      if (csrfResponse !== null) {
-        throw new Error("CSRF validation failed");
-      }
-      
-      // Otherwise, continue with the handler
-      return await handler(...args);
+    // The first argument should be the request
+    const req = args[0] as NextRequest;
+    const user = args[1] as AuthUser;
+    
+    // Apply CSRF middleware
+    const csrfResponse = await csrfMiddleware(req, user);
+    
+    // If CSRF validation fails, throw an error
+    if (csrfResponse !== null) {
+      throw new Error("CSRF validation failed");
+    }
+    
+    // Otherwise, continue with the handler
+    return await handler(...args);
     } catch (error) {
       console.error("Error in CSRF-protected handler:", error);
       throw error; // Re-throw to let the caller handle it

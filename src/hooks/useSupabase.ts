@@ -85,21 +85,21 @@ export function useTutorProfile(id: string | undefined) {
           setTutor(data.tutor);
         } else if (response.status === 404) {
           // Tutor not found in public API, try fetching directly
-          const { data, error } = await supabase
-            .from('tutor_profile')
-            .select('*')
-            .eq('id', id)
-            .single();
+        const { data, error } = await supabase
+          .from('tutor_profile')
+          .select('*')
+          .eq('id', id)
+          .single();
 
-          if (error) {
-            if (error.code === 'PGRST116') {
-              // No rows returned
-              setTutor(null);
-            } else {
-              throw error;
-            }
+        if (error) {
+          if (error.code === 'PGRST116') {
+            // No rows returned
+            setTutor(null);
           } else {
-            setTutor(data);
+            throw error;
+          }
+        } else {
+          setTutor(data);
           }
         } else {
           throw new Error(`API returned status ${response.status}`);

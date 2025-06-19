@@ -13,39 +13,39 @@ export async function POST(req: NextRequest) {
             email = body.email;
         } else {
             // Handle form data request
-            const formData = await req.formData();
+    const formData = await req.formData();
             email = String(formData.get("email"));
         }
 
         if (!email || typeof email !== "string" || !email.includes('@')) {
-            return NextResponse.json(
-                { error: "A valid email is required." },
-                { status: 400 }
-            );
-        }
-        
+        return NextResponse.json(
+            { error: "A valid email is required." },
+            { status: 400 }
+        );
+    }
+    
         console.log(`Sending password reset email to: ${email}`);
-        const supabase = await createRouteHandlerClientWithCookies();
+    const supabase = await createRouteHandlerClientWithCookies();
 
         // Send password reset email with redirect URL
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
             // This URL will receive the code parameter from Supabase
             redirectTo: `${req.nextUrl.origin}/reset-password`,
-        });
+    });
 
-        if (error) {
+    if (error) {
             console.error("Password reset error:", error.message, error);
-            return NextResponse.json(
-                { error: error.message },
-                { status: 500 }
-            );
-        }
+        return NextResponse.json(
+            { error: error.message },
+            { status: 500 }
+        );
+    }
 
         console.log(`Password reset email sent successfully to: ${email}`);
-        return NextResponse.json(
+    return NextResponse.json(
             { message: "Password reset email sent. Please check your inbox." },
-            { status: 200 }
-        );
+        { status: 200 }
+    );
     } catch (error) {
         console.error("Unexpected error in reset password:", error);
         return NextResponse.json(

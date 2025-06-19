@@ -346,21 +346,41 @@ const getUniversityLogo = (universityName: string | null | undefined): string | 
   
   // Map of university name patterns to their logo files
   const universityLogoMap: Record<string, string> = {
-    'oxford': '/Unilogos/oxford.png',
-    'cambridge': '/Unilogos/cambridge.jpg',
-    'harvard': '/Unilogos/harvard.png',
-    'stanford': '/Unilogos/stanford.png',
-    'yale': '/Unilogos/yale.png',
-    'berkeley': '/Unilogos/berkeley.png',
-    'caltech': '/Unilogos/caltech.png',
-    'chicago': '/Unilogos/chicago.png',
-    'columbia': '/Unilogos/columbia.png',
-    'cornell': '/Unilogos/cornell.png',
-    'imperial': '/Unilogos/imperial.png',
-    'london school of economics': '/Unilogos/london school of economics.png',
-    'lse': '/Unilogos/london school of economics.png',
-    'ucl': '/Unilogos/university college london.jpg',
-    'university college london': '/Unilogos/university college london.jpg'
+    'oxford': '/Unilogos/Oxford Logo.png',
+    'cambridge': '/Unilogos/Cambridge Logo.png',
+    'harvard': '/Unilogos/Harvard Logo.png',
+    'yale': '/Unilogos/Yale Logo.png',
+    'columbia': '/Unilogos/Columbia Logo.png',
+    'cornell': '/Unilogos/Cornell Logo.png',
+    'brown': '/Unilogos/Brown Logo.png',
+    'upenn': '/Unilogos/UPenn Logo.png',
+    'penn': '/Unilogos/UPenn Logo.png',
+    'university of pennsylvania': '/Unilogos/UPenn Logo.png',
+    'princeton': '/Unilogos/Princeton Logo.png',
+    'uchicago': '/Unilogos/UChicago Logo.png',
+    'chicago': '/Unilogos/UChicago Logo.png',
+    'university of chicago': '/Unilogos/UChicago Logo.png',
+    'berkeley': '/Unilogos/UCBerkley Logo.png',
+    'uc berkeley': '/Unilogos/UCBerkley Logo.png',
+    'davis': '/Unilogos/UCDavis Logo.png',
+    'uc davis': '/Unilogos/UCDavis Logo.png',
+    'mit': '/Unilogos/MIT Logo.png',
+    'massachusetts institute of technology': '/Unilogos/MIT Logo.png',
+    'nyu': '/Unilogos/NYU Logo.png',
+    'new york university': '/Unilogos/NYU Logo.png',
+    'imperial': '/Unilogos/Imperial Logo.png',
+    'imperial college': '/Unilogos/Imperial Logo.png',
+    'imperial college london': '/Unilogos/Imperial Logo.png',
+    'lse': '/Unilogos/LSE Logo.png',
+    'london school of economics': '/Unilogos/LSE Logo.png',
+    'ucl': '/Unilogos/UCL Logo.png',
+    'university college london': '/Unilogos/UCL Logo.png',
+    'kings': '/Unilogos/KCL Logo.png',
+    'kings college': '/Unilogos/KCL Logo.png',
+    'kings college london': '/Unilogos/KCL Logo.png',
+    'kcl': '/Unilogos/KCL Logo.png',
+    'durham': '/Unilogos/Durham Logo.png',
+    'durham university': '/Unilogos/Durham Logo.png'
   };
   
   // Find the matching university logo
@@ -967,7 +987,7 @@ export default function TutorsPage() {
           {!hasPremiumAccess && (
             <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
                Browse our network of expert tutors and find the right match for your learning needs. Unlock premium access to our website to view tutors' full profiles and book sessions.
-            </p>
+          </p>
           )}
           
             {/* Search Bar with improved styling */}
@@ -1272,7 +1292,7 @@ export default function TutorsPage() {
                     </Avatar>
                     
                     {/* University Logo Circle */}
-                    <div className="h-24 w-24 rounded-full border-4 border-background absolute -top-12 left-20 shadow-md overflow-hidden bg-white z-10">
+                    <div className="h-24 w-24 rounded-full border-4 border-background absolute -top-12 shadow-md overflow-hidden bg-white z-10" style={{ left: '6rem' }}>
                       {/* Get university information */}
                       {(() => {
                         const universityName = extractUniversityName(tutor.current_education);
@@ -1287,22 +1307,23 @@ export default function TutorsPage() {
                                 width={96} 
                                 height={96} 
                                 className="object-contain"
+                                style={{ maxWidth: '120%' }}
                               />
                             </div>
                           );
                         } else if (typeof tutor.current_education === 'string' && tutor.current_education.trim()) {
                           return (
-                            <div className="h-full w-full flex items-center justify-center bg-white p-1">
-                              <div className="text-xs text-center font-medium text-[#4b92a9]">
-                                {tutor.current_education.split(' ').slice(0, 2).map(word => word[0]).join('')}
-                              </div>
-                            </div>
+                        <div className="h-full w-full flex items-center justify-center bg-white p-1">
+                          <div className="text-xs text-center font-medium text-[#4b92a9]">
+                            {tutor.current_education.split(' ').slice(0, 2).map(word => word[0]).join('')}
+                          </div>
+                        </div>
                           );
                         } else {
                           return (
-                            <div className="h-full w-full flex items-center justify-center bg-white">
-                              <School className="h-10 w-10 text-[#4b92a9]/40" />
-                            </div>
+                        <div className="h-full w-full flex items-center justify-center bg-white">
+                          <School className="h-10 w-10 text-[#4b92a9]/40" />
+                        </div>
                           );
                         }
                       })()}
@@ -1459,12 +1480,12 @@ export default function TutorsPage() {
                         </div>
                         
                         {hasPremiumAccess ? (
-                          <Button asChild className="w-full shadow-md hover:shadow-lg bg-[#129490] hover:bg-[#126d94] transition-all group-hover:translate-y-[-1px]">
-                            <Link href={`/tutors/${tutorId}`} className="flex items-center justify-center gap-1">
-                              View Profile
-                              <ArrowRight className="h-3.5 w-3.5 ml-1 group-hover:translate-x-0.5 transition-transform" />
-                            </Link>
-                          </Button>
+                        <Button asChild className="w-full shadow-md hover:shadow-lg bg-[#129490] hover:bg-[#126d94] transition-all group-hover:translate-y-[-1px]">
+                          <Link href={`/tutors/${tutorId}`} className="flex items-center justify-center gap-1">
+                            View Profile
+                            <ArrowRight className="h-3.5 w-3.5 ml-1 group-hover:translate-x-0.5 transition-transform" />
+                          </Link>
+                        </Button>
                         ) : (
                           <Button
                             onClick={() => router.push('/paywall')}

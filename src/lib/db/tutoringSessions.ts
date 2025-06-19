@@ -68,12 +68,12 @@ async function _createTutoringSessionRequest(
           return { session: null, error: "Student does not have enough tokens to create this session." };
         }
       } else {
-        const { user: studentProfile, error: studentProfileError } = await getUserProfile(studentId);
-        if (studentProfileError || !studentProfile) {
-          return { session: null, error: "Could not retrieve student profile to check tokens." };
-        }
-        if (!studentProfile.tokens || studentProfile.tokens <= 0) {
-          return { session: null, error: "Student does not have enough tokens to create this session." };
+      const { user: studentProfile, error: studentProfileError } = await getUserProfile(studentId);
+      if (studentProfileError || !studentProfile) {
+        return { session: null, error: "Could not retrieve student profile to check tokens." };
+      }
+      if (!studentProfile.tokens || studentProfile.tokens <= 0) {
+        return { session: null, error: "Student does not have enough tokens to create this session." };
         }
       }
     } else {

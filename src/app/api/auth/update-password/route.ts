@@ -5,17 +5,17 @@ import { getAuthUser } from "@/lib/auth/protectResource";
 
 export async function GET(req: NextRequest) {
     try {
-        const url = new URL(req.url);
-        const code = url.searchParams.get('code');
+    const url = new URL(req.url);
+    const code = url.searchParams.get('code');
         
         // Code verifier might be stored in cookies by Supabase
         // We don't need to manually handle it as Supabase client will
         // extract it from cookies automatically
 
-        if (!code) {
+    if (!code) {
             console.error('No code provided for password reset');
             return NextResponse.redirect(new URL('/login?error=missing-code', req.url));
-        }
+    }
 
         const supabase = await createRouteHandlerClientWithCookies();
 
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
             password = body.password;
         } else {
             // Handle form data request (for backward compatibility)
-            const formData = await req.formData();
+        const formData = await req.formData();
             password = String(formData.get('password'));
         }
 

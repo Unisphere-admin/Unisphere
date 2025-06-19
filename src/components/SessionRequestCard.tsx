@@ -1235,7 +1235,7 @@ export function SessionRequestCard({
                   </SessionLink>
                 )}
                 {isTutor && (
-                  <Button 
+                  <Button
                     variant="destructive"
                     onClick={handleEndSession}
                     disabled={loading}

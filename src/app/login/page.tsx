@@ -257,12 +257,12 @@ export default function LoginPage() {
           options: {
             emailRedirectTo: `${window.location.origin}/reset-password`,
           }
-        });
-        
+      });
+      
         if (otpError) {
           console.error('OTP sign-in error:', otpError);
           throw new Error(otpError.message || 'Failed to send reset email');
-        }
+      }
       }
       
       console.log('Password reset email sent successfully');
