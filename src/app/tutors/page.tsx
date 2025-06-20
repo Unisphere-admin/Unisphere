@@ -384,7 +384,14 @@ const getUniversityLogo = (universityName: string | null | undefined): string | 
     'kings college london': '/Unilogos/KCL Logo.png',
     'kcl': '/Unilogos/KCL Logo.png',
     'durham': '/Unilogos/Durham Logo.png',
-    'durham university': '/Unilogos/Durham Logo.png'
+    'durham university': '/Unilogos/Durham Logo.png',
+    'warwick': '/Unilogos/Warwick Logo.png',
+    'warwick university': '/Unilogos/Warwick Logo.png',
+    'university of warwick': '/Unilogos/Warwick Logo.png',
+    'caltech': '/Unilogos/Caltech Logo.png',
+    'california institute of technology': '/Unilogos/Caltech Logo.png',
+    'stanford': '/Unilogos/Stanford Logo.png',
+    'stanford university': '/Unilogos/Stanford Logo.png'
   };
   
   // Special handling for UC schools

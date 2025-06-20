@@ -138,7 +138,7 @@ const Footer = () => {
                 <div className="bg-primary/10 p-1.5 rounded-full">
                   <Mail className="h-4 w-4 text-primary" strokeWidth={2} />
                 </div>
-                <span className="text-sm text-muted-foreground">info@unisphere.my</span>
+                <span className="text-sm text-muted-foreground">admin@unisphere.my</span>
               </div>
             </div>
           </div>
