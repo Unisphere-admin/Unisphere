@@ -61,7 +61,6 @@ export function useApiTutorProfiles() {
             err.status === 403) {
           // Import and call invalidate function directly to avoid circular imports
           import('@/lib/tutorsCaching').then(({ invalidateTutorsCache }) => {
-            console.log('Authentication error, clearing tutor cache');
             invalidateTutorsCache();
           });
         }

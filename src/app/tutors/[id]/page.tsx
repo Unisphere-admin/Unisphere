@@ -70,6 +70,28 @@ type Review = {
   date?: string | Date;
 };
 
+// Define TutorProfile interface
+interface TutorProfile {
+  id: string;
+  search_id?: string;
+  first_name?: string;
+  last_name?: string;
+  description?: string;
+  subjects?: string[] | string;
+  avatar_url?: string;
+  location?: string;
+  age?: number;
+  major?: string;
+  current_education?: string | string[];
+  year?: string;
+  previous_education?: string[];
+  extracurriculars?: string[];
+  gcse?: string[];
+  "a-levels"?: string[];
+  spm?: string;
+  service_costs?: Record<string, number>;
+}
+
 // Helper function to extract file reference from URL
 function extractFileRefFromUrl(url: string): string | null {
   if (!url) return null;
@@ -137,6 +159,149 @@ const getTutorAvatarUrl = (tutor: any, hasPremiumAccess: boolean = false) => {
   
   // Return null to trigger the AvatarFallback
   return null;
+};
+
+// Function to parse formatted service cost string
+const parseServiceCost = (formattedCost: string | number): number => {
+  if (typeof formattedCost === 'number') {
+    return formattedCost;
+  }
+  
+  const parts = formattedCost.split(' - ');
+  return parts.length > 1 ? parseInt(parts[1]) || 0 : 0;
+};
+
+// Helper function to get the main service name for cost lookup
+const getMainServiceName = (subject: string): string => {
+  // Normalize text for comparison by converting to lowercase
+  const normalizedSubject = subject.toLowerCase().trim();
+  
+  // Check for variations of UK Admissions tests
+  if (
+    normalizedSubject.startsWith('uk admissions tests') ||
+    normalizedSubject.startsWith('uk admission tests') ||
+    normalizedSubject.startsWith('uk admission test') ||
+    normalizedSubject.startsWith('admissions tests') ||
+    normalizedSubject.includes('uk test')
+  ) {
+    return 'UK Admissions tests';
+  }
+  
+  // Check for variations of Subject Tutoring
+  if (
+    normalizedSubject.startsWith('subject tutoring') ||
+    normalizedSubject.startsWith('tutoring') ||
+    normalizedSubject.includes('subject') && normalizedSubject.includes('tutor')
+  ) {
+    return 'Subject Tutoring';
+  }
+  
+  // For other services, use as is but preserve original case
+  return subject;
+};
+
+// Update the extractServiceCosts function to properly handle the JSON string format
+const extractServiceCosts = (tutor: any): Record<string, number> => {
+  if (!tutor) return {};
+  
+  const result: Record<string, number> = {};
+  
+  try {
+    // First try service_costs object which is the preferred format
+    if (tutor.service_costs) {
+      if (typeof tutor.service_costs === 'string') {
+        try {
+          // Try to parse JSON string
+          // First, make sure it's a valid JSON string
+          let jsonString = tutor.service_costs;
+          
+          // In case it's not properly quoted (e.g., single quotes instead of double)
+          if (jsonString.startsWith("'") && jsonString.endsWith("'")) {
+            jsonString = jsonString.substring(1, jsonString.length - 1);
+          }
+          
+          // Try direct parsing
+          try {
+            const parsed = JSON.parse(jsonString);
+            
+            Object.entries(parsed).forEach(([key, value]) => {
+              if (typeof value === 'number') {
+                result[key] = value as number;
+              } else if (typeof value === 'string') {
+                const numValue = parseFloat(value as string);
+                if (!isNaN(numValue)) {
+                  result[key] = numValue;
+                } else {
+                  result[key] = parseServiceCost(value as string);
+                }
+              }
+            });
+          } catch (jsonError) {
+            // Try alternative approach - if it's a string representation of an object like
+            // '{"UK Admissions tests": 5, "Extracurricular Building": 50}'
+            // but not valid JSON, try to extract using regex
+            
+            const regex = /"([^"]+)":\s*(\d+)/g;
+            let match;
+            
+            while ((match = regex.exec(jsonString)) !== null) {
+              const key = match[1];
+              const value = parseInt(match[2], 10);
+              if (!isNaN(value)) {
+                result[key] = value;
+              }
+            }
+          }
+        } catch (e) {
+          // Error handling
+        }
+      } else if (typeof tutor.service_costs === 'object') {
+        // Handle object format
+        Object.entries(tutor.service_costs).forEach(([key, value]) => {
+          if (typeof value === 'number') {
+            result[key] = value as number;
+          } else if (typeof value === 'string') {
+            // For backward compatibility with old format
+            const numValue = parseFloat(value as string);
+            if (!isNaN(numValue)) {
+              result[key] = numValue;
+            } else {
+              result[key] = parseServiceCost(value as string);
+            }
+          }
+        });
+      }
+    }
+    
+    // If still no service_costs found, check for direct 'cost' property
+    if (Object.keys(result).length === 0 && tutor.cost !== undefined) {
+      // If there's a single cost for all services, use it for the default categories
+      const cost = typeof tutor.cost === 'string' ? parseFloat(tutor.cost) : tutor.cost;
+      
+      if (!isNaN(cost)) {
+        // Use the cost for services that are actually offered by the tutor
+        const subjects = typeof tutor.subjects === 'string' 
+          ? tutor.subjects.split(',').map((s: string) => s.trim())
+          : Array.isArray(tutor.subjects) ? tutor.subjects : [];
+          
+        // Check if tutor offers specific services
+        const hasSubjectTutoring = subjects.some((s: string) => s.toLowerCase().includes('subject tutoring'));
+        const hasUKTests = subjects.some((s: string) => s.toLowerCase().includes('uk admissions tests'));
+        
+        // Only add costs for services the tutor actually offers
+        if (hasSubjectTutoring) {
+          result['Subject Tutoring'] = cost;
+        }
+        if (hasUKTests) {
+          result['UK Admissions tests'] = cost;
+        }
+      }
+    }
+  } catch (e) {
+    // Error handling
+  }
+  
+  return result;
 };
 
 export default function TutorProfile(props: { params: Promise<{ id: string }> }) {
@@ -238,7 +403,6 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
     
     // If the current user is a tutor, they should listen to their own search_id channel
     if (user.role === 'tutor' && user.id === id) {
-      console.log(`Tutor listening to their channel: ${tutor.search_id}`);
       
       // Tutors listen to their channel based on search_id
       const channel = supabase
@@ -263,14 +427,12 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
             filter: `created_by=eq.${user.id}`
           },
           (payload) => {
-            console.log('New conversation created:', payload);
             const conversationId = payload.new.id;
             
             // Subscribe to the new conversation's realtime channel using tutor's search_id
             if (conversationId && tutor?.search_id) {
               // Use tutor's search_id as the channel name
               const channelName = `tutor:${tutor.search_id}`;
-              console.log(`Student subscribing to channel: ${channelName}`);
               
               // Subscribe to the tutor's channel
               subscribeToConversation(channelName);
@@ -291,50 +453,64 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
     }
   }, [user, tutor?.search_id, id, subscribeToConversation]);
 
-  // Handle sending a message to the tutor
-  // Check if conversation already exists between current user and tutor
+  // Extract service costs when tutor data is loaded
+  const serviceCosts = extractServiceCosts(tutor);
+  
+  // Process subjects for display
+  const tutorSubjects = useMemo(() => {
+    if (!tutor?.subjects) return [];
+    
+    let subjects: string[] = [];
+    if (typeof tutor.subjects === 'string') {
+      try {
+        // Try to parse as JSON
+        subjects = JSON.parse(tutor.subjects);
+      } catch (e) {
+        // If not JSON, split by comma
+        subjects = tutor.subjects.split(',').map(s => s.trim());
+      }
+    } else if (Array.isArray(tutor.subjects)) {
+      subjects = tutor.subjects;
+    }
+    
+    return subjects;
+  }, [tutor?.subjects]);
+  
+  // Process subjects for display
+  const processedSubjects = useMemo(() => {
+    return tutorSubjects.slice(0, 3);
+  }, [tutorSubjects]);
+  
+  // Enhanced avatar URL with Supabase storage path if needed
+  const avatarUrl = useMemo(() => {
+    return tutor?.avatar_url ? getTutorAvatarUrl(tutor, hasPremiumAccess) : null;
+  }, [tutor?.avatar_url, hasPremiumAccess]);
+  
+  const tutorBio = tutor?.description || "No bio information available for this tutor.";
+  const tutorAvatar = avatarUrl;
+  
+  // Check for existing conversation
   const checkExistingConversation = async (): Promise<string | null> => {
     try {
-      console.log(`Checking for existing conversation with tutor ID: ${id}`);
-      
-      // Fetch all user conversations
-      const response = await fetch('/api/conversations', {
-        method: 'GET',
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        },
-        credentials: 'include'
-      });
-      
+      const response = await fetch('/api/conversations');
       if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
-        console.error(`Failed to fetch conversations: ${response.status}`, errorText);
-        return null;
+        throw new Error('Failed to fetch conversations');
       }
       
       const data = await response.json();
       const conversations = data.conversations || [];
       
-      console.log(`Found ${conversations.length} conversations for current user`);
-      
-      if (conversations.length === 0) return null;
-      
-      // Look for a conversation where the tutor is a participant
-      const existingConversation = conversations.find((conv: any) => 
-        conv.participants?.some((p: any) => p.user_id === id)
-      );
+      // Find a conversation where the tutor is a participant
+      const existingConversation = conversations.find((conv: any) => {
+        return conv.participants?.some((p: any) => p.user_id === tutor?.id);
+      });
       
       if (existingConversation) {
-        console.log(`Found existing conversation: ${existingConversation.id}`);
-      } else {
-        console.log(`No existing conversations found with tutor ID: ${id}`);
+        return existingConversation.id;
       }
       
-      return existingConversation ? existingConversation.id : null;
+      return null;
     } catch (error) {
-      console.error('Error checking existing conversations:', error);
-      // Return null instead of throwing to allow message sending to continue with new conversation
       return null;
     }
   };
@@ -354,7 +530,6 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
         throw new Error("Failed to create temporary conversation");
       }
       
-      console.log(`Created temporary conversation ${tempConversationId} with tutor ${tutor.id}`);
       
       // Navigate to the messages page with the temporary conversation selected
       router.push(`/dashboard/messages?conversationId=${tempConversationId}`);
@@ -405,15 +580,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
   const tutorName = tutor ? `${tutor.first_name} ${tutor.last_name}`.trim() : 'Tutor Profile';
   
   // Debug the tutor subjects data
-  console.log('Raw tutor subjects data:', tutor?.subjects);
   
-  const tutorSubjects = tutor && tutor.subjects
-    ? typeof tutor.subjects === 'string' 
-      ? tutor.subjects.split(',').map(s => s.trim()) 
-      : Array.isArray(tutor.subjects) ? tutor.subjects : []
-    : [];
-    
-  console.log('Processed tutorSubjects array:', tutorSubjects);
     
   const ukTestsPattern = /^uk admissions tests -/i;
   const subjectTutoringPattern = /^subject tutoring -/i;
@@ -425,38 +592,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
     !ukTestsPattern.test(s) && !subjectTutoringPattern.test(s)
   );
   
-  console.log('Grouped subjects:', { ukTests, subjectTutoring, otherSubjects });
   
-  // Prepare processed subjects list
-  const processedSubjects = [...otherSubjects];
-  
-  // Add grouped UK Admissions tests if there are any
-  if (ukTests.length > 0) {
-    // Extract test names from the UK tests subjects
-    const testNames = ukTests.map(test => 
-      test.replace(ukTestsPattern, '').trim()
-    );
-    const testDisplay = `UK Admissions tests - ${testNames.join(', ')}`;
-    processedSubjects.unshift(testDisplay);
-  }
-  
-  // Add grouped Subject Tutoring if there are any
-  if (subjectTutoring.length > 0) {
-    // Extract subject names
-    const subjectNames = subjectTutoring.map(subject => 
-      subject.replace(subjectTutoringPattern, '').trim()
-    );
-    const subjectDisplay = `Subject Tutoring - ${subjectNames.join(', ')}`;
-    processedSubjects.unshift(subjectDisplay);
-  }
-  
-  console.log('Final processedSubjects:', processedSubjects);
-  const tutorBio = tutor?.description || "No bio information available for this tutor.";
-  const tutorAvatar = getTutorAvatarUrl(tutor, user?.has_access === true || user?.role === 'tutor');
-
-  // Log for debugging
-  console.log(`Enhanced tutor avatar URL: ${tutorAvatar} for tutor: ${tutorName}`);
-
   // Access additional tutor profile fields
   const tutorAge = tutor?.age;
   const tutorEducation = tutor?.current_education;
@@ -472,12 +608,38 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
   const tutorALevels = tutor?.['a-levels'] && Array.isArray(tutor['a-levels']) ? tutor['a-levels'] : [];
   const tutorSpm = tutor?.spm;
 
+  // Subscribe to realtime updates for this tutor
+  useEffect(() => {
+    if (tutor && user) {
+      const channelName = `tutor:${tutor.search_id}`;
+      
+      if (user.id === tutor.id) {
+        // If the user is viewing their own profile, subscribe to their tutor channel
+        
+        subscribeToConversation(channelName);
+        
+        // Note: Since we can't use the callback parameter, we'll need to handle
+        // conversation events through the general subscription mechanism
+      } else if (user.id !== tutor.id) {
+        // If the user is viewing someone else's profile, subscribe to the conversation channel
+        // This is used to get updates when a conversation is created
+        const studentChannelName = `student:${user.id}:tutor:${tutor.id}`;
+        
+        
+        subscribeToConversation(studentChannelName);
+        
+        // Note: Since we can't use the callback parameter, we'll need to handle
+        // conversation events through the general subscription mechanism
+      }
+    }
+  }, [tutor, user, subscribeToConversation, messageContext, router]);
+
   return (
     <div className="page-content">
       {!hasPremiumAccess && (
         <div className="text-center mb-8">
           <p className="text-md text-[#126d94] font-medium">
-            Unlock premium access to our website to view tutors' full profiles and book sessions
+            Unlock access to our website to view tutors' full profiles and book sessions
           </p>
         </div>
       )}
@@ -583,7 +745,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                         onClick={() => router.push('/paywall')}
                       >
                         <Sparkles className="h-4 w-4 mr-2" />
-                        Unlock Premium
+                        Unlock Access
                       </Button>
                     )
                   ) : (
@@ -678,11 +840,38 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                       
                       {processedSubjects && processedSubjects.length > 0 ? (
                         <div className="flex flex-wrap gap-2 pl-1">
-                          {processedSubjects.map((subject, index) => (
-                            <Badge key={index} variant="outline" className="text-sm bg-[#c2d8d2]/30 border-[#84b7bd]/30 hover:bg-[#c2d8d2]/50 transition-colors">
-                              {subject}
-                            </Badge>
-                          ))}
+                          {processedSubjects.map((subject, index) => {
+                            // Get the main service name for cost lookup
+                            const mainServiceName = getMainServiceName(subject);
+                            
+                            // Check if this service has a cost
+                            const cost = serviceCosts[mainServiceName];
+                            const hasCost = cost !== undefined;
+                            
+                            if (hasCost) {
+                              // Display service with cost in a single oval
+                              return (
+                                <div 
+                                  key={index}
+                                  className="flex items-center rounded-full overflow-hidden border border-[#84b7bd]/30"
+                                >
+                                  <div className="bg-[#c2d8d2]/30 px-2 py-0.5 text-sm font-semibold">
+                                    {subject}
+                                  </div>
+                                  <div className="bg-[#128ca0]/20 px-2 py-0.5 text-sm font-bold text-[#126d94] h-full">
+                                    {cost !== undefined && cost !== null ? cost : 'N/A'}
+                                  </div>
+                                </div>
+                              );
+                            } else {
+                              // Display service without cost
+                              return (
+                                <Badge key={index} variant="outline" className="text-sm bg-[#c2d8d2]/30 border-[#84b7bd]/30 hover:bg-[#c2d8d2]/50 transition-colors">
+                                  {subject}
+                                </Badge>
+                              );
+                            }
+                          })}
                           {tutorSubjects.length > processedSubjects.length && (
                             <Badge variant="outline" className="text-sm bg-[#4b92a9]/10 border-[#4b92a9]/30 text-[#126d94]">
                               +{tutorSubjects.length - processedSubjects.length} more

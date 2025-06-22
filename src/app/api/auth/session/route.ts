@@ -48,11 +48,9 @@ export async function GET(request: NextRequest) {
                 errorMessage.includes('Auth session missing');
         
             if (isSessionMissingError) {
-                console.log('Auth session missing, redirecting to login');
                 // Clear session cookies on client side by returning specific header
                 headers['Set-Cookie'] = 'sb-access-token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax';
             } else {
-                console.log('No authenticated user found:', errorMessage);
             }
             
             return NextResponse.json(
@@ -75,7 +73,6 @@ export async function GET(request: NextRequest) {
             
             // If less than 10 minutes left, refresh the session
             if (timeLeft < 10 * 60 * 1000) {
-                console.log('Session expiring soon, refreshing token');
                 await supabase.auth.refreshSession();
             }
         }

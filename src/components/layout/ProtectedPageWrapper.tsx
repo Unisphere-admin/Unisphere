@@ -32,7 +32,6 @@ export default function ProtectedPageWrapper({ children }: ProtectedPageWrapperP
     const hasAccess = user?.role === 'tutor' || user?.has_access === true;
     
     // Add debug logging
-    console.log(`ProtectedPageWrapper access check: user=${user?.id}, role=${user?.role}, has_access=${user?.has_access}, hasAccess=${hasAccess}, path=${pathname}, isSettingsPage=${isSettingsPage}`);
     
     // If not authenticated, redirect to login
     if (!user) {

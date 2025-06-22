@@ -41,7 +41,6 @@ export default function ClientLayoutWrapper({ children }: ClientLayoutWrapperPro
   // Initialize caching system immediately when component mounts - only once
   useEffect(() => {
     if (!cacheInitializedRef.current) {
-      console.log('Initializing cache system on application load');
       
       // Initialize the cache system immediately
       initializeCache();
@@ -68,7 +67,6 @@ export default function ClientLayoutWrapper({ children }: ClientLayoutWrapperPro
   
   // Setup auth cache check on component mount - separate from cache initialization
   useEffect(() => {
-    console.log('Setting up auth cache check mechanism');
     setupAuthCacheCheck();
   }, []);
   

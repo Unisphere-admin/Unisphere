@@ -358,7 +358,6 @@ export async function createUserProfileIfNeeded(
         // Duplicate key violation (23505) should be treated as a success
         // This can happen due to race conditions when profile is created in parallel
         if (error.code === '23505') {
-          console.log(`Tutor profile already exists for ${userId}, ignoring duplicate insertion`);
           return { success: true, error: null };
         }
         
@@ -379,7 +378,6 @@ export async function createUserProfileIfNeeded(
         // Duplicate key violation (23505) should be treated as a success
         // This can happen due to race conditions when profile is created in parallel
         if (error.code === '23505') {
-          console.log(`Student profile already exists for ${userId}, ignoring duplicate insertion`);
           return { success: true, error: null };
         }
         
@@ -510,9 +508,23 @@ export async function updateUserProfile(
       if (updateData.first_name !== undefined) filteredUpdateData.first_name = updateData.first_name;
       if (updateData.last_name !== undefined) filteredUpdateData.last_name = updateData.last_name;
       if (updateData.age !== undefined) filteredUpdateData.age = updateData.age;
+      if (updateData.cost !== undefined) filteredUpdateData.cost = updateData.cost;
+      if (updateData.service_costs !== undefined) {
+        // Ensure service_costs is stored as a proper JSONB object
+        if (typeof updateData.service_costs === 'string') {
+          try {
+            filteredUpdateData.service_costs = JSON.parse(updateData.service_costs);
+          } catch (e) {
+            filteredUpdateData.service_costs = updateData.service_costs;
+          }
+        } else {
+          filteredUpdateData.service_costs = updateData.service_costs;
+        }
+      }
       if (updateData.bio !== undefined) filteredUpdateData.description = updateData.bio;
       if (updateData.description !== undefined) filteredUpdateData.description = updateData.description;
       if (updateData.avatar_url !== undefined) filteredUpdateData.avatar_url = updateData.avatar_url;
+      if (updateData.subjects !== undefined) filteredUpdateData.subjects = updateData.subjects;
     } else {
       // Student profile fields that can be updated
       if (updateData.first_name !== undefined) filteredUpdateData.first_name = updateData.first_name;

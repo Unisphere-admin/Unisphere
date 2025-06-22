@@ -105,7 +105,6 @@ async function _createTutoringSessionRequest(
     }
     
     // Create the session
-    console.log("Creating session request with data:", sessionData);
     
     const { data: session, error: sessionError } = await client
       .from('tutoring_session')
@@ -118,7 +117,6 @@ async function _createTutoringSessionRequest(
       return { session: null, error: 'Failed to create tutoring session request' };
     }
     
-    console.log("Session request created successfully:", session);
     
     return { session, error: null };
   } catch (error) {
@@ -212,7 +210,6 @@ async function _createTutoringSession(
     }
     
     // Create the session
-    console.log("Creating session with data:", sessionData);
     
     const { data: session, error: sessionError } = await client
       .from('tutoring_session')
@@ -225,7 +222,6 @@ async function _createTutoringSession(
       return { session: null, error: 'Failed to create tutoring session' };
     }
     
-    console.log("Session created successfully:", session);
     
     return { session, error: null };
   } catch (error) {
@@ -283,7 +279,6 @@ export async function updateSessionStatus(
     } else if (status === 'ended') {
       // Always set ended_at timestamp when ending a session
       updateData.ended_at = new Date().toISOString();
-      console.log(`Setting ended_at timestamp for session ${sessionId}: ${updateData.ended_at}`);
     }
     
     // Update the session
@@ -303,7 +298,6 @@ export async function updateSessionStatus(
       return { error: error.message };
     }
     
-    console.log(`Successfully updated session ${sessionId} to ${status}`, data);
     return { session: data as TutoringSession };
   } catch (err) {
     console.error(`Failed to update session ${sessionId} to ${status}:`, err);
@@ -500,7 +494,6 @@ export async function getSessionsByConversation(conversationId: string) {
     const supabase = await createRouteHandlerClientWithCookies();
     
     // Log that we're fetching sessions, including cancelled ones
-    console.log(`Fetching all sessions for conversation ${conversationId}, including cancelled sessions`);
     
     const { data, error } = await supabase
       .from('tutoring_session')
@@ -519,7 +512,6 @@ export async function getSessionsByConversation(conversationId: string) {
     // Log the sessions found, specifically highlighting cancelled ones
     if (data && data.length > 0) {
       const cancelledSessions = data.filter(s => s.status === 'cancelled');
-      console.log(`Found ${data.length} total sessions, ${cancelledSessions.length} are cancelled`);
     }
     
     return { sessions: data as TutoringSession[] };
@@ -616,7 +608,6 @@ export async function createTutoringSession(
   studentTokens?: number
 ) {
   try {
-    console.log('Creating tutoring session with auth user:', user.id);
     
     // Simply pass through to the authenticated handler
     return _createTutoringSession(
@@ -651,7 +642,6 @@ export async function createTutoringSessionRequest(
   studentTokens?: number
 ) {
   try {
-    console.log('Creating tutoring session request with auth user:', user.id);
     
     // Check if user is a tutor
     if (!user.is_tutor) {
@@ -754,7 +744,6 @@ export const updateSessionStatusAuth = withAuth(async function _updateSessionSta
     updateData.started_at = new Date().toISOString();
   } else if (status === 'ended' && existingSession.status !== 'ended') {
     updateData.ended_at = new Date().toISOString();
-    console.log(`Setting ended_at timestamp for session ${sessionId}: ${updateData.ended_at}`);
   }
 
   const { data, error } = await client
@@ -773,7 +762,6 @@ export const updateSessionStatusAuth = withAuth(async function _updateSessionSta
     return { error: error.message };
   }
 
-  console.log(`Successfully updated session ${sessionId} to ${status}`, data);
   return { session: data as TutoringSession };
 });
 export const updateReadyStatusAuth = withAuth(function _updateReadyStatus(authUser: AuthUser, sessionId: string, isReady: boolean) {
@@ -791,7 +779,6 @@ export async function getSessionsByMessageId(messageId: string) {
     const supabase = await createRouteHandlerClientWithCookies();
     
     // Log that we're fetching sessions by message ID
-    console.log(`Fetching sessions for message ${messageId}`);
     
     const { data, error } = await supabase
       .from('tutoring_session')
@@ -810,9 +797,7 @@ export async function getSessionsByMessageId(messageId: string) {
     
     // Log the sessions found
     if (data && data.length > 0) {
-      console.log(`Found ${data.length} sessions for message ${messageId}`);
     } else {
-      console.log(`No sessions found for message ${messageId}`);
     }
     
     return { sessions: data as TutoringSession[] };

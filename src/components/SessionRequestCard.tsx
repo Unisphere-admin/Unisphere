@@ -123,7 +123,6 @@ export function SessionRequestCard({
         
         // Skip API calls for temporary conversations
         if (conversationId.startsWith('temp-')) {
-          console.log("Skipping API call for temporary conversation:", conversationId);
           setIsCreatedByTutor(user?.role === 'tutor');
           setIsLoading(false);
           return;
@@ -132,7 +131,6 @@ export function SessionRequestCard({
         // First check the props for session details
         // If title starts with "Session Request:", it's likely from a tutor
         if (title && title.includes("Session Request")) {
-          console.log("Setting creator based on session title:", title);
           // Sessions are typically created by tutors, so set creator as tutor
           setIsCreatedByTutor(true);
         }
@@ -181,7 +179,6 @@ export function SessionRequestCard({
     if (!sessionId && messageId && conversationId) {
       // Skip API calls for temporary conversations
       if (conversationId.startsWith('temp-')) {
-        console.log("Skipping session check for temporary conversation:", conversationId);
         setIsLoading(false);
         return;
       }
@@ -200,7 +197,6 @@ export function SessionRequestCard({
       // Check if there's a session for this message in the database
       const checkForSession = async () => {
         try {
-          console.log(`Looking up session for message: ${messageId}`);
           setIsLoading(true);
           
           // Try to fetch the session directly by message ID
@@ -213,7 +209,6 @@ export function SessionRequestCard({
             
             // Check if we have valid sessions data 
             if (data.sessions && data.sessions.length > 0) {
-              console.log("Found sessions for message:", data.sessions);
               
               // Force refresh sessions to update the UI
               await refreshSessions();
@@ -245,7 +240,6 @@ export function SessionRequestCard({
     // If we already have a session request object from props, use it to determine creator
     if (messageContent?.trim().startsWith('Session Request:') && isCreatedByTutor === null) {
       // Session requests are typically created by tutors
-      console.log("Setting isCreatedByTutor based on message content pattern");
       setIsCreatedByTutor(true);
     }
   }, [messageContent, isCreatedByTutor]);
@@ -271,13 +265,11 @@ export function SessionRequestCard({
     // Get CSRF token for API requests - force fetch a fresh token
     let csrfToken: string | null = null;
     try {
-      console.log("Fetching a fresh CSRF token for session acceptance...");
       csrfToken = await fetchCsrfToken(true); // Force fetch a new token
       
       if (!csrfToken) {
         throw new Error("Failed to fetch CSRF token");
       }
-      console.log("Successfully fetched fresh CSRF token");
     } catch (tokenError) {
       console.error("Error fetching CSRF token:", tokenError);
       toast({
@@ -292,7 +284,6 @@ export function SessionRequestCard({
     try {
       if (sessionId) {
         // Update existing session to accepted
-        console.log(`Accepting session ${sessionId} with CSRF token: ${csrfToken?.substring(0, 6)}...`);
         const response = await fetch("/api/tutoring-sessions", {
           method: "PATCH",
           headers: { 
@@ -330,7 +321,6 @@ export function SessionRequestCard({
         }
         
         const data = await response.json();
-        console.log("Session accepted successfully:", data.session);
       } else {
         // Need to fetch conversation first to get participants
         const conversationResponse = await fetch(`/api/conversations?conversation_id=${conversationId}`, {
@@ -367,15 +357,6 @@ export function SessionRequestCard({
         // Determine tutor and student IDs
         const tutorId = user.role === "tutor" ? user.id : otherParticipant.user_id;
         const studentId = user.role === "tutor" ? otherParticipant.user_id : user.id;
-        
-        console.log("Creating accepted session with:", {
-          conversationId,
-          messageId,
-          tutorId,
-          studentId,
-          title,
-          scheduledFor
-        });
         
         // Create the session with accepted status
         const sessionResponse = await fetch("/api/tutoring-sessions", {
@@ -419,7 +400,6 @@ export function SessionRequestCard({
         }
         
         const sessionData = await sessionResponse.json();
-        console.log("Session created successfully:", sessionData.session);
       }
       
       // No need to manually refresh sessions - realtime updates will handle this
@@ -449,13 +429,11 @@ export function SessionRequestCard({
     // Get CSRF token for API requests - force fetch a fresh token
     let csrfToken: string | null = null;
     try {
-      console.log("Fetching a fresh CSRF token for ready toggle...");
       csrfToken = await fetchCsrfToken(true); // Force fetch a new token
       
       if (!csrfToken) {
         throw new Error("Failed to fetch CSRF token");
       }
-      console.log("Successfully fetched fresh CSRF token");
     } catch (tokenError) {
       console.error("Error fetching CSRF token:", tokenError);
       toast({
@@ -472,8 +450,6 @@ export function SessionRequestCard({
       const isCurrentlyReady = user.role === "tutor" ? tutorReady : studentReady;
       const newReadyState = !isCurrentlyReady;
       
-      console.log(`Toggling ready state from ${isCurrentlyReady} to ${newReadyState} for ${user.role}`);
-      console.log(`Using CSRF token: ${csrfToken?.substring(0, 6)}...`);
       
       // Update session ready status
       const response = await fetch("/api/tutoring-sessions", {
@@ -497,7 +473,6 @@ export function SessionRequestCard({
       }
       
       const data = await response.json();
-      console.log("Ready status updated successfully:", data.session);
       
       // No need to manually refresh sessions - realtime updates will handle this
       
@@ -528,13 +503,11 @@ export function SessionRequestCard({
     // Get CSRF token for API requests - force fetch a fresh token
     let csrfToken: string | null = null;
     try {
-      console.log("Fetching a fresh CSRF token for starting session...");
       csrfToken = await fetchCsrfToken(true); // Force fetch a new token
       
       if (!csrfToken) {
         throw new Error("Failed to fetch CSRF token");
       }
-      console.log("Successfully fetched fresh CSRF token");
     } catch (tokenError) {
       console.error("Error fetching CSRF token:", tokenError);
       toast({
@@ -547,7 +520,6 @@ export function SessionRequestCard({
     }
     
     try {
-      console.log(`Starting session ${sessionId} with CSRF token: ${csrfToken?.substring(0, 6)}...`);
       // Update session status to started
       const response = await fetch("/api/tutoring-sessions", {
         method: "PATCH",
@@ -570,7 +542,6 @@ export function SessionRequestCard({
       }
       
       const data = await response.json();
-      console.log("Session started successfully:", data.session);
       
       // No need to manually refresh sessions - realtime updates will handle this
       
@@ -599,13 +570,11 @@ export function SessionRequestCard({
     // Get CSRF token for API requests - force fetch a fresh token
     let csrfToken: string | null = null;
     try {
-      console.log("Fetching a fresh CSRF token for ending session...");
       csrfToken = await fetchCsrfToken(true); // Force fetch a new token
       
       if (!csrfToken) {
         throw new Error("Failed to fetch CSRF token");
       }
-      console.log("Successfully fetched fresh CSRF token");
     } catch (tokenError) {
       console.error("Error fetching CSRF token:", tokenError);
       toast({
@@ -618,7 +587,6 @@ export function SessionRequestCard({
     }
     
     try {
-      console.log(`Ending session ${sessionId} with CSRF token: ${csrfToken?.substring(0, 6)}...`);
       // Update session status to ended
       const response = await fetch("/api/tutoring-sessions", {
         method: "PATCH",
@@ -680,13 +648,11 @@ export function SessionRequestCard({
     // Get CSRF token for API requests - force fetch a fresh token
     let csrfToken: string | null = null;
     try {
-      console.log("Fetching a fresh CSRF token for session cancellation...");
       csrfToken = await fetchCsrfToken(true); // Force fetch a new token
       
       if (!csrfToken) {
         throw new Error("Failed to fetch CSRF token");
       }
-      console.log("Successfully fetched fresh CSRF token");
     } catch (tokenError) {
       console.error("Error fetching CSRF token:", tokenError);
       toast({
@@ -701,7 +667,6 @@ export function SessionRequestCard({
     try {
       if (sessionId) {
         // Update existing session to cancelled
-        console.log(`Cancelling session ${sessionId} with CSRF token: ${csrfToken?.substring(0, 6)}...`);
         const response = await fetch("/api/tutoring-sessions", {
           method: "PATCH",
           headers: { 
@@ -739,7 +704,6 @@ export function SessionRequestCard({
         }
         
         const data = await response.json();
-        console.log("Session cancelled successfully:", data.session);
       } else {
         // Create a new session with cancelled status
         const conversationResponse = await fetch(`/api/conversations?conversation_id=${conversationId}`, {
@@ -776,15 +740,6 @@ export function SessionRequestCard({
         // Determine tutor and student IDs
         const tutorId = user.role === "tutor" ? user.id : otherParticipant.user_id;
         const studentId = user.role === "tutor" ? otherParticipant.user_id : user.id;
-        
-        console.log("Creating cancelled session with:", {
-          conversationId,
-          messageId,
-          tutorId,
-          studentId,
-          title,
-          scheduledFor
-        });
         
         // Create the session with cancelled status
         const sessionResponse = await fetch("/api/tutoring-sessions", {
@@ -828,7 +783,6 @@ export function SessionRequestCard({
         }
         
         const sessionData = await sessionResponse.json();
-        console.log("Cancelled session created:", sessionData.session);
       }
       
       // No need to manually refresh sessions - realtime updates will handle this

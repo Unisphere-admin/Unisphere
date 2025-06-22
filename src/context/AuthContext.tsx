@@ -135,7 +135,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Clear all caches with comprehensive approach
       try {
-        console.log('Clearing application cache...');
         
         // Clear general cache
       clearAllCache();
@@ -195,7 +194,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.warn('Failed to clear sessionStorage:', e);
         }
         
-        console.log('Application cache cleared successfully');
       } catch (cacheError) {
         console.error('Error clearing cache:', cacheError);
         // Continue with logout even if cache clearing fails
@@ -228,7 +226,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Continue even if this fails since we've already logged out on the server
       }
       
-      console.log('Logout completed successfully');
       
       // Navigate to login page
       router.push('/login');

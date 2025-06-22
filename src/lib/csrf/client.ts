@@ -175,7 +175,6 @@ export function useCsrfToken() {
     
     // If we've failed too many times, back off
     if (failedAttemptsRef.current >= MAX_RETRY_ATTEMPTS) {
-      console.debug(`Reached max retry attempts (${MAX_RETRY_ATTEMPTS}), backing off`);
       return null;
     }
     
@@ -245,7 +244,6 @@ export function useCsrfToken() {
         // Implement retry with exponential backoff if needed
         if (failedAttemptsRef.current < MAX_RETRY_ATTEMPTS) {
           const backoffDelay = RETRY_DELAY * Math.pow(2, failedAttemptsRef.current - 1);
-          console.log(`CSRF token fetch failed, retrying in ${backoffDelay}ms`);
           await new Promise(resolve => setTimeout(resolve, backoffDelay));
           return fetchCsrfToken(force);
         }

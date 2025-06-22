@@ -71,7 +71,6 @@ async function getMessagesHandler(
       return NextResponse.json({ error: 'Conversation ID is required' }, { status: 400 });
     }
 
-    console.log(`Getting messages for conversation: ${conversationId}, user: ${user.id}`);
 
     // Start a performance timer
     const startTime = performance.now();
@@ -174,7 +173,6 @@ async function getMessagesHandler(
     const endTime = performance.now();
     const processingTime = Math.round(endTime - startTime);
     
-    console.log(`Successfully fetched ${result.transformedMessages?.length || 0} messages in ${processingTime}ms`);
     
     // Create response with cache tag for user
     const response = NextResponse.json({ 
@@ -220,7 +218,6 @@ const broadcastMessage = async (message: Message, conversationId: string) => {
       payload: message
     });
     
-    console.log(`Broadcasted message update for conversation ${conversationId}`);
   } catch (error) {
     console.error("Error broadcasting message:", error);
     // Silently handle error - don't break API response for broadcast failures
@@ -366,7 +363,6 @@ async function deleteMessageHandler(
       return NextResponse.json({ error: 'Message ID is required' }, { status: 400 });
     }
 
-    console.log(`Deleting message: ${messageId}, user: ${user.id}`);
 
     // Invalidate the messages cache
     // This needs to be more generic since we don't know the conversation ID yet

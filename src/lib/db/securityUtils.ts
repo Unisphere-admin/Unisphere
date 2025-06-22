@@ -19,7 +19,6 @@ export function verifyUserAccess(
 ): string | null {
   // Bypass for debugging
   if (DEBUG_BYPASS_SECURITY) {
-    console.log('SECURITY BYPASS: Bypassing user access verification');
     return null;
   }
 
@@ -55,7 +54,6 @@ export async function verifyConversationParticipant(
 ): Promise<string | null> {
   // Bypass for debugging
   if (DEBUG_BYPASS_SECURITY) {
-    console.log('SECURITY BYPASS: Bypassing conversation participant verification');
     return null;
   }
 
@@ -67,7 +65,6 @@ export async function verifyConversationParticipant(
   // Allow access for tutors or users with premium access without requiring them to be participants
   // This ensures premium users can access any conversation
   if (authUser.is_tutor || authUser.has_access) {
-    console.log(`Bypassing participant check for user ${authUser.id} with premium access or tutor status`);
     return null;
   }
   
@@ -92,7 +89,6 @@ export async function verifyConversationParticipant(
       // If still within retry attempts, wait and try again with exponential backoff
       if (currentRetry < maxRetries) {
         const nextRetryDelay = initialRetryDelay * Math.pow(2, currentRetry);
-        console.log(`Retry ${currentRetry + 1}/${maxRetries} for conversation participant check in ${nextRetryDelay}ms`);
         
         // Wait for the calculated delay
         await new Promise(resolve => setTimeout(resolve, nextRetryDelay));
@@ -123,7 +119,6 @@ export async function verifyConversationParticipant(
 export function securityCheck(authUser: AuthUser): string | null {
   // Bypass for debugging
   if (DEBUG_BYPASS_SECURITY) {
-    console.log('SECURITY BYPASS: Bypassing basic security check');
     return null;
   }
 
@@ -137,7 +132,6 @@ export function securityCheck(authUser: AuthUser): string | null {
     return "Invalid authentication data";
   }
 
-  console.log(`Security check passed for user: ${authUser.id}`);
   return null;
 }
 
@@ -150,7 +144,6 @@ export async function verifyUserPermission(
 ): Promise<string | null> {
   // Bypass for debugging
   if (DEBUG_BYPASS_SECURITY) {
-    console.log('SECURITY BYPASS: Bypassing user permission verification');
       return null;
     }
     

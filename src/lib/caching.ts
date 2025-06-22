@@ -48,7 +48,6 @@ export function saveToCache<T>(key: string, data: T, ttl?: number): void {
       lastUpdated: new Date(now).toISOString()
     };
     localStorage.setItem(key, JSON.stringify(cacheItem));
-    console.debug(`Cache saved: ${key}`);
   } catch (error) {
     console.warn('Failed to save to cache:', error);
     // Silent fail - caching is a performance optimization, not critical
@@ -79,7 +78,6 @@ export function getFromCache<T>(key: string, ttl?: number, allowStale = true): T
     
     // If stale but within stale-while-revalidate window, return data but mark for refresh
     if (allowStale && now - cacheItem.timestamp < maxAge + staleWhileRevalidateTtl) {
-      console.debug(`Returning stale data for ${key}, age: ${(now - cacheItem.timestamp) / 1000}s`);
       return cacheItem.data;
     }
     
@@ -147,7 +145,6 @@ export function isCacheLoading(key: string): boolean {
 export function invalidateCache(key: string): void {
   try {
     localStorage.removeItem(key);
-    console.debug(`Cache invalidated: ${key}`);
   } catch (error) {
     console.warn('Failed to invalidate cache:', error);
   }
@@ -176,7 +173,6 @@ export function clearAllCache(): void {
         }
       }
     });
-    console.debug('All cache cleared');
   } catch (error) {
     console.warn('Failed to clear cache:', error);
   }
@@ -226,7 +222,6 @@ export async function getAndCacheData<T>(
       const cacheAge = now - (cachedItem.timestamp || 0);
       
       if (backgroundRefresh && cacheAge > ttl && !isCacheLoading(key)) {
-        console.debug(`Background refreshing ${key}, age: ${cacheAge / 1000}s`);
         refreshCacheInBackground(key, fetchFn, ttl);
       }
       
@@ -246,7 +241,6 @@ export async function getAndCacheData<T>(
     // Check if this is a permission error (403)
     const errorString = String(error);
     if (errorString.includes('403') || errorString.toLowerCase().includes('forbidden')) {
-      console.debug(`Permission denied (403) for ${key} - this is expected for non-premium users or when not authenticated`);
     } else {
     console.error(`Error fetching data for ${key}:`, error);
     }
@@ -278,7 +272,6 @@ function refreshCacheInBackground<T>(
     // Check if this is a permission error (403)
     const errorString = String(error);
     if (errorString.includes('403') || errorString.toLowerCase().includes('forbidden')) {
-      console.debug(`Background refresh permission denied (403) for ${key} - this is expected for non-premium users`);
     } else {
     console.error(`Background refresh failed for ${key}:`, error);
     }
@@ -327,7 +320,6 @@ export function initCachingSystem(): void {
           // If cache is stale but not being refreshed, mark it for refresh
           // The actual refresh will happen when the data is next accessed
           if (age > ttl && !isCacheLoading(key)) {
-            console.debug(`Marking ${key} for refresh, age: ${age / 1000}s`);
             const updatedItem = { ...item, needsRefresh: true };
             localStorage.setItem(key, JSON.stringify(updatedItem));
           }

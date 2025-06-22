@@ -14,7 +14,6 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       // User is already logged out
-      console.log('User already logged out');
       return NextResponse.json({ success: true, status: "already-logged-out" });
     }
 
@@ -30,14 +29,12 @@ export async function POST(request: NextRequest) {
         revalidatePath('/');
         revalidatePath('/dashboard');
         revalidatePath('/login');
-        console.log('Cache revalidated after logout');
       } catch (cacheError) {
         console.error('Error revalidating cache:', cacheError);
         // Don't fail the request if cache revalidation fails
       }
     }
     
-    console.log('User successfully logged out, all auth cookies cleared and cache invalidated');
     
     // Return a success response
     return NextResponse.json({ success: true, status: "success" });

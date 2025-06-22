@@ -24,17 +24,6 @@ export async function POST(req: NextRequest) {
 
         const { email, password, confirmPassword, userType, firstName, lastName, first_name, last_name } = body;
         
-        // Debug the received body
-        console.log('Received signup body:', { 
-            email: email || 'missing', 
-            password: password ? '********' : 'missing',
-            confirmPassword: confirmPassword ? '********' : 'missing',
-            userType: userType || 'missing',
-            firstName: firstName || first_name || 'missing',
-            lastName: lastName || last_name || 'missing',
-            originalKeys: Object.keys(body)
-        });
-
         // Handle both naming conventions for fields
         const actualFirstName = firstName || first_name;
         const actualLastName = lastName || last_name;
@@ -90,7 +79,6 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        console.log(`Attempting to sign up ${isTutor ? 'tutor' : 'student'}: ${email}`);
         
         // Sign up with the appropriate user type
         const { data, error } = await supabase.auth.signUp({
@@ -131,13 +119,6 @@ export async function POST(req: NextRequest) {
                 }
             );
         }
-
-        console.log(`${isTutor ? 'Tutor' : 'Student'} signup success:`, { 
-            userId: data.user.id, 
-            email: data.user.email,
-            userType: isTutor ? 'tutor' : 'student',
-            name: `${actualFirstName} ${actualLastName}`
-        });
 
         // Profile creation is now handled by session API on sign-in
         // No need to create profile here, which was causing RLS errors

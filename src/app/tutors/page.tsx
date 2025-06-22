@@ -77,6 +77,7 @@ interface TutorProfile {
   "a-levels"?: string[] | null;
   spm?: string | null;
   search_id: string;
+  service_costs?: Record<string, number> | null;
 }
 
 // Helper function to extract file reference from URL
@@ -131,6 +132,50 @@ function fuzzySearch(text: string | null | undefined, query: string): boolean {
   
   // Exact match or substring match is ideal
   if (textLower.includes(queryLower)) return true;
+  
+  // Special handling for name searches - be more lenient with name matching
+  // Names are typically shorter and may be searched partially
+  if ((textLower.length < 20 && textLower.includes(" ")) || 
+      (queryLower.length < 20 && queryLower.includes(" "))) {
+    
+    // Check if this might be a name (short text with a space)
+    const textWords = textLower.split(/\s+/);
+    const queryWords = queryLower.split(/\s+/);
+    
+    // For each word in the query, see if it matches the start of any name part
+    for (const queryWord of queryWords) {
+      if (queryWord.length <= 1) continue; // Skip very short words
+      
+      // Match against each part of the text (first name, last name, etc.)
+      for (const textWord of textWords) {
+        // More aggressive matching for names - match if query word starts with first 2+ chars
+        if (queryWord.length >= 3 && textWord.startsWith(queryWord.substring(0, 3))) {
+          return true;
+        }
+        
+        // Or if text word starts with query word
+        if (textWord.startsWith(queryWord)) {
+          return true;
+        }
+      }
+    }
+  }
+  
+  // Handle single-word name search (e.g., searching just "John" or "Smith")
+  if (queryLower.length >= 2 && !queryLower.includes(" ") && textLower.includes(" ")) {
+    // This might be a single name searching against a full name
+    const textWords = textLower.split(/\s+/);
+    
+    // Check if query matches the beginning of any name part
+    for (const textWord of textWords) {
+      if (textWord.startsWith(queryLower)) return true;
+      
+      // More lenient match for longer names and queries
+      if (queryLower.length >= 4 && textWord.length >= 4) {
+        if (textWord.startsWith(queryLower.substring(0, 3))) return true;
+      }
+    }
+  }
   
   // For GCSE searches, handle special format
   if (queryLower.includes('gcse') || textLower.includes('gcse')) {
@@ -428,7 +473,6 @@ const getUniversityLogo = (universityName: string | null | undefined): string | 
     }
   }
   
-  console.log(`No logo found for university: "${universityName}"`);
   return null;
 };
 
@@ -558,7 +602,6 @@ export default function TutorsPage() {
           
           // Use cache if it's less than 5 minutes old
           if (cacheAge < 5 * 60 * 1000) {
-            console.log('Using cached tutor ratings');
             setTutorRatings(parsed.data || {});
             setLoadingRatings(false);
             return;
@@ -853,6 +896,9 @@ export default function TutorsPage() {
     // Collect all searchable keywords (including description for general search)
     const searchableKeywords = [
       fullName,
+      // Add first and last name individually for better search matching
+      ...(tutor.first_name ? [tutor.first_name.trim()] : []),
+      ...(tutor.last_name ? [tutor.last_name.trim()] : []),
       ...tutorSubjects,
       ...tutorEducation,
       ...tutorExtracurriculars,
@@ -1034,7 +1080,7 @@ export default function TutorsPage() {
 
           {!hasPremiumAccess && (
             <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-               Browse our network of expert tutors and find the right match for your learning needs. Unlock premium access to our website to view tutors' full profiles and book sessions.
+               Browse our network of expert tutors and find the right match for your learning needs. Unlock access to our website to view tutors' full profiles and book sessions.
           </p>
           )}
           
@@ -1043,7 +1089,7 @@ export default function TutorsPage() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
             <Input
                 className="pl-10 h-12 bg-background/80 backdrop-blur-sm border-[#84b4cc]/30 shadow-md focus-visible:border-[#3e5461]/30 focus-visible:ring-1 focus-visible:ring-[#3e5461]/20 transition-all"
-              placeholder="Search by university, subject, or keyword"
+              placeholder="Search by name, university, subject, or keyword"
               value={searchTerm}
                 onChange={handleSearchChange}
             />
@@ -1485,12 +1531,55 @@ export default function TutorsPage() {
                               processedSubjects.unshift(subjectDisplay);
                             }
                             
+                            // Get service costs
+                            const serviceCosts = tutor.service_costs || {};
+                            
+                            // Helper function to get the main service name
+                            const getMainServiceName = (subject: string): string => {
+                              // Check if it's a UK Admissions tests entry
+                              if (subject.toLowerCase().startsWith('uk admissions tests')) {
+                                return 'UK Admissions tests';
+                              }
+                              // Check if it's a Subject Tutoring entry
+                              if (subject.toLowerCase().startsWith('subject tutoring')) {
+                                return 'Subject Tutoring';
+                              }
+                              // For other services, use as is
+                              return subject;
+                            };
+                            
                             // Display the badges (up to 3)
-                            return processedSubjects.slice(0, 3).map((subject, idx) => (
-                            <Badge key={idx} variant="outline" className="text-xs bg-[#c2d8d2]/30 border-[#84b7bd]/30">
-                              {subject}
-                            </Badge>
-                            ));
+                            return processedSubjects.slice(0, 3).map((subject, idx) => {
+                              // Get the main service name for cost lookup
+                              const mainServiceName = getMainServiceName(subject);
+                              
+                              // Check if this service has a cost
+                              const cost = serviceCosts[mainServiceName];
+                              const hasCost = cost !== undefined;
+                              if (hasCost) {
+                                // Display service with cost in a single oval
+                                return (
+                                  <div 
+                                    key={idx}
+                                    className="flex items-center rounded-full overflow-hidden border border-[#84b7bd]/30"
+                                  >
+                                    <div className="bg-[#c2d8d2]/30 px-2 py-0.5 text-xs font-semibold">
+                                      {subject}
+                                    </div>
+                                    <div className="bg-[#128ca0]/20 px-2 py-0.5 text-xs font-semibold text-[#126d94] h-full">
+                                      {cost}
+                                    </div>
+                                  </div>
+                                );
+                              } else {
+                                // Display service without cost
+                                return (
+                                  <Badge key={idx} variant="outline" className="text-xs bg-[#c2d8d2]/30 border-[#84b7bd]/30">
+                                    {subject}
+                                  </Badge>
+                                );
+                              }
+                            });
                           })()}
                           {(typeof tutor.subjects === 'string' 
                             ? tutor.subjects.split(',') 
@@ -1541,7 +1630,7 @@ export default function TutorsPage() {
                           >
                             <div className="flex items-center justify-center gap-1">
                               <Sparkles className="h-3.5 w-3.5 mr-1" />
-                              Unlock Premium
+                              Unlock Access
                             </div>
                           </Button>
                         )}

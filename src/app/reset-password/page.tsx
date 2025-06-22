@@ -38,14 +38,12 @@ export default function ResetPasswordPage() {
         if (code) {
           // If we have a code, we'll try to verify it's valid
           setIsVerifying(true);
-          console.log('Found code in URL, attempting to verify session');
           
           try {
             // First check if we already have a session
             const { data: sessionData } = await supabase.auth.getSession();
             
             if (sessionData?.session) {
-              console.log('Already have a valid session');
               setHasSession(true);
               
               // Remove the code from the URL to prevent reuse
@@ -59,7 +57,6 @@ export default function ResetPasswordPage() {
             const { data: userData, error: userError } = await supabase.auth.getUser();
             
             if (!userError && userData?.user) {
-              console.log('Successfully verified user from code');
               setHasSession(true);
               
               // Remove the code from the URL to prevent reuse
@@ -83,7 +80,6 @@ export default function ResetPasswordPage() {
             const { data: finalCheck } = await supabase.auth.getSession();
             
             if (finalCheck?.session) {
-              console.log('Successfully established session after OTP verification');
               setHasSession(true);
               
               // Remove the code from the URL to prevent reuse
@@ -99,16 +95,13 @@ export default function ResetPasswordPage() {
         }
         
         // If no code, check if there's an existing session
-        console.log('No code in URL, checking for existing session');
         const { data } = await supabase.auth.getSession();
         
         if (data?.session) {
-          console.log('Found existing session');
           setHasSession(true);
           return;
         }
         
-        console.log('No active session found');
         // No valid session found
         throw new Error('No active session');
       } catch (error) {
@@ -153,7 +146,6 @@ export default function ResetPasswordPage() {
       const { createClient } = await import('@/utils/supabase/client');
       const supabase = createClient();
       
-      console.log('Attempting to update password');
       
       // Update the password directly using Supabase client
       const { error } = await supabase.auth.updateUser({
@@ -165,7 +157,6 @@ export default function ResetPasswordPage() {
         throw new Error(error.message || "Failed to reset password");
       }
       
-      console.log('Password updated successfully');
       
       toast({
         title: "Password updated",

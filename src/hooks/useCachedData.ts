@@ -115,7 +115,6 @@ export function useCachedData<T = any>(
         
         // If cache is stale, refresh in background - but with shorter delay to avoid race conditions
         if (cacheAge > maxAge) {
-          console.debug(`Cache for ${cacheKey} is stale (${cacheAge / 1000}s old), refreshing in background`);
           
           const timer = setTimeout(() => {
             if (!refreshInProgress.current) {

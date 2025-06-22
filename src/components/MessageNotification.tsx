@@ -60,7 +60,6 @@ export function MessageNotification() {
           if (isSender) {
             // Only show notification if they're not already on the messages page viewing this conversation
             if (isOnMessagesPage && selectedConversationId === messageData.conversation_id) {
-              console.log("Skipping sender notification - already viewing conversation", messageData.conversation_id);
               return;
             }
             
@@ -88,7 +87,6 @@ export function MessageNotification() {
           } else {
             // For recipients, only show if not already viewing this conversation
           if (isOnMessagesPage && selectedConversationId === messageData.conversation_id) {
-              console.log("Skipping recipient notification - already viewing conversation", messageData.conversation_id);
             return;
           }
           

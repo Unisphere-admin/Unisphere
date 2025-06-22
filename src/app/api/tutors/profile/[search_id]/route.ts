@@ -31,18 +31,15 @@ async function getTutorProfileHandler(
       return NextResponse.json({ error: 'Search parameter is required' }, { status: 400 });
     }
 
-    console.log(`[TUTOR API] Received request for tutor with search_id: ${searchId}`);
 
     // Use data access layer to fetch tutor
     const { tutor, error } = await getTutorBySearchId(searchId);
 
     // Handle error case
     if (error || !tutor) {
-      console.log(`[TUTOR API] Error fetching tutor: ${error}`);
       return NextResponse.json({ error: error || 'Tutor not found' }, { status: 404 });
     }
 
-    console.log(`[TUTOR API] Successfully fetched tutor: ${tutor.first_name} ${tutor.last_name}`);
     
     // Create response with no-cache headers to prevent authentication leakage
     const response = NextResponse.json({ tutor });

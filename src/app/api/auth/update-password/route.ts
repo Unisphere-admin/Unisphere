@@ -34,7 +34,6 @@ export async function GET(req: NextRequest) {
         }
 
         // Successfully exchanged code for session, redirect to reset password page
-        console.log('Successfully exchanged code for session, user can now reset password');
         
         // Redirect to reset-password without the code parameter to avoid reusing it
         return NextResponse.redirect(new URL('/reset-password', req.url));

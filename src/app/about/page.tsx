@@ -65,15 +65,15 @@ export default function AboutPage() {
         <div className="px-4 md:px-8">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-8 text-center">
             <div className="hover:scale-105 transition-transform duration-300">
-              <div className="text-4xl font-bold text-[#128ca0] mb-2">20+</div>
+              <div className="text-4xl font-bold text-[#128ca0] mb-2">50+</div>
               <div className="text-muted-foreground">Tutors</div>
             </div>
             <div className="hover:scale-105 transition-transform duration-300">
-              <div className="text-4xl font-bold text-[#128ca0] mb-2">10+</div>
+              <div className="text-4xl font-bold text-[#128ca0] mb-2">7+</div>
               <div className="text-muted-foreground">Services offered</div>
             </div>
             <div className="hover:scale-105 transition-transform duration-300">
-              <div className="text-4xl font-bold text-[#128ca0] mb-2">50+</div>
+              <div className="text-4xl font-bold text-[#128ca0] mb-2">40+</div>
               <div className="text-muted-foreground">Courses/Majors</div>
             </div>
           </div>

@@ -98,17 +98,14 @@ export default function LoginPage() {
         if (!token) {
           // On the login page, CSRF token fetch is expected to fail when not logged in
           // This is normal and shouldn't be treated as an error
-          console.log('Attempting to fetch CSRF token (normal to fail on login page)');
           
           // Try to fetch but don't show errors if it fails due to auth
           await fetchCsrfToken().catch((err: any) => {
             // This is expected behavior - just log it quietly
-            console.log('Note: CSRF token not available before login (expected behavior)');
           });
         }
       } catch (error) {
         // Silently handle errors - don't affect login page functionality
-        console.log('CSRF token fetch skipped - will retry after login');
       }
     };
     
@@ -186,14 +183,12 @@ export default function LoginPage() {
           const sessionData = await sessionResponse.json();
           const userData = sessionData.user;
           
-          console.log('Session data after login:', userData);
           
           // Check if the user has premium access
           hasPremiumAccess = 
             userData?.role === 'tutor' || 
             userData?.has_access === true;
             
-          console.log('User has premium access:', hasPremiumAccess);
         } else {
           console.error('Failed to fetch session data after login');
         }
@@ -201,15 +196,12 @@ export default function LoginPage() {
         // Navigate based on user status
         if (redirectPath) {
           // If there's a specific redirect path, use it
-          console.log('Redirecting to:', redirectPath);
           router.push(redirectPath);
         } else if (hasPremiumAccess) {
           // Premium users go to dashboard
-          console.log('User has premium access, redirecting to dashboard');
           router.push('/dashboard');
         } else {
           // Non-premium users go to home page
-          console.log('User does not have premium access, redirecting to home page');
           router.push('/');
         }
         
@@ -234,14 +226,12 @@ export default function LoginPage() {
     setError("");
     
     try {
-      console.log(`Initiating password reset for: ${email}`);
       
       // Use Supabase client directly
       const { createClient } = await import('@/utils/supabase/client');
       const supabase = createClient();
       
       // Send password reset email using magic link approach
-      console.log('Sending password reset email with redirectTo:', `${window.location.origin}/reset-password`);
       
       // First try the resetPasswordForEmail method
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -250,7 +240,6 @@ export default function LoginPage() {
       
       // If that fails, fall back to the signInWithOtp method which is more reliable
       if (error) {
-        console.log('resetPasswordForEmail failed, trying signInWithOtp instead:', error);
         
         const { error: otpError } = await supabase.auth.signInWithOtp({
           email,
@@ -265,7 +254,6 @@ export default function LoginPage() {
       }
       }
       
-      console.log('Password reset email sent successfully');
       
       toast({
         title: "Password reset email sent",

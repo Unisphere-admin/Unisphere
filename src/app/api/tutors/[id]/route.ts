@@ -15,7 +15,6 @@ export async function GET(
   try {
     const { id } = await params;
     
-    console.log(`[TUTOR API] Received request for tutor with ID: ${id}`);
     
     if (!id) {
       return NextResponse.json(
@@ -26,7 +25,6 @@ export async function GET(
 
     // Validate the user (but don't require authentication)
     const { user } = await validateRequest(request);
-    console.log(`[TUTOR API] Request auth status: ${user ? 'Authenticated' : 'Not authenticated'}`);
     
     // Determine if user has premium access
     const hasPremiumAccess = user?.is_tutor || user?.has_access;
@@ -43,7 +41,6 @@ export async function GET(
       
     // If not found by search_id, try by actual id
     if (!tutor) {
-      console.log(`[TUTOR API] Tutor not found by search_id, trying by ID`);
       query = supabase
         .from('tutor_profile')
         .select('*')
@@ -63,15 +60,12 @@ export async function GET(
     }
     
     if (!tutor) {
-      console.log(`[TUTOR API] Tutor not found for ID: ${id}`);
       return NextResponse.json(
         { error: 'Tutor not found' },
         { status: 404 }
       );
     }
     
-    console.log(`[TUTOR API] Tutor found: ${tutor.first_name} ${tutor.last_name}`);
-    console.log(`[TUTOR API] Previous education: ${JSON.stringify(tutor.previous_education)}`);
     
     // Filter the tutor data based on premium access
     // Always include these fields for public access
@@ -84,7 +78,8 @@ export async function GET(
       current_education: tutor.current_education,
       previous_education: tutor.previous_education,
       major: tutor.major,
-      year: tutor.year
+      year: tutor.year,
+      service_costs: tutor.service_costs
     };
     
     // Only include premium fields if user has access
@@ -95,7 +90,8 @@ export async function GET(
         extracurriculars: tutor.extracurriculars,
         "a-levels": tutor["a-levels"],
         gcse: tutor.gcse,
-        spm: tutor.spm
+        spm: tutor.spm,
+        cost: tutor.cost
       });
     } else {
       // Set avatar to null for non-premium users

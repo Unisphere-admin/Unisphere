@@ -185,7 +185,6 @@ async function getTutoringSessionsHandler(
     
     // If session ID is provided, get a specific session by ID
     if (sessionId) {
-      console.log(`API route: Getting specific session by ID ${sessionId}`);
       const { session, error } = await getSessionById(user, sessionId);
       
       if (error) {
@@ -194,7 +193,6 @@ async function getTutoringSessionsHandler(
       }
       
       if (!session) {
-        console.log(`No session found with ID ${sessionId}`);
         return NextResponse.json({ error: 'Session not found' }, { status: 404 });
       }
       
@@ -202,11 +200,9 @@ async function getTutoringSessionsHandler(
       const isAuthorized = session.tutor_id === user.id || session.student_id === user.id;
       
       if (!isAuthorized) {
-        console.log(`User ${user.id} not authorized to access session ${sessionId}`);
         return NextResponse.json({ error: 'Not authorized to access this session' }, { status: 403 });
       }
       
-      console.log(`Found session with ID ${sessionId}`);
       const response = NextResponse.json({ session });
       response.headers.set('Cache-Tag', `user-${user.id}`);
       return response;
@@ -235,7 +231,6 @@ async function getTutoringSessionsHandler(
     
     // If message ID is provided, get the session associated with that message
     if (messageId) {
-      console.log(`API route: Getting sessions for message ID ${messageId}`);
       const { sessions, error } = await getSessionsByMessageId(messageId);
       
       if (error) {
@@ -245,7 +240,6 @@ async function getTutoringSessionsHandler(
         
       // If no sessions found, return empty array
       if (!sessions || sessions.length === 0) {
-        console.log(`No sessions found for message ${messageId}`);
         const response = NextResponse.json({ sessions: [] });
           response.headers.set('Cache-Tag', `user-${user.id}`);
           return response;
@@ -257,11 +251,9 @@ async function getTutoringSessionsHandler(
       );
       
       if (!isAuthorized) {
-        console.log(`User ${user.id} not authorized to access sessions for message ${messageId}`);
         return NextResponse.json({ error: 'Not authorized to access these sessions' }, { status: 403 });
       }
       
-      console.log(`Found ${sessions.length} sessions for message ${messageId}`);
       const response = NextResponse.json({ sessions });
       // Add cache tag for this user to enable proper invalidation on logout
       response.headers.set('Cache-Tag', `user-${user.id}`);

@@ -16,7 +16,6 @@ export async function checkAuthAndClearCacheIfNeeded(): Promise<boolean> {
     
     // If not authenticated, clear tutors cache and CSRF token
     if (error || !data.user) {
-      console.log('User not authenticated, clearing tutor cache and CSRF token');
       invalidateCache(CACHE_CONFIG.TUTORS_CACHE_KEY);
       clearStoredCsrfToken(); // Clear CSRF token when logged out
       return false;
@@ -60,7 +59,6 @@ export async function fetchCsrfTokenIfAuthenticated(): Promise<void> {
       if (data.csrfToken) {
         // Store token locally (client.ts module handles this)
         localStorage.setItem('csrfToken', data.csrfToken);
-        console.log('CSRF token refreshed successfully');
       }
     }
   } catch (error) {

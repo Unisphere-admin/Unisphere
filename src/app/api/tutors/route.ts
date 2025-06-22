@@ -33,7 +33,6 @@ async function executeQueryWithRetry(queryFn: () => Promise<any>, maxRetries = 3
             if (attempt < maxRetries - 1) {
                 const jitter = Math.random() * 300;
                 const delayTime = baseDelay * Math.pow(2, attempt) + jitter;
-                console.log(`Retrying in ${Math.floor(delayTime)}ms...`);
                 await delay(delayTime);
             }
         }
@@ -56,7 +55,6 @@ async function getPublicTutorsHandler(request: NextRequest): Promise<NextRespons
             );
         }
         
-        console.log('Successfully fetched public tutors:', tutors.length);
         
         // Create response with no-cache headers
         const response = NextResponse.json({ tutors });
@@ -98,7 +96,6 @@ async function getTutorsHandler(
             );
         }
         
-        console.log('Successfully fetched tutors:', tutors.length);
         
         // Create response with no-cache headers to prevent authentication leakage
         const response = NextResponse.json({ tutors });
@@ -132,7 +129,6 @@ export async function GET(request: NextRequest) {
         
         // If there's an error response and it's an auth error, use public handler
         if (errorResponse && (errorResponse.status === 401 || errorResponse.status === 403)) {
-            console.log("User not authenticated, falling back to public tutors data");
             return getPublicTutorsHandler(request);
         }
         

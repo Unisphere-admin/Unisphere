@@ -24,7 +24,6 @@ export async function POST(req: NextRequest) {
         );
     }
     
-        console.log(`Sending password reset email to: ${email}`);
     const supabase = await createRouteHandlerClientWithCookies();
 
         // Send password reset email with redirect URL
@@ -41,7 +40,6 @@ export async function POST(req: NextRequest) {
         );
     }
 
-        console.log(`Password reset email sent successfully to: ${email}`);
     return NextResponse.json(
             { message: "Password reset email sent. Please check your inbox." },
         { status: 200 }

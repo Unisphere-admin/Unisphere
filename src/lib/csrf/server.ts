@@ -58,7 +58,6 @@ export async function generateCsrfToken(userId?: string): Promise<string> {
       throw new Error('Failed to set CSRF cookie');
     }
     
-    console.log(`CSRF token generated successfully at ${new Date().toISOString()} for ${userId || 'unknown user'}`);
     return token;
   } catch (error) {
     console.error('Error in generateCsrfToken:', error);
@@ -91,7 +90,6 @@ export async function validateStoredToken(userId?: string): Promise<{ valid: boo
     
     // Check if token has expired
     if (Date.now() > tokenData.expires) {
-      console.log("CSRF token has expired");
       return { valid: false, error: "CSRF token has expired" };
     }
     
@@ -104,7 +102,6 @@ export async function validateStoredToken(userId?: string): Promise<{ valid: boo
     // Check that token was generated recently enough
     const tokenAge = Date.now() - tokenData.createdAt;
     if (tokenAge > TOKEN_EXPIRY) {
-      console.log("CSRF token age exceeds maximum allowed");
       return { valid: false, error: "CSRF token too old" };
     }
     

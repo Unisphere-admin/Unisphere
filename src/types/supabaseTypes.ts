@@ -18,6 +18,7 @@ export interface TutorProfile {
   "a-levels"?: string[] | null;
   spm?: string | null;
   search_id: string;
+  service_costs?: Record<string, number> | null;
 }
 
 export interface StudentProfile {

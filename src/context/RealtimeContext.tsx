@@ -111,7 +111,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     
     // If shown within last check window, consider it a duplicate
     if (now - lastShown < DUPLICATE_CHECK_WINDOW) {
-      console.log(`Duplicate notification detected: ${notificationKey}, last shown ${now - lastShown}ms ago`);
       return true;
     }
     
@@ -136,13 +135,11 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
   ) => {
     // Skip notifications for the current user's messages
     if (user && messageId.includes(user.id)) {
-      console.log(`Skipping notification for own message: ${messageId}`);
       return false;
     }
     
     // Skip if we've already shown this notification recently
     if (hasRecentlyShown(messageId, conversationId, content)) {
-      console.log(`Skipping duplicate notification for message: ${messageId}`);
       return false;
     }
     
@@ -160,7 +157,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         selectedConversationId === conversationId && 
         pageVisibility.isVisible && 
         pageVisibility.isFocused) {
-      console.log("Skipping notification - user is already viewing this conversation");
       // Mark as read automatically
       messageContext?.markConversationAsRead?.(conversationId);
       return false;
@@ -173,7 +169,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     // This helps prevent functionally identical notifications
     const notificationKey = `${messageId}-${conversationId}-${content.substring(0, 30)}`;
     recentNotifications.current.set(notificationKey, Date.now());
-    console.log(`Recording notification with key: ${notificationKey}`);
     
     // Generate a unique ID for this notification to target it specifically
     const toastId = `msg-${messageId}`;
@@ -241,7 +236,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
           const now = Date.now();
           // Use cached result if less than 5 minutes old
           if (now - timestamp < 5 * 60 * 1000) {
-            console.log('Using cached premium access status:', hasAccess);
             setHasPremiumAccess(hasAccess);
             return hasAccess;
           }
@@ -307,10 +301,8 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         if (!supabaseRef.current) {
           supabaseRef.current = createClient();
           setConnected(true);
-          console.log("Initialized Supabase realtime client");
         }
       } else {
-        console.log("User does not have premium access, skipping realtime client initialization");
         // Clean up any existing channels when premium access is revoked
         if (supabaseRef.current) {
           // Unsubscribe from all channels
@@ -319,7 +311,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
               const channel = channelsRef.current[channelKey];
               if (channel && typeof channel.unsubscribe === 'function') {
                 channel.unsubscribe();
-                console.log(`Unsubscribed from channel: ${channelKey}`);
               }
             } catch (error) {
               console.error(`Error unsubscribing from channel ${channelKey}:`, error);
@@ -333,7 +324,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
           // Disconnect the client
           supabaseRef.current = null;
           setConnected(false);
-          console.log("Cleaned up realtime connections due to lack of premium access");
         }
       }
     };
@@ -345,7 +335,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         if (!supabaseRef.current) {
           supabaseRef.current = createClient();
           setConnected(true);
-          console.log("Initialized Supabase realtime client from cached access status");
         }
       }
     } else {
@@ -380,13 +369,11 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         const { result, timestamp } = JSON.parse(cachedResult);
         const now = Date.now();
         if (now - timestamp < 5 * 60 * 1000) { // 5 minutes
-          console.log(`Using cached session check result for message ${messageId}: ${result}`);
           return result;
         }
       }
       
       // Make API call to check if message has associated sessions
-      console.log(`Checking if message ${messageId} has associated sessions`);
       const response = await fetch(`/api/tutoring-sessions?message_id=${messageId}`, {
         credentials: 'include'
       });
@@ -407,7 +394,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         timestamp: Date.now()
       }));
       
-      console.log(`Message ${messageId} session check result: ${hasSession ? 'Has session' : 'No session'}`);
       return hasSession;
     } catch (error) {
       console.error('Error checking if message has a session:', error);
@@ -420,7 +406,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     if (!payload.payload) return;
     
     const message = payload.payload;
-    console.log('Received realtime message:', message);
     
     // Immediately check if this is a session request based on content
     const isSessionRequest = message.content && message.content.trim().startsWith('Session Request:');
@@ -446,7 +431,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
           status: "requested" as "requested" | "accepted" | "started" | "ended" | "cancelled"
         };
         
-        console.log('Created session request object from realtime message:', sessionRequest);
       }
       
       // Add the sessionRequest property to the message
@@ -467,7 +451,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     // Only show notifications for messages from other users
     // Do this check after state update to ensure UI consistency
     if (!user || message.sender_id === user.id) {
-      console.log('Skipping notification for own message:', message.id);
       return;
     }
     
@@ -481,7 +464,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         selectedConversationId === message.conversation_id && 
         pageVisibility.isVisible && 
         pageVisibility.isFocused) {
-      console.log("Skipping notification - user is already viewing this conversation");
       // Mark as read automatically
       messageContext?.markConversationAsRead?.(message.conversation_id);
       return;
@@ -490,7 +472,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     // Check if we've already shown this notification recently using new parameters
     if (message.id && message.conversation_id && message.content && 
         hasRecentlyShown(message.id, message.conversation_id, message.content)) {
-      console.log(`Skipping duplicate notification via early check for message: ${message.id}`);
       return;
     }
     
@@ -504,7 +485,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
           // Add a timestamp to help with duplicate detection across tabs
           _notificationTimestamp: Date.now()
         }));
-        console.log('Stored message in localStorage for notifications');
         
         // Determine the best display name
         const senderDisplayName = message.sender?.display_name || 'Someone';
@@ -514,17 +494,14 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         
         // If content doesn't indicate a session request, check the database
         if (!isSessionRequest) {
-          console.log(`Checking if message ${message.id} is associated with a session request...`);
           try {
             isSessionRequest = await checkMessageHasSession(message.id);
-            console.log(`Message ${message.id} session check result: ${isSessionRequest ? 'Has session' : 'No session'}`);
           } catch (error) {
             console.error(`Error checking if message has session:`, error);
             // Default to false in case of error
             isSessionRequest = false;
           }
         } else {
-          console.log(`Message ${message.id} is a session request based on content`);
         }
         
         // Show notification in current tab
@@ -547,7 +524,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     if (!payload.payload?.session || !sessionContext) return;
     
     const updatedSession = payload.payload.session;
-    console.log('Received session update:', updatedSession);
     
     // Show notification for certain session status changes
     if (updatedSession.status && user) {
@@ -621,7 +597,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
 
   // Handle session list update events  
   const handleSessionListUpdate = useCallback(() => {
-    console.log('Session list needs updating');
     
     // We no longer need to refresh the entire session list
     // Individual session updates are already handled by handleSessionUpdate
@@ -633,7 +608,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     if (!payload.payload || !messageContext) return;
     
     const { user_id, conversation_id, is_typing, display_name, timestamp } = payload.payload;
-    console.log('Received typing indicator:', is_typing ? 'typing' : 'stopped typing', 'from', user_id);
     
     // Update the typing state in the message context
     (messageContext as any).handleTypingState?.({
@@ -648,7 +622,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
   const subscribeToConversation = useCallback(async (conversationId: string) => {
     // First check if user has premium access using the cached status when available
     if (hasPremiumAccess === false) {
-      console.log("User does not have premium access, skipping conversation subscription");
       return null;
     }
     
@@ -656,7 +629,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     if (hasPremiumAccess === null) {
       const hasAccess = await checkPremiumAccess();
       if (!hasAccess) {
-        console.log("User does not have premium access (checked on demand), skipping conversation subscription");
         return null;
       }
     }
@@ -674,7 +646,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     const SUBSCRIPTION_COOLDOWN = 5000; // 5 seconds
     
     if (lastSubscriptionAttempt && now - lastSubscriptionAttempt < SUBSCRIPTION_COOLDOWN) {
-      console.log(`Subscription attempt for ${conversationId} is in cooldown period, skipping`);
       return channelsRef.current[conversationId] || null;
     }
     
@@ -693,7 +664,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         // Only log once every 30 seconds per conversation to reduce noise
         if (!channelsRef.current[stableKey] || 
             Date.now() - channelsRef.current[stableKey] > 30000) {
-          console.log(`Already subscribed to conversation: ${conversationId}`);
           channelsRef.current[stableKey] = Date.now();
         }
         return channel;
@@ -701,7 +671,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         // Clean up invalid channel before creating a new one
         try {
           if (channel) {
-            console.log(`Cleaning up invalid channel for conversation: ${conversationId}, state: ${channel.state}`);
             channel.unsubscribe();
           }
           delete channelsRef.current[conversationId];
@@ -713,7 +682,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     
     // Create channel name based on conversation ID
     const channelName = `tutoring_session:conversation:${conversationId}`;
-    console.log(`Creating new subscription for conversation: ${conversationId}`);
     
     try {
       // Create and subscribe to the channel
@@ -728,7 +696,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         .on('broadcast', { event: 'session_list_update' }, handleSessionListUpdate)
         .on('broadcast', { event: 'typing' }, handleTypingIndicator)
         .subscribe((status: string) => {
-          console.log(`Subscription to ${channelName} status:`, status);
           
           // Update subscribed channels list for UI
           if (status === 'SUBSCRIBED') {
@@ -755,7 +722,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
   const listenForNewConversations = useCallback(async () => {
     // First check if user has premium access
     if (!hasPremiumAccess && hasPremiumAccess !== null) {
-      console.log("User does not have premium access, skipping PostgreSQL subscription");
       return;
     }
     
@@ -763,14 +729,12 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     if (hasPremiumAccess === null) {
       const hasAccess = await checkPremiumAccess();
       if (!hasAccess) {
-        console.log("User does not have premium access (checked on demand), skipping PostgreSQL subscription");
         return;
       }
     }
     
     if (!user || !supabaseRef.current) return;
 
-    console.log("Setting up listener for new conversations in PostgreSQL");
     
     // Subscribe to changes in conversations table for this user
     const channel = supabaseRef.current
@@ -783,7 +747,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
           table: 'conversations'
         },
         (payload: PostgresChangePayload) => {
-          console.log('New conversation detected via PostgreSQL changes:', payload);
           
           // Get the conversation ID
           const conversationId = payload.new.id;
@@ -794,7 +757,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
 
           // Subscribe to the conversation if it's for the current user
           if (isParticipant && conversationId) {
-            console.log(`Subscribing to new conversation: ${conversationId}`);
             
             // Use the realtime subscription method
             subscribeToConversation(conversationId);
@@ -848,7 +810,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     
     // Only continue if user has premium access
     if (hasPremiumAccess === false) {
-      console.log("User does not have premium access, skipping automatic conversation subscriptions");
       return;
     }
     
@@ -890,9 +851,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         const activeStates = ['SUBSCRIBED', 'JOINED', 'joined', 'subscribed'];
         if (activeStates.includes(channel.state)) {
           channel.unsubscribe();
-          console.log(`Unsubscribed from conversation: ${conversationId}`);
         } else {
-          console.log(`Skipping unsubscribe for conversation ${conversationId} - channel not in active state (${channel.state})`);
         }
         
         // Remove from our channel references
@@ -921,7 +880,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       if (!channel) {
         channel = supabaseRef.current.channel(channelName);
         channel.subscribe((status: string) => {
-          console.log(`New broadcast channel subscription status:`, status);
         });
         channelsRef.current[conversationId] = channel;
       }
@@ -933,7 +891,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         payload: message
       });
       
-      console.log(`Broadcasting message to conversation ${conversationId}`);
     } catch (error) {
       console.error(`Error broadcasting message to conversation ${conversationId}:`, error);
     }
@@ -954,7 +911,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       if (!channel) {
         channel = supabaseRef.current.channel(channelName);
         channel.subscribe((status: string) => {
-          console.log(`New broadcast channel subscription status:`, status);
         });
         channelsRef.current[conversationId] = channel;
       }
@@ -966,7 +922,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         payload: { session }
       });
       
-      console.log(`Broadcasting session update for session ${session.id}`);
     } catch (error) {
       console.error(`Error broadcasting session update:`, error);
     }
@@ -986,7 +941,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       if (!channel) {
         channel = supabaseRef.current.channel(channelName);
         channel.subscribe((status: string) => {
-          console.log(`New broadcast channel subscription status:`, status);
         });
         channelsRef.current[conversationId] = channel;
       }
@@ -1004,7 +958,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         }
       });
       
-      console.log(`Broadcasting typing status: ${isTyping ? 'typing' : 'not typing'}`);
     } catch (error) {
       console.error(`Error broadcasting typing status:`, error);
     }
@@ -1022,7 +975,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
           
           // Skip processing if this is from the current user (to avoid duplicates)
           if (messageData.sender_id === user.id) {
-            console.log('Skipping storage notification for own message');
             return;
           }
           
@@ -1036,7 +988,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
           
           // If this is a new conversation, make sure we're subscribed to it
           if (messageData.conversation_id && !channelsRef.current[messageData.conversation_id]) {
-            console.log(`New conversation detected from storage event: ${messageData.conversation_id}`);
             subscribeToConversation(messageData.conversation_id);
           }
         } catch (error) {

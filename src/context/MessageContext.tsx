@@ -218,7 +218,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
                 createdAt: createdAtDate
               };
             } else {
-              console.log(`Removing expired temporary conversation ${key}, age: ${Math.round(age / 3600000)} hours`);
             }
           });
           
@@ -256,7 +255,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     if (hasPremiumAccess !== null && 
         premiumAccessCheckedRef.current && 
         (now - premiumAccessTimestampRef.current < PREMIUM_ACCESS_CACHE_TTL)) {
-      console.log('Using cached premium access status:', hasPremiumAccess);
       return hasPremiumAccess;
     }
     
@@ -302,7 +300,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     );
     
     if (existingConversation) {
-      console.log(`Using existing conversation ${existingConversation.id} with tutor ${tutorId}`);
       // Select the existing conversation
       setSelectedConversationId(existingConversation.id);
       return existingConversation.id;
@@ -314,7 +311,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     );
 
     if (existingTempConv) {
-      console.log(`Using existing temporary conversation ${existingTempConv[0]} with tutor ${tutorId}`);
       // Select the existing temporary conversation
       setSelectedConversationId(existingTempConv[0]);
       return existingTempConv[0];
@@ -457,21 +453,18 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     try {
       // Skip API calls for temporary conversations
       if (isTempConversation(conversationId)) {
-        console.log(`Skipping mark as read for temporary conversation: ${conversationId}`);
         return true;
       }
       
       // Check if user has premium access before proceeding
       const accessStatus = await checkPremiumAccess();
       if (!accessStatus) {
-        console.log(`User does not have premium access, skipping mark as read for conversation: ${conversationId}`);
         return false;
       }
       
       // Check if this conversation is already marked as read
       const conversation = conversations.find(c => c.id === conversationId);
       if (!conversation) {
-        console.log(`Conversation ${conversationId} not found in state`);
         return false;
       }
       
@@ -480,12 +473,10 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         // Verify there are no unread messages before skipping
         const hasUnread = hasUnreadMessages(conversationId);
         if (!hasUnread) {
-          console.log(`Conversation ${conversationId} has no unread messages, skipping mark as read`);
           return true;
         }
       }
       
-      console.log(`Marking conversation ${conversationId} as read for user ${user.id}`);
       
       // Get CSRF token
       const csrfToken = getCsrfTokenFromStorage();
@@ -513,7 +504,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       
       // Log success response
       const responseData = await response.json().catch(() => ({}));
-      console.log(`Marked conversation as read successfully:`, responseData);
       
       // Update the last_viewed_at timestamp in our local state
       const currentTimestamp = new Date().toISOString();
@@ -536,7 +526,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       
       // Set the conversations state with the updated data
       setConversations(updatedConversations);
-      console.log(`Updated conversation ${conversationId} in state with new last_viewed_at`);
       
       return true;
     } catch (error) {
@@ -549,7 +538,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
   const verifyConversationReady = async (conversationId: string): Promise<boolean> => {
     if (!conversationId || !user) return false;
     
-    console.log(`Verifying if conversation ${conversationId} is ready to receive messages`);
     
     try {
       // Make up to 3 attempts with increasing delays
@@ -559,7 +547,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         // Add delay between attempts, increasing with each attempt
         if (attempt > 0) {
           const delay = 1000 * Math.pow(2, attempt - 1); // 1s, 2s, 4s
-          console.log(`Waiting ${delay}ms before verification attempt ${attempt + 1}`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
         
@@ -577,10 +564,8 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
           clearTimeout(timeoutId);
           
           if (!response.ok) {
-            console.log(`Conversation status check failed with status ${response.status}`);
             
             if (attempt === maxAttempts - 1) {
-              console.log('All verification attempts failed, conversation may not be ready');
               return false;
             }
             
@@ -592,15 +577,12 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
           const data = await response.json();
           
           if (data.ready === true) {
-            console.log('Conversation is ready to receive messages');
             return true;
           }
           
-          console.log(`Conversation not ready yet: ${data.error || 'Unknown reason'}`);
           
           // If this is the last attempt, return false
           if (attempt === maxAttempts - 1) {
-            console.log('All verification attempts failed, conversation may not be ready');
             return false;
           }
         } catch (error) {
@@ -678,14 +660,12 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     
     // Skip API calls for temporary conversations
     if (isTempConversation(conversationId)) {
-      console.log(`Skipping typing indicator for temporary conversation: ${conversationId}`);
       return;
     }
     
     // Check if user has premium access before proceeding
     const accessStatus = await checkPremiumAccess();
     if (!accessStatus) {
-      console.log(`User does not have premium access, skipping typing indicator for conversation: ${conversationId}`);
       return;
     }
     
@@ -929,7 +909,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     // Only show notifications for messages from other users
     // Do this check after state update to ensure UI consistency
     if (!user || message.sender_id === user.id) {
-      console.log('Skipping notification for own message:', message.id);
       return;
     }
   }, [updateMessageStatus, user?.id, sortConversations]);
@@ -954,7 +933,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         
         // If we have valid cached conversations, use them immediately and set loading=false
         if (cachedConversations && cachedConversations.length > 0) {
-          console.log("Using cached conversations from localStorage");
           
           // Merge temporary conversations with cached conversations
           const tempConvs = createTemporaryConversationObjects();
@@ -971,7 +949,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
             // Fetch fresh data in the background if user has premium access
             fetchFreshConversations();
           } else {
-            console.log('User does not have premium access, skipping fresh conversations fetch');
           }
           return;
         }
@@ -982,7 +959,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
           setLoading(true);
           await fetchFreshConversations();
         } else {
-          console.log('User does not have premium access, skipping conversations fetch');
           // Create temporary conversation objects only
           const tempConvs = createTemporaryConversationObjects();
           setConversations(sortConversations(tempConvs));
@@ -1046,7 +1022,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     // Helper function to fetch fresh conversations and update cache
     const fetchFreshConversations = async () => {
       if (!user) {
-        console.log('No user, cannot fetch conversations');
         return;
       }
       
@@ -1056,7 +1031,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       
       if (response.status === 401) {
         // User needs to login again
-        console.log('Auth session expired or unauthorized. Redirecting to login...');
         setConversations([]);
         return;
       }
@@ -1122,7 +1096,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
           if (!existingConvo) {
             mergedConversations.push(tempConv);
           } else {
-            console.log(`Not adding temp conversation for tutor ${tutorId} as real conversation exists`);
             
             // If there's a temporary conversation in localStorage for this tutor, remove it
             Object.keys(tempConversations).forEach(tempId => {
@@ -1132,7 +1105,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
                   delete newTemp[tempId];
                   return newTemp;
                 });
-                console.log(`Removing stale temporary conversation ${tempId} for tutor ${tutorId}`);
               }
             });
           }
@@ -1144,7 +1116,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       
       // Save to localStorage cache - only save real conversations
       saveToCache(CACHE_CONFIG.CONVERSATIONS_CACHE_KEY, processedConversations);
-      console.log("Updated conversations cache in localStorage");
     };
 
     fetchConversations();
@@ -1156,7 +1127,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     
     // Skip API calls for temporary conversations
     if (isTempConversation(conversationId)) {
-      console.log(`Skipping API call for temporary conversation: ${conversationId}`);
       setMessages(prev => {
         if (!prev[conversationId]) {
           return {
@@ -1193,14 +1163,11 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     let accessStatus = hasPremiumAccess;
     
     if (needsAccessCheck) {
-      console.log('Checking premium access for messages...');
       accessStatus = await checkPremiumAccess();
     } else {
-      console.log('Using cached premium access status:', accessStatus);
     }
     
     if (!accessStatus) {
-      console.log(`User does not have premium access, skipping message fetch for conversation: ${conversationId}`);
       
       // Mark this conversation as checked to prevent future checks
       checkedConversationsRef.current.add(conversationKey);
@@ -1233,13 +1200,11 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         cachedData && 
         (now - cachedData.timestamp < MESSAGE_CACHE_TTL) && 
         messages[conversationId]?.length > 0) {
-      console.log(`Using cached messages for conversation: ${conversationId}`);
       return; // Use cached data
     }
     
     try {
       setLoadingMessages(true);
-      console.log(`Fetching messages for conversation: ${conversationId}`);
       
       // Determine if we need to fetch with pagination
       const currentMessages = messages[conversationId] || [];
@@ -1254,13 +1219,11 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       
       if (response.status === 401) {
         // Handle unauthorized
-        console.log('Session expired or unauthorized for messages.');
         return;
       }
       
       if (response.status === 403 || response.status === 500) {
         // Likely not authorized for this conversation
-        console.log(`Not authorized to access conversation: ${conversationId}`);
         
         // Add to checked conversations to prevent retries
         checkedConversationsRef.current.add(conversationKey);
@@ -1338,7 +1301,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       
       // Check if we have the complete history 
       if (data.has_more && forceRefresh) {
-        console.log(`There are more messages available for conversation ${conversationId}`);
         // For now, we don't automatically fetch more, but we could implement that if needed
       }
     } catch (error) {
@@ -1366,21 +1328,18 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     
     // Skip API calls for temporary conversations
     if (isTempConversation(conversationId)) {
-      console.log(`Skipping API refresh for temporary conversation: ${conversationId}`);
       return Promise.resolve();
     }
     
     // Check if user has premium access before proceeding
     const accessStatus = await checkPremiumAccess();
     if (!accessStatus) {
-      console.log(`User does not have premium access, skipping message refresh for conversation: ${conversationId}`);
       return Promise.resolve();
     }
     
     // We need to keep a reference to this specific request to avoid race conditions
     const requestId = `refresh-${Date.now()}-${Math.random().toString().slice(2, 8)}`;
     
-    console.log(`[${requestId}] Refreshing messages for conversation: ${conversationId}`);
     
     try {
       // Check if we already have messages for this conversation
@@ -1392,14 +1351,11 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         const now = Date.now();
         
         if (cachedData && (now - cachedData.timestamp < MESSAGE_CACHE_TTL)) {
-          console.log(`[${requestId}] Using cached messages for conversation: ${conversationId}`);
           return Promise.resolve(); // Use cached data
         }
         
         // Cache is expired or doesn't exist
-        console.log(`[${requestId}] Cache expired, refreshing messages for conversation: ${conversationId}`);
       } else {
-        console.log(`[${requestId}] No existing messages, fetching for conversation: ${conversationId}`);
       }
       
       // Pass forceRefresh=false to replace existing messages rather than paginating
@@ -1462,7 +1418,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     
     // If this is a temporary conversation, pre-fetch the CSRF token to avoid 403 errors
     if (isTempConversation(conversationId)) {
-      console.log('Temporary conversation detected, ensuring CSRF token is available...');
       try {
         await fetchCsrfToken();
       } catch (error) {
@@ -1516,7 +1471,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
     // If this is a temporary conversation, we need to create a real one first
     if (isTemp) {
       try {
-        console.log(`Creating real conversation from temporary conversation ${conversationId}`);
         
         const tempDetails = tempConversations[conversationId];
         if (!tempDetails) {
@@ -1550,7 +1504,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         
         // Store the real conversation ID from Supabase
         actualConversationId = responseData.conversation_id;
-        console.log(`Created real conversation with ID: ${actualConversationId}`);
         
         // Check if the conversation is ready using the dedicated endpoint
         verificationSuccessful = await verifyConversationReady(actualConversationId);
@@ -1564,7 +1517,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         if (isCsrfError) {
           // Attempt to fetch a fresh CSRF token if this was a CSRF error
           try {
-            console.log('CSRF token error detected, attempting to refresh token...');
             await fetchCsrfToken();
             throw new Error('CSRF token error - please try again. The token has been refreshed.');
           } catch (refreshError) {
@@ -1598,14 +1550,12 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       try {
         // If this is a retry attempt, wait before trying again with exponential backoff
         if (attempt > 0) {
-          console.log(`Retry attempt ${attempt}/${maxRetries} for sending message to conversation ${actualConversationId}`);
           
           // For new conversations that weren't verified successfully, use longer delays
           const isNewUnverifiedConversation = isTemp && !verificationSuccessful;
           const baseDelay = isNewUnverifiedConversation ? 2000 : 1000;
           const retryDelay = Math.min(baseDelay * Math.pow(2, attempt - 1), 8000); // Max 8 seconds delay
           
-          console.log(`Waiting ${retryDelay}ms before retry attempt`);
           await new Promise(resolve => setTimeout(resolve, retryDelay));
           
           // Update message status to show retrying
@@ -1690,7 +1640,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
               // Also store in latest_message to trigger the RealtimeContext notification system
               localStorage.setItem('latest_message', JSON.stringify(notificationMessage));
               
-              console.log('Stored first message for notification systems after successful send', notificationMessage);
             }
             
             // Remove the temporary conversation from storage since we now have a real conversation
@@ -1787,9 +1736,7 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
                 `/dashboard/messages?conversationId=${actualConversationId}`
               );
               
-              console.log(`Redirected temporary conversation ${conversationId} to real conversation ${actualConversationId}`);
             } else {
-              console.log(`Converted temporary conversation ${conversationId} to real conversation ${actualConversationId} without redirect`);
             }
           } catch (error) {
             console.error('Error handling conversation redirection:', error);
@@ -1959,10 +1906,8 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
   // Add effect to fetch CSRF token when needed
   useEffect(() => {
     if (!csrfFetchedRef.current && user) {
-      console.log('Fetching CSRF token for MessageProvider...');
       fetchCsrfToken().then(token => {
         if (token) {
-          console.log('CSRF token fetched successfully');
         } else {
           console.warn('Failed to fetch CSRF token, requests requiring CSRF might fail');
         }
@@ -2007,7 +1952,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
               if (age > TEMP_CONVERSATION_EXPIRY_MS) {
                 delete parsed[key];
                 hasChanges = true;
-                console.log(`Cleanup: Removing expired temporary conversation ${key}`);
               }
             });
             

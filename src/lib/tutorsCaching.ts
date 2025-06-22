@@ -25,14 +25,12 @@ async function isAuthenticated(): Promise<boolean> {
  */
 export async function prefetchTutors(): Promise<boolean> {
   try {
-    console.log('Prefetching tutors data for faster page loads');
     
     // Check if we already have cached tutors data
     const cachedTutors = getFromCache(CACHE_CONFIG.TUTORS_CACHE_KEY, CACHE_CONFIG.TUTORS_CACHE_TTL);
     
     // If we have fresh cached data, we can exit early
     if (cachedTutors) {
-      console.debug('Using existing cached tutors data');
       return true;
     }
     
@@ -65,7 +63,6 @@ export async function prefetchTutors(): Promise<boolean> {
       CACHE_CONFIG.TUTORS_CACHE_TTL
     );
     
-    console.debug('Tutors data prefetched and cached successfully');
     return true;
   } catch (error) {
     console.warn("Error prefetching tutors (non-critical):", error);
@@ -141,7 +138,6 @@ export function invalidateTutorsCache() {
   console.warn('invalidateTutorsCache is deprecated. Use invalidateCache from caching.ts instead.');
   try {
     localStorage.removeItem(CACHE_CONFIG.TUTORS_CACHE_KEY);
-    console.log('Tutors cache invalidated');
   } catch (error) {
     console.error('Failed to invalidate tutors cache:', error);
   }

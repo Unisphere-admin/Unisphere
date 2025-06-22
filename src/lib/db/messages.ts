@@ -355,7 +355,6 @@ async function _getConversationById(authUser: AuthUser, conversationId: string):
       };
     }
     
-    console.log(`Found ${participantsData?.length || 0} participants for conversation ${conversationId}`);
     
     // Get current user data from users table (only for authenticated user)
     const { data: currentUserData, error: currentUserError } = await client
@@ -708,30 +707,25 @@ async function _markConversationAsRead(authUser: AuthUser, conversationId: strin
     // Security check - verify authenticated user
     const securityError = securityCheck(authUser);
     if (securityError) {
-      console.log(`Security check failed for user ${authUser.id}: ${securityError}`);
       return { success: false, error: securityError };
     }
     
     if (!conversationId || !userId) {
-      console.log('Missing required parameters:', { conversationId, userId });
       return { success: false, error: 'Conversation ID and user ID are required' };
     }
     
     // Verify user ID matches authenticated user
     const permissionError = await verifyUserPermission(authUser, userId);
     if (permissionError) {
-      console.log(`Permission check failed for user ${userId}: ${permissionError}`);
       return { success: false, error: permissionError };
     }
     
     // Verify user is a participant in this conversation
     const participantError = await verifyConversationParticipant(authUser, conversationId);
     if (participantError) {
-      console.log(`Participant check failed for conversation ${conversationId}: ${participantError}`);
       return { success: false, error: participantError };
     }
     
-    console.log(`DB: Attempting to update last_viewed_at for user ${userId} in conversation ${conversationId}`);
     
     const client = await createRouteHandlerClientWithCookies();
     
@@ -753,7 +747,6 @@ async function _markConversationAsRead(authUser: AuthUser, conversationId: strin
       return { success: false, error: 'Participant record not found' };
     }
     
-    console.log(`Found participant record: ${JSON.stringify(participant)}`);
     
     // Update the last_viewed_at timestamp for the user in this conversation
     const timestamp = new Date().toISOString();
@@ -764,7 +757,6 @@ async function _markConversationAsRead(authUser: AuthUser, conversationId: strin
       .eq('user_id', userId)
       .select();
       
-    console.log('Update operation result:', { updateData, error: error?.message });
       
     if (error) {
       console.error('Error updating conversation last_viewed_at:', error.message);
@@ -774,7 +766,6 @@ async function _markConversationAsRead(authUser: AuthUser, conversationId: strin
     if (!updateData || updateData.length === 0) {
       console.warn('Update succeeded but no rows were updated');
     } else {
-      console.log(`Successfully updated last_viewed_at to ${timestamp}`);
     }
     
     return { success: true, error: null };

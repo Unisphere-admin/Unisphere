@@ -56,6 +56,7 @@ const tutorProfileSchema = baseProfileSchema.extend({
     .optional(),
   bio: z.string().max(500, "Bio must be less than 500 characters").optional(),
   subjects: z.array(z.string()).optional(),
+  serviceCosts: z.record(z.string(), z.number()).optional(),
 });
 
 // Update the password schema to include the current password
@@ -86,7 +87,31 @@ interface UserProfile {
   age?: string;
   avatar_url?: string;
   subjects?: string[] | string | null;
+  cost?: number | string; // Add cost property
+  service_costs?: Record<string, number> | string; // Add service costs property
 }
+
+// Interface for service costs
+interface ServiceCost {
+  service: string;
+  subject?: string;
+  cost: number;
+}
+
+// Function to format service costs for display and storage
+const formatServiceCost = (service: string, cost: number): number => {
+  return cost;
+};
+
+// Function to parse formatted service cost string
+const parseServiceCost = (formattedCost: string | number): number => {
+  if (typeof formattedCost === 'number') {
+    return formattedCost;
+  }
+  
+  const parts = formattedCost.split(' - ');
+  return parts.length > 1 ? parseInt(parts[1]) || 0 : 0;
+};
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -124,6 +149,10 @@ export default function SettingsPage() {
   // State for subcategory inputs
   const [newSubjectTutoring, setNewSubjectTutoring] = useState("");
   const [newUKAdmissionsTest, setNewUKAdmissionsTest] = useState("");
+  
+  // State for service costs
+  const [serviceCosts, setServiceCosts] = useState<Record<string, number>>({});
+  const [subjectCosts, setSubjectCosts] = useState<Record<string, number>>({});
 
   // Check for email verification success from URL
   useEffect(() => {
@@ -185,6 +214,7 @@ export default function SettingsPage() {
       age: "",
       bio: "",
       subjects: [],
+      serviceCosts: {},
     },
   });
 
@@ -297,15 +327,54 @@ export default function SettingsPage() {
         }
       }
       
+      // Extract service costs if they exist
+      let extractedServiceCosts: Record<string, number> = {};
+      if (data.profile.service_costs) {
+        try {
+          if (typeof data.profile.service_costs === 'string') {
+            // Try to parse as JSON
+            const parsedCosts = JSON.parse(data.profile.service_costs);
+            
+            // Handle costs as direct numbers
+            if (typeof parsedCosts === 'object') {
+              Object.entries(parsedCosts).forEach(([key, value]) => {
+                if (typeof value === 'number') {
+                  extractedServiceCosts[key] = value as number;
+                } else if (typeof value === 'string') {
+                  // For backward compatibility with old format
+                  extractedServiceCosts[key] = parseServiceCost(value as string);
+                }
+              });
+            }
+          } else if (typeof data.profile.service_costs === 'object') {
+            // Handle costs as direct numbers
+            Object.entries(data.profile.service_costs).forEach(([key, value]) => {
+              if (typeof value === 'number') {
+                extractedServiceCosts[key] = value as number;
+              } else if (typeof value === 'string') {
+                // For backward compatibility with old format
+                extractedServiceCosts[key] = parseServiceCost(value as string);
+              }
+            });
+          }
+        } catch (e) {
+          console.error('Error parsing service costs:', e);
+        }
+      }
+      
       // Populate the appropriate form based on user role
       if (user.role === 'tutor') {
         tutorForm.reset({
           first_name: data.profile.first_name || "",
           last_name: data.profile.last_name || "",
-          age: data.profile.age || "",
-          bio: data.profile.bio || data.profile.description || "",
+          age: data.profile.age?.toString() || "",
+          bio: data.profile.description || data.profile.bio || "",
           subjects: formattedSubjects || [],
+          serviceCosts: extractedServiceCosts,
         });
+        
+        // Also update the local state
+        setServiceCosts(extractedServiceCosts);
       } else {
         studentForm.reset({
           first_name: data.profile.first_name || "",
@@ -316,6 +385,11 @@ export default function SettingsPage() {
             ? data.profile.current_subjects.join(", ") 
             : data.profile.current_subjects || "",
           bio: data.profile.bio || "",
+        });
+        
+        // Update email form separately
+        emailForm.reset({
+          email: user.email || "",
         });
       }
       
@@ -394,6 +468,20 @@ export default function SettingsPage() {
         }
       }
       
+      // Extract service costs if they exist
+      let extractedServiceCosts: Record<string, number> = {};
+      if (profileData.service_costs) {
+        try {
+          if (typeof profileData.service_costs === 'string') {
+            extractedServiceCosts = JSON.parse(profileData.service_costs);
+          } else if (typeof profileData.service_costs === 'object') {
+            extractedServiceCosts = profileData.service_costs;
+          }
+        } catch (e) {
+          console.error('Error parsing service costs:', e);
+        }
+      }
+      
       if (isTutor) {
         tutorForm.reset({
           first_name: firstName,
@@ -402,7 +490,11 @@ export default function SettingsPage() {
           age: profileData.age?.toString() || "",
           bio: profileData.description || profileData.bio || "",
           subjects: formattedSubjects || [],
+          serviceCosts: extractedServiceCosts,
         });
+        
+        // Also update the local state
+        setServiceCosts(extractedServiceCosts);
       } else {
         // Cast to include the new fields
         const extendedProfile = profileData as any;
@@ -561,6 +653,7 @@ export default function SettingsPage() {
     setProfileLoading(true);
 
     try {
+      
       // Ensure session is valid before making the request
       const isSessionValid = await ensureAuthSession();
       if (!isSessionValid) {
@@ -569,21 +662,43 @@ export default function SettingsPage() {
         return;
       }
 
+      // Format service costs for storage as numbers only
+      const formattedServiceCosts: Record<string, number> = {};
+      if (data.serviceCosts) {
+        Object.entries(data.serviceCosts).forEach(([service, cost]) => {
+          // Only include main categories (not subcategories)
+          if (!service.includes('-')) {
+            // Ensure cost is a number, defaulting to 0
+            let costValue = 0;
+            if (cost !== undefined && cost !== null) {
+              costValue = Number(cost) || 0;
+            }
+            formattedServiceCosts[service] = costValue;
+          }
+        });
+      }
+
+
+      const payload = {
+        first_name: data.first_name,
+        last_name: data.last_name,
+        age: data.age ? data.age.toString() : undefined, // Ensure age is sent as a string
+        bio: data.bio, // This will map to description in the database for tutors
+        subjects: data.subjects, // Add subjects array to the request
+        service_costs: formattedServiceCosts, // Send service costs as numbers
+      };
+
+
       const response = await fetch("/api/users/profile", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           "X-CSRF-Token": token || "",
         },
-        body: JSON.stringify({
-          first_name: data.first_name,
-          last_name: data.last_name,
-          age: data.age ? data.age.toString() : undefined, // Ensure age is sent as a string
-          bio: data.bio, // This will map to description in the database for tutors
-          subjects: data.subjects, // Add subjects array to the request
-        }),
+        body: JSON.stringify(payload),
         credentials: "include",
       });
+
 
       if (response.status === 401) {
         // Handle unauthorized errors
@@ -605,7 +720,10 @@ export default function SettingsPage() {
       console.error("Error updating profile:", error);
       toast.error(error instanceof Error ? error.message : "Failed to update profile");
     } finally {
-      setProfileLoading(false);
+      // Slight delay to ensure state updates properly before setting loading to false
+      setTimeout(() => {
+        setProfileLoading(false);
+      }, 300);
     }
   };
 
@@ -689,7 +807,6 @@ export default function SettingsPage() {
       let csrfToken = token;
       if (!csrfToken) {
         try {
-          console.log('No CSRF token available, fetching fresh token');
           csrfToken = await fetchCsrfToken();
           if (!csrfToken) {
             throw new Error('Failed to fetch CSRF token');
@@ -871,6 +988,9 @@ export default function SettingsPage() {
     
     if (uniqueNewSubjects.length > 0) {
       tutorForm.setValue("subjects", [...currentSubjects, ...uniqueNewSubjects]);
+      
+      // Don't initialize costs for subcategories
+      // We only set costs for main service categories
     }
   };
 
@@ -923,16 +1043,13 @@ export default function SettingsPage() {
   // Debug effect to log subjects data changes
   useEffect(() => {
     const subjects = tutorForm.watch("subjects");
-    console.log("Subjects data changed:", subjects);
     
     if (Array.isArray(subjects) && subjects.length > 0) {
       // Log each subject and which service it belongs to
       subjects.forEach(subject => {
         for (const service of serviceOptions) {
           if (subjectBelongsToService(subject, service)) {
-            console.log(`Subject "${subject}" belongs to service "${service}"`);
             if (subject !== service) {
-              console.log(`  Subcategory: "${extractSubcategory(subject, service)}"`);
             }
             break;
           }
@@ -1345,58 +1462,106 @@ export default function SettingsPage() {
 
                 {/* Services Selection */}
                 <div className="space-y-4">
-                  <FormLabel>Services</FormLabel>
-                  <p className="text-sm text-muted-foreground -mt-2">
-                    Select the services you offer. For Subject tutoring and UK admissions tests, you can add specific subjects or tests.
-                  </p>
+                  <FormLabel className="text-base font-semibold">Services</FormLabel>
+                  <div className="text-sm text-muted-foreground mb-3">
+                    Select the services you offer and set their costs in tokens. Students will pay these tokens to access your services.
+                  </div>
                   <div className="bg-muted/30 p-4 rounded-md border border-border/40">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {serviceOptions.map((service) => (
-                        <div key={service} className="flex items-start space-x-2">
-                          <Checkbox 
-                            id={`service-${service}`}
-                            checked={
-                              // Check if the exact service is included
-                              (tutorForm.watch("subjects") || []).includes(service) || 
-                              // Or if any subcategory of this service exists
-                              (tutorForm.watch("subjects") || []).some(subject => 
-                                subjectBelongsToService(subject, service)
-                              )
-                            }
-                            onCheckedChange={(checked) => {
-                              console.log("Service toggled:", service, "to", checked);
-                              console.log("Current subjects:", tutorForm.getValues("subjects"));
-                              
-                              const currentSubjects = tutorForm.getValues("subjects") || [];
-                              
-                              if (checked) {
-                                // Add the service if not already present
-                                if (!currentSubjects.includes(service)) {
-                                  tutorForm.setValue("subjects", [...currentSubjects, service]);
-                                  console.log("Added service:", service);
-                                  console.log("Updated subjects:", tutorForm.getValues("subjects"));
-                                }
-                              } else {
-                                // Remove the service and any subcategories
-                                const filteredSubjects = currentSubjects.filter(
-                                  subject => !subjectBelongsToService(subject, service)
-                                );
-                                tutorForm.setValue("subjects", filteredSubjects);
-                                console.log("Removed service:", service);
-                                console.log("Updated subjects:", tutorForm.getValues("subjects"));
-                              }
-                            }}
-                          />
-                          <div className="space-y-1 leading-none">
-                            <Label 
-                              htmlFor={`service-${service}`}
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                            >
-                              {service}
-                            </Label>
+                      {serviceOptions.map((service) => {
+                        const isChecked = (tutorForm.watch("subjects") || []).includes(service) || 
+                          (tutorForm.watch("subjects") || []).some(subject => 
+                            subjectBelongsToService(subject, service)
+                          );
+                        
+                        return (
+                          <div key={service} className="flex flex-col space-y-2">
+                            <div className="flex items-start space-x-2">
+                              <Checkbox 
+                                id={`service-${service}`}
+                                checked={isChecked}
+                                onCheckedChange={(checked) => {
+                                  
+                                  const currentSubjects = tutorForm.getValues("subjects") || [];
+                                  const currentServiceCosts = tutorForm.getValues("serviceCosts") || {};
+                                  
+                                  if (checked) {
+                                    // Add the service if not already present
+                                    if (!currentSubjects.includes(service)) {
+                                      tutorForm.setValue("subjects", [...currentSubjects, service]);
+                                      
+                                      // Initialize cost to 0 if not already set
+                                      if (currentServiceCosts[service] === undefined) {
+                                        const updatedCosts = { ...currentServiceCosts, [service]: 0 };
+                                        tutorForm.setValue("serviceCosts", updatedCosts);
+                                        setServiceCosts(updatedCosts);
+                                      }
+                                    }
+                                  } else {
+                                    // Remove the service and any subcategories
+                                    const filteredSubjects = currentSubjects.filter(
+                                      subject => !subjectBelongsToService(subject, service)
+                                    );
+                                    tutorForm.setValue("subjects", filteredSubjects);
+                                    
+                                    // Remove cost for this service
+                                    const { [service]: _, ...restCosts } = currentServiceCosts;
+                                    tutorForm.setValue("serviceCosts", restCosts);
+                                    setServiceCosts(restCosts);
+                                    
+                                    // Also remove costs for any subcategories
+                                    const subjectCostsToKeep = { ...subjectCosts };
+                                    currentSubjects.forEach(subject => {
+                                      if (subjectBelongsToService(subject, service) && subject !== service) {
+                                        delete subjectCostsToKeep[subject];
+                                      }
+                                    });
+                                    setSubjectCosts(subjectCostsToKeep);
+                                  }
+                                }}
+                              />
+                              <div className="space-y-1 leading-none flex-grow">
+                                <Label 
+                                  htmlFor={`service-${service}`}
+                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                >
+                                  {service}
+                                </Label>
+                              </div>
+                            </div>
+                            
+                            {isChecked && (
+                              <div className="ml-6 flex items-center space-x-2">
+                                <Label htmlFor={`cost-${service}`} className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                                  Cost (tokens):
+                                </Label>
+                                <div className="relative flex-grow">
+                                  <Input
+                                    id={`cost-${service}`}
+                                    type="text"
+                                    inputMode="numeric"
+                                    min="0"
+                                    placeholder="0"
+                                    value={serviceCosts[service] === undefined || serviceCosts[service] === 0 ? "" : serviceCosts[service]}
+                                    onChange={(e) => {
+                                      // Allow empty string in the input field
+                                      const inputValue = e.target.value;
+                                      // Only update if it's a valid number or empty
+                                      if (inputValue === "" || /^\d+$/.test(inputValue)) {
+                                        const value = inputValue === "" ? 0 : parseInt(inputValue);
+                                        const updatedCosts = { ...serviceCosts, [service]: value };
+                                        setServiceCosts(updatedCosts);
+                                        tutorForm.setValue("serviceCosts", updatedCosts);
+                                      }
+                                    }}
+                                    className="h-7 text-xs bg-background/80 font-bold text-primary placeholder:font-normal placeholder:text-muted-foreground/60"
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                     
                     {/* Subject Tutoring Subcategories */}
@@ -1411,26 +1576,27 @@ export default function SettingsPage() {
                             .map((subject) => {
                               const subjectName = extractSubcategory(subject, "Subject Tutoring");
                               return (
-                                <Badge 
-                                  key={subject} 
-                                  variant="secondary"
-                                  className="flex items-center gap-1 bg-primary/10 text-primary border-primary/20"
-                                >
-                                  {subjectName}
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
-                                    onClick={() => {
-                                      const currentSubjects = tutorForm.getValues("subjects") || [];
-                                      const filteredSubjects = currentSubjects.filter(s => s !== subject);
-                                      tutorForm.setValue("subjects", filteredSubjects);
-                                    }}
+                                <div key={subject} className="flex flex-col gap-1">
+                                  <Badge 
+                                    variant="secondary"
+                                    className="flex items-center gap-1 bg-primary/10 text-primary border-primary/20"
                                   >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                </Badge>
+                                    {subjectName}
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
+                                      onClick={() => {
+                                        const currentSubjects = tutorForm.getValues("subjects") || [];
+                                        const filteredSubjects = currentSubjects.filter(s => s !== subject);
+                                        tutorForm.setValue("subjects", filteredSubjects);
+                                      }}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </Badge>
+                                </div>
                               );
                             })}
                         </div>
@@ -1474,26 +1640,27 @@ export default function SettingsPage() {
                             .map((subject) => {
                               const testName = extractSubcategory(subject, "UK Admissions tests");
                               return (
-                                <Badge 
-                                  key={subject} 
-                                  variant="secondary"
-                                  className="flex items-center gap-1 bg-primary/10 text-primary border-primary/20"
-                                >
-                                  {testName}
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
-                                    onClick={() => {
-                                      const currentSubjects = tutorForm.getValues("subjects") || [];
-                                      const filteredSubjects = currentSubjects.filter(s => s !== subject);
-                                      tutorForm.setValue("subjects", filteredSubjects);
-                                    }}
+                                <div key={subject} className="flex flex-col gap-1">
+                                  <Badge 
+                                    variant="secondary"
+                                    className="flex items-center gap-1 bg-primary/10 text-primary border-primary/20"
                                   >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                </Badge>
+                                    {testName}
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
+                                      onClick={() => {
+                                        const currentSubjects = tutorForm.getValues("subjects") || [];
+                                        const filteredSubjects = currentSubjects.filter(s => s !== subject);
+                                        tutorForm.setValue("subjects", filteredSubjects);
+                                      }}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </Badge>
+                                </div>
                               );
                             })}
                         </div>

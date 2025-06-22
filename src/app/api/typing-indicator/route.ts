@@ -56,7 +56,6 @@ async function typingIndicatorHandler(
       }
     });
     
-    console.log(`Broadcasting typing status: ${user_id} is ${is_typing ? 'typing' : 'not typing'} in conversation ${conversation_id}`);
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -74,7 +74,6 @@ async function refreshAuthToken(): Promise<boolean> {
       if (authError || !authData.session) {
         // Handle specific cases like AuthSessionMissingError
         if (authError && (authError.name === 'AuthSessionMissingError' || authError.message?.includes('Auth session missing'))) {
-          console.log("Auth session is missing, attempting to sign out and clear session");
           // Try to clear the session state to avoid repeated errors
           await supabase.auth.signOut({ scope: 'local' });
           return false;
@@ -92,7 +91,6 @@ async function refreshAuthToken(): Promise<boolean> {
         
         // If less than 10 minutes left or already expired, refresh token
         if (timeLeft < 10 * 60 * 1000) {
-          console.log("Refreshing auth token");
           try {
             const { data, error } = await supabase.auth.refreshSession();
             
@@ -101,13 +99,11 @@ async function refreshAuthToken(): Promise<boolean> {
               return false;
             }
             
-            console.log("Auth token refreshed successfully");
             return true;
           } catch (refreshError: any) {
             // Handle specific error types during refresh
             if (refreshError.name === 'AuthSessionMissingError' || 
                 refreshError.message?.includes('Auth session missing')) {
-              console.log("Auth session is missing during refresh, clearing session");
               await supabase.auth.signOut({ scope: 'local' });
             }
             
@@ -123,7 +119,6 @@ async function refreshAuthToken(): Promise<boolean> {
       // Handle specific error types
       if (authError.name === 'AuthSessionMissingError' || 
           authError.message?.includes('Auth session missing')) {
-        console.log("Auth session is missing, clearing session");
         await supabase.auth.signOut({ scope: 'local' });
       }
       
@@ -218,7 +213,6 @@ export async function protectedFetch<T = any>(
         try {
           const errorData = await response.json();
           if (errorData?.error?.includes('CSRF') || errorData?.message?.includes('CSRF')) {
-            console.log('CSRF validation failed. Retrying with fresh token.');
             
             // Get a fresh token and retry
             const csrfToken = await getCsrfToken();

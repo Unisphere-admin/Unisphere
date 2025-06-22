@@ -22,7 +22,6 @@ export function getSecret(): string {
     if (envSecret) {
       // Use the environment variable if available
       secret = envSecret;
-      console.log('Using CSRF secret from environment variable');
     } else {
       // Fall back to a generated secret (not recommended for production)
       secret = crypto.randomBytes(32).toString('base64');

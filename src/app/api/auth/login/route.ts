@@ -64,7 +64,6 @@ export async function POST(request: NextRequest) {
         });
       } else {
         // Profile doesn't exist but the user is authenticated
-        console.log("User authenticated but profile not found:", userId);
         
         return NextResponse.json({ 
           user: basicUserData,

@@ -243,13 +243,11 @@ export default function MessagesPage() {
   const subscribeToConversation = useCallback((conversationId: string) => {
     // Check if already subscribed to this conversation
     if (subscribedConversationsRef.current.has(conversationId)) {
-      console.log(`Already subscribed locally to conversation: ${conversationId}, skipping duplicate subscription`);
       return null;
     }
     
     // Mark as subscribed locally before making the API call
     subscribedConversationsRef.current.add(conversationId);
-    console.log(`Memoized subscription to conversation: ${conversationId}`);
     return subscribeToConversationOriginal(conversationId);
   }, [subscribeToConversationOriginal]);
   
@@ -276,7 +274,6 @@ export default function MessagesPage() {
 
   // Force refresh sessions when the component mounts
   useEffect(() => {
-    console.log("Refreshing sessions on messages page load");
     refreshSessions(); // Keep this initial refresh for page load
   }, [refreshSessions]);
   
@@ -296,7 +293,6 @@ export default function MessagesPage() {
         // If we have a selected conversation that's in the map, redirect to the real one
         if (urlConversationId && conversionMap[urlConversationId]) {
           const realId = conversionMap[urlConversationId];
-          console.log(`Found temp-to-real mapping: ${urlConversationId} -> ${realId}`);
           
           // Update URL to use the real ID
           router.replace(`/dashboard/messages?conversationId=${realId}`, { scroll: false });
@@ -317,7 +313,6 @@ export default function MessagesPage() {
             // Check each mapping to see if the temp conversation still exists
             Object.keys(conversionMap).forEach(tempId => {
               if (!tempConvos[tempId]) {
-                console.log(`Removing orphaned mapping for non-existent temp conversation: ${tempId}`);
                 delete conversionMap[tempId];
                 hasOrphanedMappings = true;
               }
@@ -347,7 +342,6 @@ export default function MessagesPage() {
     // Check for redirects first
     const realConversationId = checkTempToRealConversions();
     if (realConversationId) {
-      console.log(`Redirecting to real conversation: ${realConversationId}`);
       return; // Skip the rest of this effect
     }
     
@@ -358,13 +352,11 @@ export default function MessagesPage() {
       
       // Set the selected conversation ID regardless
       // This allows it to be selected even if the conversations are still loading
-      console.log(`Setting conversation from URL param: ${conversationId} (exists in list: ${conversationExists})`);
       setSelectedConversationId(conversationId);
       
       // If the conversation doesn't exist in our current list and we're not in loading state,
       // try to fetch the specific conversation directly
       if (!conversationExists && !loading && stableConversations.length > 0) {
-        console.log(`Conversation ${conversationId} not in list, triggering direct fetch`);
         
         // Trigger direct fetch for the specific conversation ID
         const fetchSpecificConversation = async () => {
@@ -401,7 +393,6 @@ export default function MessagesPage() {
           if (age > TEMP_CONVERSATION_EXPIRY_MS) {
             delete parsed[key];
             hasChanges = true;
-            console.log(`Page cleanup: Removing expired temporary conversation ${key}`);
           }
         });
         
@@ -421,15 +412,12 @@ export default function MessagesPage() {
   // Effect to log when we're handling conversation ID changes
   useEffect(() => {
     if (selectedConversationId) {
-      console.log(`Selected conversation: ${selectedConversationId}`);
       
       // Only load messages if we haven't loaded them before
       // This prevents redundant API calls
       if (!loadedConversationsRef.current.has(selectedConversationId)) {
-        console.log(`First time loading messages for conversation: ${selectedConversationId}`);
         loadedConversationsRef.current.add(selectedConversationId);
       } else {
-        console.log(`Using cached messages for conversation: ${selectedConversationId}`);
       }
     }
   }, [selectedConversationId]);
@@ -442,7 +430,6 @@ export default function MessagesPage() {
       // Find the message element and scroll to it
       const messageElement = messageElementRefs.current[messageId];
       if (messageElement) {
-        console.log(`Scrolling to message: ${messageId}`);
         setTimeout(() => {
           messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
           // Highlight the message temporarily
@@ -557,7 +544,6 @@ export default function MessagesPage() {
     let currentChannels: {[id: string]: any} = {};
     
     if (selectedConversationId) {
-      console.log(`Setting up subscription to conversation: ${selectedConversationId}`);
       
       // Call subscribeToConversation which handles subscription internally
       // This returns the channel object now
@@ -576,7 +562,6 @@ export default function MessagesPage() {
       // Skip if we're just changing conversations
       if (!user) {
         Object.keys(currentChannels).forEach(conversationId => {
-          console.log(`Cleaning up subscription for conversation: ${conversationId} (component unmounted or user logged out)`);
           unsubscribeFromConversation(conversationId);
         });
     }
@@ -642,7 +627,6 @@ export default function MessagesPage() {
       setMessageText('');
       const content = sanitizedMessage;
       
-      console.log(`Sending message to conversation ${selectedConversationId}: ${content}`);
       
       // Clear typing indicator
       setIsTyping(false);
@@ -654,12 +638,10 @@ export default function MessagesPage() {
       // Send the message
       try {
       const sentMessage = await sendMessage(selectedConversationId, content);
-      console.log(`Message sent successfully:`, sentMessage);
       
       // Ensure the messages array exists for this conversation
       // This is important for new conversations that might not have messages yet
       if (!messages[selectedConversationId]) {
-        console.log(`Initializing messages array for new conversation: ${selectedConversationId}`);
         refreshMessages(selectedConversationId);
       }
       
@@ -802,13 +784,6 @@ export default function MessagesPage() {
     try {
       setIsSchedulingSession(true);
       
-      // Log current user info
-      console.log("User attempting to schedule session:", {
-        userId: user.id,
-        role: user.role,
-        tokens: user.tokens
-      });
-      
       // Find the other participant in the conversation first to determine roles
       const otherParticipant = currentConversation.participants.find(
         (p) => p.user_id !== user.id
@@ -822,7 +797,6 @@ export default function MessagesPage() {
       const tutorId = user.id;
       const studentId = otherParticipant.user_id;
       
-      console.log("Session roles:", { tutorId, studentId, isTutor: true });
       
       // STEP 1: Create the session first (without message ID)
       const sessionRequest = {
@@ -835,12 +809,10 @@ export default function MessagesPage() {
         cost: sessionCost
       };
       
-      console.log("Creating session without message ID first");
       
       // Get CSRF token
       let csrfToken = getCsrfTokenFromStorage();
       if (!csrfToken) {
-        console.log("CSRF token not found, fetching a new one...");
         try {
           // Try to fetch a new token
           csrfToken = await fetchCsrfToken();
@@ -900,14 +872,12 @@ export default function MessagesPage() {
       // Session created successfully
       const responseData = await sessionResponse.json();
       const session = responseData.session;
-      console.log("Session created successfully:", session);
       
       if (!session || !session.id) {
         throw new Error("Failed to create session: Invalid response");
       }
       
       // STEP 2: Now send the message
-      console.log("Sending session request message");
       const sentMessage = await sendMessage(selectedConversationId, formattedMessage, { maxRetries: 3 });
       
       if (!sentMessage || !sentMessage.id) {
@@ -929,7 +899,6 @@ export default function MessagesPage() {
       }
       
       // STEP 3: Update the session with the message ID
-      console.log("Updating session with message ID:", sentMessage.id);
       const updateResponse = await fetch("/api/tutoring-sessions", {
         method: "PATCH",
         headers: { 
@@ -948,7 +917,6 @@ export default function MessagesPage() {
         console.error("Failed to update session with message ID");
         // This is not a critical error, so we continue
       } else {
-        console.log("Session updated with message ID successfully");
       }
       
       // Force refresh sessions to ensure UI shows the card immediately
@@ -1179,7 +1147,6 @@ export default function MessagesPage() {
         
         // Only load messages if truly necessary
         if ((hasUnreadCountFlag || mightHaveUnread)) {
-          console.log(`Loading messages for conversation ${convo.id} to calculate unread count (no duplicates)`);
           
           // Mark this conversation as being fetched
           fetchInProgressRef.current[convo.id] = true;
@@ -1354,11 +1321,9 @@ export default function MessagesPage() {
         // Check if this is a temporary conversation
         const isTemp = isTempConversation(selectedConversationId);
         if (isTemp) {
-          console.log(`Temporary conversation selected: ${selectedConversationId}, not fetching messages from API`);
           // Don't return early, we still want to mark this conversation as loaded
           // And we want to make sure we have an empty array initialized for this conversation
           if (!messages[selectedConversationId]) {
-            console.log(`Initializing empty messages array for temporary conversation: ${selectedConversationId}`);
             // Initialize an empty array for this temporary conversation if it doesn't exist yet
             if (isMounted.current) {
               loadedConversationsRef.current.add(selectedConversationId);
@@ -1369,7 +1334,6 @@ export default function MessagesPage() {
 
         // Mark fetch as in progress to block any parallel requests
         if (fetchInProgressRef.current[selectedConversationId]) {
-          console.log(`Skipping duplicate fetch for conversation: ${selectedConversationId}`);
           return;
         }
         
@@ -1377,7 +1341,6 @@ export default function MessagesPage() {
         
         // Check if we already have messages for this conversation
         // Always fetch messages when the selected conversation changes to ensure we have the latest data
-        console.log(`Loading messages for conversation: ${selectedConversationId}`);
         
         try {
           // Load the messages
@@ -1465,8 +1428,6 @@ export default function MessagesPage() {
       // The profile data is returned directly from the student_profile table
       setProfileData(data.profile);
       
-      console.log('Fetched student profile:', data.profile);
-      console.log('Student bio:', data.profile?.bio || 'No bio available');
     } catch (error) {
       console.error('Error fetching student profile:', error);
       toast({
@@ -1541,7 +1502,6 @@ export default function MessagesPage() {
                     onClick={() => {
                       // Only mark as read and set selected conversation if it changes
                       if (selectedConversationId !== convo.id) {
-                        console.log(`Selecting conversation ${convo.id} and marking as read if needed`);
                         
                         // Set selected conversation ID first
                         setSelectedConversationId(convo.id);
@@ -1552,7 +1512,6 @@ export default function MessagesPage() {
                         
                         // Check if this is a temporary conversation before trying to mark as read
                         if (!isTempConversation(convo.id) && hasUnreadMessages(convo.id)) {
-                          console.log(`Conversation ${convo.id} has unread messages, marking as read`);
                           markConversationAsRead(convo.id)
                             .then((success: any) => {
                               if (!success) {

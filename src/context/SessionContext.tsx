@@ -137,7 +137,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           // For students, check premium access before fetching reviews
           const hasPremiumAccess = await checkPremiumAccess();
           if (!hasPremiumAccess) {
-            console.log('User does not have premium access, skipping reviews fetch');
             setReviewHistory([]);
             return;
           }
@@ -171,7 +170,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       // Check if user has premium access before making API calls
       const hasPremiumAccess = await checkPremiumAccess();
       if (!hasPremiumAccess && user.role !== 'tutor') {
-        console.log('User does not have premium access, skipping session fetch');
         return null;
       }
       
@@ -182,7 +180,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       
       if (response.status === 401) {
         // Handle unauthorized
-        console.log('Session expired or unauthorized.');
         return null;
       }
       
@@ -215,7 +212,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       // Check if user has premium access before making API calls
       const hasPremiumAccess = await checkPremiumAccess();
       if (!hasPremiumAccess && user.role !== 'tutor') {
-        console.log('User does not have premium access, cannot start session');
         throw new Error("Premium access required to start sessions");
       }
       
@@ -265,14 +261,12 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     
     // Check if user is a tutor
     if (user.role !== 'tutor') {
-      console.log('User is not a tutor, cannot end session');
       throw new Error("Only tutors are permitted to end sessions");
     }
     
     // Check if user has premium access before making API calls
     const hasPremiumAccess = await checkPremiumAccess();
     if (!hasPremiumAccess && user.role !== 'tutor') {
-      console.log('User does not have premium access, cannot end session');
       throw new Error("Premium access required to end sessions");
     }
     
@@ -304,7 +298,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       
       if (data.session) {
         const updatedSession = data.session;
-        console.log("Session ended successfully:", updatedSession);
         
         // If this was the active session, update it with server data
         if (activeSession && activeSession.id === sessionId) {
@@ -346,7 +339,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       // Check if user has premium access before making API calls
       const hasPremiumAccess = await checkPremiumAccess();
       if (!hasPremiumAccess && user.role !== 'tutor') {
-        console.log('User does not have premium access, cannot submit review');
         throw new Error("Premium access required to submit reviews");
       }
       
@@ -439,7 +431,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     // Check if user has premium access before making API calls
     const hasPremiumAccess = await checkPremiumAccess();
     if (!hasPremiumAccess && user.role !== 'tutor') {
-      console.log('User does not have premium access, skipping sessions fetch');
       setSessions([]);
       return;
     }
@@ -453,7 +444,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       });
       
       if (response.status === 401) {
-        console.log('Session expired or unauthorized for fetching sessions.');
         return;
       }
       

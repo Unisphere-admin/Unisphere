@@ -74,18 +74,15 @@ export async function prefetchUserConversations(forceRefresh: boolean = true): P
     // Check if user has premium access
     const hasPremiumAccess = await checkUserHasPremiumAccess();
     if (!hasPremiumAccess) {
-      console.log('User does not have premium access, skipping prefetch');
       return false;
     }
     
-    console.log('Prefetching conversations for user');
     
     // Fetch conversations
     const response = await fetch('/api/conversations');
     
     // Handle 403 Forbidden (access denied) responses
     if (response.status === 403) {
-      console.log('Access denied (403) when prefetching conversations - user likely doesn\'t have premium access');
       return false;
     }
     
@@ -99,7 +96,6 @@ export async function prefetchUserConversations(forceRefresh: boolean = true): P
     // Save to cache
     saveToCache(CACHE_CONFIG.CONVERSATIONS_CACHE_KEY, conversations);
     
-    console.log(`Prefetched and cached ${conversations.length} conversations`);
     
     // Prioritize conversations for message fetching
     const conversationsToFetch: Conversation[] = [];
@@ -123,7 +119,6 @@ export async function prefetchUserConversations(forceRefresh: boolean = true): P
     // Limit the total number of fetches to avoid excessive API calls
     const fetchLimit = Math.min(conversationsToFetch.length, 10);
     
-    console.log(`Prefetching messages for ${fetchLimit} conversations to calculate unread counts`);
     
     // Use Promise.all to fetch all conversations in parallel
     await Promise.all(
@@ -154,7 +149,6 @@ export async function prefetchMessagesForConversation(
     // Check if user has premium access
     const hasPremiumAccess = await checkUserHasPremiumAccess();
     if (!hasPremiumAccess) {
-      console.log('User does not have premium access, skipping message prefetch');
       return false;
     }
     
@@ -168,7 +162,6 @@ export async function prefetchMessagesForConversation(
       const now = Date.now();
       const cacheAge = now - (cacheItem.timestamp || 0);
       
-        console.log(`Using existing cache for conversation ${conversationId}, age: ${cacheAge / 1000}s`);
       
       // If markAsRead is true, still mark as read even when using cache
       if (markAsRead) {
@@ -178,14 +171,12 @@ export async function prefetchMessagesForConversation(
       return true;
     }
     
-    console.log(`${forceRefresh ? 'Force refreshing' : 'Prefetching'} messages for conversation ${conversationId}`);
     
     // Fetch messages with a limit of 50 to ensure we get enough message history
     const response = await fetch(`/api/messages?conversation_id=${conversationId}&limit=50`);
     
     // Handle 403 Forbidden (access denied) responses - the user doesn't have premium access
     if (response.status === 403) {
-      console.log(`Access denied (403) when prefetching messages for conversation ${conversationId} - user likely doesn't have premium access`);
       // Store in sessionStorage to avoid repeated requests for this conversation
       if (typeof sessionStorage !== 'undefined') {
         sessionStorage.setItem(`prefetch_blocked_${conversationId}`, 'true');
@@ -203,7 +194,6 @@ export async function prefetchMessagesForConversation(
     // Save to cache
     saveToCache(cacheKey, messages);
     
-    console.log(`Prefetched and cached ${messages.length} messages for conversation ${conversationId}`);
     
     // If markAsRead is true, mark the conversation as read
     if (markAsRead) {
@@ -275,7 +265,6 @@ async function updateUnreadCountsInCache(conversationId: string, messages: any[]
     // Save updated conversations back to cache
     saveToCache(CACHE_CONFIG.CONVERSATIONS_CACHE_KEY, conversations);
     
-    console.log(`Updated unread count for conversation ${conversationId}: ${unreadCount} messages`);
   } catch (error) {
     console.error('Error updating unread counts in cache:', error);
   }
@@ -287,7 +276,6 @@ async function updateUnreadCountsInCache(conversationId: string, messages: any[]
  */
 async function markConversationAsRead(conversationId: string): Promise<boolean> {
   try {
-    console.log(`Marking conversation ${conversationId} as read`);
     
     const response = await fetch(`/api/conversations/${conversationId}/mark-read`, {
       method: 'POST',
@@ -311,7 +299,6 @@ async function markConversationAsRead(conversationId: string): Promise<boolean> 
     }
     
     const data = await response.json();
-    console.log(`Successfully marked conversation ${conversationId} as read`);
     
     return true;
   } catch (error) {
@@ -334,7 +321,6 @@ export function initPrefetching() {
   
   if (alreadyPrefetched === 'true') {
     // Skip prefetching if we've already done it in this session (tab refocus)
-    console.log('Skipping prefetch on tab refocus');
     return;
   }
   
@@ -348,7 +334,6 @@ export function initPrefetching() {
       const hasPremiumAccess = await checkUserHasPremiumAccess();
       
       if (hasPremiumAccess) {
-        console.log('User has premium access, starting prefetch on page load...');
         
         // Force refresh to override cache on initial load
         await prefetchUserConversations(true);
@@ -356,12 +341,9 @@ export function initPrefetching() {
         // Mark that we've prefetched in this session
         sessionStorage.setItem('prefetchedThisSession', 'true');
         
-        console.log('Initial prefetch completed');
       } else {
-        console.log('User does not have premium access, skipping prefetch');
       }
     } else {
-      console.log('No logged in user, skipping prefetch');
     }
   };
   
@@ -383,7 +365,6 @@ export function resetPrefetchStatus() {
   try {
     // Remove the prefetch flag from session storage
     sessionStorage.removeItem('prefetchedThisSession');
-    console.log('Prefetch status reset - will prefetch on next page load');
   } catch (error) {
     console.error('Error resetting prefetch status:', error);
   }
