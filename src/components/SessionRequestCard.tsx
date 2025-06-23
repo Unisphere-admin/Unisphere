@@ -12,7 +12,8 @@ import {
   XCircle, 
   AlertTriangle,
   PlayCircle,
-  MessageSquare
+  MessageSquare,
+  Video
 } from "lucide-react";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
@@ -1178,6 +1179,16 @@ export function SessionRequestCard({
                 <p className="text-sm font-medium text-green-600 dark:text-green-400">Session In Progress</p>
               </div>
               <div className="flex gap-2">
+                <Link href={`/meeting/${sessionId}`}>
+                  <Button
+                    variant="default"
+                    className="bg-primary hover:bg-primary/90 flex items-center gap-2"
+                  >
+                    <Video className="h-4 w-4" />
+                    Join Meeting
+                  </Button>
+                </Link>
+                
                 {!isInMessagesPage && (
                   <SessionLink 
                     conversationId={conversationId} 
