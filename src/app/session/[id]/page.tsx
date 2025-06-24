@@ -267,43 +267,64 @@ export default function SessionPage() {
   
   // Add this effect to keep track of session updates from context
   useEffect(() => {
-    if (activeSession && sessionData && activeSession.id === sessionData.id) {
-      // Update the session object with proper type casting
-      setSessionData({
-        ...activeSession,
-        created_at: sessionData.created_at || new Date().toISOString(),
-        updated_at: sessionData.updated_at || new Date().toISOString()
-      } as SessionData);
+    // Only run this effect if both activeSession and sessionData exist and have matching IDs
+    if (!activeSession || !sessionData || activeSession.id !== sessionData.id) {
+      return;
+    }
+    
+    // Check if there are meaningful changes to avoid infinite loops
+    const statusChanged = activeSession.status !== sessionData.status;
+    const readyStateChanged = 
+      activeSession.tutor_ready !== sessionData.tutor_ready || 
+      activeSession.student_ready !== sessionData.student_ready;
+    
+    // Only proceed if we have actual changes to apply
+    if (!statusChanged && !readyStateChanged) {
+      return;
+    }
+    
+    // Handle status changes
+    if (statusChanged) {
+      console.log(`Session status changed: ${sessionData.status} -> ${activeSession.status}`);
       
       // Update UI status based on session status
-      switch (activeSession.status) {
-        case "started":
-          setSessionStatus("active");
-          break;
-        case "ended":
-          // Clear the timer when the session ends
-          if (timerRef.current) {
-            clearInterval(timerRef.current);
-          }
-          setSessionStatus("ended");
-          break;
-        case "cancelled":
-          // Clear the timer when the session is cancelled
-          if (timerRef.current) {
-            clearInterval(timerRef.current);
-          }
-          setSessionStatus("cancelled");
-          break;
-        case "requested":
-        case "accepted":
-        default:
-          setSessionStatus("waiting");
-          break;
+      if (activeSession.status === "started") {
+        setSessionStatus("active");
+      } else if (activeSession.status === "ended") {
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+        }
+        setSessionStatus("ended");
+      } else if (activeSession.status === "cancelled") {
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+        }
+        setSessionStatus("cancelled");
+      } else {
+        // requested, accepted, or any other state
+        setSessionStatus("waiting");
       }
-      
-      console.log(`Session updated via realtime: ${activeSession.status}`);
     }
-  }, [activeSession, sessionData]);
+    
+    // Create a new sessionData object with only the fields that changed
+    const updatedData = {
+      ...sessionData,
+      status: activeSession.status,
+      tutor_ready: activeSession.tutor_ready,
+      student_ready: activeSession.student_ready,
+      updated_at: new Date().toISOString()
+    };
+    
+    // Update the state
+    setSessionData(updatedData);
+    
+    // Log the update
+    if (statusChanged) {
+      console.log(`Session updated via realtime: ${activeSession.status}`);
+    } else if (readyStateChanged) {
+      console.log(`Session ready state updated: tutor=${activeSession.tutor_ready}, student=${activeSession.student_ready}`);
+    }
+  }, [activeSession]);
   
   // Fetch messages for the session
   const fetchMessages = async (conversationId: string) => {

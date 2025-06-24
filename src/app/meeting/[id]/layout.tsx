@@ -27,7 +27,7 @@ export default function MeetingLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background meeting-layout w-full h-full fixed inset-0 z-50">
       {children}
     </div>
   );
