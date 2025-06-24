@@ -323,18 +323,6 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
     }
   }, [user, loading, router]);
 
-  // If still loading auth or user is not logged in, show loading
-  if (loading || !user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen w-full">
-        <div className="text-center">
-          <Loader className="h-10 w-10 animate-spin mx-auto mb-4 text-primary" />
-          <h3 className="text-xl font-semibold">Loading...</h3>
-        </div>
-      </div>
-    );
-  }
-
   // Dialog state
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -393,6 +381,33 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
     
     return distribution;
   }, [tutorReviews]);
+
+  // Subscribe to realtime updates for this tutor - ALWAYS declare this hook
+  useEffect(() => {
+    // Only run the subscription logic if both tutor and user exist
+    if (!tutor || !user) return;
+    
+    const channelName = `tutor:${tutor.search_id}`;
+    
+    if (user.id === tutor.id) {
+      // If the user is viewing their own profile, subscribe to their tutor channel
+      subscribeToConversation(channelName);
+      
+      // Note: Since we can't use the callback parameter, we'll need to handle
+      // conversation events through the general subscription mechanism
+    } else if (user.id !== tutor.id) {
+      // If the user is viewing someone else's profile, subscribe to the conversation channel
+      // This is used to get updates when a conversation is created
+      const studentChannelName = `student:${user.id}:tutor:${tutor.id}`;
+      
+      subscribeToConversation(studentChannelName);
+      
+      // Note: Since we can't use the callback parameter, we'll need to handle
+      // conversation events through the general subscription mechanism
+    }
+    
+    // No cleanup needed as the subscribeToConversation function handles cleanup
+  }, [tutor, user, subscribeToConversation]);
 
   // Listen for PostgreSQL changes about new conversations
   useEffect(() => {
@@ -607,32 +622,6 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
   const tutorGcse = tutor?.gcse && Array.isArray(tutor.gcse) ? tutor.gcse : [];
   const tutorALevels = tutor?.['a-levels'] && Array.isArray(tutor['a-levels']) ? tutor['a-levels'] : [];
   const tutorSpm = tutor?.spm;
-
-  // Subscribe to realtime updates for this tutor
-  useEffect(() => {
-    if (tutor && user) {
-      const channelName = `tutor:${tutor.search_id}`;
-      
-      if (user.id === tutor.id) {
-        // If the user is viewing their own profile, subscribe to their tutor channel
-        
-        subscribeToConversation(channelName);
-        
-        // Note: Since we can't use the callback parameter, we'll need to handle
-        // conversation events through the general subscription mechanism
-      } else if (user.id !== tutor.id) {
-        // If the user is viewing someone else's profile, subscribe to the conversation channel
-        // This is used to get updates when a conversation is created
-        const studentChannelName = `student:${user.id}:tutor:${tutor.id}`;
-        
-        
-        subscribeToConversation(studentChannelName);
-        
-        // Note: Since we can't use the callback parameter, we'll need to handle
-        // conversation events through the general subscription mechanism
-      }
-    }
-  }, [tutor, user, subscribeToConversation, messageContext, router]);
 
   return (
     <div className="page-content">
