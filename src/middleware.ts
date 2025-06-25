@@ -7,6 +7,8 @@ import {
   redirectToPaywall, 
   isStaticAssetPath 
 } from '@/lib/auth/protectResource';
+import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
+import { cookies } from 'next/headers';
 
 // File paths and routes that should be exempt from CSRF checks
 const CSRF_EXEMPT_PATHS = [
@@ -34,6 +36,68 @@ function isAuthExemptPath(pathname: string): boolean {
   return AUTH_EXEMPT_PATHS.some(path => pathname === path || pathname.startsWith(path));
 }
 
+// Check if a path is a meeting route
+function isMeetingRoute(pathname: string): boolean {
+  return pathname.startsWith('/meeting/');
+}
+
+// Extract session ID from meeting route
+function extractSessionId(pathname: string): string | null {
+  const match = pathname.match(/\/meeting\/([^\/]+)/);
+  return match ? match[1] : null;
+}
+
+// Verify if user can access a specific meeting
+async function canAccessMeeting(user: any, sessionId: string): Promise<boolean> {
+  try {
+    // Create Supabase client
+    const supabase = await createRouteHandlerClientWithCookies();
+    
+    // Query the session
+    const { data, error } = await supabase
+      .from('tutoring_session')
+      .select('*')
+      .eq('id', sessionId)
+      .single();
+      
+    if (error || !data) {
+      return false;
+    }
+    
+    // Check if user is part of this session
+    if (data.tutor_id !== user.id && data.student_id !== user.id) {
+      return false;
+    }
+    
+    // Check if session is active
+    if (data.status !== 'started' && data.status !== 'accepted') {
+      return false;
+    }
+    
+    // Check if both users are ready
+    if (!data.tutor_ready || !data.student_ready) {
+      return false;
+    }
+    
+    // Check if it's not too early for scheduled sessions
+    if (data.scheduled_for) {
+      const scheduledTime = new Date(data.scheduled_for);
+      const currentTime = new Date();
+      const timeDiffMinutes = (scheduledTime.getTime() - currentTime.getTime()) / (1000 * 60);
+      
+      // If more than 30 minutes before scheduled time
+      if (timeDiffMinutes > 30) {
+        return false;
+      }
+    }
+    
+    // All checks passed
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   
@@ -50,8 +114,29 @@ export async function middleware(request: NextRequest) {
   // Get the authenticated user
   const user = await getAuthUser();
   
+  // Special handling for meeting routes
+  if (isMeetingRoute(pathname)) {
+    // User must be authenticated
+    if (!user) {
+      return redirectToLogin(request);
+    }
+    
+    // Extract session ID from path
+    const sessionId = extractSessionId(pathname);
+    if (!sessionId) {
+      // Invalid meeting URL, redirect to dashboard
+      return NextResponse.redirect(new URL('/dashboard/messages', request.url));
+    }
+    
+    // Check if user can access this specific meeting
+    const canAccess = await canAccessMeeting(user, sessionId);
+    if (!canAccess) {
+      // User doesn't have permission or session isn't ready
+      return NextResponse.redirect(new URL('/dashboard/messages', request.url));
+    }
+  }
   // For API routes, check authentication
-  if (pathname.startsWith('/api/') && !pathname.startsWith('/api/auth/')) {
+  else if (pathname.startsWith('/api/') && !pathname.startsWith('/api/auth/')) {
     // If the route should be protected and user is not authenticated
     if (shouldProtectRoute(pathname) && !user) {
       return redirectToLogin(request);
@@ -62,12 +147,10 @@ export async function middleware(request: NextRequest) {
       return redirectToPaywall(request);
     }
   }
-  
   // For non-API routes, check authentication
   else if (shouldProtectRoute(pathname) && !user) {
     return redirectToLogin(request);
   }
-  
   // For authenticated users, check paywall
   else if (user && shouldRedirectToPaywall(user, pathname)) {
     return redirectToPaywall(request);

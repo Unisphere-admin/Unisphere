@@ -201,13 +201,11 @@ export default function SessionPage() {
         
         if (conversationId) {
           if (hasPremiumAccess) {
-            console.log(`Subscribing to conversation ${conversationId} for realtime session updates`);
             subscribeToConversation(conversationId);
             
             // Fetch messages in this conversation
             await fetchMessages(conversationId);
           } else {
-            console.log(`User does not have premium access, skipping subscription and message fetch for ${conversationId}`);
             // Set empty messages to prevent loading state
             setMessages([]);
           }
@@ -244,7 +242,6 @@ export default function SessionPage() {
           }
         });
       } catch (error) {
-        console.error("Error fetching session:", error);
         setSessionStatus("error");
         
         toast({
@@ -285,24 +282,23 @@ export default function SessionPage() {
     
     // Handle status changes
     if (statusChanged) {
-      console.log(`Session status changed: ${sessionData.status} -> ${activeSession.status}`);
       
       // Update UI status based on session status
       if (activeSession.status === "started") {
-        setSessionStatus("active");
+          setSessionStatus("active");
       } else if (activeSession.status === "ended") {
-        if (timerRef.current) {
-          clearInterval(timerRef.current);
-        }
-        setSessionStatus("ended");
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+          }
+          setSessionStatus("ended");
       } else if (activeSession.status === "cancelled") {
-        if (timerRef.current) {
-          clearInterval(timerRef.current);
-        }
-        setSessionStatus("cancelled");
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+          }
+          setSessionStatus("cancelled");
       } else {
         // requested, accepted, or any other state
-        setSessionStatus("waiting");
+          setSessionStatus("waiting");
       }
     }
     
@@ -320,9 +316,7 @@ export default function SessionPage() {
     
     // Log the update
     if (statusChanged) {
-      console.log(`Session updated via realtime: ${activeSession.status}`);
     } else if (readyStateChanged) {
-      console.log(`Session ready state updated: tutor=${activeSession.tutor_ready}, student=${activeSession.student_ready}`);
     }
   }, [activeSession]);
   
@@ -356,7 +350,6 @@ export default function SessionPage() {
         setMessages([]);
       }
     } catch (error) {
-      console.error("Error fetching messages:", error);
       toast({
         title: "Error loading messages",
         description: "Could not load chat messages for this session.",
@@ -416,7 +409,6 @@ export default function SessionPage() {
         messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
       }
     } catch (error) {
-      console.error("Error sending message:", error);
       toast({
         title: "Failed to send message",
         description: "Your message could not be sent. Please try again.",
@@ -457,7 +449,6 @@ export default function SessionPage() {
       // Open review dialog
       setIsReviewOpen(true);
     } catch (error) {
-      console.error("Error ending session:", error);
       toast({
         title: "Error ending session",
         description: "There was an error ending the session. Please try again.",
@@ -496,7 +487,6 @@ export default function SessionPage() {
       // Navigate back to messages
       router.push("/dashboard/messages");
     } catch (error) {
-      console.error("Error submitting review:", error);
       toast({
         title: "Error submitting review",
         description: "There was an error submitting your review. Please try again.",
@@ -541,7 +531,6 @@ export default function SessionPage() {
           });
           
           if (deleteResponse.ok) {
-            console.log("Session message deleted successfully");
           } else {
             console.warn("Could not delete session message:", await deleteResponse.text());
           }
@@ -569,7 +558,6 @@ export default function SessionPage() {
         router.push("/dashboard/messages");
       }, 3000);
     } catch (error) {
-      console.error("Error cancelling session:", error);
       toast({
         title: "Error cancelling session",
         description: "There was an error cancelling the session. Please try again.",
@@ -663,20 +651,20 @@ export default function SessionPage() {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <Badge variant={
-                    sessionStatus === "active" ? "default" :
-                    sessionStatus === "ended" ? "outline" :
-                    sessionStatus === "cancelled" ? "destructive" :
-                    sessionStatus === "error" ? "destructive" :
+                    (sessionStatus as string) === "active" ? "default" :
+                    (sessionStatus as string) === "ended" ? "outline" :
+                    (sessionStatus as string) === "cancelled" ? "destructive" :
+                    (sessionStatus as string) === "error" ? "destructive" :
                     "secondary"
                   }>
-                    {sessionStatus === "active" && "In Progress"}
-                    {sessionStatus === "waiting" && "Scheduled"}
-                    {sessionStatus === "ended" && "Completed"}
-                    {sessionStatus === "cancelled" && "Cancelled"}
-                    {sessionStatus === "loading" && "Loading..."}
-                    {sessionStatus === "error" && "Error"}
+                    {(sessionStatus as string) === "active" && "In Progress"}
+                    {(sessionStatus as string) === "waiting" && "Scheduled"}
+                    {(sessionStatus as string) === "ended" && "Completed"}
+                    {(sessionStatus as string) === "cancelled" && "Cancelled"}
+                    {(sessionStatus as string) === "loading" && "Loading..."}
+                    {(sessionStatus as string) === "error" && "Error"}
                   </Badge>
-                  {sessionStatus === "active" && (
+                  {(sessionStatus as string) === "active" && (
                     <div className="flex items-center text-sm">
                       <Clock className="h-4 w-4 mr-1" />
                       {formatElapsedTime(elapsedTime)}
@@ -689,7 +677,7 @@ export default function SessionPage() {
               </div>
               
               <div className="flex gap-2">
-                {sessionStatus === "active" && (
+                {(sessionStatus as string) === "active" && (
                   <AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
                     <AlertDialogTrigger asChild>
                       <Button variant="destructive">

@@ -83,13 +83,12 @@ export function retryPendingApiRequest(): void {
               'Content-Type': 'application/json',
             },
             body: pendingRequest.body ? JSON.stringify(pendingRequest.body) : undefined
-          }).catch(err => console.error('Error retrying pending request:', err));
+          });
         }
         
         // Remove the pending request regardless of validity
         localStorage.removeItem('pendingApiRequest');
       } catch (error) {
-        console.error('Error parsing pending API request:', error);
         localStorage.removeItem('pendingApiRequest');
       }
     }

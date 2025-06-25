@@ -124,7 +124,6 @@ function extractFileRefFromUrl(url: string): string | null {
     return pathToUse;
   } catch (e) {
     // If URL parsing fails, fall back to simple splitting
-    console.error('Error parsing URL:', e);
     const parts = url.split('/');
     return parts.slice(Math.max(0, parts.length - 2)).join('/'); // Return last 2 parts to include potential user ID folder
   }
@@ -351,7 +350,6 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
             // Reviews will be set through the useTutorReviews hook
           }
         } catch (error) {
-          console.error("Error fetching reviews:", error);
         }
       };
       
@@ -493,7 +491,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
   
   // Process subjects for display
   const processedSubjects = useMemo(() => {
-    return tutorSubjects.slice(0, 3);
+    return tutorSubjects.slice(0, tutorSubjects.length);
   }, [tutorSubjects]);
   
   // Enhanced avatar URL with Supabase storage path if needed
@@ -549,7 +547,6 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
       // Navigate to the messages page with the temporary conversation selected
       router.push(`/dashboard/messages?conversationId=${tempConversationId}`);
     } catch (error) {
-      console.error('Error creating temporary conversation:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to start conversation",
@@ -639,7 +636,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
           <div className="md:col-span-1">
             <div className="sticky top-24">
               <Card className="overflow-hidden">
-                <div className="bg-gradient-to-r from-purple-100 to-blue-100 h-24"></div>
+                <div className="bg-gradient-to-r from-[#c7e4e3] via-[#84b4cc] to-[#128ca1] h-24"></div>
                 <div className="p-6 text-center relative">
                   <Avatar className="h-28 w-28 border-4 border-background shadow-md absolute -top-14 left-1/2 transform -translate-x-1/2">
                     <AvatarImage 

@@ -42,7 +42,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         const result = await getAllReviews();
         return createJsonResponse({ reviews: result.reviews ?? [] });
       } catch (error) {
-        console.error('Error handling all reviews request:', error);
         return createJsonResponse({ 
           error: 'Failed to fetch all reviews', 
           reviews: [] 
@@ -56,7 +55,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         // Return an empty list as this is likely a client misuse
         return createJsonResponse({ reviews: [] });
       } catch (error) {
-        console.error('Error handling all:1 reviews request:', error);
         return createJsonResponse({ 
           error: 'Failed to fetch all reviews', 
           reviews: [] 
@@ -83,7 +81,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         
         return createJsonResponse({ ratings: batchResults });
       } catch (batchError) {
-        console.error('Error fetching batch ratings:', batchError);
         return createJsonResponse({ 
           error: 'Failed to fetch batch ratings', 
           ratings: {} 
@@ -110,7 +107,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           count: result.count ?? 0
         });
       } catch (avgError) {
-        console.error('Error fetching average rating:', avgError);
         return createJsonResponse({ 
           error: 'Failed to fetch rating', 
           averageRating: null, 
@@ -127,14 +123,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         reviews: result.reviews ?? [] 
       });
     } catch (reviewsError) {
-      console.error('Error fetching reviews:', reviewsError);
       return createJsonResponse({ 
         error: 'Failed to fetch reviews', 
         reviews: [] 
       }, 500);
     }
   } catch (error) {
-    console.error('Reviews API error:', error);
     
     // Always return a valid JSON response even on unexpected errors
     return createJsonResponse({ 

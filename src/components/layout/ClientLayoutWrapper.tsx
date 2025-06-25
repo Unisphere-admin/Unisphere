@@ -56,7 +56,6 @@ export default function ClientLayoutWrapper({ children }: ClientLayoutWrapperPro
           }
           setCachePrefetched(true);
         } catch (err) {
-          console.error('Error prefetching data:', err);
           setCachePrefetched(true); // Consider prefetch complete even on error
         }
       };

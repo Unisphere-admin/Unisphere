@@ -33,7 +33,6 @@ export function storeCsrfToken(token: string): void {
     sessionStorage.setItem(CSRF_STORAGE_KEY, token);
     sessionStorage.setItem(CSRF_LAST_FETCH_KEY, Date.now().toString());
   } catch (error) {
-    console.error('Error storing CSRF token:', error);
   }
 }
 
@@ -61,7 +60,6 @@ export function getCsrfTokenFromStorage(): string | null {
     
     return token;
   } catch (error) {
-    console.error('Error retrieving CSRF token:', error);
     return null;
   }
 }
@@ -86,7 +84,6 @@ export function clearStoredCsrfToken(): void {
     localStorage.removeItem(CSRF_STORAGE_KEY);
     localStorage.removeItem(CSRF_LAST_FETCH_KEY);
   } catch (error) {
-    console.error('Error clearing CSRF token:', error);
   }
 }
 
@@ -111,7 +108,6 @@ export function isTokenExpired(): boolean {
     
     return Date.now() - lastFetch > CSRF_REFRESH_INTERVAL;
   } catch (error) {
-    console.error('Error checking token expiration:', error);
     return true; // Assume expired on error
   }
 }
@@ -340,7 +336,6 @@ export function createProtectedFetchWithCsrf(tokenProvider: () => Promise<string
       fetchOptions.headers = headers;
         }
       } catch (error) {
-        console.error('Error getting CSRF token for fetch:', error);
       }
     }
     

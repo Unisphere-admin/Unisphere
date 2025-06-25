@@ -52,6 +52,8 @@ interface TransformedMessage {
     display_name: string;
     avatar_url: string | null;
     is_tutor: boolean;
+    first_name: string;
+    last_name: string;
   };
 }
 
@@ -85,12 +87,10 @@ async function getMessagesHandler(
         const { conversation, messages, error } = await getConversationById(user, conversationId);
         
         if (error) {
-          console.error(`Error fetching conversation data: ${error}`);
           return { conversation, messages: [], error };
         }
         
         if (!conversation) {
-          console.error(`No conversation found with ID: ${conversationId}`);
           return { conversation, messages: [], error: "Conversation not found" };
         }
         
@@ -112,10 +112,17 @@ async function getMessagesHandler(
           let displayName = 'Unknown User';
           let avatarUrl = null;
           let isTutor = false;
+          let firstName = '';
+          let lastName = '';
           
           if (participant?.user) {
             const userData = participant.user as any;
-            displayName = userData.display_name || userData.email || 'Unknown User';
+            firstName = userData.first_name || '';
+            lastName = userData.last_name || '';
+            displayName = userData.display_name || 
+                         (firstName && lastName ? `${firstName} ${lastName}` : '') || 
+                         userData.email || 
+                         'Unknown User';
             avatarUrl = userData.avatar_url || null;
             isTutor = userData.is_tutor || false;
           }
@@ -125,6 +132,8 @@ async function getMessagesHandler(
             sender: {
               id: message.sender_id,
               display_name: displayName,
+              first_name: firstName,
+              last_name: lastName,
               avatar_url: avatarUrl,
               is_tutor: isTutor
             }
@@ -137,11 +146,9 @@ async function getMessagesHandler(
           error
         };
       } catch (innerError) {
-        console.error("Error in message processing:", innerError);
         const errorDetails = innerError instanceof Error 
           ? innerError.message + (innerError.stack ? '\n' + innerError.stack : '') 
           : JSON.stringify(innerError);
-        console.error(`Detailed error: ${errorDetails}`);
         
         return {
           conversation: null,
@@ -153,7 +160,6 @@ async function getMessagesHandler(
     
     // Handle errors
     if (result.error) {
-      console.error(`Error returning messages: ${result.error}`);
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
 
@@ -189,7 +195,6 @@ async function getMessagesHandler(
     const errorDetails = error instanceof Error 
       ? error.message + (error.stack ? '\n' + error.stack : '') 
       : JSON.stringify(error);
-    console.error(`Unhandled error in getMessagesHandler: ${errorDetails}`);
     
     return NextResponse.json({ 
       error: 'Internal server error', 
@@ -219,7 +224,6 @@ const broadcastMessage = async (message: Message, conversationId: string) => {
     });
     
   } catch (error) {
-    console.error("Error broadcasting message:", error);
     // Silently handle error - don't break API response for broadcast failures
   }
 };
@@ -299,7 +303,6 @@ async function postMessagesHandler(
           break;
         }
       } catch (err) {
-        console.error(`Message send attempt ${retryCount + 1} failed:`, err);
         // Store the error for better error reporting
         error = err instanceof Error ? err.message : String(err);
       }
@@ -313,7 +316,6 @@ async function postMessagesHandler(
     
     // Handle errors after retries
     if (error) {
-      console.error(`Failed to send message after ${retryCount} attempts:`, error);
       
       // Provide more specific error messages for common issues
       if (error.includes("not found") || error.includes("doesn't exist")) {
@@ -340,7 +342,6 @@ async function postMessagesHandler(
     
     return NextResponse.json(message);
   } catch (error) {
-    console.error("Error in POST /api/messages:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     
     return NextResponse.json(
@@ -390,7 +391,6 @@ async function deleteMessageHandler(
     const errorDetails = error instanceof Error 
       ? error.message + (error.stack ? '\n' + error.stack : '') 
       : JSON.stringify(error);
-    console.error(`Unhandled error in deleteMessageHandler: ${errorDetails}`);
     
     return NextResponse.json({ 
       error: 'Internal server error', 

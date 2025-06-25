@@ -22,7 +22,6 @@ export function withCsrfProtection<T>(
       // If validation passes, continue to the handler
       return await handler(req, ...rest);
     } catch (error) {
-      console.error('Error in CSRF-protected API route:', error);
       
       return NextResponse.json(
         { 

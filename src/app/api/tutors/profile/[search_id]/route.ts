@@ -27,7 +27,6 @@ async function getTutorProfileHandler(
     const searchId = params.search_id;
     
     if (!searchId) {
-      console.error('No search parameter provided');
       return NextResponse.json({ error: 'Search parameter is required' }, { status: 400 });
     }
 
@@ -51,7 +50,6 @@ async function getTutorProfileHandler(
     
     return response;
   } catch (error) {
-    console.error('Unexpected error in tutor profile API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

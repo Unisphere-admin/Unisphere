@@ -72,7 +72,6 @@ export default function ResetPasswordPage() {
         });
         
             if (otpError) {
-              console.error('OTP verification error:', otpError);
               throw new Error('Invalid reset code');
         }
         
@@ -89,7 +88,6 @@ export default function ResetPasswordPage() {
             
             throw new Error('Could not establish a session');
           } catch (verificationError) {
-            console.error('Verification error:', verificationError);
             throw new Error('Invalid reset code');
           }
         }
@@ -105,7 +103,6 @@ export default function ResetPasswordPage() {
         // No valid session found
         throw new Error('No active session');
       } catch (error) {
-        console.error('Session check error:', error);
         toast({
           title: "Invalid reset link",
           description: "Your password reset link is invalid or has expired.",
@@ -153,7 +150,6 @@ export default function ResetPasswordPage() {
       });
       
       if (error) {
-        console.error('Error updating password:', error);
         throw new Error(error.message || "Failed to reset password");
       }
       
@@ -170,7 +166,6 @@ export default function ResetPasswordPage() {
       router.push("/login?success=password-updated");
       
     } catch (err) {
-      console.error("Reset password error:", err);
       setError(err instanceof Error ? err.message : "Failed to reset password");
     } finally {
       setIsLoading(false);

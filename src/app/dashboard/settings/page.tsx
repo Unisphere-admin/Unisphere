@@ -243,13 +243,11 @@ export default function SettingsPage() {
       });
       
       if (response.status === 401) {
-        console.error("Session error: Unauthorized");
         setAuthError(true);
         return false;
       }
       
       if (!response.ok) {
-        console.error("Session error:", response.statusText);
           setAuthError(true);
           return false;
       }
@@ -258,7 +256,6 @@ export default function SettingsPage() {
       setAuthError(false);
       return true;
     } catch (error) {
-      console.error("Auth error:", error);
       setAuthError(true);
       return false;
     }
@@ -358,7 +355,6 @@ export default function SettingsPage() {
             });
           }
         } catch (e) {
-          console.error('Error parsing service costs:', e);
         }
       }
       
@@ -395,7 +391,6 @@ export default function SettingsPage() {
       
       setHasLoadedOnce(true);
     } catch (error) {
-      console.error("Error fetching profile:", error);
       if (!silent) {
         toast.error("Failed to load profile data");
       }
@@ -416,7 +411,6 @@ export default function SettingsPage() {
     const checkAuth = async () => {
       if (authError) {
         await refreshUser(true).catch(err => {
-          console.error("Failed to refresh user:", err);
           router.push("/login");
         });
       }
@@ -478,7 +472,6 @@ export default function SettingsPage() {
             extractedServiceCosts = profileData.service_costs;
           }
         } catch (e) {
-          console.error('Error parsing service costs:', e);
         }
       }
       
@@ -581,7 +574,6 @@ export default function SettingsPage() {
       await fetchProfileData(true);
       toast.success("Profile updated successfully");
     } catch (error) {
-      console.error("Error updating profile:", error);
       toast.error(error instanceof Error ? error.message : "Failed to update profile");
     } finally {
       setProfileLoading(false);
@@ -638,7 +630,6 @@ export default function SettingsPage() {
         toast.info("No changes to email detected");
       }
     } catch (emailError) {
-      console.error("Error updating email:", emailError);
       setEmailError("An error occurred while updating your email");
       setEmailUpdateStatus('error');
       toast.error("Failed to send email verification");
@@ -717,7 +708,6 @@ export default function SettingsPage() {
       await fetchProfileData(true);
       toast.success("Profile updated successfully");
     } catch (error) {
-      console.error("Error updating profile:", error);
       toast.error(error instanceof Error ? error.message : "Failed to update profile");
     } finally {
       // Slight delay to ensure state updates properly before setting loading to false
@@ -812,7 +802,6 @@ export default function SettingsPage() {
             throw new Error('Failed to fetch CSRF token');
           }
         } catch (csrfError) {
-          console.error('CSRF token fetch error:', csrfError);
           setAvatarError('Authentication error. Please refresh the page and try again.');
           toast.error('Authentication error. Please refresh the page and try again.');
           return;
@@ -875,7 +864,6 @@ export default function SettingsPage() {
       setIsEditingAvatar(false);
       toast.success("Avatar updated successfully");
     } catch (error) {
-      console.error("Error uploading avatar:", error);
       setAvatarError(error instanceof Error ? error.message : "Failed to upload avatar");
       toast.error(error instanceof Error ? error.message : "Failed to upload avatar");
     } finally {
@@ -962,7 +950,6 @@ export default function SettingsPage() {
         passwordForm.reset();
       }
     } catch (error) {
-      console.error("Error updating password:", error);
       setPasswordError("An error occurred while updating your password");
       setPasswordUpdateStatus('error');
       toast.error("Failed to update password");

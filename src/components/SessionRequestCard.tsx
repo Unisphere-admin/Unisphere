@@ -163,7 +163,6 @@ export function SessionRequestCard({
           }
         }
       } catch (error) {
-        console.error('Error fetching message details:', error);
       } finally {
         setIsLoading(false);
       }
@@ -224,7 +223,6 @@ export function SessionRequestCard({
           refreshSessions();
           setIsLoading(false);
         } catch (error) {
-          console.error("Error checking for session:", error);
           setIsLoading(false);
         }
       };
@@ -252,7 +250,6 @@ export function SessionRequestCard({
     // Check if this is a temporary conversation ID first
     const isTempConversation = conversationId.startsWith('temp-');
     if (isTempConversation) {
-      console.error("Cannot manage session with temporary conversation ID");
       toast({
         title: "Action Required",
         description: "Please send a message first to create a real conversation before managing sessions.",
@@ -272,7 +269,6 @@ export function SessionRequestCard({
         throw new Error("Failed to fetch CSRF token");
       }
     } catch (tokenError) {
-      console.error("Error fetching CSRF token:", tokenError);
       toast({
         title: "Security Error",
         description: "Unable to verify your security token. Please refresh the page and try again.",
@@ -301,7 +297,6 @@ export function SessionRequestCard({
         
         if (!response.ok) {
           const errorData = await response.json();
-          console.error("Error accepting session:", errorData);
           
           // Enhanced token-related error detection
           const errorMessage = errorData.error || "Failed to accept session";
@@ -333,7 +328,6 @@ export function SessionRequestCard({
         
         if (!conversationResponse.ok) {
           const errorText = await conversationResponse.text();
-          console.error(`Failed to fetch conversation: ${errorText}`);
           throw new Error("Failed to fetch conversation details");
         }
         
@@ -341,7 +335,6 @@ export function SessionRequestCard({
         const conversation = conversationData.conversation;
         
         if (!conversation) {
-          console.error("Conversation not found:", conversationData);
           throw new Error("Conversation not found");
         }
         
@@ -351,7 +344,6 @@ export function SessionRequestCard({
         );
         
         if (!otherParticipant) {
-          console.error("Participants:", conversation.participants);
           throw new Error("Could not identify the other participant");
         }
         
@@ -380,7 +372,6 @@ export function SessionRequestCard({
         
         if (!sessionResponse.ok) {
           const errorData = await sessionResponse.json();
-          console.error("Error creating session:", errorData);
           
           // Enhanced token-related error detection
           const errorMessage = errorData.error || "Failed to create session";
@@ -410,7 +401,6 @@ export function SessionRequestCard({
         description: "The tutoring session has been accepted",
       });
     } catch (error) {
-      console.error("Error accepting session:", error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to accept the session",
@@ -436,7 +426,6 @@ export function SessionRequestCard({
         throw new Error("Failed to fetch CSRF token");
       }
     } catch (tokenError) {
-      console.error("Error fetching CSRF token:", tokenError);
       toast({
         title: "Security Error",
         description: "Unable to verify your security token. Please refresh the page and try again.",
@@ -469,7 +458,6 @@ export function SessionRequestCard({
       
       if (!response.ok) {
         const errorData = await response.json();
-        console.error("Error updating ready status:", errorData);
         throw new Error(errorData.error || "Failed to update ready status");
       }
       
@@ -484,7 +472,6 @@ export function SessionRequestCard({
           : "You've removed your ready status",
       });
     } catch (error) {
-      console.error("Error updating ready status:", error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to update ready status",
@@ -510,7 +497,6 @@ export function SessionRequestCard({
         throw new Error("Failed to fetch CSRF token");
       }
     } catch (tokenError) {
-      console.error("Error fetching CSRF token:", tokenError);
       toast({
         title: "Security Error",
         description: "Unable to verify your security token. Please refresh the page and try again.",
@@ -538,7 +524,6 @@ export function SessionRequestCard({
       
       if (!response.ok) {
         const errorData = await response.json();
-        console.error("Error starting session:", errorData);
         throw new Error(errorData.error || "Failed to start session");
       }
       
@@ -551,7 +536,6 @@ export function SessionRequestCard({
         description: "The tutoring session has started",
       });
     } catch (error) {
-      console.error("Error starting session:", error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to start the session",
@@ -577,7 +561,6 @@ export function SessionRequestCard({
         throw new Error("Failed to fetch CSRF token");
       }
     } catch (tokenError) {
-      console.error("Error fetching CSRF token:", tokenError);
       toast({
         title: "Security Error",
         description: "Unable to verify your security token. Please refresh the page and try again.",
@@ -605,7 +588,6 @@ export function SessionRequestCard({
       
       if (!response.ok) {
         const errorData = await response.json();
-        console.error("Error ending session:", errorData);
         throw new Error(errorData.error || "Failed to end session");
       }
       
@@ -616,7 +598,6 @@ export function SessionRequestCard({
         description: "The tutoring session has ended",
       });
     } catch (error) {
-      console.error("Error ending session:", error);
       toast({
         title: "Error",
         description: "Failed to end the session",
@@ -634,7 +615,6 @@ export function SessionRequestCard({
     // Check if this is a temporary conversation ID first
     const isTempConversation = conversationId.startsWith('temp-');
     if (isTempConversation) {
-      console.error("Cannot manage session with temporary conversation ID");
       toast({
         title: "Action Required",
         description: "Please send a message first to create a real conversation before managing sessions.",
@@ -655,7 +635,6 @@ export function SessionRequestCard({
         throw new Error("Failed to fetch CSRF token");
       }
     } catch (tokenError) {
-      console.error("Error fetching CSRF token:", tokenError);
       toast({
         title: "Security Error",
         description: "Unable to verify your security token. Please refresh the page and try again.",
@@ -684,7 +663,6 @@ export function SessionRequestCard({
         
         if (!response.ok) {
           const errorData = await response.json();
-          console.error("Error cancelling session:", errorData);
           
           // Enhanced token-related error detection
           const errorMessage = errorData.error || "Failed to cancel session";
@@ -716,7 +694,6 @@ export function SessionRequestCard({
         
         if (!conversationResponse.ok) {
           const errorText = await conversationResponse.text();
-          console.error(`Failed to fetch conversation: ${errorText}`);
           throw new Error("Failed to fetch conversation details");
         }
         
@@ -724,7 +701,6 @@ export function SessionRequestCard({
         const conversation = conversationData.conversation;
         
         if (!conversation) {
-          console.error("Conversation not found:", conversationData);
           throw new Error("Conversation not found");
         }
         
@@ -734,7 +710,6 @@ export function SessionRequestCard({
         );
         
         if (!otherParticipant) {
-          console.error("Participants:", conversation.participants);
           throw new Error("Could not identify the other participant");
         }
         
@@ -763,7 +738,6 @@ export function SessionRequestCard({
         
         if (!sessionResponse.ok) {
           const errorData = await sessionResponse.json();
-          console.error("Failed to create cancelled session:", errorData);
           
           // Enhanced token-related error detection
           const errorMessage = errorData.error || "Failed to cancel session";
@@ -795,7 +769,6 @@ export function SessionRequestCard({
       
       setShowCancelDialog(false);
     } catch (error) {
-      console.error("Error cancelling session:", error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to cancel the session",

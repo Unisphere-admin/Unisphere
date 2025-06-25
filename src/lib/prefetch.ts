@@ -44,14 +44,12 @@ async function checkUserHasPremiumAccess(): Promise<boolean> {
       .single();
     
     if (error) {
-      console.error('Error checking user premium access:', error);
       return false;
     }
     
     // User has access if they are a tutor OR have premium access
     return userData?.is_tutor === true || userData?.has_access === true;
   } catch (error) {
-    console.error('Error checking user premium access:', error);
     return false;
   }
 }
@@ -129,7 +127,6 @@ export async function prefetchUserConversations(forceRefresh: boolean = true): P
     
     return true;
   } catch (error) {
-    console.error('Error prefetching conversations:', error);
     return false;
   }
 }
@@ -213,7 +210,6 @@ export async function prefetchMessagesForConversation(
     
     return true;
   } catch (error) {
-    console.error(`Error prefetching messages for conversation ${conversationId}:`, error);
     return false;
   }
 }
@@ -266,7 +262,6 @@ async function updateUnreadCountsInCache(conversationId: string, messages: any[]
     saveToCache(CACHE_CONFIG.CONVERSATIONS_CACHE_KEY, conversations);
     
   } catch (error) {
-    console.error('Error updating unread counts in cache:', error);
   }
 }
 
@@ -302,7 +297,6 @@ async function markConversationAsRead(conversationId: string): Promise<boolean> 
     
     return true;
   } catch (error) {
-    console.error(`Error marking conversation ${conversationId} as read:`, error);
     return false;
   }
 }
@@ -366,6 +360,5 @@ export function resetPrefetchStatus() {
     // Remove the prefetch flag from session storage
     sessionStorage.removeItem('prefetchedThisSession');
   } catch (error) {
-    console.error('Error resetting prefetch status:', error);
   }
 } 

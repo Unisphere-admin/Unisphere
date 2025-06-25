@@ -46,7 +46,6 @@ async function getUserProfileHandler(
     // Return the profile data
     return NextResponse.json({ profile });
   } catch (error) {
-    console.error('Profile fetch error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

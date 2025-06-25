@@ -27,7 +27,6 @@ export async function generateCsrfToken(userId?: string): Promise<string> {
     // Generate a secure random token
     const token = nanoid(TOKEN_LENGTH);
     if (!token || token.length !== TOKEN_LENGTH) {
-      console.error(`CSRF token generation failed: Invalid token length ${token?.length}`);
       throw new Error('Failed to generate secure token');
     }
     
@@ -54,13 +53,11 @@ export async function generateCsrfToken(userId?: string): Promise<string> {
     // Verify that cookie was set by reading it back
     const setCookie = cookieStore.get(CSRF_COOKIE_NAME);
     if (!setCookie || !setCookie.value) {
-      console.error('CSRF cookie was not set properly');
       throw new Error('Failed to set CSRF cookie');
     }
     
     return token;
   } catch (error) {
-    console.error('Error in generateCsrfToken:', error);
     throw error; // Re-throw to let the caller handle it
   }
 }
@@ -84,7 +81,6 @@ export async function validateStoredToken(userId?: string): Promise<{ valid: boo
     try {
       tokenData = JSON.parse(tokenCookie.value);
     } catch (e) {
-      console.error("Failed to parse CSRF token data:", e);
       return { valid: false, error: "Invalid CSRF token format" };
     }
     
@@ -107,7 +103,6 @@ export async function validateStoredToken(userId?: string): Promise<{ valid: boo
     
     return { valid: true, token: tokenData.token };
   } catch (error) {
-    console.error("CSRF token validation error:", error);
     return { valid: false, error: "CSRF validation error" };
   }
 }
@@ -150,7 +145,6 @@ export async function refreshCsrfToken(userId?: string, forceRefresh = false): P
     // Generate a new token
     return await generateCsrfToken(userId);
   } catch (error) {
-    console.error("Error refreshing CSRF token:", error);
     throw error;
   }
 }
@@ -169,7 +163,6 @@ export async function clearCsrfToken(): Promise<void> {
     path: "/"
   });
   } catch (error) {
-    console.error("Error clearing CSRF token:", error);
   }
 }
 
@@ -200,7 +193,6 @@ export async function csrfMiddleware(
   const requestToken = req.headers.get(CSRF_HEADER_NAME);
   
   if (!requestToken) {
-      console.error(`CSRF validation failed: No token in header for ${req.method} ${req.nextUrl.pathname}`);
     return NextResponse.json(
         { error: "CSRF token missing", details: "No CSRF token provided in request" },
       { status: 403 }
@@ -211,7 +203,6 @@ export async function csrfMiddleware(
     const { valid, token: storedToken, error } = await validateStoredToken(user?.id);
   
     if (!valid || !storedToken) {
-      console.error(`CSRF validation failed: ${error || "Token invalid/expired"} for ${req.method} ${req.nextUrl.pathname}`);
     return NextResponse.json(
         { error: "CSRF token invalid", details: "Authentication token is invalid or expired. Please refresh the page and try again" },
       { status: 403 }
@@ -220,7 +211,6 @@ export async function csrfMiddleware(
   
     // Compare tokens using constant-time comparison to prevent timing attacks
     if (!constantTimeEqual(requestToken, storedToken)) {
-    console.error(`CSRF validation failed: Token mismatch for ${req.method} ${req.nextUrl.pathname}`);
     return NextResponse.json(
         { error: "CSRF token mismatch", details: "Authentication token is invalid. Please refresh the page and try again" },
       { status: 403 }
@@ -230,7 +220,6 @@ export async function csrfMiddleware(
   // If validation passes, return null to continue to the next middleware/handler
   return null;
   } catch (error) {
-    console.error(`CSRF middleware error for ${req.method} ${req.nextUrl.pathname}:`, error);
     return NextResponse.json(
       { error: "CSRF validation error", details: "An error occurred validating your security token. Please refresh the page." },
       { status: 500 }
@@ -277,7 +266,6 @@ export function withCsrfProtection<T extends any[], R>(
     // Otherwise, continue with the handler
     return await handler(...args);
     } catch (error) {
-      console.error("Error in CSRF-protected handler:", error);
       throw error; // Re-throw to let the caller handle it
     }
   };

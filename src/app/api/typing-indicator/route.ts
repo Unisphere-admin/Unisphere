@@ -59,7 +59,6 @@ async function typingIndicatorHandler(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error in typing indicator endpoint:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }

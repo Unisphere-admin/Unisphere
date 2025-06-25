@@ -59,7 +59,6 @@ export async function getTutorReviews(tutorId: string) {
     
     // If the client is not properly initialized (mock client from error handling)
     if (supabase.from && typeof supabase.from !== 'function') {
-      console.error('Invalid Supabase client for reviews');
       return { reviews: [] };
     }
     
@@ -77,7 +76,6 @@ export async function getTutorReviews(tutorId: string) {
         .order('created_at', { ascending: false });
       
       if (error) {
-        console.error('Database error when fetching reviews:', error.message);
         return { reviews: [] };
       }
       
@@ -93,11 +91,9 @@ export async function getTutorReviews(tutorId: string) {
       
       return { reviews };
     } catch (dbError) {
-      console.error('Error executing Supabase query for reviews:', dbError);
       return { reviews: [] };
     }
   } catch (err) {
-    console.error('Failed to get tutor reviews:', err);
     return { reviews: [] };
   }
 }
@@ -112,7 +108,6 @@ export async function getTutorAverageRating(tutorId: string) {
     
     // If the client is not properly initialized (mock client from error handling)
     if (supabase.from && typeof supabase.from !== 'function') {
-      console.error('Invalid Supabase client for ratings');
       return { averageRating: null, count: 0 };
     }
     
@@ -123,7 +118,6 @@ export async function getTutorAverageRating(tutorId: string) {
         .eq('tutor_id', tutorId);
       
       if (error) {
-        console.error('Database error when fetching average rating:', error.message);
         return { averageRating: null, count: 0 };
       }
       
@@ -139,11 +133,9 @@ export async function getTutorAverageRating(tutorId: string) {
       
       return { averageRating: average, count: reviewCount };
     } catch (dbError) {
-      console.error('Error executing Supabase query:', dbError);
       return { averageRating: null, count: 0 };
     }
   } catch (err) {
-    console.error('Failed to get average rating:', err);
     return { averageRating: null, count: 0 };
   }
 } 
@@ -176,7 +168,6 @@ export async function getReviewsByTutorId(tutorId: string): Promise<{
       .order('created_at', { ascending: false });
     
     if (error) {
-      console.error('Database error when fetching reviews:', error.message);
       return { reviews: [], error: error.message };
     }
     
@@ -193,7 +184,6 @@ export async function getReviewsByTutorId(tutorId: string): Promise<{
     return { reviews, error: null };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error fetching reviews';
-    console.error('Failed to get tutor reviews:', errorMessage);
     return { reviews: [], error: errorMessage };
   }
 } 
@@ -222,7 +212,6 @@ export async function getAllReviews(): Promise<{
       .order('created_at', { ascending: false });
     
     if (error) {
-      console.error('Database error when fetching all reviews:', error.message);
       return { reviews: [], error: error.message };
     }
     
@@ -239,7 +228,6 @@ export async function getAllReviews(): Promise<{
     return { reviews, error: null };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error fetching all reviews';
-    console.error('Failed to get all reviews:', errorMessage);
     return { reviews: [], error: errorMessage };
   }
 } 

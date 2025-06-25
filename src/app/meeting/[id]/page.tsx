@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useRealtime } from "@/context/RealtimeContext";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
+import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 import { 
   Loader2, 
   Video as VideoIcon, 
@@ -56,6 +57,7 @@ interface Message {
 export default function MeetingPage() {
   const { id: sessionId } = useParams();
   const router = useRouter();
+  const pathname = usePathname();
   const { user } = useAuth();
   const { subscribeToConversation } = useRealtime();
   
@@ -84,7 +86,32 @@ export default function MeetingPage() {
   const fetchedMessagesRef = useRef<boolean>(false);
   const fetchedSessionRef = useRef<boolean>(false);
   const cleanupRef = useRef<(() => void) | null>(null);
+  const [isConfirmExitEnabled, setIsConfirmExitEnabled] = useState<boolean>(false);
 
+  // Add confirmation when user tries to leave the page
+  useBeforeUnload(
+    isConfirmExitEnabled, 
+    "Are you sure you want to leave the meeting? Your connection will be terminated."
+  );
+  
+  // Add navigation listener to handle back button and other navigation
+  useEffect(() => {
+    // Enable exit confirmation after component mounts and connection is established
+    if (isConnected && !isLoading) {
+      setIsConfirmExitEnabled(true);
+    }
+    
+    // This effect will run when the component mounts and when pathname changes
+    // When pathname changes, it means we're navigating away
+    return () => {
+      // This cleanup will run when the component unmounts or pathname changes
+      setIsConfirmExitEnabled(false); // Disable confirmation once we're already navigating
+      if (cleanupRef.current) {
+        cleanupRef.current();
+      }
+    };
+  }, [pathname, isConnected, isLoading]);
+  
   // Fetch session details to get conversation ID
   useEffect(() => {
     const fetchSessionDetails = async () => {
@@ -92,7 +119,6 @@ export default function MeetingPage() {
       
       try {
         setIsLoading(true);
-        console.log("Fetching session details for ID:", sessionId);
         fetchedSessionRef.current = true;
         
         const response = await fetch(`/api/tutoring-sessions?session_id=${sessionId}`);
@@ -105,7 +131,6 @@ export default function MeetingPage() {
         const data = await response.json();
         
         if (data.session) {
-          console.log("Session details fetched:", data.session);
           setConversationId(data.session.conversation_id);
           
           // Fetch messages once we have the conversation ID
@@ -116,7 +141,6 @@ export default function MeetingPage() {
             subscribeToConversation(data.session.conversation_id);
           }
         } else {
-          console.error("No session found for ID:", sessionId);
           toast({
             title: "Error",
             description: "Session not found or you don't have permission to access it",
@@ -124,7 +148,6 @@ export default function MeetingPage() {
           });
         }
       } catch (error) {
-        console.error('Error fetching session details:', error);
         toast({
           title: "Error",
           description: error instanceof Error ? error.message : "Could not load session details",
@@ -148,7 +171,6 @@ export default function MeetingPage() {
     fetchedMessagesRef.current = true;
     
     try {
-      console.log("Fetching messages for conversation:", convoId);
       const response = await fetch(`/api/messages?conversation_id=${convoId}`, {
         // Add cache control headers to prevent browser caching
         headers: {
@@ -164,7 +186,6 @@ export default function MeetingPage() {
       const data = await response.json();
       
       if (data.messages) {
-        console.log(`Messages loaded: ${data.messages.length} messages`);
         
         // Filter out session request messages
         const filteredMessages = data.messages.filter((msg: Message) => {
@@ -175,7 +196,6 @@ export default function MeetingPage() {
           );
         });
         
-        console.log(`Filtered messages (excluding session requests): ${filteredMessages.length} messages`);
         
         // Create a map of message IDs to avoid duplicates
         const messageMap = new Map();
@@ -187,7 +207,6 @@ export default function MeetingPage() {
         setMessages(Array.from(messageMap.values()));
       }
     } catch (error) {
-      console.error('Error fetching messages:', error);
       toast({
         title: "Error",
         description: "Could not load messages",
@@ -252,7 +271,6 @@ export default function MeetingPage() {
             scrollToBottom();
           }
         } catch (error) {
-          console.error('Error processing real-time message:', error);
         }
       }
     };
@@ -362,7 +380,6 @@ export default function MeetingPage() {
         localStorage.setItem('latest_message', JSON.stringify(notificationMessage));
       }
     } catch (error) {
-      console.error('Error sending message:', error);
       
       // Update the optimistic message to show error
       setMessages(prev => {
@@ -443,6 +460,19 @@ export default function MeetingPage() {
       try {
         initRef.current = true;
         
+        // Disable Agora logging in production to reduce console noise
+        if (process.env.NODE_ENV === 'production') {
+          // Set log level to ERROR in production (only shows errors)
+          AgoraRTC.setLogLevel(3); // 3 = ERROR level
+          // Disable log upload to Agora's servers - method doesn't take parameters
+          AgoraRTC.disableLogUpload();
+        } else {
+          // In development, use INFO level for debugging
+          AgoraRTC.setLogLevel(3); // 1 = INFO level
+          // In development, still disable log upload for privacy
+          AgoraRTC.disableLogUpload();
+        }
+        
         // Create Agora client
         const agoraClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
         setClient(agoraClient);
@@ -469,11 +499,9 @@ export default function MeetingPage() {
         // Set up event listeners
         agoraClient.on("user-published", async (remoteUser, mediaType) => {
           try {
-            console.log(`Remote user ${remoteUser.uid} published ${mediaType}`);
             
             // Subscribe to the remote user
             await agoraClient.subscribe(remoteUser, mediaType);
-            console.log(`Subscribed to ${remoteUser.uid}'s ${mediaType}`);
             
             if (mediaType === "video") {
               // Add or update the remote user in state
@@ -495,18 +523,15 @@ export default function MeetingPage() {
               
               // Try to play the video with a slight delay to ensure DOM is ready
               if (remoteUser.videoTrack) {
-                console.log(`Remote user ${remoteUser.uid} has video track, attempting to play`);
                 setTimeout(() => {
                   try {
                     const playerElement = document.getElementById(`remote-video-${remoteUser.uid}`);
                     if (playerElement && remoteUser.videoTrack) {
                       remoteUser.videoTrack.play(`remote-video-${remoteUser.uid}`);
-                      console.log(`Successfully played video for ${remoteUser.uid}`);
                     } else {
                       console.warn(`Player element for ${remoteUser.uid} not found or track missing`);
                     }
                   } catch (error) {
-                    console.error(`Error playing video for ${remoteUser.uid}:`, error);
                   }
                 }, 500);
               }
@@ -533,16 +558,13 @@ export default function MeetingPage() {
               // Play audio automatically
               if (remoteUser.audioTrack) {
                 remoteUser.audioTrack.play();
-                console.log(`Playing audio for ${remoteUser.uid}`);
               }
             }
           } catch (error) {
-            console.error("Error subscribing to remote user:", error);
           }
         });
 
         agoraClient.on("user-unpublished", (remoteUser, mediaType) => {
-          console.log(`Remote user ${remoteUser.uid} unpublished ${mediaType}`);
           
           if (mediaType === "video") {
             setRemoteUsers(prev => 
@@ -561,7 +583,6 @@ export default function MeetingPage() {
         });
 
         agoraClient.on("user-left", (remoteUser) => {
-          console.log(`Remote user ${remoteUser.uid} left the channel`);
           // Remove the user from the remote users list
           setRemoteUsers(prev => 
             prev.filter(user => user.uid !== remoteUser.uid)
@@ -569,7 +590,6 @@ export default function MeetingPage() {
         });
 
         agoraClient.on("connection-state-change", (state) => {
-          console.log("Connection state changed to:", state);
           if (state === "CONNECTED") {
             setIsConnected(true);
           } else if (state === "DISCONNECTED") {
@@ -578,56 +598,82 @@ export default function MeetingPage() {
         });
 
         // Join channel with numeric UID
-        console.log(`Joining channel ${sessionId} with UID ${numericUid}`);
         await agoraClient.join(
           process.env.NEXT_PUBLIC_AGORA_APP_ID || "",
           sessionId as string,
           data.token,
           numericUid
         );
-        console.log("Successfully joined channel");
 
         // Create and publish local tracks
-        console.log("Creating local audio and video tracks");
         const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
         setLocalAudioTrack(audioTrack);
         setLocalVideoTrack(videoTrack);
         
-        console.log("Publishing local tracks to channel");
         await agoraClient.publish([audioTrack, videoTrack]);
-        console.log("Successfully published local tracks");
         
         setIsConnected(true);
         setIsLoading(false);
 
         // Define cleanup function
         const cleanup = async () => {
-          console.log("Executing Agora cleanup");
           try {
+            // Set a flag to prevent re-entry
+            if (cleanupRef.current === null) {
+              return;
+            }
+            
             // Stop screen sharing if active
             if (screenTrack) {
               screenTrack.close();
+              setScreenTrack(null);
             }
             
             // Close audio and video tracks
             if (audioTrack) {
-              audioTrack.close();
+              try {
+                audioTrack.close();
+              } catch (audioErr) {
+                console.warn("Error closing audio track:", audioErr);
+              }
+              setLocalAudioTrack(null);
             }
             
             if (videoTrack) {
-              videoTrack.close();
+              try {
+                videoTrack.close();
+              } catch (videoErr) {
+                console.warn("Error closing video track:", videoErr);
+              }
+              setLocalVideoTrack(null);
             }
             
             // Leave the channel
             if (agoraClient) {
-              await agoraClient.leave();
-              console.log("Successfully left Agora channel");
+              try {
+                await agoraClient.leave();
+              } catch (leaveErr) {
+                console.warn("Error leaving Agora channel:", leaveErr);
+              }
+              
+              // Nullify the client reference to prevent further usage
+              setClient(null);
             }
             
             setIsConnected(false);
             initRef.current = false;
+            
+            // Clear the cleanup reference to indicate completion
+            cleanupRef.current = null;
           } catch (err) {
-            console.error("Error during Agora cleanup:", err);
+            // Still mark cleanup as complete even if there was an error
+            cleanupRef.current = null;
+            setClient(null);
+            setLocalAudioTrack(null);
+            setLocalVideoTrack(null);
+            setScreenTrack(null);
+            setIsConnected(false);
+            initRef.current = false;
           }
         };
         
@@ -635,7 +681,6 @@ export default function MeetingPage() {
         cleanupRef.current = cleanup;
         
       } catch (error) {
-        console.error("Error setting up Agora:", error);
         toast({
           title: "Error joining meeting",
           description: "There was a problem connecting to the video call.",
@@ -659,7 +704,7 @@ export default function MeetingPage() {
   // Add beforeunload event listener to clean up when leaving the page
   useEffect(() => {
     const handleBeforeUnload = () => {
-      console.log("Page unloading - cleaning up Agora resources");
+      setIsConfirmExitEnabled(false); // Disable further confirmations
       if (cleanupRef.current) {
         cleanupRef.current();
       }
@@ -678,13 +723,14 @@ export default function MeetingPage() {
     let needsReconnect = false;
     let reconnectTimeout: NodeJS.Timeout | null = null;
     let reconnectAttempts = 0;
+    let hiddenTimeoutId: NodeJS.Timeout | null = null;
     const MAX_RECONNECT_ATTEMPTS = 3;
     const RECONNECT_DELAY = 2000;
+    const AUTO_DISCONNECT_TIMEOUT = 30000; // 30 seconds
     
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         // Tab is hidden, mark that we might need to reconnect later
-        console.log("Tab lost visibility - marking for potential reconnection");
         needsReconnect = true;
         
         // If we have a pending reconnect timeout, clear it
@@ -692,21 +738,31 @@ export default function MeetingPage() {
           clearTimeout(reconnectTimeout);
           reconnectTimeout = null;
         }
+        
+        // Set a timeout to clean up resources if page remains hidden for too long
+        hiddenTimeoutId = setTimeout(() => {
+          if (cleanupRef.current) {
+            cleanupRef.current();
+          }
+        }, AUTO_DISCONNECT_TIMEOUT);
+        
       } else if (document.visibilityState === 'visible') {
-        console.log("Tab regained visibility - connection state:", isConnected ? "connected" : "disconnected");
+        // Clear the auto-disconnect timeout when page becomes visible again
+        if (hiddenTimeoutId) {
+          clearTimeout(hiddenTimeoutId);
+          hiddenTimeoutId = null;
+        }
+        
         
         // Only attempt reconnection if we're not already connected and we've previously lost visibility
         if (needsReconnect && client && !isLoading && !isConnected && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-          console.log("Preparing to reconnect after visibility change");
           
           // Set a short delay before reconnecting to avoid rapid reconnection attempts
           reconnectTimeout = setTimeout(async () => {
             try {
               reconnectAttempts++;
-              console.log(`Reconnection attempt ${reconnectAttempts} of ${MAX_RECONNECT_ATTEMPTS}`);
               
               // First, ensure we've fully cleaned up any existing connection
-              console.log("Cleaning up existing connection before reconnecting");
               
               // Clean up existing tracks
               if (isScreenSharing && screenTrack) {
@@ -727,7 +783,6 @@ export default function MeetingPage() {
               // Leave the channel
               try {
                 await client.leave();
-                console.log("Successfully left channel before reconnecting");
               } catch (leaveError) {
                 console.warn("Error leaving channel during reconnect:", leaveError);
                 // Continue with reconnection attempt even if leave fails
@@ -741,12 +796,10 @@ export default function MeetingPage() {
               await new Promise(resolve => setTimeout(resolve, 1000));
               
               if (!user || !sessionId || !userUidRef.current) {
-                console.error("Missing required data for reconnection");
                 return;
               }
               
               try {
-                console.log("Reconnecting to Agora after visibility change");
                 
                 // Use the SAME UID as before to avoid conflicts
                 const numericUid = userUidRef.current;
@@ -760,17 +813,14 @@ export default function MeetingPage() {
                 }
                 
                 // Join with the same UID
-                console.log(`Rejoining channel ${sessionId} with same UID ${numericUid}`);
                 await client.join(
                   process.env.NEXT_PUBLIC_AGORA_APP_ID || "",
                   sessionId as string,
                   data.token,
                   numericUid
                 );
-                console.log("Successfully rejoined channel");
                 
                 // Create and publish new local tracks
-                console.log("Creating new local audio and video tracks");
                 const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
                 
                 // Apply previous mute states
@@ -785,19 +835,15 @@ export default function MeetingPage() {
                 setLocalAudioTrack(audioTrack);
                 setLocalVideoTrack(videoTrack);
                 
-                console.log("Publishing new local tracks to channel");
                 await client.publish([audioTrack, videoTrack]);
-                console.log("Successfully published new local tracks");
                 
                 setIsConnected(true);
                 needsReconnect = false;
                 reconnectAttempts = 0;
               } catch (error) {
-                console.error("Error reconnecting to Agora:", error);
                 
                 // If we still have attempts left, try again after a delay
                 if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-                  console.log(`Reconnection attempt ${reconnectAttempts} failed, will retry in ${RECONNECT_DELAY/1000}s`);
                   reconnectTimeout = setTimeout(() => {
                     handleVisibilityChange();
                   }, RECONNECT_DELAY);
@@ -810,7 +856,6 @@ export default function MeetingPage() {
                 }
               }
             } catch (error) {
-              console.error("Error during cleanup before reconnection:", error);
             }
           }, RECONNECT_DELAY);
         }
@@ -824,6 +869,9 @@ export default function MeetingPage() {
       if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
       }
+      if (hiddenTimeoutId) {
+        clearTimeout(hiddenTimeoutId);
+      }
     };
   }, [isConnected, client, user, sessionId, isScreenSharing, screenTrack, localAudioTrack, localVideoTrack, isAudioMuted, isVideoMuted, isLoading]);
 
@@ -832,27 +880,22 @@ export default function MeetingPage() {
     // Make sure remoteUsers is defined and is an array
     if (!remoteUsers || !Array.isArray(remoteUsers)) return;
     
-    console.log(`Attempting to play videos for ${remoteUsers.length} remote users`);
     
     // Play all remote video tracks
     remoteUsers.forEach(user => {
       if (user && user.videoTrack && user.hasVideo) {
         try {
-          console.log(`Attempting to play video for user ${user.uid} in useEffect`);
           // Try with a small delay to ensure DOM is ready
           setTimeout(() => {
             const playerElement = document.getElementById(`remote-video-${user.uid}`);
             if (playerElement && user.videoTrack) {
               try {
                 user.videoTrack.play(`remote-video-${user.uid}`);
-                console.log(`Successfully played video for user ${user.uid} in useEffect`);
               } catch (error) {
-                console.error(`Error playing video for user ${user.uid}:`, error);
               }
             }
           }, 200);
         } catch (error) {
-          console.error(`Error setting up video playback for user ${user.uid}:`, error);
         }
       }
     });
@@ -863,7 +906,6 @@ export default function MeetingPage() {
     
     try {
       const newMuteState = !isAudioMuted;
-      console.log(`Setting audio enabled: ${!newMuteState}`);
       
       await localAudioTrack.setEnabled(!newMuteState);
       setIsAudioMuted(newMuteState);
@@ -873,7 +915,6 @@ export default function MeetingPage() {
         duration: 1500,
       });
     } catch (error) {
-      console.error("Error toggling audio:", error);
       toast({
         title: "Failed to toggle microphone",
         variant: "destructive",
@@ -886,7 +927,6 @@ export default function MeetingPage() {
     
     try {
       const newMuteState = !isVideoMuted;
-      console.log(`Setting video enabled: ${!newMuteState}`);
       
       await localVideoTrack.setEnabled(!newMuteState);
       setIsVideoMuted(newMuteState);
@@ -896,7 +936,6 @@ export default function MeetingPage() {
         duration: 1500,
       });
     } catch (error) {
-      console.error("Error toggling video:", error);
       toast({
         title: "Failed to toggle camera",
         variant: "destructive",
@@ -910,7 +949,6 @@ export default function MeetingPage() {
     try {
       if (!isScreenSharing) {
         // Start screen sharing
-        console.log("Starting screen sharing");
         
         // createScreenVideoTrack can return either a single track or an array of tracks
         const screenTracks = await AgoraRTC.createScreenVideoTrack({
@@ -924,15 +962,12 @@ export default function MeetingPage() {
         // Unpublish camera track and publish screen track
         if (localVideoTrack) {
           await client.unpublish(localVideoTrack);
-          console.log("Unpublished camera track");
         }
         
         await client.publish(videoTrack);
-        console.log("Published screen sharing track");
         
         // Add screen sharing ended event listener
         videoTrack.on("track-ended", async () => {
-          console.log("Screen sharing ended by system event");
           await stopScreenSharing();
         });
         
@@ -946,7 +981,6 @@ export default function MeetingPage() {
         await stopScreenSharing();
       }
     } catch (error) {
-      console.error("Error toggling screen sharing:", error);
       toast({
         title: "Screen sharing failed",
         description: "There was a problem with screen sharing.",
@@ -961,14 +995,12 @@ export default function MeetingPage() {
     
     try {
       // Stop screen sharing
-      console.log("Stopping screen sharing");
       
       // Unpublish screen track
       if (screenTrack) {
         await client.unpublish(screenTrack);
         screenTrack.close();
         setScreenTrack(null);
-        console.log("Unpublished screen track");
       }
       
       // Republish camera track if it exists and is not already published
@@ -979,7 +1011,6 @@ export default function MeetingPage() {
         
         if (!isVideoPublished) {
           await client.publish(localVideoTrack);
-          console.log("Republished camera track");
           
           // If video was not muted before screen sharing, ensure it's enabled
           if (!isVideoMuted) {
@@ -995,7 +1026,6 @@ export default function MeetingPage() {
         duration: 1500,
       });
     } catch (error) {
-      console.error("Error stopping screen sharing:", error);
       toast({
         title: "Error stopping screen sharing",
         variant: "destructive",
@@ -1005,15 +1035,19 @@ export default function MeetingPage() {
 
   const handleEndCall = async () => {
     try {
+      setIsConfirmExitEnabled(false); // Disable exit confirmation since user explicitly chose to leave
+      setIsLoading(true); // Show loading state while cleaning up
       if (cleanupRef.current) {
         // Use the same cleanup function for consistency
         await cleanupRef.current();
       }
       
+      // Add a small delay to ensure cleanup completes before navigation
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       // Redirect to messages page instead of session page
       router.push('/dashboard/messages');
     } catch (error) {
-      console.error("Error leaving channel:", error);
       // Still redirect even if there's an error with cleanup
       router.push('/dashboard/messages');
     }
@@ -1097,7 +1131,6 @@ export default function MeetingPage() {
                     localVideoTrack.play(el);
                   }
                 } catch (err) {
-                  console.error("Error playing local video:", err);
                 }
               }
             }}

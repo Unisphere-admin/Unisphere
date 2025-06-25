@@ -21,7 +21,6 @@ export async function POST(request: NextRequest) {
     const { error } = await supabase.auth.signOut();
     
     if (error) {
-      console.error('Error signing out from Supabase:', error);
       return NextResponse.json({ error: error.message, status: "error" }, { status: 500 });
     } else {
       // Add paths that need to be revalidated after logout
@@ -30,7 +29,6 @@ export async function POST(request: NextRequest) {
         revalidatePath('/dashboard');
         revalidatePath('/login');
       } catch (cacheError) {
-        console.error('Error revalidating cache:', cacheError);
         // Don't fail the request if cache revalidation fails
       }
     }
@@ -39,7 +37,6 @@ export async function POST(request: NextRequest) {
     // Return a success response
     return NextResponse.json({ success: true, status: "success" });
   } catch (error) {
-    console.error('Unexpected error during logout:', error);
     return NextResponse.json(
       { error: 'An unexpected error occurred during logout', status: "error" },
       { status: 500 }

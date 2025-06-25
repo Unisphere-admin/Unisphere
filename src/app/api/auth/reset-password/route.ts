@@ -33,7 +33,6 @@ export async function POST(req: NextRequest) {
     });
 
     if (error) {
-            console.error("Password reset error:", error.message, error);
         return NextResponse.json(
             { error: error.message },
             { status: 500 }
@@ -45,7 +44,6 @@ export async function POST(req: NextRequest) {
         { status: 200 }
     );
     } catch (error) {
-        console.error("Unexpected error in reset password:", error);
         return NextResponse.json(
             { error: "An error occurred while processing your request." },
             { status: 500 }

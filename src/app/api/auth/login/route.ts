@@ -24,7 +24,6 @@ export async function POST(request: NextRequest) {
     });
     
     if (error) {
-      console.error('Login error:', error.message);
       return NextResponse.json(
         { error: error.message },
         { status: 401 }
@@ -73,7 +72,6 @@ export async function POST(request: NextRequest) {
       }
     } catch (profileError) {
       // Even if profile retrieval fails, return the authenticated user
-      console.error("Error retrieving profile, but user is authenticated:", profileError);
       
       return NextResponse.json({ 
         user: basicUserData,
@@ -82,7 +80,6 @@ export async function POST(request: NextRequest) {
       });
     }
   } catch (error) {
-    console.error('Error in login API route:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }

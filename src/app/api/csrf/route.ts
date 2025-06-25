@@ -18,7 +18,6 @@ export async function GET(req: NextRequest) {
     // Set the CSRF cookie and token
     return await setCsrfCookie(response);
   } catch (error) {
-    console.error("Error generating CSRF token:", error);
     
     return NextResponse.json(
       { error: "Failed to generate CSRF token" },

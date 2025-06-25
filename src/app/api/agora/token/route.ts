@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
-import { RtcTokenBuilder, RtcRole } from 'agora-access-token';
+import { RtcTokenBuilder, RtcRole } from 'agora-token';
 
 // Agora token generator API endpoint
 export const GET = withRouteAuth(async (req: NextRequest, user) => {
@@ -55,13 +55,13 @@ export const GET = withRouteAuth(async (req: NextRequest, user) => {
       channelName,
       tokenUid,
       RtcRole.PUBLISHER,
+      privilegeExpiredTs,
       privilegeExpiredTs
     );
 
     // Return the token
     return NextResponse.json({ token, uid: tokenUid });
   } catch (error) {
-    console.error('Error generating Agora token:', error);
     return NextResponse.json(
       { error: 'Failed to generate token' },
       { status: 500 }

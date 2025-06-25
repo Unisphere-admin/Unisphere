@@ -23,7 +23,6 @@ export async function checkAuthAndClearCacheIfNeeded(): Promise<boolean> {
     
     return true;
   } catch (err) {
-    console.error('Error checking authentication status:', err);
     // Clear cache on error to be safe
     invalidateCache(CACHE_CONFIG.TUTORS_CACHE_KEY);
     return false;
@@ -62,7 +61,6 @@ export async function fetchCsrfTokenIfAuthenticated(): Promise<void> {
       }
     }
   } catch (error) {
-    console.error('Error fetching CSRF token:', error);
   }
 }
 

@@ -29,7 +29,6 @@ export async function GET(request: NextRequest) {
         
         // Check if the auth API is accessible
         if (!supabase || !supabase.auth) {
-            console.error('Supabase client or auth API not available');
             return NextResponse.json(
                 { error: 'Authentication service unavailable' },
                 { status: 500, headers }
@@ -80,9 +79,7 @@ export async function GET(request: NextRequest) {
             // Better error handling for refresh failures
             if (refreshError.name === 'AuthSessionMissingError' || 
                 refreshError.message?.includes('Auth session missing')) {
-                console.error('Session missing during refresh, but already authenticated with getUser()');
             } else {
-                console.error('Error refreshing session token:', refreshError);
             }
             // We can continue as we already have the authenticated user
         }
@@ -102,14 +99,12 @@ export async function GET(request: NextRequest) {
             });
         } catch (profileError) {
             // Log but don't fail - we'll try to get the profile anyway
-            console.error('Error ensuring user profile exists:', profileError);
         }
         
         // Fetch the user profile data
         const { user: profileUser, error: profileError } = await getUserProfile(userId);
         
         if (profileError || !profileUser) {
-            console.error("Error fetching user profile:", profileError);
             // Return minimal user data from user object
             return NextResponse.json({
                 user: {
@@ -144,7 +139,6 @@ export async function GET(request: NextRequest) {
         
         return response;
     } catch (error) {
-        console.error('Error in session API route:', error);
         return NextResponse.json(
             { error: error instanceof Error ? error.message : 'Internal server error' },
             { 

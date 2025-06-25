@@ -21,7 +21,6 @@ export default function ProtectedPageWrapper({ children }: ProtectedPageWrapperP
     if (loading) return;
 
     // Refresh user on component mount to ensure latest data
-    refreshUser(true).catch(err => console.error("Error refreshing user data:", err));
   }, [refreshUser]);
 
   useEffect(() => {
