@@ -169,7 +169,7 @@ export default function AboutPage() {
         
         <div className="max-w-3xl mx-auto text-center mb-16 relative z-10">
           <Badge className="mb-4 bg-[#4b92a9]/10 text-[#126d94] hover:bg-[#4b92a9]/20 transition-colors">Simple Process</Badge>
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">How Unisphere Works</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">How UniSphere Works</h2>
           <p className="text-xl text-muted-foreground">
             Our platform makes it easy to connect and start learning
           </p>
@@ -268,22 +268,22 @@ export default function AboutPage() {
             {
               name: "Joshua Ooi",
               role: "Columbia University",
-              image: "/placeholder.svg"
+              image: "/headshots/JoshuaOoi.jpg"
             },
             {
               name: "Justin Lee",
               role: "Oxford University",
-              image: "/placeholder.svg"
+              image: "/headshots/JustinLee.png"
             },
             {
-              name: "Bryan Lim",
-              role: "Harvard University",
-              image: "/placeholder.svg"
+              name: "Gha Yuan Ng",
+              role: "Yale University",
+              image: "/headshots/GhaYuanNg.jpg"
             },
             {
               name: "Matthew Tang",
               role: "Yale University",
-              image: "/placeholder.svg"
+              image: "/headshots/MatthewTang.jpg"
             }
           ].map((member) => (
             <div key={member.name} className="flex flex-col items-center text-center group">

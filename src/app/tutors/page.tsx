@@ -574,7 +574,6 @@ export default function TutorsPage() {
       const data = await response.json();
       setTutors(data.tutors || []);
     } catch (error) {
-      console.error("Error fetching tutors:", error);
       setError("Failed to load tutors. Please try again.");
       
       // Schedule a retry
@@ -659,7 +658,6 @@ export default function TutorsPage() {
       
       setTutorRatings(ratingsByTutor);
     } catch (err) {
-      console.error('Error in fetchTutorRatings:', err);
     } finally {
       setLoadingRatings(false);
     }

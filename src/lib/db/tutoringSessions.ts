@@ -113,7 +113,6 @@ async function _createTutoringSessionRequest(
       .single();
       
     if (sessionError) {
-      console.error("Error creating session request:", sessionError);
       return { session: null, error: 'Failed to create tutoring session request' };
     }
     
@@ -218,7 +217,6 @@ async function _createTutoringSession(
       .single();
       
     if (sessionError) {
-      console.error("Error creating session:", sessionError);
       return { session: null, error: 'Failed to create tutoring session' };
     }
     
@@ -294,13 +292,11 @@ export async function updateSessionStatus(
       .single();
     
     if (error) {
-      console.error(`Error updating session ${sessionId} to ${status}:`, error);
       return { error: error.message };
     }
     
     return { session: data as TutoringSession };
   } catch (err) {
-    console.error(`Failed to update session ${sessionId} to ${status}:`, err);
     return { error: 'Failed to update session status' };
   }
 }
@@ -621,7 +617,6 @@ export async function createTutoringSession(
     );
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    console.error('Exception in createTutoringSession wrapper:', errorMessage);
     return { session: null, error: errorMessage };
   }
 }
@@ -660,7 +655,6 @@ export async function createTutoringSessionRequest(
     );
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    console.error('Exception in createTutoringSessionRequest wrapper:', errorMessage);
     return { session: null, error: errorMessage };
   }
 }
@@ -758,7 +752,6 @@ export const updateSessionStatusAuth = withAuth(async function _updateSessionSta
     .single();
 
   if (error) {
-    console.error(`Error updating session ${sessionId} to ${status}:`, error);
     return { error: error.message };
   }
 
@@ -791,7 +784,6 @@ export async function getSessionsByMessageId(messageId: string) {
       .order('created_at', { ascending: false });
       
     if (error) {
-      console.error(`Error fetching sessions for message ${messageId}:`, error);
       return { error: error.message };
     }
     
@@ -802,7 +794,6 @@ export async function getSessionsByMessageId(messageId: string) {
     
     return { sessions: data as TutoringSession[] };
   } catch (err) {
-    console.error(`Failed to get sessions for message ${messageId}:`, err);
     return { error: 'Failed to get sessions' };
   }
 } 

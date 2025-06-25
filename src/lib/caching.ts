@@ -242,7 +242,6 @@ export async function getAndCacheData<T>(
     const errorString = String(error);
     if (errorString.includes('403') || errorString.toLowerCase().includes('forbidden')) {
     } else {
-    console.error(`Error fetching data for ${key}:`, error);
     }
     delete pendingRefreshes[key];
     throw error;
@@ -273,7 +272,6 @@ function refreshCacheInBackground<T>(
     const errorString = String(error);
     if (errorString.includes('403') || errorString.toLowerCase().includes('forbidden')) {
     } else {
-    console.error(`Background refresh failed for ${key}:`, error);
     }
     delete pendingRefreshes[key];
     throw error;

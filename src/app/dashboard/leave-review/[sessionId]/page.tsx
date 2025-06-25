@@ -45,7 +45,6 @@ export default function LeaveReviewPage() {
         }
       } catch (err) {
         setError("Error loading session data");
-        console.error("Error fetching session:", err);
       } finally {
         setLoading(false);
       }
@@ -89,7 +88,6 @@ export default function LeaveReviewPage() {
         router.push("/dashboard");
       }, 1000);
     } catch (err) {
-      console.error("Error submitting review:", err);
       toast.error("Failed to submit review. Please try again.");
     } finally {
       setSubmitting(false);

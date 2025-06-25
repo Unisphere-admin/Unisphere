@@ -36,7 +36,6 @@ async function checkConversationStatusHandler(
       .maybeSingle();
     
     if (participantError) {
-      console.error('Error checking conversation participant:', participantError.message);
       return NextResponse.json({ 
         ready: false, 
         error: 'Error checking conversation status' 
@@ -59,7 +58,6 @@ async function checkConversationStatusHandler(
       .single();
     
     if (conversationError) {
-      console.error('Error checking conversation:', conversationError.message);
       return NextResponse.json({ 
         ready: false,
         error: 'Conversation not found or not fully initialized' 
@@ -77,7 +75,6 @@ async function checkConversationStatusHandler(
     });
     
   } catch (error) {
-    console.error('Error checking conversation status:', error);
     return NextResponse.json({ 
       ready: false,
       error: 'Failed to check conversation status' 

@@ -121,7 +121,6 @@ export function MessageNotification() {
             localStorage.removeItem('first_message');
           }
         } catch (error) {
-          console.error('Error handling message notification:', error);
         }
       }
     };

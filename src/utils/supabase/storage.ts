@@ -75,7 +75,6 @@ export async function uploadAvatar(
       });
 
     if (error) {
-      console.error('Error uploading avatar:', error);
       return { path: null, error: error.message };
     }
 
@@ -86,7 +85,6 @@ export async function uploadAvatar(
 
     return { path: publicUrl, error: null };
   } catch (error) {
-    console.error('Unexpected error uploading avatar:', error);
     return { 
       path: null, 
       error: error instanceof Error ? error.message : 'Unknown error during upload' 
@@ -122,13 +120,11 @@ export async function removeAvatar(
       .remove([fileName]);
 
     if (error) {
-      console.error('Error removing avatar:', error);
       return { success: false, error: error.message };
     }
 
     return { success: true, error: null };
   } catch (error) {
-    console.error('Unexpected error removing avatar:', error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error during removal' 

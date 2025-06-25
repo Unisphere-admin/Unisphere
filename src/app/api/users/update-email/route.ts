@@ -47,7 +47,6 @@ async function updateEmailHandler(
     });
     
     if (error) {
-      console.error('Error updating email:', error);
       
       // Handle common errors with user-friendly messages
       if (error.message.includes('already registered')) {
@@ -69,7 +68,6 @@ async function updateEmailHandler(
       success: true
     });
   } catch (error) {
-    console.error('Error in update email handler:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

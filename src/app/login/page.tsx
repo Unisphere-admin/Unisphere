@@ -158,7 +158,6 @@ export default function LoginPage() {
         try {
           await fetchCsrfToken();
         } catch (csrfError) {
-          console.error('Failed to fetch CSRF token after login, will try again later:', csrfError);
           // Don't fail the login process if CSRF token fetch fails
         }
         
@@ -190,7 +189,6 @@ export default function LoginPage() {
             userData?.has_access === true;
             
         } else {
-          console.error('Failed to fetch session data after login');
         }
         
         // Navigate based on user status
@@ -210,7 +208,6 @@ export default function LoginPage() {
       
       return false;
     } catch (error) {
-      console.error('Login error:', error);
       throw error;
     }
   };
@@ -249,7 +246,6 @@ export default function LoginPage() {
       });
       
         if (otpError) {
-          console.error('OTP sign-in error:', otpError);
           throw new Error(otpError.message || 'Failed to send reset email');
       }
       }
@@ -264,7 +260,6 @@ export default function LoginPage() {
       setShowResetPasswordForm(false);
       
     } catch (err) {
-      console.error("Reset password error:", err);
       setError(err instanceof Error ? err.message : "Failed to reset password");
     } finally {
       setIsLoading(false);
@@ -325,7 +320,6 @@ export default function LoginPage() {
         setErrorType("auth");
       }
     } catch (err) {
-      console.error("Login error:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to login";
       setError(errorMessage);
         setErrorType("auth");
@@ -437,7 +431,6 @@ export default function LoginPage() {
       setLastName("");
       
     } catch (err) {
-      console.error("Signup error:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to create account";
       setError(errorMessage);
       setErrorType("auth");

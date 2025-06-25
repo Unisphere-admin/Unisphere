@@ -85,6 +85,8 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
   
   // Track recently shown notifications to prevent duplicates
   const recentNotifications = useRef<Map<string, number>>(new Map());
+  // Add a cache for sender information
+  const senderCache = useRef<Map<string, any>>(new Map());
   const NOTIFICATION_DURATION = 15000; // 15 seconds
   const DUPLICATE_CHECK_WINDOW = 60000; // 60 seconds (was 10 seconds)
   
@@ -133,6 +135,16 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     content: string,
     isSessionRequest: boolean
   ) => {
+    // Log notification data for debugging
+    const notificationData = {
+      messageId,
+      conversationId,
+      senderName,
+      senderAvatar,
+      contentPreview: content?.substring(0, 20),
+      isSessionRequest
+    };
+    
     // Skip notifications for the current user's messages
     if (user && messageId.includes(user.id)) {
       return false;
@@ -162,8 +174,28 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       return false;
     }
     
-    // Make sure we have a valid sender name
-    const displayName = senderName || 'Someone';
+    // Try to find a better display name if we have 'Unknown User'
+    let displayName = senderName;
+    if (!displayName || displayName === 'Unknown User') {
+      // Try to find the conversation and get participant info
+      if (messageContext?.conversations) {
+        const conversation = messageContext.conversations.find(c => c.id === conversationId);
+        if (conversation?.participants) {
+          const sender = conversation.participants.find(
+            p => p.user_id === messageId.split('-')[0] || p.user?.id === messageId.split('-')[0]
+          );
+          if (sender?.user?.display_name) {
+            displayName = sender.user.display_name;
+          }
+        }
+      }
+      
+      // If we still don't have a good name, use a generic one
+      if (!displayName || displayName === 'Unknown User') {
+        displayName = 'Someone';
+      }
+    }
+    
     
     // Record this notification to prevent duplicates - use a compound key that includes the content
     // This helps prevent functionally identical notifications
@@ -187,7 +219,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         <Avatar className="h-9 w-9 shrink-0">
           <AvatarImage src={senderAvatar || undefined} />
           <AvatarFallback>
-            {displayName?.charAt(0) || 'U'}
+            {displayName?.charAt(0).toUpperCase() || 'U'}
           </AvatarFallback>
         </Avatar>
         <div className="flex-1">
@@ -256,7 +288,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       });
       
       if (!response.ok) {
-        console.error('Error checking user premium access:', response.statusText);
         setHasPremiumAccess(false);
         return false;
       }
@@ -281,7 +312,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       
       return hasAccess;
     } catch (error) {
-      console.error('Error checking user premium access:', error);
       setHasPremiumAccess(false);
       return false;
     }
@@ -313,7 +343,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
                 channel.unsubscribe();
               }
             } catch (error) {
-              console.error(`Error unsubscribing from channel ${channelKey}:`, error);
             }
           });
           
@@ -379,7 +408,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       });
       
       if (!response.ok) {
-        console.error(`Error checking sessions for message ${messageId}: ${response.status}`);
         return false;
       }
       
@@ -396,56 +424,135 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       
       return hasSession;
     } catch (error) {
-      console.error('Error checking if message has a session:', error);
       return false;
     }
   }, []);
 
-  // Handle realtime message events
+  // Handle realtime message
   const handleRealtimeMessage = useCallback(async (payload: { payload: RealtimeMessage }) => {
     if (!payload.payload) return;
+
     
     const message = payload.payload;
     
-    // Immediately check if this is a session request based on content
-    const isSessionRequest = message.content && message.content.trim().startsWith('Session Request:');
+    // First check if we have this sender in our cache
+    let senderInfo = senderCache.current.get(message.sender_id) || message.sender || {
+      id: message.sender_id,
+      display_name: 'Unknown User',
+      avatar_url: null,
+      is_tutor: false,
+      first_name: '',
+      last_name: ''
+    };
     
-    // Only update message state if messageContext exists and this is a valid message
-    if (messageContext && message.conversation_id) {
-      // Create a session request object if needed
-      let sessionRequest = undefined;
-      if (isSessionRequest) {
-        // Extract information from sender for proper session request setup
-        const isSenderTutor = message.sender?.is_tutor || false;
-        const title = message.content.replace(/^Session Request: /, '').trim();
+    
+    // If we're missing important sender info, try to get it from existing conversations
+    if (senderInfo.display_name === 'Unknown User' || senderInfo.avatar_url === null) {
+      // First try to find the sender in the current conversations
+      if (messageContext?.conversations && messageContext.conversations.length > 0) {
         
-        sessionRequest = {
-          title: title,
-          scheduledFor: new Date().toISOString(),
-          conversationId: message.conversation_id,
-          messageId: message.id,
-          // Add creator information to help with accept button display
-          tutorId: isSenderTutor ? message.sender_id : undefined,
-          studentId: !isSenderTutor ? message.sender_id : undefined,
-          // Set default status with correct type
-          status: "requested" as "requested" | "accepted" | "started" | "ended" | "cancelled"
-        };
-        
+        // Look through all conversations for this sender
+        for (const conversation of messageContext.conversations) {
+          if (conversation.participants) {
+            const participant = conversation.participants.find(p => 
+              p.user_id === message.sender_id || (p.user && p.user.id === message.sender_id)
+            );
+            
+            if (participant && participant.user) {
+              
+              // Update sender info with data from conversations
+              senderInfo = {
+                id: message.sender_id,
+                display_name: participant.user.display_name || 
+                             (participant.user.first_name && participant.user.last_name ? 
+                              `${participant.user.first_name} ${participant.user.last_name}` : 
+                              participant.user.id || senderInfo.display_name),
+                avatar_url: participant.user.avatar_url || senderInfo.avatar_url,
+                is_tutor: participant.user.is_tutor || false,
+                first_name: participant.user.first_name || '',
+                last_name: participant.user.last_name || ''
+              };
+              
+              // Cache the sender info
+              senderCache.current.set(message.sender_id, senderInfo);
+              break;
+            }
+          }
+        }
       }
       
-      // Add the sessionRequest property to the message
+      // If we still don't have good sender info, try the API as a fallback
+      if ((senderInfo.display_name === 'Unknown User' || senderInfo.avatar_url === null) && 
+          !senderCache.current.has(message.sender_id)) {
+        try {
+          // Try to get user profile from API
+          const response = await fetch(`/api/users/profile/${message.sender_id}`, {
+            credentials: 'include',
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+            }
+          });
+          
+          if (response.ok) {
+            const userData = await response.json();
+            if (userData.user) {
+              // Update sender info with fetched data
+              senderInfo = {
+                ...senderInfo,
+                display_name: userData.user.first_name && userData.user.last_name 
+                  ? `${userData.user.first_name} ${userData.user.last_name}`
+                  : userData.user.id || senderInfo.display_name,
+                avatar_url: userData.user.avatar_url || senderInfo.avatar_url,
+                first_name: userData.user.first_name || '',
+                last_name: userData.user.last_name || '',
+                is_tutor: userData.user.is_tutor || false
+              };
+              
+              // Cache the sender info for future messages
+              senderCache.current.set(message.sender_id, senderInfo);
+            }
+          } else {
+          }
+        } catch (error) {
+        }
+      }
+    }
+    
       const enhancedMessage = {
         ...message,
-        sessionRequest,
-        // Mark session requests explicitly for UI detection
-        isSessionRequest: Boolean(isSessionRequest),
-        // Add required properties for Message type
-        timestamp: new Date(message.created_at),
-        read: false
-      };
+      sender: {
+        id: senderInfo.id || message.sender_id,
+        display_name: senderInfo.display_name || 'Unknown User',
+        avatar_url: senderInfo.avatar_url || null,
+        is_tutor: senderInfo.is_tutor || false,
+        first_name: senderInfo.first_name || '',
+        last_name: senderInfo.last_name || ''
+      },
+      _notificationTimestamp: Date.now(),
+      timestamp: new Date(message.created_at || new Date()), // Use Date object for MessageContext
+      read: false,
+      isSessionRequest: message.content?.trim().startsWith('Session Request:') || false
+    };
+    
+    
+    // Update messages in the message context
+    messageContext?.handleRealtimeMessage?.(enhancedMessage);
       
-      // Now handle the message with the session request info already embedded
-      messageContext.handleRealtimeMessage(enhancedMessage);
+    // For the custom event, we can use a string timestamp which is easier to serialize
+    const messageForEvent = {
+      ...enhancedMessage,
+      timestamp: enhancedMessage.timestamp.toISOString() // Convert to string for the event
+    };
+    
+    
+    // Dispatch a custom event so other components (like meeting page) can also process this message
+    if (typeof window !== 'undefined') {
+      const customEvent = new CustomEvent('supabase-message', { 
+        detail: { 
+          payload: messageForEvent 
+        }
+      });
+      window.dispatchEvent(customEvent);
     }
     
     // Only show notifications for messages from other users
@@ -479,15 +586,27 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     try {
       // Only store if it's a valid message with required fields
       if (message.id && message.conversation_id) {
+        // Make sure we have complete sender information for localStorage
+        const messageForStorage = {
+          ...enhancedMessage,
+          timestamp: enhancedMessage.timestamp.toISOString(), // Convert to string for localStorage
+          sender: {
+            id: enhancedMessage.sender.id,
+            display_name: enhancedMessage.sender.display_name,
+            avatar_url: enhancedMessage.sender.avatar_url,
+            is_tutor: enhancedMessage.sender.is_tutor,
+            first_name: enhancedMessage.sender.first_name,
+            last_name: enhancedMessage.sender.last_name
+          }
+        };
+        
         // Update localStorage with latest message to trigger notification in other tabs
-        localStorage.setItem('latest_message', JSON.stringify({
-          ...message,
-          // Add a timestamp to help with duplicate detection across tabs
-          _notificationTimestamp: Date.now()
-        }));
+        localStorage.setItem('latest_message', JSON.stringify(messageForStorage));
+        
         
         // Determine the best display name
-        const senderDisplayName = message.sender?.display_name || 'Someone';
+        const senderDisplayName = enhancedMessage.sender.display_name || 'Someone';
+        
         
         // First check if the message content indicates it's a session request
         let isSessionRequest = message.content && message.content.trim().startsWith('Session Request:');
@@ -497,25 +616,23 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
           try {
             isSessionRequest = await checkMessageHasSession(message.id);
           } catch (error) {
-            console.error(`Error checking if message has session:`, error);
             // Default to false in case of error
             isSessionRequest = false;
           }
-        } else {
         }
         
         // Show notification in current tab
-        showNotification(
+        const notificationShown = showNotification(
           message.id,
           message.conversation_id,
           senderDisplayName,
-          message.sender?.avatar_url || null,
+          enhancedMessage.sender.avatar_url,
           message.content || '',
           isSessionRequest
         );
+        
       }
     } catch (error) {
-      console.error('Error processing notification:', error);
     }
   }, [messageContext, user, showNotification, hasRecentlyShown, checkMessageHasSession]);
 
@@ -675,7 +792,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
           }
           delete channelsRef.current[conversationId];
         } catch (e) {
-          console.error(`Error cleaning up invalid channel for ${conversationId}:`, e);
         }
       }
     }
@@ -689,7 +805,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         .on('broadcast', { event: 'message' }, (payload: { payload: RealtimeMessage }) => {
           // Wrap the async call in a function that catches errors
           handleRealtimeMessage(payload).catch(err => {
-            console.error(`Error handling realtime message in channel ${conversationId}:`, err);
           });
         })
         .on('broadcast', { event: 'session_update' }, handleSessionUpdate)
@@ -713,7 +828,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       // Return the channel so it can be used for unsubscription
       return channel;
     } catch (error) {
-      console.error(`Error subscribing to conversation ${conversationId}:`, error);
       return null;
     }
   }, [user, handleRealtimeMessage, handleSessionUpdate, handleSessionListUpdate, handleTypingIndicator, hasPremiumAccess, checkPremiumAccess]);
@@ -788,7 +902,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
                   headers: {
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
                   }
-                }).catch(err => console.error('Error refreshing conversations:', err));
+                });
               }
             }
           }
@@ -860,7 +974,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         // Update subscribed channels list for UI
         setSubscribedChannels(prev => prev.filter(id => id !== conversationId));
       } catch (error) {
-        console.error(`Error unsubscribing from conversation ${conversationId}:`, error);
       }
     }
   }, []);
@@ -892,7 +1005,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       });
       
     } catch (error) {
-      console.error(`Error broadcasting message to conversation ${conversationId}:`, error);
     }
   }, []);
 
@@ -923,7 +1035,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       });
       
     } catch (error) {
-      console.error(`Error broadcasting session update:`, error);
     }
   }, []);
 
@@ -959,7 +1070,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       });
       
     } catch (error) {
-      console.error(`Error broadcasting typing status:`, error);
     }
   }, [user]);
 
@@ -973,6 +1083,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         try {
           const messageData = JSON.parse(event.newValue);
           
+          
           // Skip processing if this is from the current user (to avoid duplicates)
           if (messageData.sender_id === user.id) {
             return;
@@ -983,7 +1094,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
           handleRealtimeMessage({ 
             payload: messageData 
           }).catch(err => {
-            console.error('Error handling realtime message from storage event:', err);
           });
           
           // If this is a new conversation, make sure we're subscribed to it
@@ -991,7 +1101,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
             subscribeToConversation(messageData.conversation_id);
           }
         } catch (error) {
-          console.error('Error processing localStorage message:', error);
         }
       }
     };

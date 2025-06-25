@@ -19,7 +19,6 @@ async function searchUsersHandler(
     const { users, error } = await searchUsers(user, query);
 
     if (error) {
-      console.error('Error searching users:', error);
       return NextResponse.json({ error: 'Failed to search users' }, { status: 500 });
     }
 
@@ -28,7 +27,6 @@ async function searchUsersHandler(
 
     return NextResponse.json({ users: filteredUsers });
   } catch (error) {
-    console.error('Error searching users:', error);
     return NextResponse.json(
       { error: 'Failed to search users' },
       { status: 500 }

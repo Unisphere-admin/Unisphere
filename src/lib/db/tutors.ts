@@ -77,7 +77,6 @@ export async function getAllTutors(hasPremiumAccess = false): Promise<{
       .order('id', { ascending: true });
       
     if (error) {
-      console.error('Error fetching tutors:', error.message);
       return { tutors: [], error: error.message };
     }
     
@@ -107,7 +106,6 @@ export async function getAllTutors(hasPremiumAccess = false): Promise<{
     return { tutors: (data as any as TutorBasic[]) || [], error: null };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Unexpected error fetching tutors:', errorMessage);
     return { tutors: [], error: errorMessage };
   }
 }
@@ -135,7 +133,6 @@ export async function getTutorBySearchId(searchId: string): Promise<{
       .single();
       
     if (error) {
-      console.error(`Error fetching tutor with search_id ${searchId}:`, error.message);
       return { tutor: null, error: 'Tutor not found' };
     }
     
@@ -146,7 +143,6 @@ export async function getTutorBySearchId(searchId: string): Promise<{
     return { tutor: data, error: null };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Unexpected error fetching tutor profile:', errorMessage);
     return { tutor: null, error: errorMessage };
   }
 } 

@@ -57,7 +57,6 @@ async function updateUserProfileHandler(
       profile
     });
   } catch (error) {
-    console.error('Profile update error:', error);
     return NextResponse.json(
       { error: 'Internal server error' }, 
       { status: 500 }

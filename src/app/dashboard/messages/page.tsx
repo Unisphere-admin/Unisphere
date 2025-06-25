@@ -327,13 +327,11 @@ export default function MessagesPage() {
               }
             }
           } catch (e) {
-            console.error('Error cleaning up orphaned mappings:', e);
           }
         }
         
         return null;
       } catch (e) {
-        console.error('Error checking temp-to-real conversions:', e);
         localStorage.removeItem('tempToRealConversions'); // Clear potentially corrupted data
         return null;
       }
@@ -364,7 +362,6 @@ export default function MessagesPage() {
             // This will both fetch the conversation and its messages
             await refreshMessages(conversationId);
           } catch (err) {
-            console.error(`Failed to fetch specific conversation ${conversationId}:`, err);
           }
         };
         
@@ -405,7 +402,6 @@ export default function MessagesPage() {
         }
       }
     } catch (e) {
-      console.error('Error during temp conversation cleanup:', e);
     }
   }, []);
   
@@ -652,7 +648,6 @@ export default function MessagesPage() {
         }
       }, 100);
     } catch (error) {
-      console.error('Error sending message:', error);
         
         // Reset the message text so the user can try again
         setMessageText(content);
@@ -678,7 +673,6 @@ export default function MessagesPage() {
         });
       }
     } catch (error) {
-      console.error('Error in message validation:', error);
       toast({
         variant: "destructive",
         title: "Failed to process message",
@@ -820,7 +814,6 @@ export default function MessagesPage() {
             throw new Error("Failed to fetch CSRF token");
           }
         } catch (tokenError) {
-          console.error("Error fetching CSRF token:", tokenError);
           toast({
             title: "Error",
             description: "Security token missing. Please try refreshing the page.",
@@ -843,7 +836,6 @@ export default function MessagesPage() {
       // Check for non-2xx responses and get the error message
       if (!sessionResponse.ok) {
         const errorData = await sessionResponse.json();
-        console.error("Session creation error response:", errorData);
         
         // Check for token-specific errors with expanded criteria
         if (errorData.error) {
@@ -882,7 +874,6 @@ export default function MessagesPage() {
       
       if (!sentMessage || !sentMessage.id) {
         // If message sending fails, we should clean up the session
-        console.error("Failed to send message, cleaning up session");
         toast({
           title: "Error",
           description: "Failed to send session message. The session has been created but may not display correctly.",
@@ -914,7 +905,6 @@ export default function MessagesPage() {
       });
       
       if (!updateResponse.ok) {
-        console.error("Failed to update session with message ID");
         // This is not a critical error, so we continue
       } else {
       }
@@ -938,7 +928,6 @@ export default function MessagesPage() {
         description: "Session request created successfully.",
       });
     } catch (error) {
-      console.error("Error scheduling session:", error);
       
       toast({
         title: "Error",
@@ -1155,7 +1144,6 @@ export default function MessagesPage() {
           try {
             refreshMessages(convo.id);
           } catch (error) {
-            console.error(`Error refreshing messages for conversation ${convo.id}:`, error);
           }
           
           // Set a timeout to clear the in-progress flag
@@ -1356,10 +1344,8 @@ export default function MessagesPage() {
             }
           }
         } catch (error) {
-          console.error(`Error loading messages:`, error);
         }
       } catch (error) {
-        console.error(`Error loading messages for conversation ${selectedConversationId}:`, error);
       } finally {
         // Clear the in-progress flag after a delay to prevent rapid refetching
         setTimeout(() => {
@@ -1429,7 +1415,6 @@ export default function MessagesPage() {
       setProfileData(data.profile);
       
     } catch (error) {
-      console.error('Error fetching student profile:', error);
       toast({
         title: "Error",
         description: "Failed to load student profile",
@@ -1515,11 +1500,9 @@ export default function MessagesPage() {
                           markConversationAsRead(convo.id)
                             .then((success: any) => {
                               if (!success) {
-                                console.error(`Failed to mark conversation ${convo.id} as read`);
                               }
                             })
                             .catch((err: any) => {
-                              console.error(`Error marking conversation as read: ${err}`);
                             });
                         }
                       }
@@ -1825,7 +1808,6 @@ export default function MessagesPage() {
                               title = parsed.title || defaultTitle;
                               scheduledFor = parsed.scheduledFor || defaultScheduledFor;
                             } catch (e) {
-                              console.error("Error parsing session details:", e);
                             }
                           }
                           

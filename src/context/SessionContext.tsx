@@ -85,7 +85,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       });
       
       if (!response.ok) {
-        console.error('Error checking user premium access:', response.statusText);
         return false;
       }
       
@@ -94,7 +93,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       // User has access if they are a tutor OR have premium access
       return data.user?.role === 'tutor' || data.user?.has_access === true;
     } catch (error) {
-      console.error('Error checking user premium access:', error);
       return false;
     }
   }, [user]);
@@ -112,7 +110,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           });
           
           if (!response.ok) {
-            console.error('Failed to fetch reviews');
             return;
           }
           
@@ -145,7 +142,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           setReviewHistory([]);
         }
       } catch (error) {
-        console.error("Error loading reviews:", error);
         setReviewHistory([]);
       }
     };
@@ -194,7 +190,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       
       return null;
     } catch (error) {
-      console.error(`Error fetching session ${sessionId}:`, error);
       return null;
     } finally {
       setLoading(false);
@@ -246,7 +241,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       
       return false;
     } catch (error) {
-      console.error("Error starting session:", error);
       throw new Error("Failed to start session");
     } finally {
       setLoading(false);
@@ -321,7 +315,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       
       return false;
     } catch (error) {
-      console.error("Error ending session:", error);
       throw new Error("Failed to end session");
     } finally {
       setLoading(false);
@@ -382,7 +375,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         setReviewHistory(prev => [...prev, newReview]);
       }
     } catch (error) {
-      console.error("Error submitting review:", error);
       throw new Error("Failed to submit review");
     } finally {
       setLoading(false);
@@ -416,7 +408,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       
       return reviews;
     } catch (error) {
-      console.error(`Error fetching reviews for tutor ${tutorId}:`, error);
       return [];
     }
   }, []);
@@ -467,7 +458,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     } catch (error) {
-      console.error('Error refreshing sessions:', error);
       // Don't throw error here - handle it gracefully
     } finally {
       setLoadingSessions(false);

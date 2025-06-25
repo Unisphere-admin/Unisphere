@@ -71,3 +71,50 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## Video Calls with Agora
+
+This application uses Agora for video calls between tutors and students. To set up Agora:
+
+1. Create an account at [Agora.io](https://www.agora.io/)
+2. Create a new project in the Agora Console
+3. Get your App ID and App Certificate
+4. Add the following to your `.env.local` file:
+
+```
+# Agora Video SDK Configuration
+NEXT_PUBLIC_AGORA_APP_ID=your-agora-app-id
+AGORA_APP_ID=your-agora-app-id
+AGORA_APP_CERTIFICATE=your-agora-app-certificate
+```
+
+The video call feature allows tutors and students to have face-to-face sessions with the following capabilities:
+- Video and audio communication
+- Screen sharing
+- Muting/unmuting audio
+- Turning video on/off
+
+## Meeting Security
+
+The application implements multiple layers of security for video meetings:
+
+### Token Generation
+- Uses the `agora-token` library for secure token generation
+- Tokens are generated server-side with proper validation
+- Tokens include proper expiration times and roles
+
+### Access Control
+- Meeting access is restricted to session participants only (tutor and student)
+- Sessions must be in 'accepted' or 'started' status
+- Both participants must be marked as 'ready'
+- For scheduled sessions, access is only granted within 30 minutes of the start time
+
+### Security Layers
+1. **Middleware Protection**: Server-side checks prevent unauthorized access to meeting routes
+2. **MeetingGuard Component**: Client-side component provides additional validation
+3. **API Validation**: Token generation API validates session access rights
+4. **Periodic Status Checks**: Sessions are continuously validated during the meeting
+
+### Error Handling
+- Clear error messages guide users when access is denied
+- Automatic redirection to dashboard when sessions end or are cancelled

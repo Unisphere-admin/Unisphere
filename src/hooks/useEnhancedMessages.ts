@@ -57,7 +57,6 @@ export function useEnhancedMessages(conversationId: string | undefined) {
 
         setEnhancedMessages(enhanced as EnhancedMessage[]);
       } catch (err) {
-        console.error('Error enhancing messages with user data:', err);
         setError(err instanceof Error ? err : new Error(String(err)));
         toast({
           title: "Error loading message details",

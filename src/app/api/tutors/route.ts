@@ -48,7 +48,6 @@ async function getPublicTutorsHandler(request: NextRequest): Promise<NextRespons
         const { tutors, error } = await getAllTutors(false);
         
         if (error) {
-            console.error('Error fetching tutors:', error);
             return NextResponse.json(
                 { error },
                 { status: 500 }
@@ -66,7 +65,6 @@ async function getPublicTutorsHandler(request: NextRequest): Promise<NextRespons
         
         return response;
     } catch (error) {
-        console.error('Error in public tutors API route:', error);
         return NextResponse.json(
             { 
                 error: error instanceof Error ? error.message : 'Internal server error',
@@ -89,7 +87,6 @@ async function getTutorsHandler(
         const { tutors, error } = await getAllTutors(hasPremiumAccess);
         
         if (error) {
-            console.error('Error fetching tutors:', error);
             return NextResponse.json(
                 { error },
                 { status: 500 }
@@ -107,7 +104,6 @@ async function getTutorsHandler(
         
         return response;
     } catch (error) {
-        console.error('Error in tutors API route:', error);
         return NextResponse.json(
             { 
                 error: error instanceof Error ? error.message : 'Internal server error',
@@ -145,7 +141,6 @@ export async function GET(request: NextRequest) {
         // Fallback to public handler if something unexpected happened
         return getPublicTutorsHandler(request);
     } catch (error) {
-        console.error("Unexpected error in tutors GET route:", error);
         return getPublicTutorsHandler(request);
     }
 } 

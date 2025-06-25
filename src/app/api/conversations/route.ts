@@ -89,7 +89,6 @@ async function getAuthenticatedUser(req: NextRequest): Promise<AuthUser | null> 
     const { data: { user }, error } = await supabase.auth.getUser();
     
     if (error || !user) {
-      console.error("Auth error in conversations API:", error?.message || "No user found");
       return null;
     }
     
@@ -99,7 +98,6 @@ async function getAuthenticatedUser(req: NextRequest): Promise<AuthUser | null> 
       is_tutor: user.user_metadata?.is_tutor === true
     };
   } catch (error) {
-    console.error("Unexpected error in conversations auth check:", error);
     return null;
   }
 }
@@ -120,7 +118,6 @@ async function getConversationsHandler(
     }
 
     if (error) {
-      console.error('API: Error fetching conversations:', error);
       return NextResponse.json({ error: 'Failed to fetch conversations' }, { status: 500 });
     }
     
@@ -170,7 +167,6 @@ async function getConversationsHandler(
     
     return response;
   } catch (error) {
-    console.error('API: Error fetching conversations:', error);
     return NextResponse.json(
       { error: 'Failed to fetch conversations' },
       { status: 500 }
@@ -197,7 +193,6 @@ async function postConversationsHandler(
     const { conversation, error } = await createConversation(user, user.id, [participant_id]);
 
     if (error) {
-      console.error('Error creating conversation:', error);
       return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 });
     }
 
@@ -212,7 +207,6 @@ async function postConversationsHandler(
       participants: [user.id, participant_id]
     });
   } catch (error) {
-    console.error('Error creating conversation:', error);
     return NextResponse.json(
       { error: 'Failed to create conversation' },
       { status: 500 }

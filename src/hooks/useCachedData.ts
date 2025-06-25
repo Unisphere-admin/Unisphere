@@ -73,7 +73,6 @@ export function useCachedData<T = any>(
     } catch (err) {
       const fetchError = err instanceof Error ? err : new Error(String(err));
       setError(fetchError);
-      console.error(`Error fetching data for ${cacheKey}:`, fetchError);
       return data; // Return existing data on error instead of null
     } finally {
       setIsLoading(false);
@@ -119,7 +118,6 @@ export function useCachedData<T = any>(
           const timer = setTimeout(() => {
             if (!refreshInProgress.current) {
               // Don't set loading state for background refreshes
-              refresh(false).catch(console.error);
             }
           }, 300); // Reduced delay for background refresh
           
@@ -139,7 +137,6 @@ export function useCachedData<T = any>(
       // If we don't have data from cache, fetch immediately with a minimal delay
       if (!data && !isLoading && !refreshInProgress.current) {
         const timer = setTimeout(() => {
-          refresh(false).catch(console.error);
         }, data ? initialFetchDelay : 100); // Shorter delay when no data exists
         
         return () => clearTimeout(timer);
@@ -151,7 +148,6 @@ export function useCachedData<T = any>(
     // Only trigger refresh when dependencies change and component is already mounted
     if (!refreshInProgress.current) {
       const timer = setTimeout(() => {
-        refresh(false).catch(console.error);
       }, initialFetchDelay);
       
       return () => clearTimeout(timer);

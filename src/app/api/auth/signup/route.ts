@@ -10,7 +10,6 @@ export async function POST(req: NextRequest) {
         try {
             body = await req.json();
         } catch (e) {
-            console.error('Failed to parse request body:', e);
             return new NextResponse(
                 JSON.stringify({ error: "Invalid request body" }),
                 { 
@@ -51,7 +50,6 @@ export async function POST(req: NextRequest) {
             if (!actualFirstName) missingFields.push('first name');
             if (!actualLastName) missingFields.push('last name');
             
-            console.error(`Missing required fields: ${missingFields.join(', ')}`);
             return new NextResponse(
                 JSON.stringify({ error: "All fields are required", missingFields }),
                 { 
@@ -95,7 +93,6 @@ export async function POST(req: NextRequest) {
         });
 
         if (error) {
-            console.error("Signup error:", error);
             return new NextResponse(
                 JSON.stringify({ error: error.message }),
                 { 
@@ -108,7 +105,6 @@ export async function POST(req: NextRequest) {
         }
 
         if (!data.user) {
-            console.error("No user data returned");
             return new NextResponse(
                 JSON.stringify({ error: "Failed to create user" }),
                 { 
@@ -138,10 +134,9 @@ export async function POST(req: NextRequest) {
             }
         );
     } catch (error) {
-        console.error("Unexpected error during signup:", error);
         // Log the full error details
         if (error instanceof Error) {
-            console.error("Error details:", {
+            console.error({
                 message: error.message,
                 stack: error.stack,
                 name: error.name

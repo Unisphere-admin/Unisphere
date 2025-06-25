@@ -74,7 +74,6 @@ export function verifyToken(token: string): boolean {
       Buffer.from(expectedSignature)
     );
   } catch (e) {
-    console.error('Error verifying CSRF token:', e);
     return false;
   }
 }

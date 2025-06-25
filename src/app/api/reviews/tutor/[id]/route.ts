@@ -18,7 +18,6 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
     const { reviews, error } = await getReviewsByTutorId(tutorId);
     
     if (error) {
-      console.error(`Error fetching reviews for tutor ${tutorId}:`, error);
       return NextResponse.json(
         { error: `Failed to fetch reviews: ${error}` },
         { status: 500 }
@@ -31,7 +30,6 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
     
     return response;
   } catch (error) {
-    console.error('Error in tutor reviews API route:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
