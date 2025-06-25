@@ -134,6 +134,7 @@ export async function GET(request: NextRequest) {
         }
         
         // If we have a valid user, use the authenticated handler
+        // Allow any logged-in user to access tutors, not just premium users
         if (user) {
             return getTutorsHandler(request, user);
         }

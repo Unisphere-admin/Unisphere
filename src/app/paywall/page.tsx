@@ -61,7 +61,7 @@ export default function PaywallPage() {
           </CardContent>
           <CardFooter className="flex flex-col space-y-3 relative z-10">
             <Button className="w-full shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]" asChild>
-              <Link href={user ? "/consultation" : "/login"} className="flex items-center justify-center">
+              <Link href={"/consultation"} className="flex items-center justify-center">
                 <Sparkles className="mr-2 h-4 w-4" />
                 Gain Access Now
               </Link>

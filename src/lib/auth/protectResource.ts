@@ -155,6 +155,7 @@ export function requiresPremiumAccess(path: string): boolean {
     path === '/login' || 
     path === '/reset-password' ||
     path === '/tutors' || // Allow access to the tutors list page
+    path === '/api/tutors' || // Explicitly allow access to the tutors API endpoint
     path === '/consultation' ||
     path === '/become-a-tutor' ||
     path.startsWith('/api/auth/') ||

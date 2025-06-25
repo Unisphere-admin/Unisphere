@@ -54,7 +54,7 @@ const TUTOR_DETAIL_FIELDS = `
 
 // Fields for non-premium users (limited information)
 const NON_PREMIUM_FIELDS = `
-  avatar_url, subjects, major, current_education, previous_education
+  id, search_id, first_name, last_name, avatar_url, subjects, major, current_education
 `;
 
 /**
@@ -80,16 +80,11 @@ export async function getAllTutors(hasPremiumAccess = false): Promise<{
       return { tutors: [], error: error.message };
     }
     
-    // For non-premium users, create placeholder data for the restricted fields
+    // For non-premium users, add a note in the description field
     if (!hasPremiumAccess && data) {
-      // Add generic placeholders for restricted fields
-      const processedTutors = (data as any as TutorRawData[]).map((tutor, index) => ({
+      const processedTutors = (data as any as TutorRawData[]).map(tutor => ({
         ...tutor,
-        id: `tutor-${index}`, // Generic ID
-        search_id: `tutor-${index}`, // Generic search ID
-        first_name: `Tutor`, // Generic first name
-        last_name: `${index + 1}`, // Generic last name with number
-        description: "Upgrade to premium to see full tutor details." // Generic description
+        description: "Upgrade to premium to see full tutor details."
       } as TutorBasic));
       
       return { tutors: processedTutors, error: null };
@@ -98,8 +93,8 @@ export async function getAllTutors(hasPremiumAccess = false): Promise<{
     // Verify all tutors have search_id (for premium users only)
     if (hasPremiumAccess) {
       const missingSearchIds = (data as any as TutorRawData[])?.filter(tutor => !tutor.search_id).length || 0;
-    if (missingSearchIds > 0) {
-      console.warn(`Warning: ${missingSearchIds} tutors missing search_id`);
+      if (missingSearchIds > 0) {
+        console.warn(`Warning: ${missingSearchIds} tutors missing search_id`);
       }
     }
     

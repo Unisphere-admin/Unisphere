@@ -45,10 +45,11 @@ export async function validateRequest(req: NextRequest): Promise<{
       // If no user is logged in, redirect to login
       if (!authUser) {
         return { user: null, errorResponse: redirectToLogin(req) };
-    }
+      }
     
       // Check if this path requires premium access
-      if (requiresPremiumAccess(path) && shouldRedirectToPaywall(authUser, path)) {
+      // Special case for /api/tutors - allow for all authenticated users regardless of premium status
+      if (requiresPremiumAccess(path) && path !== '/api/tutors' && shouldRedirectToPaywall(authUser, path)) {
         return { user: null, errorResponse: redirectToPaywall(req) };
       }
     }
