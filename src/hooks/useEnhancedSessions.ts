@@ -36,7 +36,6 @@ export function useEnhancedSessions(userId: string | undefined, isTutor: boolean
             const { data: tutorData } = await fetch(`/api/tutor/${session.tutor_id}`).then(res => res.json());
             if (tutorData) tutorProfile = tutorData;
           } catch (err) {
-            console.error(`Error fetching tutor profile for session ${session.id}:`, err);
           }
           
           // Fetch student profile
@@ -44,7 +43,6 @@ export function useEnhancedSessions(userId: string | undefined, isTutor: boolean
             const { data: studentData } = await fetch(`/api/student/${session.student_id}`).then(res => res.json());
             if (studentData) studentProfile = studentData;
           } catch (err) {
-            console.error(`Error fetching student profile for session ${session.id}:`, err);
           }
           
           return {
@@ -57,7 +55,6 @@ export function useEnhancedSessions(userId: string | undefined, isTutor: boolean
         const enhancedData = await Promise.all(enhancedSessionsPromises);
         setEnhancedSessions(enhancedData);
       } catch (err) {
-        console.error('Error enhancing sessions with profile data:', err);
         setError(err instanceof Error ? err : new Error(String(err)));
         toast({
           title: "Error loading session details",
@@ -111,7 +108,6 @@ export function useEnhancedSession(sessionId: string | undefined) {
             tutorProfile = data;
           }
         } catch (err) {
-          console.error(`Error fetching tutor profile for session ${sessionId}:`, err);
         }
         
         // Fetch student profile
@@ -123,7 +119,6 @@ export function useEnhancedSession(sessionId: string | undefined) {
             studentProfile = data;
           }
         } catch (err) {
-          console.error(`Error fetching student profile for session ${sessionId}:`, err);
         }
         
         setEnhancedSession({
@@ -132,7 +127,6 @@ export function useEnhancedSession(sessionId: string | undefined) {
           student: studentProfile
         });
       } catch (err) {
-        console.error('Error fetching session details:', err);
         setError(err instanceof Error ? err : new Error(String(err)));
         toast({
           title: "Error loading session",

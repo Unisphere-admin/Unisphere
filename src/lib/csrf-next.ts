@@ -60,7 +60,6 @@ export function verifyToken(token: string): boolean {
     // Check if token is expired
     return !isNaN(tokenTime) && (now - tokenTime < CSRF_TOKEN_TTL);
   } catch (e) {
-    console.error('Error verifying CSRF token:', e);
     return false;
   }
 }
@@ -113,7 +112,6 @@ export async function csrfMiddleware(req: NextRequest): Promise<NextResponse | n
     // Token is valid
     return null;
   } catch (error) {
-    console.error('CSRF validation error:', error);
     return NextResponse.json(
       { error: 'CSRF validation failed' },
       { status: 403 }

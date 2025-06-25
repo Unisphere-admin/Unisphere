@@ -35,7 +35,6 @@ async function markReadHandler(
 
     return NextResponse.json({ success });
   } catch (error) {
-    console.error("Error in mark read handler:", error);
     return NextResponse.json(
       { error: "Failed to mark conversation as read" }, 
       { status: 500 }

@@ -229,7 +229,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
           return cleanedConversations;
         }
       } catch (e) {
-        console.error('Failed to load temporary conversations from localStorage:', e);
         // Clear corrupted data
         localStorage.removeItem('tempConversations');
       }
@@ -269,7 +268,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       });
       
       if (!response.ok) {
-        console.error('Error checking user premium access:', response.statusText);
         return false;
       }
       
@@ -285,7 +283,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       
       return hasAccess;
     } catch (error) {
-      console.error('Error checking user premium access:', error);
       return false;
     }
   }, [user, hasPremiumAccess]);
@@ -381,7 +378,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       try {
         localStorage.setItem('selectedConversationId', id);
       } catch (e) {
-        console.error('Failed to store selected conversation in localStorage:', e);
       }
     }
   }, []);
@@ -498,7 +494,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error(`Error marking conversation as read: ${response.status}`, errorData);
         return false;
       }
       
@@ -529,7 +524,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       
       return true;
     } catch (error) {
-      console.error('Error marking conversation as read:', error);
       return false;
     }
   }, [user, conversations, setConversations, hasUnreadMessages, isTempConversation, checkPremiumAccess, hasPremiumAccess]);
@@ -587,7 +581,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
           }
         } catch (error) {
           clearTimeout(timeoutId);
-          console.error(`Error during conversation status check (attempt ${attempt + 1}):`, error);
           
           // If this is the last attempt, return false
           if (attempt === maxAttempts - 1) {
@@ -599,7 +592,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       // If we've reached here, all attempts failed
       return false;
     } catch (error) {
-      console.error('Unexpected error verifying conversation readiness:', error);
       return false;
     }
   };
@@ -702,7 +694,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         }),
         credentials: 'include'
       }).catch(error => {
-        console.error('Error broadcasting typing status:', error);
       });
       
       // If user is typing, set a timeout to automatically clear typing status
@@ -712,7 +703,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         }, 5000); // Auto clear after 5 seconds of inactivity
       }
     } catch (error) {
-      console.error('Error setting typing status:', error);
     }
   }, [user, checkPremiumAccess, isTempConversation, hasPremiumAccess]);
 
@@ -964,7 +954,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
           setConversations(sortConversations(tempConvs));
         }
       } catch (error) {
-        console.error('Error fetching conversations:', error);
         // Don't use mock conversations as fallback anymore
         // Just use empty array or temporary conversations
         const tempConvs = createTemporaryConversationObjects();
@@ -1253,7 +1242,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       if (!response.ok) {
         // Log more detailed information for debugging
         const errorText = await response.text();
-        console.error(`Failed to fetch messages: Status ${response.status}`, errorText);
         throw new Error(`Failed to fetch messages: Status ${response.status}`);
       }
       
@@ -1304,7 +1292,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         // For now, we don't automatically fetch more, but we could implement that if needed
       }
     } catch (error) {
-      console.error('Error fetching messages:', error);
       
       // Return empty array instead of mock messages
       setMessages(prev => ({
@@ -1362,7 +1349,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       // This ensures we don't duplicate messages
       return await getMessages(conversationId, false);
     } catch (error) {
-      console.error(`[${requestId}] Error refreshing messages:`, error);
       return Promise.resolve(); // Always resolve to avoid unhandled rejections
     }
   }, [getMessages, user, MESSAGE_CACHE_TTL, isTempConversation, checkPremiumAccess, hasPremiumAccess]);
@@ -1508,7 +1494,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         // Check if the conversation is ready using the dedicated endpoint
         verificationSuccessful = await verifyConversationReady(actualConversationId);
       } catch (error) {
-        console.error('Error creating real conversation:', error);
         
         // Check specifically for CSRF errors
         const isCsrfError = error instanceof Error && 
@@ -1520,7 +1505,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
             await fetchCsrfToken();
             throw new Error('CSRF token error - please try again. The token has been refreshed.');
           } catch (refreshError) {
-            console.error('Failed to refresh CSRF token:', refreshError);
             throw new Error('CSRF token validation failed. Please refresh the page and try again.');
           }
         }
@@ -1651,7 +1635,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
               try {
                 localStorage.setItem('tempConversations', JSON.stringify(newTempConversations));
               } catch (e) {
-                console.error('Failed to update temporary conversations in localStorage:', e);
               }
               
               return newTempConversations;
@@ -1739,7 +1722,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
             } else {
             }
           } catch (error) {
-            console.error('Error handling conversation redirection:', error);
           }
         }
         
@@ -1846,7 +1828,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
           status: 'sent' as 'sending' | 'sent' | 'delivered' | 'error'
         };
       } catch (error) {
-        console.error(`Error sending message (attempt ${attempt + 1}/${maxRetries + 1}):`, error);
         
         // If this was the last retry attempt, mark as error
         if (attempt === maxRetries) {
@@ -1913,7 +1894,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         }
         csrfFetchedRef.current = true;
       }).catch(error => {
-        console.error('Error fetching CSRF token:', error);
       });
     }
   }, [fetchCsrfToken, user]);
@@ -1930,7 +1910,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
           localStorage.removeItem('tempConversations');
         }
       } catch (e) {
-        console.error('Failed to save temporary conversations to localStorage:', e);
       }
     }
     
@@ -1964,7 +1943,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
             }
           }
         } catch (e) {
-          console.error('Error during temp conversation cleanup:', e);
         }
       }
     };

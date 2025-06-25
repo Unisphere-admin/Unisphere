@@ -74,7 +74,6 @@ const broadcastUpdate = async (session: ExtendedTutoringSession) => {
       .single();
       
     if (sessionError) {
-      console.error("Error fetching complete session data for broadcast:", sessionError);
       // Continue with existing session data if there's an error
     }
     
@@ -104,7 +103,6 @@ const broadcastUpdate = async (session: ExtendedTutoringSession) => {
     // We no longer need to send a list update broadcast
     // This prevents unnecessary API calls to refresh the entire session list
   } catch (error) {
-    console.error("Error broadcasting session update:", error);
     // Silently handle error - don't break API response for broadcast failures
   }
 };
@@ -133,7 +131,6 @@ async function getUserTokens(userId: string): Promise<number> {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
     if (userError || !user) {
-      console.error("No authenticated user available to call edge function:", userError);
       return 0;
     }
 
@@ -141,7 +138,6 @@ async function getUserTokens(userId: string): Promise<number> {
     const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
 
     if (refreshError || !session || !session.access_token) {
-      console.error("Failed to refresh session:", refreshError);
       return 0;
     }
 
@@ -154,7 +150,6 @@ async function getUserTokens(userId: string): Promise<number> {
     });
     
     if (error) {
-      console.error("Error fetching user tokens via edge function:", error);
       return 0;
     }
     
@@ -165,7 +160,6 @@ async function getUserTokens(userId: string): Promise<number> {
     console.warn(`No token data returned for user ${userId}:`, data);
     return 0;
   } catch (error) {
-    console.error("Failed to fetch tokens from edge function:", error);
     return 0;
   }
 }
@@ -188,7 +182,6 @@ async function getTutoringSessionsHandler(
       const { session, error } = await getSessionById(user, sessionId);
       
       if (error) {
-        console.error(`Error getting session ${sessionId}:`, error);
         return NextResponse.json({ error: 'Failed to fetch session' }, { status: 500 });
       }
       
@@ -234,7 +227,6 @@ async function getTutoringSessionsHandler(
       const { sessions, error } = await getSessionsByMessageId(messageId);
       
       if (error) {
-        console.error(`Error getting sessions for message ${messageId}:`, error);
         return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
       }
         
@@ -278,11 +270,9 @@ async function getTutoringSessionsHandler(
       response.headers.set('Cache-Tag', `user-${user.id}`);
       return response;
     } catch (error) {
-      console.error("Error fetching sessions for conversation:", error);
       return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
     }
   } catch (error) {
-    console.error("Error in GET tutoring sessions handler:", error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -362,7 +352,6 @@ async function postTutoringSessionsHandler(
       .single();
     
     if (sessionError) {
-      console.error("Error creating session:", sessionError);
       return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
     }
     
@@ -379,7 +368,6 @@ async function postTutoringSessionsHandler(
     return NextResponse.json({ session });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    console.error("Exception in session creation handler:", errorMessage);
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
@@ -472,7 +460,6 @@ async function patchTutoringSessionsHandler(
           .single();
 
         if (sessionError || !sessionData) {
-          console.error("Error fetching session for message ID update:", sessionError);
           return NextResponse.json({ error: 'Session not found' }, { status: 404 });
         }
 
@@ -494,7 +481,6 @@ async function patchTutoringSessionsHandler(
           .single();
 
         if (error) {
-          console.error("Error updating session message ID:", error);
           return NextResponse.json({ error: error.message }, { status: 500 });
         }
         
@@ -530,7 +516,6 @@ async function patchTutoringSessionsHandler(
     
     return NextResponse.json({ session: response.session });
   } catch (error) {
-    console.error("Error handling PATCH request:", error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

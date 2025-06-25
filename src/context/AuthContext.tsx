@@ -62,7 +62,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await response.json();
       return data.user || null;
     } catch (error) {
-      console.error('Error fetching user profile:', error);
       return null;
     }
   };
@@ -195,7 +194,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
       } catch (cacheError) {
-        console.error('Error clearing cache:', cacheError);
         // Continue with logout even if cache clearing fails
       }
       
@@ -230,7 +228,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Navigate to login page
       router.push('/login');
     } catch (error) {
-      console.error('Error signing out:', error);
       setError(error instanceof Error ? error.message : 'Unknown error');
       
       // Even if there's an error, try to reset client state and redirect

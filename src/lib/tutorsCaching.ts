@@ -15,7 +15,6 @@ async function isAuthenticated(): Promise<boolean> {
     const { data: { user } } = await supabase.auth.getUser();
     return !!user;
   } catch (error) {
-    console.error("Error checking authentication:", error);
     return false;
   }
 }
@@ -85,7 +84,6 @@ export async function fetchTutorsWithCache() {
       CACHE_CONFIG.TUTORS_CACHE_TTL
     );
   } catch (error) {
-    console.error("Error fetching tutors with cache:", error);
     return [];
   }
 }
@@ -139,6 +137,5 @@ export function invalidateTutorsCache() {
   try {
     localStorage.removeItem(CACHE_CONFIG.TUTORS_CACHE_KEY);
   } catch (error) {
-    console.error('Failed to invalidate tutors cache:', error);
   }
 } 

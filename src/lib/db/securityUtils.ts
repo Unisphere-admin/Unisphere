@@ -101,14 +101,12 @@ export async function verifyConversationParticipant(
         });
       }
       
-      console.error(`User ${authUser.id} is not a participant in conversation ${conversationId} after ${maxRetries} retries`);
       return 'Not authorized to access this conversation';
     }
     
     // Authorization passed
     return null;
   } catch (error) {
-    console.error("Error checking conversation participant:", error);
     return 'Error verifying conversation access';
   }
 }
@@ -123,12 +121,10 @@ export function securityCheck(authUser: AuthUser): string | null {
   }
 
   if (!authUser) {
-    console.error('Authentication check failed: No auth user provided');
     return "Authentication required";
   }
 
   if (!authUser.id) {
-    console.error('Authentication check failed: Auth user has no ID');
     return "Invalid authentication data";
   }
 
@@ -156,7 +152,6 @@ export async function verifyUserPermission(
     const isAdmin = await checkUserIsAdmin(authUser.id);
     
     if (!isAdmin) {
-      console.error(`Permission denied: User ${authUser.id} attempted to access resources for ${targetId}`);
       return "Not authorized to access this resource";
     }
   }
@@ -184,7 +179,6 @@ async function checkUserIsAdmin(userId: string): Promise<boolean> {
     
     return true;
   } catch (error) {
-    console.error('Admin check failed:', error);
     return false;
   }
 }
@@ -225,7 +219,6 @@ async function checkUserType(userId: string): Promise<{
     // Not found in either table
     return { isStudent: false, isTutor: false };
   } catch (error) {
-    console.error('User type check failed:', error);
     return { isStudent: false, isTutor: false };
   }
 } 

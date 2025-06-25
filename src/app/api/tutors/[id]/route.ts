@@ -52,7 +52,6 @@ export async function GET(
     }
     
     if (error) {
-      console.error(`Error fetching tutor with ID ${id}:`, error);
       return NextResponse.json(
         { error: error.message },
         { status: 500 }
@@ -110,7 +109,6 @@ export async function GET(
     
     return response;
   } catch (error) {
-    console.error('Error in tutor API route:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }

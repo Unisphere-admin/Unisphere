@@ -68,7 +68,6 @@ export function CachedDataWrapper<T>({
       try {
         await refresh(true); // Force refresh
       } catch (err) {
-        console.error("Error refreshing data:", err);
       } finally {
         setIsRefreshing(false);
         refreshRequestRef.current = null;

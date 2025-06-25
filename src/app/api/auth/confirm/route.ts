@@ -19,7 +19,6 @@ export async function GET(request: NextRequest) {
       // redirect user to specified redirect URL or dashboard
       return NextResponse.redirect(new URL(next, request.url))
     } else {
-      console.error("Error verifying OTP:", error)
     }
   }
 

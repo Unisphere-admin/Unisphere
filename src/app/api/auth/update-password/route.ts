@@ -13,7 +13,6 @@ export async function GET(req: NextRequest) {
         // extract it from cookies automatically
 
     if (!code) {
-            console.error('No code provided for password reset');
             return NextResponse.redirect(new URL('/login?error=missing-code', req.url));
     }
 
@@ -24,12 +23,10 @@ export async function GET(req: NextRequest) {
         const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
         if (error) {
-            console.error('Error exchanging code for session:', error);
             return NextResponse.redirect(new URL('/login?error=invalid-code', req.url));
         }
 
         if (!data || !data.session) {
-            console.error('No session returned from code exchange');
             return NextResponse.redirect(new URL('/login?error=no-session', req.url));
         }
 
@@ -38,7 +35,6 @@ export async function GET(req: NextRequest) {
         // Redirect to reset-password without the code parameter to avoid reusing it
         return NextResponse.redirect(new URL('/reset-password', req.url));
     } catch (error) {
-        console.error('Error handling password reset link:', error);
         return NextResponse.redirect(new URL('/login?error=server-error', req.url));
     }
 }
@@ -89,7 +85,6 @@ export async function POST(req: NextRequest) {
         const { data: { user }, error: userError } = await supabase.auth.getUser();
 
         if (userError || !user) {
-            console.error('No authenticated user found:', userError);
             return NextResponse.json({ error: 'No authenticated user found' }, { status: 401 });
         }
 
@@ -99,7 +94,6 @@ export async function POST(req: NextRequest) {
         });
 
         if (error) {
-            console.error('Error updating password:', error);
             return NextResponse.json({ 
                 error: error.message || 'Failed to update password' 
             }, { status: 500 });
@@ -111,7 +105,6 @@ export async function POST(req: NextRequest) {
             message: 'Password updated successfully' 
         });
     } catch (error) {
-        console.error('Error updating password:', error);
         return NextResponse.json({ 
             error: error instanceof Error ? error.message : 'Server error' 
         }, { status: 500 });

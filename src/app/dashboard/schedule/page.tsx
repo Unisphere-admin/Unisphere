@@ -236,7 +236,6 @@ export default function SchedulePage() {
       
       // Session updates will be handled by realtime updates
     } catch (error) {
-      console.error("Error cancelling session:", error);
       
       toast({
         title: "Error cancelling session",
@@ -277,7 +276,6 @@ export default function SchedulePage() {
       
       // Session updates will be handled by realtime updates
     } catch (error) {
-      console.error("Error accepting session:", error);
       
       toast({
         title: "Error accepting session",
@@ -316,7 +314,6 @@ export default function SchedulePage() {
       
       // Session updates will be handled by realtime updates
     } catch (error) {
-      console.error("Error updating ready status:", error);
       
       toast({
         title: "Error updating status",
@@ -356,7 +353,6 @@ export default function SchedulePage() {
       // Redirect to the session page
       router.push(`/session/${sessionId}`);
     } catch (error) {
-      console.error("Error starting session:", error);
       
       toast({
         title: "Error starting session",
@@ -407,7 +403,6 @@ export default function SchedulePage() {
         description: "The tutoring session has ended",
       });
     } catch (error) {
-      console.error("Error ending session:", error);
       toast({
         title: "Error",
         description: "Failed to end the session",

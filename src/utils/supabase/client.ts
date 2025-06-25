@@ -38,13 +38,11 @@ export async function safeGetAuthUser(supabase: SupabaseClient) {
     const { data: { user }, error } = await supabase.auth.getUser();
     
     if (error || !user) {
-      console.error("Auth error:", error?.message || "No authenticated user");
       return null;
     }
     
     return user;
   } catch (error) {
-    console.error("Unexpected error during authentication check:", error);
     return null;
   }
 }
@@ -69,13 +67,11 @@ export async function safeGetAccessToken(supabase: SupabaseClient): Promise<stri
     const { data: { session }, error } = await supabase.auth.getSession();
     
     if (error || !session) {
-      console.error("Session error:", error?.message || "No valid session");
       return null;
     }
     
     return session.access_token;
   } catch (error) {
-    console.error("Error getting access token:", error);
     return null;
   }
 } 

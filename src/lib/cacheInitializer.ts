@@ -26,7 +26,6 @@ export function initializeCache(): void {
       prefetchPublicData();
     }
   }).catch(error => {
-    console.error('Error checking authentication status:', error);
     // Prefetch public data even if auth check fails
     prefetchPublicData();
   });
@@ -60,7 +59,6 @@ async function prefetchAllData(): Promise<void> {
       }
     }
   } catch (error) {
-    console.error('Error checking user permissions:', error);
   }
   
   // Always prefetch these resources for authenticated users
@@ -80,7 +78,6 @@ async function prefetchAllData(): Promise<void> {
   try {
     await Promise.allSettled(prefetchPromises);
   } catch (error) {
-    console.error('Error prefetching data:', error);
   }
 }
 
@@ -128,7 +125,6 @@ async function prefetchTutors(): Promise<void> {
     );
     
   } catch (error) {
-    console.error('Error prefetching tutors:', error);
   }
 }
 
@@ -168,7 +164,6 @@ async function prefetchUserProfile(): Promise<void> {
     );
     
   } catch (error) {
-    console.error('Error prefetching user profile:', error);
   }
 }
 
@@ -282,7 +277,6 @@ export async function prefetchMessages(conversationId: string): Promise<void> {
     );
     
   } catch (error) {
-    console.error(`Error prefetching messages for conversation ${conversationId}:`, error);
   }
 }
 
@@ -316,6 +310,5 @@ export async function prefetchTutorReviews(tutorId: string): Promise<void> {
     );
     
   } catch (error) {
-    console.error(`Error prefetching reviews for tutor ${tutorId}:`, error);
   }
 } 

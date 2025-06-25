@@ -68,7 +68,6 @@ export async function validateRequest(req: NextRequest): Promise<{
     // All validations passed
     return { user: authUser, errorResponse: null };
   } catch (error) {
-    console.error("Error in validateRequest:", error);
     // Return a generic error response
     return {
       user: null,
@@ -112,7 +111,6 @@ export function withRouteAuth<Params = Record<string, string>>(
       const params = await props.params;
       return await handler(req, user, params);
     } catch (error) {
-      console.error('Error in route handler:', error);
         
       // Return a generic error response
       return NextResponse.json(

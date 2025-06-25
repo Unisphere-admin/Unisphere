@@ -17,7 +17,6 @@ export async function GET(req: NextRequest) {
         const { data: { session }, error } = await supabase.auth.exchangeCodeForSession(code);
         
         if (error) {
-            console.error('Error exchanging code for session:', error);
             
             // Handle rate limit error specifically
             if (error.status === 429) {
@@ -93,7 +92,6 @@ export async function GET(req: NextRequest) {
             }
         }
     } catch (err) {
-        console.error('Unexpected error in auth callback:', err);
         return NextResponse.redirect(`${url.origin}/login?error=server-error`);
     }
 }

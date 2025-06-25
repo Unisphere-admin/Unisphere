@@ -284,11 +284,9 @@ async function _getUserConversations(authUser: AuthUser, userId: string): Promis
       
       return { conversations, error: null, authError: null };
     } catch (error) {
-      console.error("Database query error:", error);
       return { conversations: [], error: 'Failed to fetch conversations from database', authError: null };
     }
   } catch (error) {
-    console.error("Error in getUserConversations:", error);
     return { conversations: [], error: 'Error fetching conversations', authError: null };
   }
 }
@@ -336,7 +334,6 @@ async function _getConversationById(authUser: AuthUser, conversationId: string):
       .single();
       
     if (conversationError) {
-      console.error(`Error fetching conversation ${conversationId}:`, conversationError.message);
       return { conversation: null, messages: [], error: 'Conversation not found' };
     }
     
@@ -347,7 +344,6 @@ async function _getConversationById(authUser: AuthUser, conversationId: string):
       .eq('conversation_id', conversationId);
       
     if (participantsError) {
-      console.error('Error fetching participants:', participantsError.message);
       return {
         conversation: null,
         messages: [],
@@ -368,7 +364,6 @@ async function _getConversationById(authUser: AuthUser, conversationId: string):
       .single();
       
     if (currentUserError) {
-      console.error('Error fetching current user data:', currentUserError.message);
     }
     
     // Get all user IDs from participants
@@ -395,7 +390,6 @@ async function _getConversationById(authUser: AuthUser, conversationId: string):
       .in('id', participantUserIds);
       
     if (studentProfilesError) {
-      console.error('Error fetching student profiles:', studentProfilesError.message);
       // Continue anyway as some users might be tutors
     }
     
@@ -411,7 +405,6 @@ async function _getConversationById(authUser: AuthUser, conversationId: string):
       .in('id', participantUserIds);
       
     if (tutorProfilesError) {
-      console.error('Error fetching tutor profiles:', tutorProfilesError.message);
       // Continue anyway as some users might be students
     }
     
@@ -434,7 +427,6 @@ async function _getConversationById(authUser: AuthUser, conversationId: string):
       .order('created_at', { ascending: true });
       
     if (messagesError) {
-      console.error('Error fetching messages:', messagesError.message);
       return { 
         conversation: conversationData, 
         messages: [], 
@@ -540,7 +532,6 @@ async function _getConversationById(authUser: AuthUser, conversationId: string):
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Unexpected error fetching conversation:', errorMessage);
     return { 
       conversation: null, 
       messages: [], 
@@ -600,7 +591,6 @@ async function _sendMessage(authUser: AuthUser, conversationId: string, senderId
       .single();
       
     if (messageError) {
-      console.error('Error sending message:', messageError.message);
       return { message: null, error: 'Failed to send message' };
     }
     
@@ -613,7 +603,6 @@ async function _sendMessage(authUser: AuthUser, conversationId: string, senderId
     return { message, error: null };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Unexpected error sending message:', errorMessage);
     return { message: null, error: errorMessage };
   }
 }
@@ -665,7 +654,6 @@ async function _createConversation(authUser: AuthUser, creatorId: string, partic
       .single();
       
     if (conversationError) {
-      console.error('Error creating conversation:', conversationError.message);
       return { conversation: null, error: 'Failed to create conversation' };
     }
     
@@ -681,14 +669,12 @@ async function _createConversation(authUser: AuthUser, creatorId: string, partic
       .insert(participantInserts);
       
     if (participantError) {
-      console.error('Error adding participants:', participantError.message);
       return { conversation, error: 'Created conversation but failed to add all participants' };
     }
     
     return { conversation, error: null };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Unexpected error creating conversation:', errorMessage);
     return { conversation: null, error: errorMessage };
   }
 }
@@ -738,12 +724,10 @@ async function _markConversationAsRead(authUser: AuthUser, conversationId: strin
       .single();
       
     if (checkError) {
-      console.error('Error checking conversation participant:', checkError.message);
       return { success: false, error: checkError.message };
     }
     
     if (!participant) {
-      console.error(`No participant record found for user ${userId} in conversation ${conversationId}`);
       return { success: false, error: 'Participant record not found' };
     }
     
@@ -759,7 +743,6 @@ async function _markConversationAsRead(authUser: AuthUser, conversationId: strin
       
       
     if (error) {
-      console.error('Error updating conversation last_viewed_at:', error.message);
       return { success: false, error: error.message };
     }
     
@@ -771,9 +754,7 @@ async function _markConversationAsRead(authUser: AuthUser, conversationId: strin
     return { success: true, error: null };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Unexpected error marking conversation as read:', errorMessage);
     if (error instanceof Error && error.stack) {
-      console.error('Stack trace:', error.stack);
     }
     return { success: false, error: errorMessage };
   }
@@ -811,7 +792,6 @@ async function _deleteMessage(authUser: AuthUser, messageId: string): Promise<{
       .single();
       
     if (messageError) {
-      console.error(`Error fetching message ${messageId}:`, messageError.message);
       return { success: false, error: 'Message not found' };
     }
     
@@ -832,13 +812,11 @@ async function _deleteMessage(authUser: AuthUser, messageId: string): Promise<{
       .eq('id', messageId);
       
     if (deleteError) {
-      console.error(`Error deleting message ${messageId}:`, deleteError.message);
       return { success: false, error: 'Failed to delete message' };
     }
     
     return { success: true, error: null };
   } catch (error) {
-    console.error(`Error in deleteMessage:`, error);
     return { success: false, error: 'Error deleting message' };
   }
 }

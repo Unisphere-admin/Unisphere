@@ -60,14 +60,12 @@ async function _searchUsers(authUser: AuthUser, query: string): Promise<{
       .limit(20);
       
     if (error) {
-      console.error('Error searching users:', error.message);
       return { users: [], error: error.message };
     }
     
     return { users: data || [], error: null };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Unexpected error searching users:', errorMessage);
     return { users: [], error: errorMessage };
   }
 }
@@ -111,14 +109,12 @@ async function _getUserById(authUser: AuthUser, userId: string): Promise<{
       .single();
       
     if (error) {
-      console.error(`Error fetching user with ID ${userId}:`, error.message);
       return { user: null, error: 'User not found' };
     }
     
     return { user: data, error: null };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Unexpected error fetching user:', errorMessage);
     return { user: null, error: errorMessage };
   }
 }
@@ -141,7 +137,6 @@ export async function getUserProfile(
     
     // If the client is not properly initialized 
     if (supabase.from && typeof supabase.from !== 'function') {
-      console.error('Invalid Supabase client for user profile');
       return { user: null, error: 'Database client error' };
     }
     
@@ -162,7 +157,6 @@ export async function getUserProfile(
         .single();
       
       if (userError) {
-        console.error('Error fetching user data:', userError);
         return { user: null, error: 'Failed to fetch user data' };
       }
       
@@ -216,12 +210,10 @@ export async function getUserProfile(
         error: userData ? null : 'User profile not found' 
       };
     } catch (dbError) {
-      console.error('Error executing Supabase query for user profile:', dbError);
       return { user: null, error: 'Database query error' };
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error fetching user profile';
-    console.error('Failed to get user profile:', errorMessage);
     return { user: null, error: errorMessage };
   }
 }
@@ -264,7 +256,6 @@ export async function checkUserExists(userId: string): Promise<{
     // Not found in either table
     return { exists: false, isStudent: false, isTutor: false, error: 'User not found' };
   } catch (error) {
-    console.error('Error checking if user exists:', error);
     return { 
       exists: false, 
       isStudent: false, 
@@ -297,14 +288,12 @@ export async function getPublicUserById(userId: string): Promise<{
       .single();
       
     if (error) {
-      console.error(`Error fetching user with ID ${userId}:`, error.message);
       return { user: null, error: 'User not found' };
     }
     
     return { user: data, error: null };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Unexpected error fetching user:', errorMessage);
     return { user: null, error: errorMessage };
   }
 } 
@@ -361,7 +350,6 @@ export async function createUserProfileIfNeeded(
           return { success: true, error: null };
         }
         
-        console.error('Error creating tutor profile:', error);
         return { success: false, error: error.message };
       }
     } else {
@@ -381,7 +369,6 @@ export async function createUserProfileIfNeeded(
           return { success: true, error: null };
         }
         
-        console.error('Error creating student profile:', error);
         return { success: false, error: error.message };
       }
     }
@@ -389,7 +376,6 @@ export async function createUserProfileIfNeeded(
     return { success: true, error: null };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Unexpected error creating user profile:', errorMessage);
     return { success: false, error: errorMessage };
   }
 } 
@@ -428,7 +414,6 @@ export async function getUserProfileById(
         .single();
       
       if (profileError) {
-        console.error(`Error fetching ${options.profile_type} profile:`, profileError);
         return { profile: null, error: `${options.profile_type} profile not found` };
       }
       
@@ -443,7 +428,6 @@ export async function getUserProfileById(
       .single();
       
     if (userError || !userData) {
-      console.error('Error fetching user:', userError);
       return { profile: null, error: 'User not found' };
     }
     
@@ -458,13 +442,11 @@ export async function getUserProfileById(
       .single();
     
     if (profileError) {
-      console.error('Error fetching profile:', profileError);
       return { profile: null, error: 'Profile not found' };
     }
     
     return { profile: profileData, error: null };
   } catch (error) {
-    console.error('Profile fetch error:', error);
     return { profile: null, error: 'Internal server error' };
   }
 } 
@@ -493,7 +475,6 @@ export async function updateUserProfile(
       .single();
       
     if (userError || !userData) {
-      console.error('Error fetching user:', userError);
       return { profile: null, error: 'User not found' };
     }
     
@@ -551,13 +532,11 @@ export async function updateUserProfile(
       .single();
     
     if (error) {
-      console.error('Error updating profile:', error);
       return { profile: null, error: 'Failed to update profile' };
     }
     
     return { profile: data, error: null };
   } catch (error) {
-    console.error('Profile update error:', error);
     return { profile: null, error: 'Internal server error' };
   }
 } 

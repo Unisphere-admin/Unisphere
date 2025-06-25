@@ -37,7 +37,6 @@ export function useTutorProfiles() {
           search_id: tutor.search_id || '',
         })) as TutorProfile[] : []);
       } catch (err) {
-        console.error('Error fetching tutors:', err);
         setError(err instanceof Error ? err : new Error(String(err)));
         toast({
           title: "Error loading tutors",
@@ -105,7 +104,6 @@ export function useTutorProfile(id: string | undefined) {
           throw new Error(`API returned status ${response.status}`);
         }
       } catch (err) {
-        console.error('Error fetching tutor:', err);
         setError(err instanceof Error ? err : new Error(String(err)));
         toast({
           title: "Error loading tutor profile",
@@ -146,7 +144,6 @@ export function useTutorReviews(tutorId: string | undefined) {
         if (error) throw error;
         setReviews(data || []);
       } catch (err) {
-        console.error('Error fetching reviews:', err);
         setError(err instanceof Error ? err : new Error(String(err)));
         toast({
           title: "Error loading reviews",
@@ -196,7 +193,6 @@ export function useUser(userId: string | undefined) {
           setUser(data);
         }
       } catch (err) {
-        console.error('Error fetching user:', err);
         setError(err instanceof Error ? err : new Error(String(err)));
         toast({
           title: "Error loading user",
@@ -246,7 +242,6 @@ export function useStudentProfile(id: string | undefined) {
           setStudent(data);
         }
       } catch (err) {
-        console.error('Error fetching student:', err);
         setError(err instanceof Error ? err : new Error(String(err)));
         toast({
           title: "Error loading student profile",
@@ -289,7 +284,6 @@ export function useTutoringSessions(userId: string | undefined, isTutor: boolean
         if (error) throw error;
         setSessions(data || []);
       } catch (err) {
-        console.error('Error fetching sessions:', err);
         setError(err instanceof Error ? err : new Error(String(err)));
         toast({
           title: "Error loading sessions",
@@ -354,7 +348,6 @@ export function useReviewMutation() {
       
       return result.data;
     } catch (err) {
-      console.error('Error submitting review:', err);
       setError(err instanceof Error ? err : new Error(String(err)));
       toast({
         title: "Error submitting review",
@@ -419,7 +412,6 @@ export function useConversations(userId: string | undefined) {
         if (conversationsError) throw conversationsError;
         setConversations(conversationsData || []);
       } catch (err) {
-        console.error('Error fetching conversations:', err);
         setError(err instanceof Error ? err : new Error(String(err)));
         toast({
           title: "Error loading conversations",
@@ -461,7 +453,6 @@ export function useConversationMessages(conversationId: string | undefined) {
         if (error) throw error;
         setMessages(data || []);
       } catch (err) {
-        console.error('Error fetching messages:', err);
         setError(err instanceof Error ? err : new Error(String(err)));
         toast({
           title: "Error loading messages",
@@ -502,7 +493,6 @@ export function useSendMessage() {
       
       return true;
     } catch (err) {
-      console.error('Error sending message:', err);
       setError(err instanceof Error ? err : new Error(String(err)));
       toast({
         title: "Error sending message",
@@ -549,7 +539,6 @@ export function useTutoringSession(sessionId: string | undefined) {
           setSession(data);
         }
       } catch (err) {
-        console.error('Error fetching session:', err);
         setError(err instanceof Error ? err : new Error(String(err)));
         toast({
           title: "Error loading session",
@@ -601,7 +590,6 @@ export function useUpdateSessionStatus() {
       
       return true;
     } catch (err) {
-      console.error('Error updating session:', err);
       setError(err instanceof Error ? err : new Error(String(err)));
       toast({
         title: "Error updating session",
@@ -654,7 +642,6 @@ export function useCreateTutoringSession() {
       
       return data?.[0] || null;
     } catch (err) {
-      console.error('Error creating session:', err);
       setError(err instanceof Error ? err : new Error(String(err)));
       toast({
         title: "Error creating session",

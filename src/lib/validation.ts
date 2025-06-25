@@ -169,7 +169,6 @@ export function safeParseJson<T>(jsonString: string, fallback: T): T {
     if (!jsonString) return fallback;
     return JSON.parse(jsonString) as T;
   } catch (error) {
-    console.error("JSON parse error:", error);
     return fallback;
   }
 } 

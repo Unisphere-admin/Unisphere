@@ -22,13 +22,11 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     
     // Add extra error handling and debug logging
     if (!supabase) {
-      console.error('Failed to create Supabase client');
       return null;
     }
     
     // Check if the auth API is accessible
     if (!supabase.auth) {
-      console.error('Supabase auth API not accessible');
       return null;
     }
     
@@ -67,7 +65,6 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     const errorDetails = error instanceof Error 
       ? `${error.message}\n${error.stack || ''}` 
       : String(error);
-    console.error('Unexpected error checking authentication:', errorDetails);
     return null;
   }
 }
@@ -88,7 +85,6 @@ export function withAuth<T extends any[], R>(
     try {
       return await handler(authUser, ...args);
     } catch (error) {
-      console.error('Error in authenticated handler:', error);
       throw error;
     }
   };

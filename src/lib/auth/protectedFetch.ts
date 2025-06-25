@@ -27,19 +27,16 @@ async function getCsrfToken(): Promise<string | null> {
     });
 
     if (!response.ok) {
-      console.error('Failed to fetch CSRF token:', response.status);
       return null;
     }
 
     // Get the token from the header
     const csrfToken = response.headers.get('X-CSRF-Token');
     if (!csrfToken) {
-      console.error('No CSRF token found in response');
     }
 
     return csrfToken;
   } catch (error) {
-    console.error('Error fetching CSRF token:', error);
     return null;
   }
 }
@@ -64,7 +61,6 @@ async function refreshAuthToken(): Promise<boolean> {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       if (userError || !user) {
-        console.error("No authenticated user found during refresh:", userError);
         return false;
       }
       
@@ -79,7 +75,6 @@ async function refreshAuthToken(): Promise<boolean> {
           return false;
         }
         
-        console.error("No session found during refresh:", authError);
         return false;
       }
       
@@ -95,7 +90,6 @@ async function refreshAuthToken(): Promise<boolean> {
             const { data, error } = await supabase.auth.refreshSession();
             
             if (error || !data.session) {
-              console.error("Failed to refresh auth token:", error);
               return false;
             }
             
@@ -107,7 +101,6 @@ async function refreshAuthToken(): Promise<boolean> {
               await supabase.auth.signOut({ scope: 'local' });
             }
             
-            console.error("Error during refresh:", refreshError);
             return false;
           }
         }
@@ -122,11 +115,9 @@ async function refreshAuthToken(): Promise<boolean> {
         await supabase.auth.signOut({ scope: 'local' });
       }
       
-      console.error("Authentication error:", authError);
       return false;
     }
   } catch (error) {
-    console.error("Error refreshing auth token:", error);
     return false;
   } finally {
     refreshingAuth = false;
