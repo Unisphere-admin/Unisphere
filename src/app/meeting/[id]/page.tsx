@@ -463,7 +463,7 @@ export default function MeetingPage() {
         // Disable Agora logging in production to reduce console noise
         if (process.env.NODE_ENV === 'production') {
           // Set log level to ERROR in production (only shows errors)
-          AgoraRTC.setLogLevel(3); // 3 = ERROR level
+          AgoraRTC.setLogLevel(1); // 3 = ERROR level
           // Disable log upload to Agora's servers - method doesn't take parameters
           AgoraRTC.disableLogUpload();
         } else {
