@@ -468,7 +468,7 @@ export default function MeetingPage() {
           AgoraRTC.disableLogUpload();
         } else {
           // In development, use INFO level for debugging
-          AgoraRTC.setLogLevel(3); // 1 = INFO level
+          AgoraRTC.setLogLevel(1); // 1 = INFO level
           // In development, still disable log upload for privacy
           AgoraRTC.disableLogUpload();
         }
