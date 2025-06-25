@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { useRealtime } from "@/context/RealtimeContext";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import { 
@@ -48,12 +49,15 @@ interface Message {
     avatar_url: string | null;
     is_tutor: boolean;
   };
+  isSessionRequest?: boolean;
+  status?: 'sending' | 'sent' | 'delivered' | 'error';
 }
 
 export default function MeetingPage() {
   const { id: sessionId } = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  const { subscribeToConversation } = useRealtime();
   
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [client, setClient] = useState<IAgoraRTCClient | null>(null);
@@ -76,55 +80,82 @@ export default function MeetingPage() {
   const initRef = useRef<boolean>(false);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const userUidRef = useRef<number | null>(null);
+  const fetchedMessagesRef = useRef<boolean>(false);
+  const fetchedSessionRef = useRef<boolean>(false);
+  const cleanupRef = useRef<(() => void) | null>(null);
 
   // Fetch session details to get conversation ID
   useEffect(() => {
     const fetchSessionDetails = async () => {
-      if (!sessionId || !user) return;
+      if (!sessionId || !user || fetchedSessionRef.current) return;
       
       try {
+        setIsLoading(true);
+        console.log("Fetching session details for ID:", sessionId);
+        fetchedSessionRef.current = true;
+        
         const response = await fetch(`/api/tutoring-sessions?session_id=${sessionId}`);
         
         if (!response.ok) {
-          throw new Error('Failed to fetch session details');
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(`Failed to fetch session details: ${response.status} ${errorData.error || ''}`);
         }
         
         const data = await response.json();
         
-        if (data.sessions && data.sessions.length > 0) {
-          const session = data.sessions[0];
-          console.log("Session details fetched:", session);
-          setConversationId(session.conversation_id);
+        if (data.session) {
+          console.log("Session details fetched:", data.session);
+          setConversationId(data.session.conversation_id);
           
           // Fetch messages once we have the conversation ID
-          if (session.conversation_id) {
-            fetchMessages(session.conversation_id);
+          if (data.session.conversation_id) {
+            fetchMessages(data.session.conversation_id);
+            
+            // Subscribe to real-time updates for this conversation
+            subscribeToConversation(data.session.conversation_id);
           }
         } else {
-          console.error("No sessions found for ID:", sessionId);
+          console.error("No session found for ID:", sessionId);
+          toast({
+            title: "Error",
+            description: "Session not found or you don't have permission to access it",
+            variant: "destructive",
+          });
         }
       } catch (error) {
         console.error('Error fetching session details:', error);
         toast({
           title: "Error",
-          description: "Could not load session details",
+          description: error instanceof Error ? error.message : "Could not load session details",
           variant: "destructive",
         });
+        // Reset the fetch flag on error to allow retrying
+        fetchedSessionRef.current = false;
+      } finally {
+        setIsLoading(false);
       }
     };
     
     fetchSessionDetails();
-  }, [sessionId, user]);
+  }, [sessionId, user, subscribeToConversation]);
   
-  // Fetch messages for the conversation
+  // Fetch messages for the conversation - only called once per conversationId
   const fetchMessages = async (convoId: string) => {
-    if (!convoId) return;
+    if (!convoId || fetchedMessagesRef.current) return;
     
     setIsLoadingMessages(true);
+    fetchedMessagesRef.current = true;
     
     try {
       console.log("Fetching messages for conversation:", convoId);
-      const response = await fetch(`/api/messages?conversation_id=${convoId}`);
+      const response = await fetch(`/api/messages?conversation_id=${convoId}`, {
+        // Add cache control headers to prevent browser caching
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
       
       if (!response.ok) {
         throw new Error(`Failed to fetch messages: ${response.status}`);
@@ -134,7 +165,26 @@ export default function MeetingPage() {
       
       if (data.messages) {
         console.log(`Messages loaded: ${data.messages.length} messages`);
-        setMessages(data.messages);
+        
+        // Filter out session request messages
+        const filteredMessages = data.messages.filter((msg: Message) => {
+          // Exclude messages that start with "Session Request:" or have isSessionRequest flag
+          return !(
+            msg.isSessionRequest || 
+            (msg.content && msg.content.trim().startsWith('Session Request:'))
+          );
+        });
+        
+        console.log(`Filtered messages (excluding session requests): ${filteredMessages.length} messages`);
+        
+        // Create a map of message IDs to avoid duplicates
+        const messageMap = new Map();
+        filteredMessages.forEach((msg: Message) => {
+          messageMap.set(msg.id, msg);
+        });
+        
+        // Convert back to array
+        setMessages(Array.from(messageMap.values()));
       }
     } catch (error) {
       console.error('Error fetching messages:', error);
@@ -143,32 +193,112 @@ export default function MeetingPage() {
         description: "Could not load messages",
         variant: "destructive",
       });
+      // Reset the fetch flag on error to allow retrying
+      fetchedMessagesRef.current = false;
     } finally {
       setIsLoadingMessages(false);
     }
   };
   
-  // Poll for new messages periodically
+  // Listen for real-time message updates
   useEffect(() => {
-    if (!conversationId) return;
-    
-    // Initial fetch
-    fetchMessages(conversationId);
-    
-    // Set up polling interval
-    const interval = setInterval(() => {
-      if (conversationId) {
-        fetchMessages(conversationId);
+    // Create a handler for new messages
+    const handleNewMessage = (event: StorageEvent) => {
+      if (event.key === 'latest_message' && event.newValue && conversationId) {
+        try {
+          const messageData = JSON.parse(event.newValue);
+          
+          // Check if the message belongs to our conversation
+          if (messageData.conversation_id === conversationId) {
+            // Filter out session request messages
+            if (
+              messageData.isSessionRequest || 
+              (messageData.content && messageData.content.trim().startsWith('Session Request:'))
+            ) {
+              return; // Skip session request messages
+            }
+            
+            // Add the new message to our list with proper deduplication
+            setMessages(prev => {
+              // Check if message already exists to prevent duplicates
+              const exists = prev.some(m => m.id === messageData.id);
+              if (exists) return prev;
+              
+              // Also check for pending/sending messages that might match this one
+              const pendingIndex = messageData.sender_id === user?.id ? 
+                prev.findIndex(msg => 
+                  msg.status === 'sending' && 
+                  msg.content === messageData.content && 
+                  msg.sender_id === messageData.sender_id &&
+                  msg.id !== messageData.id
+                ) : -1;
+                
+              if (pendingIndex >= 0) {
+                // Replace the pending message with the confirmed one
+                const updatedMessages = [...prev];
+                updatedMessages[pendingIndex] = {
+                  ...updatedMessages[pendingIndex],
+                  ...messageData,
+                  status: 'sent'
+                };
+                return updatedMessages;
+              }
+              
+              // It's a new message - add it to the end
+              return [...prev, messageData];
+            });
+            
+            // Scroll to bottom for new messages
+            scrollToBottom();
+          }
+        } catch (error) {
+          console.error('Error processing real-time message:', error);
+        }
       }
-    }, 10000); // Poll every 10 seconds
+    };
     
-    // Clean up interval on unmount
-    return () => clearInterval(interval);
+    // Add event listener for storage events (used by RealtimeContext)
+    window.addEventListener('storage', handleNewMessage);
+    
+    return () => {
+      window.removeEventListener('storage', handleNewMessage);
+    };
+  }, [conversationId, user?.id]);
+  
+  // Reset fetch flags when component unmounts or conversation changes
+  useEffect(() => {
+    return () => {
+      fetchedMessagesRef.current = false;
+      fetchedSessionRef.current = false;
+    };
   }, [conversationId]);
   
   // Send a message
   const handleSendMessage = async () => {
     if (!messageText.trim() || !conversationId || !user) return;
+    
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMessage = {
+      id: tempId,
+      content: messageText,
+      conversation_id: conversationId,
+      sender_id: user.id,
+      created_at: new Date().toISOString(),
+      status: 'sending' as 'sending' | 'sent' | 'delivered' | 'error',
+      sender: {
+        id: user.id,
+        display_name: user.email?.split('@')[0] || 'You',
+        avatar_url: user.avatar_url || null,
+        is_tutor: user.role === 'tutor'
+      }
+    };
+    
+    // Add optimistic message immediately
+    setMessages(prev => [...prev, optimisticMessage]);
+    
+    // Clear input and scroll to bottom
+    setMessageText('');
+    scrollToBottom();
     
     try {
       const response = await fetch('/api/messages', {
@@ -186,16 +316,69 @@ export default function MeetingPage() {
         throw new Error('Failed to send message');
       }
       
-      const newMessage = await response.json();
+      const serverMessage = await response.json();
       
-      // Add the new message to the list
-      setMessages(prev => [...prev, newMessage]);
-      setMessageText('');
+      // Update the optimistic message with the server response
+      setMessages(prev => {
+        const updatedMessages = [...prev];
+        const tempIndex = updatedMessages.findIndex(msg => msg.id === tempId);
+        
+        if (tempIndex >= 0) {
+          // Replace the temporary message with the real one
+          updatedMessages[tempIndex] = {
+            ...updatedMessages[tempIndex],
+            ...serverMessage,
+            status: 'sent'
+          };
+          
+          // Check for any duplicates with the same server ID
+          const duplicateIndex = updatedMessages.findIndex(
+            (msg, idx) => idx !== tempIndex && msg.id === serverMessage.id
+          );
+          
+          if (duplicateIndex >= 0) {
+            // Remove the duplicate
+            updatedMessages.splice(duplicateIndex, 1);
+          }
+        }
+        
+        return updatedMessages;
+      });
       
-      // Scroll to bottom
-      scrollToBottom();
+      // Store in localStorage to trigger the RealtimeContext notification system
+      // This ensures other tabs/components get the update
+      if (typeof window !== 'undefined') {
+        const notificationMessage = {
+          ...serverMessage,
+          _notificationTimestamp: Date.now(),
+          sender: {
+            id: user.id,
+            display_name: user.email?.split('@')[0] || 'You',
+            avatar_url: user.avatar_url || null,
+            is_tutor: user.role === 'tutor'
+          }
+        };
+        
+        localStorage.setItem('latest_message', JSON.stringify(notificationMessage));
+      }
     } catch (error) {
       console.error('Error sending message:', error);
+      
+      // Update the optimistic message to show error
+      setMessages(prev => {
+        const updatedMessages = [...prev];
+        const tempIndex = updatedMessages.findIndex(msg => msg.id === tempId);
+        
+        if (tempIndex >= 0) {
+          updatedMessages[tempIndex] = {
+            ...updatedMessages[tempIndex],
+            status: 'error'
+          };
+        }
+        
+        return updatedMessages;
+      });
+      
       toast({
         title: "Error",
         description: "Could not send message",
@@ -264,9 +447,13 @@ export default function MeetingPage() {
         const agoraClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
         setClient(agoraClient);
 
-        // Convert user ID to a numeric UID for Agora
-        // Extract numeric values from the user ID
-        const numericUid = parseInt(user.id.replace(/\D/g, '').slice(0, 8)) || Math.floor(Math.random() * 100000);
+        // Generate a consistent UID for this user and session
+        // Use a combination of user ID and session ID to create a stable numeric UID
+        const uidSource = `${user.id}-${sessionId}`;
+        const numericUid = parseInt(uidSource.replace(/\D/g, '').slice(0, 8)) || Math.floor(Math.random() * 100000);
+        
+        // Store the UID in a ref for reconnection
+        userUidRef.current = numericUid;
         
         // Fetch token from server using the session ID as the channel name
         const response = await fetch(`/api/agora/token?channelName=${sessionId}&uid=${numericUid}`);
@@ -412,6 +599,41 @@ export default function MeetingPage() {
         
         setIsConnected(true);
         setIsLoading(false);
+
+        // Define cleanup function
+        const cleanup = async () => {
+          console.log("Executing Agora cleanup");
+          try {
+            // Stop screen sharing if active
+            if (screenTrack) {
+              screenTrack.close();
+            }
+            
+            // Close audio and video tracks
+            if (audioTrack) {
+              audioTrack.close();
+            }
+            
+            if (videoTrack) {
+              videoTrack.close();
+            }
+            
+            // Leave the channel
+            if (agoraClient) {
+              await agoraClient.leave();
+              console.log("Successfully left Agora channel");
+            }
+            
+            setIsConnected(false);
+            initRef.current = false;
+          } catch (err) {
+            console.error("Error during Agora cleanup:", err);
+          }
+        };
+        
+        // Store cleanup function in ref for use elsewhere
+        cleanupRef.current = cleanup;
+        
       } catch (error) {
         console.error("Error setting up Agora:", error);
         toast({
@@ -428,33 +650,170 @@ export default function MeetingPage() {
 
     // Cleanup function
     return () => {
-      if (client) {
-        // Stop screen sharing if active
-        if (isScreenSharing && screenTrack) {
-          screenTrack.close();
-        }
-        
-        // Close all tracks
-        localAudioTrack?.close();
-        localVideoTrack?.close();
-        
-        client.leave().then(() => {
-          console.log("Left channel successfully");
-          setIsConnected(false);
-          initRef.current = false;
-        }).catch(err => {
-          console.error("Error leaving channel:", err);
-        });
+      if (cleanupRef.current) {
+        cleanupRef.current();
       }
     };
   }, [user, sessionId]);
 
+  // Add beforeunload event listener to clean up when leaving the page
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      console.log("Page unloading - cleaning up Agora resources");
+      if (cleanupRef.current) {
+        cleanupRef.current();
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
+
   // Add visibility change listener to handle tab focus/blur
   useEffect(() => {
+    // Track if we need to reconnect
+    let needsReconnect = false;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 3;
+    const RECONNECT_DELAY = 2000;
+    
     const handleVisibilityChange = () => {
-      // Simply log tab visibility changes without attempting reconnection
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'hidden') {
+        // Tab is hidden, mark that we might need to reconnect later
+        console.log("Tab lost visibility - marking for potential reconnection");
+        needsReconnect = true;
+        
+        // If we have a pending reconnect timeout, clear it
+        if (reconnectTimeout) {
+          clearTimeout(reconnectTimeout);
+          reconnectTimeout = null;
+        }
+      } else if (document.visibilityState === 'visible') {
         console.log("Tab regained visibility - connection state:", isConnected ? "connected" : "disconnected");
+        
+        // Only attempt reconnection if we're not already connected and we've previously lost visibility
+        if (needsReconnect && client && !isLoading && !isConnected && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+          console.log("Preparing to reconnect after visibility change");
+          
+          // Set a short delay before reconnecting to avoid rapid reconnection attempts
+          reconnectTimeout = setTimeout(async () => {
+            try {
+              reconnectAttempts++;
+              console.log(`Reconnection attempt ${reconnectAttempts} of ${MAX_RECONNECT_ATTEMPTS}`);
+              
+              // First, ensure we've fully cleaned up any existing connection
+              console.log("Cleaning up existing connection before reconnecting");
+              
+              // Clean up existing tracks
+              if (isScreenSharing && screenTrack) {
+                screenTrack.close();
+                setScreenTrack(null);
+              }
+              
+              if (localAudioTrack) {
+                localAudioTrack.close();
+                setLocalAudioTrack(null);
+              }
+              
+              if (localVideoTrack) {
+                localVideoTrack.close();
+                setLocalVideoTrack(null);
+              }
+              
+              // Leave the channel
+              try {
+                await client.leave();
+                console.log("Successfully left channel before reconnecting");
+              } catch (leaveError) {
+                console.warn("Error leaving channel during reconnect:", leaveError);
+                // Continue with reconnection attempt even if leave fails
+              }
+              
+              // Reset connection state
+              setIsConnected(false);
+              setRemoteUsers([]);
+              
+              // Wait a moment before reconnecting
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
+              if (!user || !sessionId || !userUidRef.current) {
+                console.error("Missing required data for reconnection");
+                return;
+              }
+              
+              try {
+                console.log("Reconnecting to Agora after visibility change");
+                
+                // Use the SAME UID as before to avoid conflicts
+                const numericUid = userUidRef.current;
+                
+                // Fetch a fresh token
+                const response = await fetch(`/api/agora/token?channelName=${sessionId}&uid=${numericUid}`);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                  throw new Error(data.error || "Failed to get token for reconnection");
+                }
+                
+                // Join with the same UID
+                console.log(`Rejoining channel ${sessionId} with same UID ${numericUid}`);
+                await client.join(
+                  process.env.NEXT_PUBLIC_AGORA_APP_ID || "",
+                  sessionId as string,
+                  data.token,
+                  numericUid
+                );
+                console.log("Successfully rejoined channel");
+                
+                // Create and publish new local tracks
+                console.log("Creating new local audio and video tracks");
+                const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+                
+                // Apply previous mute states
+                if (isAudioMuted) {
+                  await audioTrack.setEnabled(false);
+                }
+                
+                if (isVideoMuted) {
+                  await videoTrack.setEnabled(false);
+                }
+                
+                setLocalAudioTrack(audioTrack);
+                setLocalVideoTrack(videoTrack);
+                
+                console.log("Publishing new local tracks to channel");
+                await client.publish([audioTrack, videoTrack]);
+                console.log("Successfully published new local tracks");
+                
+                setIsConnected(true);
+                needsReconnect = false;
+                reconnectAttempts = 0;
+              } catch (error) {
+                console.error("Error reconnecting to Agora:", error);
+                
+                // If we still have attempts left, try again after a delay
+                if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                  console.log(`Reconnection attempt ${reconnectAttempts} failed, will retry in ${RECONNECT_DELAY/1000}s`);
+                  reconnectTimeout = setTimeout(() => {
+                    handleVisibilityChange();
+                  }, RECONNECT_DELAY);
+                } else {
+                  toast({
+                    title: "Reconnection failed",
+                    description: "Failed to reconnect to the video call. Please refresh the page.",
+                    variant: "destructive",
+                  });
+                }
+              }
+            } catch (error) {
+              console.error("Error during cleanup before reconnection:", error);
+            }
+          }, RECONNECT_DELAY);
+        }
       }
     };
 
@@ -462,8 +821,11 @@ export default function MeetingPage() {
     
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
     };
-  }, [isConnected]);
+  }, [isConnected, client, user, sessionId, isScreenSharing, screenTrack, localAudioTrack, localVideoTrack, isAudioMuted, isVideoMuted, isLoading]);
 
   // Effect to handle playing remote video tracks when the component updates
   useEffect(() => {
@@ -643,19 +1005,26 @@ export default function MeetingPage() {
 
   const handleEndCall = async () => {
     try {
-      // Close all tracks
-      localAudioTrack?.close();
-      localVideoTrack?.close();
-      screenTrack?.close();
-      
-      // Leave the channel
-      if (client) {
-        await client.leave();
+      if (cleanupRef.current) {
+        // Use the same cleanup function for consistency
+        await cleanupRef.current();
       }
       
-      router.push(`/session/${sessionId}`);
+      // Redirect to messages page instead of session page
+      router.push('/dashboard/messages');
     } catch (error) {
       console.error("Error leaving channel:", error);
+      // Still redirect even if there's an error with cleanup
+      router.push('/dashboard/messages');
+    }
+  };
+
+  // Add a handler for Enter key in the message input
+  const handleMessageKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Send message on Enter key (without shift for new line)
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault(); // Prevent default to avoid new line
+      handleSendMessage();
     }
   };
 
@@ -880,12 +1249,14 @@ export default function MeetingPage() {
               placeholder="Type a message..." 
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
-              className="flex-1 min-h-[60px] max-h-[120px] resize-none"
+              onKeyDown={handleMessageKeyDown}
+              className="flex-1 min-h-[40px] max-h-[120px] resize-none py-2"
+              style={{ height: '40px', overflowY: 'auto' }}
             />
             <Button 
               type="submit" 
               disabled={!messageText.trim()}
-              className="self-end"
+              className="self-end h-[40px]"
             >
               <Send className="h-4 w-4" />
             </Button>

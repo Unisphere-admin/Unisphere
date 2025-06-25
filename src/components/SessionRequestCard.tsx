@@ -1076,7 +1076,7 @@ export function SessionRequestCard({
                     {isLoading ? "Loading..." : (
                       isTutor ? 
                         "Waiting for student to accept..." : 
-                        "Waiting for tutor to accept..."
+                        "Loading..."
                     )}
                   </p>
                 </div>
