@@ -13,6 +13,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { Toaster as Sonner } from "@/components/ui/sonner"
 import ClientLayoutWrapper from "@/components/layout/ClientLayoutWrapper";
 import { MessageNotification } from '@/components/MessageNotification';
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -60,6 +61,7 @@ export default function RootLayout({
                           {children}
                         </ClientLayoutWrapper>
                         <MessageNotification />
+                        <SpeedInsights />
                       </RealtimeProvider>
                     </SessionProvider>
                   </MessageProvider>
