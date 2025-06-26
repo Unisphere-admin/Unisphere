@@ -523,17 +523,33 @@ export default function MeetingPage() {
               
               // Try to play the video with a slight delay to ensure DOM is ready
               if (remoteUser.videoTrack) {
-                setTimeout(() => {
+                // Add a retry mechanism for playing video
+                const playVideoWithRetry = (attempts = 0) => {
                   try {
                     const playerElement = document.getElementById(`remote-video-${remoteUser.uid}`);
                     if (playerElement && remoteUser.videoTrack) {
-                      remoteUser.videoTrack.play(`remote-video-${remoteUser.uid}`);
-                    } else {
-                      console.warn(`Player element for ${remoteUser.uid} not found or track missing`);
+                      // Use a try-catch block specifically for the play operation
+                      try {
+                        remoteUser.videoTrack.play(`remote-video-${remoteUser.uid}`, { fit: 'cover' });
+                      } catch (playError) {
+                        // If we get an error but still have attempts left, retry
+                        if (attempts < 3) {
+                          setTimeout(() => playVideoWithRetry(attempts + 1), 800);
+                        }
+                      }
+                    } else if (attempts < 3) {
+                      // If element not found yet but still have attempts left, retry
+                      setTimeout(() => playVideoWithRetry(attempts + 1), 800);
                     }
                   } catch (error) {
+                    if (attempts < 3) {
+                      setTimeout(() => playVideoWithRetry(attempts + 1), 800);
+                    }
                   }
-                }, 500);
+                };
+                
+                // Initial delay to ensure DOM is ready
+                setTimeout(() => playVideoWithRetry(), 500);
               }
             }
             
@@ -880,23 +896,49 @@ export default function MeetingPage() {
     // Make sure remoteUsers is defined and is an array
     if (!remoteUsers || !Array.isArray(remoteUsers)) return;
     
-    
-    // Play all remote video tracks
-    remoteUsers.forEach(user => {
-      if (user && user.videoTrack && user.hasVideo) {
-        try {
-          // Try with a small delay to ensure DOM is ready
-          setTimeout(() => {
-            const playerElement = document.getElementById(`remote-video-${user.uid}`);
-            if (playerElement && user.videoTrack) {
+    // Create a function to play video that handles AbortError
+    const playVideoWithRetry = (user: any, attempts = 0) => {
+      const MAX_ATTEMPTS = 5;
+      if (!user || !user.videoTrack || attempts >= MAX_ATTEMPTS) return;
+
+      try {
+        const playerElement = document.getElementById(`remote-video-${user.uid}`);
+        if (playerElement && user.hasVideo) {
+          try {
+            // First stop any existing playback to avoid conflicts
+            if (user.videoTrack._isPlaying) {
               try {
-                user.videoTrack.play(`remote-video-${user.uid}`);
-              } catch (error) {
+                user.videoTrack.stop();
+              } catch (stopError) {
+                // Ignore stop errors, just continue to play
               }
             }
-          }, 200);
-        } catch (error) {
+            
+            // Try playing the track
+            user.videoTrack.play(`remote-video-${user.uid}`, { fit: 'cover' });
+          } catch (playError) {
+            // If we get an AbortError or other error, retry after a delay
+            if (attempts < MAX_ATTEMPTS) {
+              setTimeout(() => playVideoWithRetry(user, attempts + 1), 800);
+            }
+          }
+        } else if (attempts < MAX_ATTEMPTS) {
+          // Element might not be in DOM yet, retry
+          setTimeout(() => playVideoWithRetry(user, attempts + 1), 800);
         }
+      } catch (error) {
+        // Any other error, retry if we have attempts left
+        if (attempts < MAX_ATTEMPTS) {
+          setTimeout(() => playVideoWithRetry(user, attempts + 1), 800);
+        }
+      }
+    };
+
+    // Try to play each remote user's video with a slight delay
+    remoteUsers.forEach(user => {
+      if (user && user.videoTrack && user.hasVideo) {
+        // Use staggered timeouts to avoid overwhelming the browser
+        setTimeout(() => playVideoWithRetry(user), 300);
       }
     });
   }, [remoteUsers]);

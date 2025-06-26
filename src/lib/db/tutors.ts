@@ -34,7 +34,8 @@ export interface TutorProfile extends TutorBasic {
   year?: string | null;
   "a-levels"?: string[] | null;
   gcse?: string[] | null;
-  spm?: string | null;
+  spm?: string[] | string | null;
+  ib?: string[] | null;
   service_costs?: Record<string, number> | null;
   cost?: number | null;
 }
@@ -49,7 +50,7 @@ const TUTOR_LIST_FIELDS = `
 const TUTOR_DETAIL_FIELDS = `
   id, search_id, avatar_url, first_name, last_name, description, 
   extracurriculars, current_education, subjects, previous_education, 
-  year, major, "a-levels", gcse, spm, location, service_costs
+  year, major, "a-levels", gcse, spm, ib, location, service_costs
 `;
 
 // Fields for non-premium users (limited information)

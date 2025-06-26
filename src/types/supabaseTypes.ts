@@ -16,7 +16,8 @@ export interface TutorProfile {
   extracurriculars?: string[] | null;
   gcse?: string[] | null;
   "a-levels"?: string[] | null;
-  spm?: string | null;
+  spm?: string[] | string | null;
+  ib?: string[] | null;
   search_id: string;
   service_costs?: Record<string, number> | null;
 }

@@ -75,7 +75,8 @@ interface TutorProfile {
   extracurriculars?: string[] | null;
   gcse?: string[] | null;
   "a-levels"?: string[] | null;
-  spm?: string | null;
+  spm?: string[] | string | null;
+  ib?: string[] | null;
   search_id: string;
   service_costs?: Record<string, number> | null;
 }
@@ -887,8 +888,25 @@ export default function TutorsPage() {
     }
     
     // Add SPM to education-related fields for search
-    if (tutor.spm && typeof tutor.spm === 'string' && tutor.spm.trim().length > 0) {
-      tutorEducation.push(tutor.spm.trim());
+    if (tutor.spm) {
+      if (Array.isArray(tutor.spm)) {
+        tutor.spm.forEach(subject => {
+          if (typeof subject === 'string' && subject.trim().length > 0) {
+            tutorEducation.push(subject.trim());
+          }
+        });
+      } else if (typeof tutor.spm === 'string' && tutor.spm.trim().length > 0) {
+        tutorEducation.push(tutor.spm.trim());
+      }
+    }
+    
+    // Add IB to education-related fields for search
+    if (tutor.ib && Array.isArray(tutor.ib)) {
+      tutor.ib.forEach(subject => {
+        if (typeof subject === 'string' && subject.trim().length > 0) {
+          tutorEducation.push(subject.trim());
+        }
+      });
     }
     
     // Collect all searchable keywords (including description for general search)

@@ -71,44 +71,7 @@
     --navbar-height: 64px;
   }
 
-  .dark {
-    --background: 180 30% 12%;
-    --foreground: 150 15% 85%;
 
-    --card: 180 35% 15%;
-    --card-foreground: 150 15% 90%;
-
-    --popover: 180 35% 15%;
-    --popover-foreground: 150 15% 90%;
-
-    --primary: 178 38% 55%; /* #3e5461 (medium-teal) - brighter in dark mode */
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 160 34% 68%; /* #84b4cc (mint-green) */
-    --secondary-foreground: 0 0% 100%;
-
-    --muted: 180 20% 20%;
-    --muted-foreground: 150 10% 70%;
-
-    --accent: 175 30% 45%; /* Darker light-teal */
-    --accent-foreground: 150 15% 90%;
-
-    --destructive: 0 62.8% 40%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 180 20% 25%;
-    --input: 180 20% 25%;
-    --ring: 178 38% 55%; /* #3e5461 (medium-teal) */
-
-    --sidebar-background: 180 30% 18%;
-    --sidebar-foreground: 150 15% 90%;
-    --sidebar-primary: 178 38% 55%; /* #3e5461 (medium-teal) */
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 180 20% 25%;
-    --sidebar-accent-foreground: 150 15% 90%;
-    --sidebar-border: 180 25% 25%;
-    --sidebar-ring: 178 38% 55%; /* #3e5461 (medium-teal) */
-  }
 
   * {
     @apply border-border;

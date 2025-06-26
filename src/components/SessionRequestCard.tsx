@@ -486,6 +486,16 @@ export function SessionRequestCard({
   const handleStartSession = async () => {
     if (!sessionId || !user) return;
     
+    // Validate that both users are ready
+    if (!(tutorReady && studentReady)) {
+      toast({
+        title: "Cannot start session",
+        description: "Both participants must be ready to start the meeting",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setLoading(true);
 
     // Get CSRF token for API requests - force fetch a fresh token
@@ -532,9 +542,14 @@ export function SessionRequestCard({
       // No need to manually refresh sessions - realtime updates will handle this
       
       toast({
-        title: "Session started",
-        description: "The tutoring session has started",
+        title: "Meeting started",
+        description: "The meeting has been started and is now available to join",
       });
+
+      // Navigate to the meeting page after starting
+      if (typeof window !== "undefined") {
+        window.location.href = `/meeting/${sessionId}`;
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -1126,16 +1141,17 @@ export function SessionRequestCard({
               </AlertDialogContent>
             </AlertDialog>
             
-            {isTutor && tutorReady && studentReady && (
+            {isTutor && (
               <Button
                 variant="default"
                 size="sm"
                 onClick={handleStartSession}
-                disabled={loading}
-                className="bg-green-600 hover:bg-green-700"
+                disabled={loading || !(tutorReady && studentReady)}
+                className={tutorReady && studentReady ? "bg-green-600 hover:bg-green-700" : ""}
+                title={tutorReady && studentReady ? "Start the meeting" : "Both participants must be ready to start"}
               >
                 {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <PlayCircle className="h-4 w-4 mr-2" />}
-                Start Session
+                Start Meeting
               </Button>
             )}
           </>

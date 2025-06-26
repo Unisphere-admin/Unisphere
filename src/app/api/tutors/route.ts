@@ -4,7 +4,7 @@ import { AuthUser } from '@/lib/auth/protectResource';
 import { getAllTutors } from '@/lib/db/tutors';
 
 // Use edge runtime for better performance
-export const runtime = 'edge';
+
 
 // Use dynamic to prevent caching for this authenticated endpoint
 export const dynamic = 'force-dynamic';

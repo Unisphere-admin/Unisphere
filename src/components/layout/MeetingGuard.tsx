@@ -48,27 +48,13 @@ export function MeetingGuard({ sessionId, children }: MeetingGuardProps) {
           throw new Error("You are not authorized to join this session");
         }
         
-        // Check if session is active
-        if (session.status !== 'started' && session.status !== 'accepted') {
+        // Check if session is active - allow joining if status is 'started'
+        if (session.status !== 'started') {
           throw new Error(`This session is not active (current status: ${session.status})`);
         }
         
-        // Check if both users are ready
-        if (!session.tutor_ready || !session.student_ready) {
-          throw new Error("Both participants must be ready to join the meeting");
-        }
-        
         // Check if it's not too early for scheduled sessions
-        if (session.scheduled_for) {
-          const scheduledTime = new Date(session.scheduled_for);
-          const currentTime = new Date();
-          const timeDiffMinutes = (scheduledTime.getTime() - currentTime.getTime()) / (1000 * 60);
-          
-          // If more than 30 minutes before scheduled time
-          if (timeDiffMinutes > 30) {
-            throw new Error(`This session is scheduled for ${scheduledTime.toLocaleString()}. You can join 30 minutes before the start time.`);
-          }
-        }
+        
         
         // All checks passed
         setIsLoading(false);

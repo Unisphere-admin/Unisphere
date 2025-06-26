@@ -4,7 +4,7 @@ import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 
 // Set edge runtime for better performance
-export const runtime = 'edge';
+
 
 // POST handler to update user email
 async function updateEmailHandler(

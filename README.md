@@ -118,3 +118,31 @@ The application implements multiple layers of security for video meetings:
 ### Error Handling
 - Clear error messages guide users when access is denied
 - Automatic redirection to dashboard when sessions end or are cancelled
+
+# Meeting System Changes
+
+## Changes to Meeting Functionality
+
+The meeting system has been updated with the following improvements:
+
+### For Tutors:
+1. **Start Meeting Button**: Tutors now have a dedicated "Start Meeting" button that appears when both participants are ready.
+2. **Control Over Meeting Start**: Only tutors can start meetings, giving them more control over the session timing.
+
+### For All Users:
+1. **Instant Meeting Access**: Once a meeting is started, participants can immediately join the meeting link without waiting.
+2. **Meeting Link Navigation**: When a tutor starts a meeting, they are automatically redirected to the meeting page.
+
+### Technical Improvements:
+1. **Fixed React Params Warning**: Updated the meeting layout to properly unwrap params using `React.use()`, fixing the "params is now a Promise" warning.
+2. **Enhanced Video Playback**: Improved Agora video playback with retry mechanisms to prevent AbortError when loading is interrupted.
+3. **Better Error Handling**: Added comprehensive error recovery for media tracks with graceful reconnection logic.
+4. **Removed Time Restrictions**: Meeting access is no longer limited to 30 minutes before scheduled time, allowing users to join as soon as a meeting is started.
+
+### Changes in Detail:
+- The "Start Meeting" button is now visible to tutors but disabled until both participants mark themselves as ready
+- Removed automatic meeting starting when both users are ready
+- Meeting links become joinable as soon as a session has "started" status (both users ready is no longer required)
+- The meeting now stays active once started, regardless of ready status changes after starting
+
+These changes make the meeting experience more intuitive and puts control of the meeting in the hands of the tutors.

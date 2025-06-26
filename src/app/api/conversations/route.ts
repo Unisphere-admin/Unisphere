@@ -6,7 +6,7 @@ import { withCsrfProtection } from '@/lib/csrf-next';
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 
 // Export runtime config to optimize API performance with Edge runtime
-export const runtime = 'edge';
+
 
 // Force dynamic to ensure conversations are never cached by Vercel
 export const dynamic = 'force-dynamic';

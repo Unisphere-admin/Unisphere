@@ -3,7 +3,7 @@ import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 import { getUserProfile, createUserProfileIfNeeded } from '@/lib/db/users';
 
 // Export runtime config to optimize API performance with Edge runtime
-export const runtime = 'edge';
+
 
 // Force dynamic to prevent caching of authentication data
 export const dynamic = 'force-dynamic';

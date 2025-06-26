@@ -27,8 +27,32 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { useEffect, useState } from "react";
 
 export default function HomePage() {
+  const [currentTextIndex, setCurrentTextIndex] = useState(0);
+  const [textFading, setTextFading] = useState(false);
+  const animatedTexts = ["Personal Statements", "Essays", "Entrance Tests", "Interviews"];
+  
+  useEffect(() => {
+    // Create a fade-in, fade-out cycle
+    const fadeOutTimer = setInterval(() => {
+      // Start fade out
+      setTextFading(true);
+      
+      // After fade out completes, change text and fade in
+      setTimeout(() => {
+        setCurrentTextIndex(prevIndex => (prevIndex + 1) % animatedTexts.length);
+        setTextFading(false);
+      }, 700); // Match the fadeOut animation duration
+      
+    }, 3000); // Total time for each text to be displayed
+    
+    return () => {
+      clearInterval(fadeOutTimer);
+    };
+  }, []);
+
   return (
     <div className="flex flex-col w-full with-navbar">
       {/* Hero Section */}
@@ -43,13 +67,12 @@ export default function HomePage() {
               </h1>
               <p className="text-xl text-muted-foreground md:text-2xl max-w-[600px]">
                 Build your sphere of mentors to help with 
-                <span className="inline-block animate-[fadeIn_1s_ease_forwards]" style={{opacity: 0}}> Personal Statements</span>
-                <span className="inline-block animate-[fadeIn_1s_ease_forwards]" style={{opacity: 0, animationDelay: '1000ms'}}>/</span>
-                <span className="inline-block animate-[fadeIn_1s_ease_forwards]" style={{opacity: 0, animationDelay: '1500ms'}}> Essays</span>
-                <span className="inline-block animate-[fadeIn_1s_ease_forwards]" style={{opacity: 0, animationDelay: '2000ms'}}>/</span>
-                <span className="inline-block animate-[fadeIn_1s_ease_forwards]" style={{opacity: 0, animationDelay: '2500ms'}}> Entrance Tests</span>
-                <span className="inline-block animate-[fadeIn_1s_ease_forwards]" style={{opacity: 0, animationDelay: '3000ms'}}>/</span>
-                <span className="inline-block animate-[fadeIn_1s_ease_forwards]" style={{opacity: 0, animationDelay: '3500ms'}}> Interviews</span>
+                <br />
+                <span 
+                  className={`inline-block ${textFading ? 'animate-fadeOut' : 'animate-fadeIn'}`}
+                >
+                  {" " + animatedTexts[currentTextIndex]}
+                </span>
               </p>
               <div className="flex flex-col sm:flex-row gap-4 mt-8">
                 <Button size="lg" className="shadow-md bg-[#128ca0] hover:bg-[#126d94] transition-all hover:shadow-lg hover:translate-y-[-2px] group">

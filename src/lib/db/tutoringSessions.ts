@@ -335,17 +335,6 @@ export async function updateReadyStatus(
       ? { tutor_ready: isReady }
       : { student_ready: isReady };
     
-    // Check if both users will be ready after this update
-    const bothReady = isTutor
-      ? (isReady && existingSession.student_ready)
-      : (isReady && existingSession.tutor_ready);
-    
-    // If both users are ready and the session is in 'accepted' status, automatically start it
-    if (bothReady && existingSession.status === 'accepted') {
-      updateData.status = 'started';
-      updateData.started_at = new Date().toISOString();
-    }
-    
     // Update the session
     const { data, error } = await supabase
       .from('tutoring_session')

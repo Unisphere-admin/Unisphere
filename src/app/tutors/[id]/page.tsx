@@ -88,7 +88,8 @@ interface TutorProfile {
   extracurriculars?: string[];
   gcse?: string[];
   "a-levels"?: string[];
-  spm?: string;
+  spm?: string[] | string | null;
+  ib?: string[] | null;
   service_costs?: Record<string, number>;
 }
 
@@ -618,7 +619,9 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
     : [];
   const tutorGcse = tutor?.gcse && Array.isArray(tutor.gcse) ? tutor.gcse : [];
   const tutorALevels = tutor?.['a-levels'] && Array.isArray(tutor['a-levels']) ? tutor['a-levels'] : [];
-  const tutorSpm = tutor?.spm;
+  const tutorSpm = tutor?.spm && Array.isArray(tutor.spm) ? tutor.spm : 
+                  (tutor?.spm && typeof tutor.spm === 'string' ? [tutor.spm] : []);
+  const tutorIb = tutor?.ib && Array.isArray(tutor.ib) ? tutor.ib : [];
 
   return (
     <div className="page-content">
@@ -892,20 +895,25 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                     </div>
 
                     <div className="mt-6">
-                      <h3 className="font-semibold text-lg mb-2">A-Levels</h3>
                       {tutorALevels && tutorALevels.length > 0 ? (
+                    <h3 className="font-semibold text-lg mb-2">A-Levels</h3>
+                      ) : (null)}
+                      {tutorALevels && tutorALevels.length > 0 ? (
+                        
                         <ul className="list-disc pl-5 space-y-1">
                           {tutorALevels.map((level, index) => (
                             <li key={index}>{level}</li>
                           ))}
                         </ul>
                       ) : (
-                        <p className="text-muted-foreground">No A-Levels specified</p>
+                        null
                       )}
                     </div>
 
                     <div className="mt-6">
+                    {tutorGcse && tutorGcse.length > 0 ? (
                       <h3 className="font-semibold text-lg mb-2">GCSEs</h3>
+                      ) : (null)}
                       {tutorGcse && tutorGcse.length > 0 ? (
                         <ul className="list-disc pl-5 space-y-1">
                           {tutorGcse.map((gcse, index) => (
@@ -913,13 +921,38 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                           ))}
                         </ul>
                       ) : (
-                        <p className="text-muted-foreground">No GCSEs specified</p>
+                        null
                       )}
                     </div>
 
                     <div className="mt-6">
-                      <h3 className="font-semibold text-lg mb-2">SPM</h3>
-                      <p>{tutorSpm || "N/A"}</p>
+                      {tutorIb && tutorIb.length > 0 ? (
+                        <h3 className="font-semibold text-lg mb-2">IB</h3>
+                      ) : (null)}
+                      {tutorIb && tutorIb.length > 0 ? (
+                        <ul className="list-disc pl-5 space-y-1">
+                          {tutorIb.map((ib: string, index: number) => (
+                            <li key={index}>{ib}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        null
+                      )}
+                    </div>
+
+                    <div className="mt-6">
+                      {tutorSpm && tutorSpm.length > 0 ? (
+                        <h3 className="font-semibold text-lg mb-2">SPM</h3>
+                      ) : (null)}
+                      {tutorSpm && tutorSpm.length > 0 ? (
+                        <ul className="list-disc pl-5 space-y-1">
+                          {tutorSpm.map((spm: string, index: number) => (
+                            <li key={index}>{spm}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        null
+                      )}
                     </div>
                   </CardContent>
                 </Card>

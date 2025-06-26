@@ -15,7 +15,7 @@ interface Consultant {
   id: string;
   name: string;
   university: string;
-  initials: string;
+  image: string;
 }
 
 const consultants: Consultant[] = [
@@ -23,19 +23,25 @@ const consultants: Consultant[] = [
     id: "joshua",
     name: "Joshua Ooi",
     university: "Columbia University",
-    initials: "JC"
+    image: "/headshots/JoshuaOoi.jpg"
   },
   {
     id: "justin",
     name: "Justin Lee",
     university: "Oxford University",
-    initials: "JO"
+    image: "/headshots/JustinLee.png"
+  },
+  {
+    id: "ghayuan",
+    name: "Gha Yuan Ng",
+    university: "Yale University",
+    image: "/headshots/GhaYuanNg.jpg"
   },
   {
     id: "matthew",
     name: "Matthew Tang",
     university: "Yale University",
-    initials: "MY"
+    image: "/headshots/MatthewTang.jpg"
   }
 ];
 
@@ -167,7 +173,8 @@ export default function ConsultationPage() {
               <Card key={consultant.id} className="border border-border/40">
                 <CardHeader className="flex flex-row items-center gap-4">
                   <Avatar className="h-12 w-12 border border-border/40">
-                    <AvatarFallback className="bg-primary/10 text-primary">{consultant.initials}</AvatarFallback>
+                    <AvatarImage src={consultant.image} />
+                    <AvatarFallback className="bg-primary/10 text-primary">{consultant.name.charAt(0)}</AvatarFallback>
                   </Avatar>
                   <div>
                     <CardTitle>{consultant.name}</CardTitle>

@@ -4,7 +4,7 @@ import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { updateUserProfile } from '@/lib/db/users';
 
 // Set edge runtime for better performance
-export const runtime = 'edge';
+
 export const dynamic = 'force-dynamic';
 
 // PATCH handler to update user profile

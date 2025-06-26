@@ -7,7 +7,7 @@ import { validateText, sanitizeInput, checkForMaliciousContent } from "@/lib/val
 import { withCsrfProtection } from "@/lib/csrf-next";
 
 // Export runtime config for improved performance
-export const runtime = 'edge';
+
 
 // Force dynamic to ensure messages are never cached by Vercel
 export const dynamic = 'force-dynamic';

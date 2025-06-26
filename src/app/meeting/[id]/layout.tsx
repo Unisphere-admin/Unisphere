@@ -6,15 +6,21 @@ import { Loader2 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { MeetingGuard } from "@/components/layout/MeetingGuard";
 
+interface PageParams {
+  id: string;
+}
+
 export default function MeetingLayout({
   children,
   params,
 }: {
   children: React.ReactNode;
-  params: any;
+  params: Promise<PageParams>;
 }) {
   const { user, loading } = useAuth();
-  const sessionId = params?.id || '';
+  // Unwrap params Promise properly using React.use()
+  const unwrappedParams = React.use(params);
+  const sessionId = unwrappedParams.id || '';
 
   // Protect this page - redirect to login if not authenticated
   if (!loading && !user) {

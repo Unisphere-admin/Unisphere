@@ -5,7 +5,7 @@ import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { withCsrfProtection } from '@/lib/csrf-next';
 
 // Set edge runtime for better performance
-export const runtime = 'edge';
+
 export const dynamic = 'force-dynamic';
 
 /**

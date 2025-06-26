@@ -17,7 +17,7 @@ import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { withCsrfProtection } from '@/lib/csrf-next';
 
 // Export runtime config for improved performance
-export const runtime = 'edge';
+
 
 // Force dynamic to ensure tutoring sessions are never cached by Vercel
 export const dynamic = 'force-dynamic';

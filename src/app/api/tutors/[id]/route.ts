@@ -3,7 +3,7 @@ import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 import { validateRequest } from '@/lib/auth/validateRequest';
 
 // Use edge runtime for better performance
-export const runtime = 'edge';
+
 
 // Use dynamic to prevent caching for this authenticated endpoint
 export const dynamic = 'force-dynamic';
@@ -90,6 +90,7 @@ export async function GET(
         "a-levels": tutor["a-levels"],
         gcse: tutor.gcse,
         spm: tutor.spm,
+        ib: tutor.ib,
         cost: tutor.cost
       });
     } else {

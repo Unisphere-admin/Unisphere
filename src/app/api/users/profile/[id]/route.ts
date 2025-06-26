@@ -4,7 +4,7 @@ import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { getUserProfileById } from '@/lib/db/users';
 
 // Set edge runtime for better performance
-export const runtime = 'edge';
+
 export const dynamic = 'force-dynamic';
 
 // GET handler to retrieve a user's profile
