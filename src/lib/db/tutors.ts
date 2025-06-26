@@ -55,8 +55,19 @@ const TUTOR_DETAIL_FIELDS = `
 
 // Fields for non-premium users (limited information)
 const NON_PREMIUM_FIELDS = `
-  id, search_id, first_name, last_name, avatar_url, subjects, major, current_education
+  id, search_id, description, avatar_url, subjects, major,
+  current_education, previous_education, service_costs
 `;
+
+// Function to generate a number from a string (for single tutor lookup)
+function generateNumberFromString(input: string): string {
+  // Use the sum of character codes to create a number
+  let sum = 0;
+  for (let i = 0; i < input.length; i++) {
+    sum += input.charCodeAt(i);
+  }
+  return (sum % 999 + 1).toString(); // Generate a number between 1-999
+}
 
 /**
  * Get a list of all tutors for display on the tutors page
@@ -81,25 +92,27 @@ export async function getAllTutors(hasPremiumAccess = false): Promise<{
       return { tutors: [], error: error.message };
     }
     
-    // For non-premium users, add a note in the description field
-    if (!hasPremiumAccess && data) {
-      const processedTutors = (data as any as TutorRawData[]).map(tutor => ({
-        ...tutor,
-        description: "Upgrade to premium to see full tutor details."
-      } as TutorBasic));
+    // Process data based on premium access
+    if (data) {
+      let processedTutors;
+
+      if (hasPremiumAccess) {
+        // Premium users get full access to tutor data
+        processedTutors = data as any as TutorBasic[];
+      } else {
+        // Non-premium users get limited data with anonymized names
+        processedTutors = (data as any as TutorRawData[]).map((tutor, index) => ({
+          ...tutor,
+          first_name: "T", // First name is "T"
+          last_name: (index + 1).toString(), // Last name is a sequential number
+          description: "Upgrade to premium to see full tutor details."
+        } as TutorBasic));
+      }
       
       return { tutors: processedTutors, error: null };
     }
     
-    // Verify all tutors have search_id (for premium users only)
-    if (hasPremiumAccess) {
-      const missingSearchIds = (data as any as TutorRawData[])?.filter(tutor => !tutor.search_id).length || 0;
-      if (missingSearchIds > 0) {
-        console.warn(`Warning: ${missingSearchIds} tutors missing search_id`);
-      }
-    }
-    
-    return { tutors: (data as any as TutorBasic[]) || [], error: null };
+    return { tutors: [], error: null };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return { tutors: [], error: errorMessage };
@@ -109,7 +122,7 @@ export async function getAllTutors(hasPremiumAccess = false): Promise<{
 /**
  * Get a specific tutor by their search_id
  */
-export async function getTutorBySearchId(searchId: string): Promise<{
+export async function getTutorBySearchId(searchId: string, hasPremiumAccess = false): Promise<{
   tutor: TutorProfile | null;
   error: string | null;
 }> {
@@ -134,6 +147,13 @@ export async function getTutorBySearchId(searchId: string): Promise<{
     
     if (!data) {
       return { tutor: null, error: 'Tutor not found' };
+    }
+
+    // For non-premium users, anonymize the tutor's name
+    if (!hasPremiumAccess) {
+      data.first_name = "T";
+      data.last_name = generateNumberFromString(data.id || searchId);
+      data.description = "Upgrade to premium to see full tutor details.";
     }
     
     return { tutor: data, error: null };

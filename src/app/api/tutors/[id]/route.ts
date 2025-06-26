@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 import { validateRequest } from '@/lib/auth/validateRequest';
+import { getTutorBySearchId } from '@/lib/db/tutors';
 
 // Use edge runtime for better performance
 
@@ -8,13 +9,22 @@ import { validateRequest } from '@/lib/auth/validateRequest';
 // Use dynamic to prevent caching for this authenticated endpoint
 export const dynamic = 'force-dynamic';
 
+// Function to generate a number from a string (for single tutor lookup)
+function generateNumberFromString(input: string): string {
+  // Use the sum of character codes to create a number
+  let sum = 0;
+  for (let i = 0; i < input.length; i++) {
+    sum += input.charCodeAt(i);
+  }
+  return (sum % 999 + 1).toString(); // Generate a number between 1-999
+}
+
 export async function GET(
   request: NextRequest, 
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    
     
     if (!id) {
       return NextResponse.json(
@@ -29,31 +39,47 @@ export async function GET(
     // Determine if user has premium access
     const hasPremiumAccess = user?.is_tutor || user?.has_access;
     
-    const supabase = await createRouteHandlerClientWithCookies();
-    
-    // First try to find by search_id
-    let query = supabase
-      .from('tutor_profile')
-      .select('*')
-      .eq('search_id', id);
-    
-    let { data: tutor, error } = await query.single();
-      
-    // If not found by search_id, try by actual id
-    if (!tutor) {
-      query = supabase
-        .from('tutor_profile')
-        .select('*')
-        .eq('id', id);
-        
-      const result = await query.single();
-      tutor = result.data;
-      error = result.error;
-    }
+    // Try to find tutor by search_id first, pass premium access status
+    const { tutor, error } = await getTutorBySearchId(id, hasPremiumAccess);
     
     if (error) {
+      // If not found by search_id, try by actual ID
+      if (error === 'Tutor not found') {
+        const supabase = await createRouteHandlerClientWithCookies();
+        
+        const { data: tutorById, error: idError } = await supabase
+          .from('tutor_profile')
+          .select('*')
+          .eq('id', id)
+          .single();
+          
+        if (idError || !tutorById) {
+          return NextResponse.json(
+            { error: 'Tutor not found' },
+            { status: 404 }
+          );
+        }
+        
+        // Process tutor data for non-premium users
+        if (!hasPremiumAccess) {
+          tutorById.first_name = "T";
+          tutorById.last_name = generateNumberFromString(tutorById.id);
+          tutorById.description = "Upgrade to premium to see full tutor details.";
+        }
+        
+        // Create response with no-cache headers
+        const response = NextResponse.json({ tutor: tutorById });
+        
+        // Set cache control headers
+        response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        response.headers.set('Pragma', 'no-cache');
+        response.headers.set('Expires', '0');
+        
+        return response;
+      }
+      
       return NextResponse.json(
-        { error: error.message },
+        { error },
         { status: 500 }
       );
     }
@@ -65,43 +91,8 @@ export async function GET(
       );
     }
     
-    
-    // Filter the tutor data based on premium access
-    // Always include these fields for public access
-    const filteredTutor = {
-      id: tutor.id,
-      search_id: tutor.search_id,
-      first_name: tutor.first_name,
-      last_name: tutor.last_name,
-      description: tutor.description,
-      current_education: tutor.current_education,
-      previous_education: tutor.previous_education,
-      major: tutor.major,
-      year: tutor.year,
-      service_costs: tutor.service_costs
-    };
-    
-    // Only include premium fields if user has access
-    if (hasPremiumAccess) {
-      Object.assign(filteredTutor, {
-        avatar_url: tutor.avatar_url,
-        subjects: tutor.subjects,
-        extracurriculars: tutor.extracurriculars,
-        "a-levels": tutor["a-levels"],
-        gcse: tutor.gcse,
-        spm: tutor.spm,
-        ib: tutor.ib,
-        cost: tutor.cost
-      });
-    } else {
-      // Set avatar to null for non-premium users
-      Object.assign(filteredTutor, {
-        avatar_url: null
-      });
-    }
-    
     // Create response with no-cache headers
-    const response = NextResponse.json({ tutor: filteredTutor });
+    const response = NextResponse.json({ tutor });
     
     // Set cache control headers
     response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');

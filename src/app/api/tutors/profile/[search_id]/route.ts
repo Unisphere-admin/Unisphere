@@ -16,12 +16,7 @@ async function getTutorProfileHandler(
 ): Promise<NextResponse> {
   try {
     // Check premium access or tutor status
-    if (!user.is_tutor && !user.has_access) {
-      return NextResponse.json(
-        { error: 'Premium access required' },
-        { status: 403 }
-      );
-    }
+    const hasPremiumAccess = user.is_tutor || user.has_access;
 
     // Get search_id from params
     const searchId = params.search_id;
@@ -30,15 +25,13 @@ async function getTutorProfileHandler(
       return NextResponse.json({ error: 'Search parameter is required' }, { status: 400 });
     }
 
-
-    // Use data access layer to fetch tutor
-    const { tutor, error } = await getTutorBySearchId(searchId);
+    // Use data access layer to fetch tutor with premium access flag
+    const { tutor, error } = await getTutorBySearchId(searchId, hasPremiumAccess);
 
     // Handle error case
     if (error || !tutor) {
       return NextResponse.json({ error: error || 'Tutor not found' }, { status: 404 });
     }
-
     
     // Create response with no-cache headers to prevent authentication leakage
     const response = NextResponse.json({ tutor });
