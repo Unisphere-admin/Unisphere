@@ -10,8 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { X, MessageSquare, Calendar } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { refreshTokenIfNeeded } from '@/lib/auth/tokenRefresh';
-import { updateCache, updateItemInArrayCache, CACHE_CONFIG } from '@/lib/caching';
-import { getCsrfTokenFromStorage, CSRF_HEADER_NAME } from '@/lib/csrf/client';
+import { updateCache, CACHE_CONFIG } from '@/lib/caching';
 
 // Add this constant near the top of the file, after imports
 const VERBOSE_LOGGING = false; // Set to true to enable verbose debug logging
@@ -437,93 +436,12 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
   // Handle realtime message
   const handleRealtimeMessage = useCallback(async (payload: { payload: RealtimeMessage }) => {
     if (!payload.payload) return;
+
     
     const message = payload.payload;
     
-    // Skip processing if message is missing critical data
-    if (!message.id || !message.conversation_id) {
-      return;
-    }
-    
-    // Update message cache directly to prevent unnecessary API calls
-    if (message.conversation_id) {
-      try {
-        // Update the messages cache for this conversation
-        const cacheKey = `${CACHE_CONFIG.MESSAGES_CACHE_PREFIX}${message.conversation_id}`;
-        
-        updateCache<{ messages: any[], error: string | null }>(
-          cacheKey,
-          (currentData) => {
-            if (!currentData || !currentData.messages) {
-              // If no cache exists yet, create a new one with just this message
-              return {
-                messages: [message],
-                error: null
-              };
-            }
-            
-            // Check if this message already exists in the cache
-            const existingIndex = currentData.messages.findIndex(m => m.id === message.id);
-            
-            if (existingIndex >= 0) {
-              // Update the existing message
-              const updatedMessages = [...currentData.messages];
-              updatedMessages[existingIndex] = {
-                ...updatedMessages[existingIndex],
-                ...message
-              };
-              return {
-                ...currentData,
-                messages: updatedMessages
-              };
-            } else {
-              // Add the new message to the cache
-              return {
-                ...currentData,
-                messages: [...currentData.messages, message]
-              };
-            }
-          }
-        );
-        
-        // Also update the conversations cache with the latest message
-        updateCache<any[]>(
-          CACHE_CONFIG.CONVERSATIONS_CACHE_KEY,
-          (currentConversations) => {
-            if (!currentConversations) return null;
-            
-            // Find the conversation to update
-            const conversationIndex = currentConversations.findIndex(c => c.id === message.conversation_id);
-            
-            if (conversationIndex < 0) return currentConversations; // Conversation not found
-            
-            // Create updated conversations array
-            const updatedConversations = [...currentConversations];
-            
-            // Update the last_message field
-            updatedConversations[conversationIndex] = {
-              ...updatedConversations[conversationIndex],
-              last_message: {
-                id: message.id,
-                content: message.content,
-                created_at: message.created_at,
-                sender_id: message.sender_id
-              },
-              last_message_at: message.created_at
-            };
-            
-            return updatedConversations;
-          }
-        );
-      } catch (error) {
-        // Log cache update errors but continue processing
-        console.warn('[RealtimeContext] Failed to update message cache:', error);
-      }
-    }
-    
-    // Continue with the existing code to find sender info
-    // Get sender info from cache if available
-    let senderInfo = senderCache.current.get(message.sender_id) || {
+    // First check if we have this sender in our cache
+    let senderInfo = senderCache.current.get(message.sender_id) || message.sender || {
       id: message.sender_id,
       display_name: 'Unknown User',
       avatar_url: null,
@@ -531,6 +449,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       first_name: '',
       last_name: ''
     };
+    
     
     // If we're missing important sender info, try to get it from existing conversations
     if (senderInfo.display_name === 'Unknown User' || senderInfo.avatar_url === null) {
@@ -808,48 +727,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
           );
         }
       );
-      
-      // 5. Update the message cache if this session is associated with a message
-      if (updatedSession.message_id && updatedSession.conversation_id) {
-        // Get the message cache key
-        const messageCacheKey = `${CACHE_CONFIG.MESSAGES_CACHE_PREFIX}${updatedSession.conversation_id}`;
-        
-        // Update the message cache to include the updated session info
-        updateCache<{ messages: any[], error: string | null }>(
-          messageCacheKey,
-          (currentData) => {
-            if (!currentData || !currentData.messages) return null;
-            
-            // Find the message associated with this session
-            const messageIndex = currentData.messages.findIndex(m => m.id === updatedSession.message_id);
-            
-            if (messageIndex < 0) return currentData; // Message not found
-            
-            // Create a copy of the messages array
-            const updatedMessages = [...currentData.messages];
-            
-            // Update the session request info in the message
-            updatedMessages[messageIndex] = {
-              ...updatedMessages[messageIndex],
-              sessionRequest: {
-                ...(updatedMessages[messageIndex].sessionRequest || {}),
-                id: updatedSession.id,
-                status: updatedSession.status,
-                tutorReady: updatedSession.tutor_ready,
-                studentReady: updatedSession.student_ready,
-                tutorId: updatedSession.tutor_id,
-                studentId: updatedSession.student_id,
-                tokens: updatedSession.cost
-              }
-            };
-            
-            return {
-              ...currentData,
-              messages: updatedMessages
-            };
-          }
-        );
-      }
     } catch (error) {
       // Log cache update errors but continue processing
       console.warn('[RealtimeContext] Failed to update session cache:', error);

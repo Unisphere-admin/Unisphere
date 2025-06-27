@@ -658,75 +658,94 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   }, [activeSession, user]);
 
   // Add this new function to handle optimistic updates
-  const addOptimisticSession = useCallback((session: ActiveSession) => {
-    // Add optimistic session to state
-    setSessions(prevSessions => {
+  const addOptimisticSession = useCallback((session: ActiveSession): void => {
+    // First update the state
+    setSessions(prev => {
       // Check if session already exists
-      const existingIndex = prevSessions.findIndex(s => s.id === session.id);
-      
-      if (existingIndex >= 0) {
+      const exists = prev.some(s => s.id === session.id);
+      if (exists) {
         // Update existing session
-        const updatedSessions = [...prevSessions];
-        updatedSessions[existingIndex] = {
-          ...updatedSessions[existingIndex],
-          ...session
-        };
-        return updatedSessions;
+        return prev.map(s => s.id === session.id ? { ...s, ...session } : s);
       } else {
         // Add new session
-        return [...prevSessions, session];
+        return [...prev, session];
       }
     });
     
-    // Also update the session in cache to ensure consistency
-    try {
-      // 1. Update session by ID cache
-      updateCache<{ session: ActiveSession, error: string | null }>(
-        `session:${session.id}`,
-        (currentData) => {
-          if (!currentData) {
-            // Create new cache entry
-            return {
-              session,
-              error: null
-            };
-          }
-          // Update existing cache entry
+    // Update active session if needed
+    if (session.status === 'started' || session.status === 'accepted') {
+      setActiveSession(session);
+    }
+    
+    // Update session in all caches
+    if (user) {
+      // Update user sessions cache for both tutor and student
+      const userType = user.role === 'tutor' ? 'tutor' : 'student';
+      const cacheKey = `user_sessions:${user.id}:${userType}`;
+      
+      updateCache<{ sessions: ActiveSession[], error: string | null }>(cacheKey, (currentData) => {
+        if (!currentData) {
+          // Create new cache entry if none exists
           return {
-            ...currentData,
-            session: {
-              ...currentData.session,
-              ...session
-            }
+            sessions: [session],
+            error: null
           };
         }
-      );
+        
+        // Check if session already exists in cache
+        const exists = currentData.sessions.some(s => s.id === session.id);
+        if (exists) {
+          // Update existing session
+          return {
+            ...currentData,
+            sessions: currentData.sessions.map(s => s.id === session.id ? { ...s, ...session } : s)
+          };
+        } else {
+          // Add new session
+          return {
+            ...currentData,
+            sessions: [...currentData.sessions, session]
+          };
+        }
+      });
       
-      // 2. Update all sessions cache
+      // Also update the global sessions cache
+      updateCache<ActiveSession[]>(CACHE_CONFIG.SESSIONS_CACHE_KEY, (currentSessions) => {
+        if (!currentSessions) {
+          return [session];
+        }
+        
+        // Check if session already exists
+        const exists = currentSessions.some(s => s.id === session.id);
+        if (exists) {
+          // Update existing session
+          return currentSessions.map(s => s.id === session.id ? { ...s, ...session } : s);
+        } else {
+          // Add new session
+          return [...currentSessions, session];
+        }
+      });
+      
+      // If session has conversation_id, update that cache too
       if (session.conversation_id) {
+        const conversationCacheKey = `sessions:${session.conversation_id}`;
         updateCache<{ sessions: ActiveSession[], error: string | null }>(
-          `sessions:${session.conversation_id}`,
+          conversationCacheKey,
           (currentData) => {
-            if (!currentData || !currentData.sessions) {
-              // Create new cache entry
+            if (!currentData) {
               return {
                 sessions: [session],
                 error: null
               };
             }
             
-            // Update existing cache entry
-            const existingIndex = currentData.sessions.findIndex(s => s.id === session.id);
-            if (existingIndex >= 0) {
+            // Check if session already exists
+            const exists = currentData.sessions.some(s => s.id === session.id);
+            if (exists) {
               // Update existing session
-              const updatedSessions = [...currentData.sessions];
-              updatedSessions[existingIndex] = {
-                ...updatedSessions[existingIndex],
-                ...session
-              };
               return {
                 ...currentData,
-                sessions: updatedSessions
+                sessions: currentData.sessions.map(s => s.id === session.id ? { ...s, ...session } : s)
               };
             } else {
               // Add new session
@@ -738,149 +757,8 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           }
         );
       }
-      
-      // 3. Update user sessions caches
-      if (session.tutor_id) {
-        updateCache<{ sessions: ActiveSession[], error: string | null }>(
-          `user_sessions:${session.tutor_id}:tutor`,
-          (currentData) => {
-            if (!currentData || !currentData.sessions) {
-              // Create new cache entry
-              return {
-                sessions: [session],
-                error: null
-              };
-            }
-            
-            // Update existing cache entry
-            return updateSessionInCache(currentData, session);
-          }
-        );
-      }
-      
-      if (session.student_id) {
-        updateCache<{ sessions: ActiveSession[], error: string | null }>(
-          `user_sessions:${session.student_id}:student`,
-          (currentData) => {
-            if (!currentData || !currentData.sessions) {
-              // Create new cache entry
-              return {
-                sessions: [session],
-                error: null
-              };
-            }
-            
-            // Update existing cache entry
-            return updateSessionInCache(currentData, session);
-          }
-        );
-      }
-      
-      // 4. Update the global sessions cache
-      updateCache<ActiveSession[]>(
-        CACHE_CONFIG.SESSIONS_CACHE_KEY,
-        (currentSessions) => {
-          if (!currentSessions) {
-            // Create new cache entry
-            return [session];
-          }
-          
-          // Update existing cache entry
-          const existingIndex = currentSessions.findIndex(s => s.id === session.id);
-          if (existingIndex >= 0) {
-            // Update existing session
-            const updatedSessions = [...currentSessions];
-            updatedSessions[existingIndex] = {
-              ...updatedSessions[existingIndex],
-              ...session
-            };
-            return updatedSessions;
-          } else {
-            // Add new session
-            return [...currentSessions, session];
-          }
-        }
-      );
-      
-      // 5. Update the message cache if this session is associated with a message
-      if (session.message_id && session.conversation_id) {
-        // Get the message cache key
-        const messageCacheKey = `${CACHE_CONFIG.MESSAGES_CACHE_PREFIX}${session.conversation_id}`;
-        
-        // Update the message cache to include the updated session info
-        updateCache<{ messages: any[], error: string | null }>(
-          messageCacheKey,
-          (currentData) => {
-            if (!currentData || !currentData.messages) return null;
-            
-            // Find the message associated with this session
-            const messageIndex = currentData.messages.findIndex(m => m.id === session.message_id);
-            
-            if (messageIndex < 0) return currentData; // Message not found
-            
-            // Create a copy of the messages array
-            const updatedMessages = [...currentData.messages];
-            
-            // Update the session request info in the message
-            updatedMessages[messageIndex] = {
-              ...updatedMessages[messageIndex],
-              sessionRequest: {
-                ...(updatedMessages[messageIndex].sessionRequest || {}),
-                id: session.id,
-                status: session.status,
-                tutorReady: session.tutor_ready,
-                studentReady: session.student_ready,
-                tutorId: session.tutor_id,
-                studentId: session.student_id,
-                tokens: session.cost
-              }
-            };
-            
-            return {
-              ...currentData,
-              messages: updatedMessages
-            };
-          }
-        );
-      }
-      
-      // Notify other tabs about the change
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('session_updated', JSON.stringify({
-          id: session.id,
-          timestamp: Date.now()
-        }));
-      }
-    } catch (error) {
-      console.warn('[SessionContext] Failed to update session cache:', error);
     }
-  }, []);
-
-  // Helper function for updating sessions in cache
-  const updateSessionInCache = (
-    currentData: { sessions: ActiveSession[], error: string | null },
-    session: ActiveSession
-  ) => {
-    const existingIndex = currentData.sessions.findIndex(s => s.id === session.id);
-    if (existingIndex >= 0) {
-      // Update existing session
-      const updatedSessions = [...currentData.sessions];
-      updatedSessions[existingIndex] = {
-        ...updatedSessions[existingIndex],
-        ...session
-      };
-      return {
-        ...currentData,
-        sessions: updatedSessions
-      };
-    } else {
-      // Add new session
-      return {
-        ...currentData,
-        sessions: [...currentData.sessions, session]
-      };
-    }
-  };
+  }, [user]);
 
   return (
     <SessionContext.Provider

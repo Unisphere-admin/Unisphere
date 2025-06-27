@@ -48,29 +48,16 @@ export function MeetingGuard({ sessionId, children }: MeetingGuardProps) {
           throw new Error("You are not authorized to join this session");
         }
         
-        // Check if session is active - allow joining if:
-        // 1. Status is 'started' (always allow)
-        // 2. Status is 'accepted' AND either:
-        //    a. Both participants are ready
-        //    b. User is the tutor who is starting the meeting
-        const isSessionStarted = session.status === 'started';
-        const isSessionAccepted = session.status === 'accepted';
-        const areBothReady = session.tutor_ready && session.student_ready;
-        const isTutorStartingMeeting = user.id === session.tutor_id && session.tutor_ready;
-        
-        if (isSessionStarted || (isSessionAccepted && (isTutorStartingMeeting))) {
-          // Session is valid - allow access
-          setIsLoading(false);
-        } else {
-          // Session is not in a valid state for meeting
-          const statusMessage = session.status === 'ended' ? 
-            'This session has ended' : 
-            session.status === 'cancelled' ? 
-              'This session has been cancelled' : 
-              `This session is not active (current status: ${session.status})`;
-              
-          throw new Error(statusMessage);
+        // Check if session is active - allow joining if status is 'started'
+        if (session.status !== 'started') {
+          throw new Error(`This session is not active (current status: ${session.status})`);
         }
+        
+        // Check if it's not too early for scheduled sessions
+        
+        
+        // All checks passed
+        setIsLoading(false);
       } catch (error) {
         setError(error instanceof Error ? error.message : "Failed to validate session");
         setIsLoading(false);
