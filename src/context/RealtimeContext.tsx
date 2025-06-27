@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { X, MessageSquare, Calendar } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { refreshTokenIfNeeded } from '@/lib/auth/tokenRefresh';
-import { CACHE_CONFIG, updateCacheWithRealtimeData, updateItemInArrayCache } from '@/lib/caching';
+import { CACHE_CONFIG, updateCacheWithRealtimeData, updateItemInArrayCache, forceUpdateSessionCache } from '@/lib/caching';
 
 // Define types for realtime events
 interface RealtimeMessage {
@@ -741,6 +741,16 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         { logUpdate: true }
       );
     }
+    
+    // Force update the session cache to ensure realtime data takes precedence
+    forceUpdateSessionCache({
+      ...convertedSession,
+      // Ensure critical fields are included
+      id: updatedSession.id,
+      status: updatedSession.status,
+      tutor_ready: updatedSession.tutor_ready,
+      student_ready: updatedSession.student_ready
+    });
 
     // Refresh sessions list cache to ensure consistency
     if (sessionContext.refreshSessions) {

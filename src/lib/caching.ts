@@ -528,4 +528,63 @@ export function removeItemFromArrayCache(
     },
     { dispatchEvent, logUpdate }
   );
+}
+
+/**
+ * Force update a session in the cache to ensure realtime updates take precedence
+ * This is specifically designed to handle the issue with session state reverting
+ * 
+ * @param session The updated session object
+ */
+export function forceUpdateSessionCache<T extends { 
+  id: string; 
+  status?: string;
+  tutor_ready?: boolean;
+  student_ready?: boolean;
+  [key: string]: any;
+}>(session: T): void {
+  try {
+    // Get the sessions cache key
+    const cacheKey = CACHE_CONFIG.SESSIONS_CACHE_KEY;
+    
+    // Get current cached data
+    const cachedRaw = localStorage.getItem(cacheKey);
+    if (!cachedRaw) return; // No cache to update
+    
+    const cachedData = JSON.parse(cachedRaw);
+    if (!cachedData?.data || !Array.isArray(cachedData.data)) return;
+    
+    // Find the session in the cache
+    const sessions = cachedData.data;
+    const sessionIndex = sessions.findIndex((s: any) => s.id === session.id);
+    
+    if (sessionIndex >= 0) {
+      // Update the session with new data, ensuring critical fields are preserved
+      sessions[sessionIndex] = {
+        ...sessions[sessionIndex],
+        ...session,
+        // Force these fields to be updated from the new session if they exist
+        ...(session.status !== undefined && { status: session.status }),
+        ...(session.tutor_ready !== undefined && { tutor_ready: session.tutor_ready }),
+        ...(session.student_ready !== undefined && { student_ready: session.student_ready })
+      };
+      
+      // Update the cache with the modified data
+      cachedData.data = sessions;
+      cachedData.lastUpdated = new Date().toISOString();
+      
+      // Save back to localStorage
+      localStorage.setItem(cacheKey, JSON.stringify(cachedData));
+      
+      // Dispatch an event to notify components about the update
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('session-cache-forced-update', { 
+          detail: { session } 
+        });
+        window.dispatchEvent(event);
+      }
+    }
+  } catch (error) {
+    console.warn('[Cache] Failed to force update session cache:', error);
+  }
 } 

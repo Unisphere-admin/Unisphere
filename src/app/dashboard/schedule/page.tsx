@@ -56,7 +56,7 @@ interface SessionType {
 export default function SchedulePage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { sessions, loadingSessions } = useSessions();
+  const { sessions, loadingSessions, refreshSessions } = useSessions();
   const { subscribeToConversation, unsubscribeFromConversation } = useRealtime();
   const { toast } = useToast();
   const [cancelingSession, setCancelingSession] = useState<string | null>(null);
@@ -164,6 +164,36 @@ export default function SchedulePage() {
       previousSessionsRef.current = [...sessions];
     }
   }, [sessions, loadingSessions]);
+
+  // Listen for session updates from realtime events
+  useEffect(() => {
+    // Handler for session update events
+    const handleSessionUpdate = (event: CustomEvent) => {
+      // Force refresh sessions when realtime updates occur
+      refreshSessions();
+    };
+    
+    // Listen for custom events from RealtimeContext
+    window.addEventListener('session-cache-updated', handleSessionUpdate as EventListener);
+    window.addEventListener('session-list-updated', handleSessionUpdate as EventListener);
+    window.addEventListener('session-cache-forced-update', handleSessionUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('session-cache-updated', handleSessionUpdate as EventListener);
+      window.removeEventListener('session-list-updated', handleSessionUpdate as EventListener);
+      window.removeEventListener('session-cache-forced-update', handleSessionUpdate as EventListener);
+    };
+  }, [refreshSessions]);
+  
+  // Also add this right after the useEffect that loads sessions initially
+  
+  // Set up a cleanup function for the scroll position
+  useEffect(() => {
+    return () => {
+      // Clear scroll position when unmounting
+      sessionStorage.removeItem('scheduleScrollPosition');
+    };
+  }, []);
 
   const today = new Date();
   const formattedDate = new Intl.DateTimeFormat('en-US', {
