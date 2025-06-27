@@ -543,6 +543,16 @@ export function SessionRequestCard({
   const handleStartSession = async () => {
     if (!sessionId || !user) return;
     
+    // Validate that both users are ready
+    if (!(tutorReady && studentReady)) {
+      toast({
+        title: "Cannot start session",
+        description: "Both participants must be ready to start the meeting",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setUpdating(true);
 
     // Get CSRF token for API requests - force fetch a fresh token
@@ -604,8 +614,8 @@ export function SessionRequestCard({
       
       const data = await response.json();
       
-      // Redirect to meeting room
-      router.push(`/meeting/${sessionId}`);
+      // Redirect to meeting room with replace: true to prevent back navigation issues
+      router.replace(`/meeting/${sessionId}`);
     } catch (error) {
       toast({
         title: "Error",

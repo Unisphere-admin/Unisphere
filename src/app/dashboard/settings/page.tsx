@@ -40,7 +40,7 @@ const studentProfileSchema = baseProfileSchema.extend({
   intended_major: z.string().max(100, "Must be less than 100 characters").optional(),
   current_subjects: z.string().max(500, "Must be less than 500 characters")
     .optional(),
-  bio: z.string().max(500, "Bio must be less than 500 characters").optional(),
+  bio: z.string().max(2000, "Bio must be less than 2000 characters").optional(),
 });
 
 // Schema for email updates specifically
@@ -54,7 +54,7 @@ const tutorProfileSchema = baseProfileSchema.extend({
     .refine((val: string) => !isNaN(Number(val)), "Age must be a number")
     .transform((val: string) => (val === "" ? undefined : val))
     .optional(),
-  bio: z.string().max(500, "Bio must be less than 500 characters").optional(),
+  bio: z.string().max(2000, "Bio must be less than 2000 characters").optional(),
   subjects: z.array(z.string()).optional(),
   serviceCosts: z.record(z.string(), z.number()).optional(),
 });
