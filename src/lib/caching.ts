@@ -357,4 +357,175 @@ export function initCachingSystem(): void {
       clearCache: clearAllCache
     };
   }
+}
+
+/**
+ * Force update cached data with realtime updates
+ * This ensures that realtime updates always override any existing cached data
+ * 
+ * @param key Cache key
+ * @param updateFn Function that receives current cached data and returns updated data
+ * @param options Additional options
+ */
+export function updateCacheWithRealtimeData<T>(
+  key: string, 
+  updateFn: (currentData: T | null) => T,
+  options: {
+    dispatchEvent?: string;  // Optional event name to dispatch
+    logUpdate?: boolean;     // Whether to log the update (for debugging)
+  } = {}
+): void {
+  try {
+    const { dispatchEvent, logUpdate = false } = options;
+    
+    // Get current cached data
+    let cachedData: CacheItem<T> | null = null;
+    try {
+      const cachedRaw = localStorage.getItem(key);
+      if (cachedRaw) {
+        cachedData = JSON.parse(cachedRaw);
+      }
+    } catch (e) {
+      // If parsing fails, we'll create a new cache item
+    }
+    
+    // Get the current data or null
+    const currentData = cachedData?.data || null;
+    
+    // Apply the update function
+    const updatedData = updateFn(currentData);
+    
+    // Create a new cache item with the updated data
+    // Keep the original timestamp and just update the data
+    const newCacheItem: CacheItem<T> = {
+      data: updatedData,
+      timestamp: cachedData?.timestamp || Date.now(),
+      isLoading: false,
+      lastUpdated: new Date().toISOString()
+    };
+    
+    // Save to localStorage
+    localStorage.setItem(key, JSON.stringify(newCacheItem));
+    
+    // Log the update if requested
+    if (logUpdate) {
+      console.info(`[Cache] Realtime update for key: ${key}`, { 
+        before: currentData, 
+        after: updatedData 
+      });
+    }
+    
+    // Dispatch an event to notify other components about the update
+    if (dispatchEvent && typeof window !== 'undefined') {
+      const event = new CustomEvent(dispatchEvent, { detail: { key, data: updatedData } });
+      window.dispatchEvent(event);
+    }
+  } catch (error) {
+    console.warn('[Cache] Failed to update cache with realtime data:', error);
+  }
+}
+
+/**
+ * Find and update an item in an array cache
+ * Useful for updating items like sessions or messages that are stored in arrays
+ * 
+ * @param key Cache key for the array
+ * @param itemId ID of the item to update
+ * @param idField Field name to use as ID (defaults to 'id')
+ * @param updateFn Function to update the item
+ * @param options Additional options
+ */
+export function updateItemInArrayCache<T extends object>(
+  key: string,
+  itemId: string | number,
+  updateFn: (item: T) => T,
+  options: {
+    idField?: string;
+    dispatchEvent?: string;
+    logUpdate?: boolean;
+    addIfNotFound?: boolean; // Whether to add the item if not found
+    createFn?: () => T;      // Function to create a new item if not found
+  } = {}
+): void {
+  const { 
+    idField = 'id', 
+    dispatchEvent,
+    logUpdate = false,
+    addIfNotFound = false,
+    createFn
+  } = options;
+  
+  updateCacheWithRealtimeData<T[]>(
+    key,
+    (currentItems) => {
+      // Handle empty cache
+      if (!currentItems || !Array.isArray(currentItems)) {
+        if (addIfNotFound && createFn) {
+          return [createFn()];
+        }
+        return [] as T[];
+      }
+      
+      // Find the item by ID
+      const itemIndex = currentItems.findIndex((item: any) => 
+        item && item[idField] === itemId
+      );
+      
+      // Item exists, update it
+      if (itemIndex !== -1) {
+        const updatedItems = [...currentItems];
+        updatedItems[itemIndex] = updateFn(updatedItems[itemIndex]);
+        return updatedItems;
+      }
+      
+      // Item not found
+      if (addIfNotFound && createFn) {
+        // Add as new item
+        return [...currentItems, createFn()];
+      }
+      
+      // No changes
+      return currentItems;
+    },
+    { dispatchEvent, logUpdate }
+  );
+}
+
+/**
+ * Remove an item from an array cache
+ * 
+ * @param key Cache key for the array
+ * @param itemId ID of the item to remove
+ * @param idField Field name to use as ID (defaults to 'id')
+ * @param options Additional options
+ */
+export function removeItemFromArrayCache(
+  key: string,
+  itemId: string | number,
+  options: {
+    idField?: string;
+    dispatchEvent?: string;
+    logUpdate?: boolean;
+  } = {}
+): void {
+  const { 
+    idField = 'id', 
+    dispatchEvent,
+    logUpdate = false
+  } = options;
+  
+  updateCacheWithRealtimeData<any[]>(
+    key,
+    (currentItems) => {
+      if (!currentItems || !Array.isArray(currentItems)) {
+        return [] as any[];
+      }
+      
+      // Filter out the item with matching ID
+      return currentItems.filter(item => 
+        !item || item[idField] !== itemId
+      );
+    },
+    { dispatchEvent, logUpdate }
+  );
 } 

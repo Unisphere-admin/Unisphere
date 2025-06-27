@@ -4,6 +4,7 @@ import { createContext, useContext, useState, ReactNode, useCallback, useEffect 
 import { SessionRequest } from "./MessageContext";
 import { useAuth } from "./AuthContext";
 import { createClient } from "@/utils/supabase/client";
+import { CACHE_CONFIG, updateItemInArrayCache } from '@/lib/caching';
 
 interface Review {
   id: string | number;
@@ -497,6 +498,33 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     // Update active session if it matches
     if (activeSession && activeSession.id === session.id) {
       setActiveSession(session);
+    }
+    
+    // Update the sessions cache to ensure the update persists across page reloads
+    updateItemInArrayCache(
+      CACHE_CONFIG.SESSIONS_CACHE_KEY,
+      session.id,
+      () => session, // Replace completely with new session
+      {
+        logUpdate: true,
+        addIfNotFound: true, 
+        createFn: () => session
+      }
+    );
+    
+    // Also update any conversation-specific session cache if it exists
+    if (session.conversation_id) {
+      const conversationSessionsKey = `${CACHE_CONFIG.SESSIONS_CACHE_KEY}_${session.conversation_id}`;
+      updateItemInArrayCache(
+        conversationSessionsKey,
+        session.id,
+        () => session,
+        { 
+          logUpdate: true,
+          addIfNotFound: true,
+          createFn: () => session
+        }
+      );
     }
   }, [activeSession]);
 
