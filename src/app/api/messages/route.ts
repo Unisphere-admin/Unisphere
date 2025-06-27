@@ -11,80 +11,58 @@ import { withCsrfProtection } from "@/lib/csrf-next";
 
 // Force dynamic to ensure messages are never cached by Vercel
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
 
-// Reduce TTL to 15 seconds for better real-time updates while still providing caching benefits
-const CACHE_TTL = 15000; // 15 seconds TTL (reduced from 1 minute)
+// Helper function to create a response with proper cache headers
+const createApiResponse = (data: any, status = 200) => {
+  const response = NextResponse.json(data, { status });
+  
+  // Set cache control headers to prevent caching
+  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  response.headers.set('Pragma', 'no-cache');
+  response.headers.set('Expires', '0');
+  
+  return response;
+};
 
-// Helper to get cached responses or fetch new ones - use localStorage instead of in-memory cache
+// Cache recent responses to reduce database load
+const responseCache = new Map<string, { data: any, timestamp: number }>();
+// Reduce TTL to 30 seconds for better real-time updates while still providing caching benefits
+const CACHE_TTL = 30000; // 30 seconds TTL (reduced from 1 minute)
+
+// Helper to get cached responses or fetch new ones
 const getCachedOrFresh = async <T>(
   cacheKey: string,
-  fetchFn: () => Promise<T>,
-  options: { forceRefresh?: boolean } = {}
+  fetchFn: () => Promise<T>
 ): Promise<T> => {
-  // Force refresh if requested
-  if (options.forceRefresh) {
-    const result = await fetchFn();
-    
-    // Still save to cache for other components to use
-    try {
-      localStorage.setItem(cacheKey, JSON.stringify({
-        data: result,
-        timestamp: Date.now()
-      }));
-    } catch (e) {
-      // Ignore localStorage errors
-    }
-    
-    return result;
+  const now = Date.now();
+  const cached = responseCache.get(cacheKey);
+  
+  // Use cache if available and not expired
+  if (cached && (now - cached.timestamp < CACHE_TTL)) {
+    return cached.data as T;
   }
   
-  // Try to get from localStorage
-  try {
-    const cachedItem = localStorage.getItem(cacheKey);
-    
-    if (cachedItem) {
-      const { data, timestamp } = JSON.parse(cachedItem);
-      
-      // Use a very short TTL to ensure relatively fresh data
-      if (Date.now() - timestamp < CACHE_TTL) {
-        return data as T;
-      }
-    }
-    
-    // Cache miss or expired, fetch fresh data
-    const freshData = await fetchFn();
-    
-    // Save to cache
-    try {
-      localStorage.setItem(cacheKey, JSON.stringify({
-        data: freshData,
-        timestamp: Date.now()
-      }));
-    } catch (e) {
-      // Ignore localStorage errors
-    }
-    
-    return freshData;
-  } catch (error) {
-    // If anything goes wrong, just try to fetch fresh data
-    return fetchFn();
-  }
+  // Otherwise fetch fresh data
+  const result = await fetchFn();
+  
+  // Cache the new result
+  responseCache.set(cacheKey, {
+    data: result,
+    timestamp: now
+  });
+  
+  return result;
 };
 
 // Helper to invalidate cache for a specific conversation
 const invalidateConversationCache = (conversationId: string) => {
   // Remove all cache entries related to this conversation
-  try {
-    // Get all localStorage keys
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.includes(`:${conversationId}:`)) {
-        localStorage.removeItem(key);
-      }
+  Array.from(responseCache.keys()).forEach(key => {
+    if (key.includes(`:${conversationId}:`)) {
+      responseCache.delete(key);
     }
-  } catch (e) {
-    // Ignore localStorage errors
-  }
+  });
 };
 
 interface TransformedMessage {
@@ -116,9 +94,8 @@ async function getMessagesHandler(
     const before = searchParams.get('before') || undefined;
 
     if (!conversationId) {
-      return NextResponse.json({ error: 'Conversation ID is required' }, { status: 400 });
+      return createApiResponse({ error: 'Conversation ID is required' }, 400);
     }
-
 
     // Start a performance timer
     const startTime = performance.now();
@@ -207,11 +184,11 @@ async function getMessagesHandler(
     
     // Handle errors
     if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: 500 });
+      return createApiResponse({ error: result.error }, 500);
     }
 
     if (!result.conversation) {
-      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+      return createApiResponse({ error: 'Conversation not found' }, 404);
     }
 
     // Check if user is a participant
@@ -219,34 +196,28 @@ async function getMessagesHandler(
     
     // Allow premium users or tutors to access any conversation even if not a participant
     if (!isParticipant && !(user.is_tutor || user.has_access)) {
-      return NextResponse.json({ error: 'Not authorized to access this conversation' }, { status: 403 });
+      return createApiResponse({ error: 'Not authorized to access this conversation' }, 403);
     }
 
     // End the performance timer
     const endTime = performance.now();
     const processingTime = Math.round(endTime - startTime);
     
-    
     // Create response with cache tag for user
-    const response = NextResponse.json({ 
+    return createApiResponse({ 
       messages: result.transformedMessages, 
       has_more: false, // The DAL doesn't currently support pagination
       processing_time_ms: processingTime
     });
-    
-    // Add cache tag for this user to enable proper invalidation on logout
-    response.headers.set('Cache-Tag', `user-${user.id}`);
-    
-    return response;
   } catch (error) {
     const errorDetails = error instanceof Error 
       ? error.message + (error.stack ? '\n' + error.stack : '') 
       : JSON.stringify(error);
     
-    return NextResponse.json({ 
+    return createApiResponse({ 
       error: 'Internal server error', 
       details: process.env.NODE_ENV === 'development' ? errorDetails : undefined 
-    }, { status: 500 });
+    }, 500);
   }
 }
 
@@ -275,197 +246,118 @@ const broadcastMessage = async (message: Message, conversationId: string) => {
   }
 };
 
-// POST handler for messages - updated with CSRF protection
+// POST handler for sending messages
 async function postMessagesHandler(
   req: NextRequest, 
   user: AuthUser
 ): Promise<NextResponse> {
   try {
-    // Parse request body
     const body = await req.json();
-    const { conversation_id, conversationId, content, options } = body;
-
-    // Normalize conversation ID parameter (handle both conversation_id and conversationId)
-    const normalizedConversationId = conversation_id || conversationId;
-
-    // Enhanced conversation ID validation
-    if (!normalizedConversationId) {
-      return NextResponse.json({ error: "Conversation ID is required" }, { status: 400 });
+    const { conversation_id, content } = body;
+    
+    if (!conversation_id) {
+      return createApiResponse({ error: 'Conversation ID is required' }, 400);
     }
-
-    if (typeof normalizedConversationId !== 'string' || normalizedConversationId.trim() === '') {
-      return NextResponse.json({ error: "Invalid conversation ID format" }, { status: 400 });
-    }
-
-    // Validate and sanitize message content
+    
     if (!content) {
-      return NextResponse.json({ error: "Message content is required" }, { status: 400 });
-    }
-
-    const validationResult = validateText(content, { 
-      min: 1, 
-      max: 5000,
-      allowHtml: false,
-      trim: true 
-    });
-
-    if (!validationResult.valid) {
-      return NextResponse.json({ 
-        error: validationResult.error || "Invalid message content" 
-      }, { status: 400 });
-    }
-
-    // Check for potentially malicious content
-    if (checkForMaliciousContent(validationResult.value)) {
-      return NextResponse.json({ 
-        error: "Message contains invalid content" 
-      }, { status: 400 });
-    }
-
-    const sanitizedContent = validationResult.value;
-    
-    // Set the sender ID to the authenticated user's ID
-    const senderId = user.id;
-    
-    // Set options defaults if not provided
-    const messageOptions = options || { maxRetries: 1 };
-    
-    // Track retries for robust error handling
-    let retryCount = 0;
-    const maxRetries = messageOptions.maxRetries || 1;
-    
-    let message = null;
-    let error = null;
-    
-    // Retry loop for better resilience
-    while (retryCount <= maxRetries) {
-      try {
-        // Send the message
-        const result = await sendMessage(user, normalizedConversationId, senderId, sanitizedContent);
-        message = result.message;
-        error = result.error;
-        
-        // If successful or error is not retryable, break the loop
-        if (message || (error && !error.includes("network") && !error.includes("timeout"))) {
-          break;
-        }
-      } catch (err) {
-        // Store the error for better error reporting
-        error = err instanceof Error ? err.message : String(err);
-      }
-      
-      retryCount++;
-      if (retryCount <= maxRetries) {
-        // Wait before retrying (exponential backoff)
-        await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, retryCount - 1)));
-      }
+      return createApiResponse({ error: 'Message content is required' }, 400);
     }
     
-    // Handle errors after retries
+    // Validate and sanitize the message content
+    const sanitizedContent = sanitizeInput(content);
+    
+    // Basic validation for message content
+    if (!validateText(sanitizedContent)) {
+      return createApiResponse({ error: 'Invalid message content' }, 400);
+    }
+    
+    // Check for malicious content
+    if (checkForMaliciousContent(sanitizedContent)) {
+      return createApiResponse({ 
+        error: 'Message contains potentially harmful content'
+      }, 400);
+    }
+    
+    // Send the message
+    const { message, error } = await sendMessage(user, conversation_id, user.id, sanitizedContent);
+    
     if (error) {
-      
-      // Provide more specific error messages for common issues
-      if (error.includes("not found") || error.includes("doesn't exist")) {
-        return NextResponse.json({ 
-          error: "Conversation not found or no longer available" 
-        }, { status: 404 });
-      }
-      
-      if (error.includes("permission") || error.includes("not authorized") || error.includes("access")) {
-        return NextResponse.json({ 
-          error: "You don't have permission to send messages in this conversation" 
-        }, { status: 403 });
-      }
-      
-      return NextResponse.json({ error }, { status: 500 });
+      return createApiResponse({ error }, 500);
     }
-
+    
     if (!message) {
-      return NextResponse.json({ error: "Failed to send message" }, { status: 500 });
+      return createApiResponse({ error: 'Failed to send message' }, 500);
     }
-
-    // Immediately invalidate the cache for this conversation to ensure fresh data
-    invalidateConversationCache(normalizedConversationId);
-
-    // Broadcast message to realtime subscribers
-    await broadcastMessage(message, normalizedConversationId);
     
-    return NextResponse.json(message);
+    // Invalidate the conversation's message cache
+    invalidateConversationCache(conversation_id);
+    
+    // Broadcast the message to all clients
+    await broadcastMessage(message, conversation_id);
+    
+    return createApiResponse({ message });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorDetails = error instanceof Error 
+      ? error.message + (error.stack ? '\n' + error.stack : '') 
+      : JSON.stringify(error);
     
-    return NextResponse.json(
-      { error: "An unexpected error occurred", details: errorMessage },
-      { status: 500 }
-    );
+    return createApiResponse({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? errorDetails : undefined
+    }, 500);
   }
 }
 
-// Delete message handler
+// DELETE handler for messages
 async function deleteMessageHandler(
   req: NextRequest, 
   user: AuthUser
 ): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(req.url);
-    const messageId = searchParams.get('id');
-
+    const messageId = searchParams.get('message_id');
+    
     if (!messageId) {
-      return NextResponse.json({ error: 'Message ID is required' }, { status: 400 });
+      return createApiResponse({ error: 'Message ID is required' }, 400);
     }
-
-    // Get the conversation ID to invalidate its cache after deletion
-    const supabase = await createRouteHandlerClientWithCookies();
-    const { data: messageData } = await supabase
-      .from('messages')
-      .select('conversation_id')
-      .eq('id', messageId)
-      .single();
-      
-    // If we found the message, prepare to invalidate its conversation cache
-    const conversationId = messageData?.conversation_id;
-
+    
     // Delete the message
     const { success, error } = await deleteMessage(user, messageId);
+    
+    let conversationId: string | undefined;
 
+    // Handle errors
     if (error) {
-      const statusCode = error.includes('Not authorized') ? 403 : 
-                         error.includes('not found') ? 404 : 500;
-      return NextResponse.json({ error }, { status: statusCode });
+      return createApiResponse({ error }, 500);
     }
 
     if (!success) {
-      return NextResponse.json({ error: 'Failed to delete message' }, { status: 500 });
+      return createApiResponse({ error: 'Failed to delete message' }, 500);
     }
 
-    // If we have the conversation ID, invalidate its cache
-    if (conversationId) {
-      invalidateConversationCache(conversationId);
-    } else {
-      // Otherwise invalidate all message caches to be safe
-      try {
-        // Get all localStorage keys
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('messages:')) {
-            localStorage.removeItem(key);
-          }
+    // If deletion was successful, get the conversation ID from the message cache
+    // or we could just invalidate all message caches
+    // Invalidate all message caches to be safe
+    Array.from(responseCache.keys()).forEach(key => {
+      if (key.startsWith('messages:')) {
+        const parts = key.split(':');
+        if (parts.length > 1) {
+          conversationId = parts[1];
         }
-      } catch (e) {
-        // Ignore localStorage errors
+        responseCache.delete(key);
       }
-    }
-
-    return NextResponse.json({ success: true });
+    });
+    
+    return createApiResponse({ success: success });
   } catch (error) {
     const errorDetails = error instanceof Error 
       ? error.message + (error.stack ? '\n' + error.stack : '') 
       : JSON.stringify(error);
     
-    return NextResponse.json({ 
-      error: 'Internal server error', 
-      details: process.env.NODE_ENV === 'development' ? errorDetails : undefined 
-    }, { status: 500 });
+    return createApiResponse({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? errorDetails : undefined
+    }, 500);
   }
 }
 

@@ -683,116 +683,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       const userType = user.role === 'tutor' ? 'tutor' : 'student';
       const cacheKey = `user_sessions:${user.id}:${userType}`;
       
-      // Update in localStorage directly
-      try {
-        // Update user sessions cache
-        const userSessionsKey = `user_sessions:${user.id}:${userType}`;
-        const cachedUserSessionsData = localStorage.getItem(userSessionsKey);
-        
-        if (cachedUserSessionsData) {
-          const parsedData = JSON.parse(cachedUserSessionsData);
-          if (parsedData.data && parsedData.data.sessions) {
-            // Check if session already exists
-            const exists = parsedData.data.sessions.some((s: any) => s.id === session.id);
-            let updatedSessions;
-            
-            if (exists) {
-              // Update existing session
-              updatedSessions = parsedData.data.sessions.map((s: any) => 
-                s.id === session.id ? { ...s, ...session } : s
-              );
-            } else {
-              // Add new session
-              updatedSessions = [...parsedData.data.sessions, session];
-            }
-            
-            // Save updated data
-            localStorage.setItem(userSessionsKey, JSON.stringify({
-              ...parsedData,
-              data: {
-                ...parsedData.data,
-                sessions: updatedSessions
-              },
-              timestamp: Date.now()
-            }));
-          }
-        }
-        
-        // Update global sessions cache
-        const globalSessionsKey = CACHE_CONFIG.SESSIONS_CACHE_KEY;
-        const cachedGlobalSessionsData = localStorage.getItem(globalSessionsKey);
-        
-        if (cachedGlobalSessionsData) {
-          const parsedData = JSON.parse(cachedGlobalSessionsData);
-          if (parsedData.data) {
-            // Check if session already exists
-            const exists = parsedData.data.some((s: any) => s.id === session.id);
-            let updatedSessions;
-            
-            if (exists) {
-              // Update existing session
-              updatedSessions = parsedData.data.map((s: any) => 
-                s.id === session.id ? { ...s, ...session } : s
-              );
-            } else {
-              // Add new session
-              updatedSessions = [...parsedData.data, session];
-            }
-            
-            // Save updated data
-            localStorage.setItem(globalSessionsKey, JSON.stringify({
-              ...parsedData,
-              data: updatedSessions,
-              timestamp: Date.now()
-            }));
-          }
-        }
-        
-        // Update conversation sessions cache
-        if (session.conversation_id) {
-          const conversationSessionsKey = `sessions:${session.conversation_id}`;
-          const cachedConversationSessionsData = localStorage.getItem(conversationSessionsKey);
-          
-          if (cachedConversationSessionsData) {
-            const parsedData = JSON.parse(cachedConversationSessionsData);
-            if (parsedData.data && parsedData.data.sessions) {
-              // Check if session already exists
-              const exists = parsedData.data.sessions.some((s: any) => s.id === session.id);
-              let updatedSessions;
-              
-              if (exists) {
-                // Update existing session
-                updatedSessions = parsedData.data.sessions.map((s: any) => 
-                  s.id === session.id ? { ...s, ...session } : s
-                );
-              } else {
-                // Add new session
-                updatedSessions = [...parsedData.data.sessions, session];
-              }
-              
-              // Save updated data
-              localStorage.setItem(conversationSessionsKey, JSON.stringify({
-                ...parsedData,
-                data: {
-                  ...parsedData.data,
-                  sessions: updatedSessions
-                },
-                timestamp: Date.now()
-              }));
-            }
-          }
-        }
-        
-        // Trigger session updated event so other tabs will know to refresh
-        localStorage.setItem('session_updated', JSON.stringify({
-          id: session.id,
-          timestamp: Date.now()
-        }));
-      } catch (e) {
-        // Ignore localStorage errors
-      }
-      
-      // Also use updateCache for backward compatibility
       updateCache<{ sessions: ActiveSession[], error: string | null }>(cacheKey, (currentData) => {
         if (!currentData) {
           // Create new cache entry if none exists
@@ -818,6 +708,55 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           };
         }
       });
+      
+      // Also update the global sessions cache
+      updateCache<ActiveSession[]>(CACHE_CONFIG.SESSIONS_CACHE_KEY, (currentSessions) => {
+        if (!currentSessions) {
+          return [session];
+        }
+        
+        // Check if session already exists
+        const exists = currentSessions.some(s => s.id === session.id);
+        if (exists) {
+          // Update existing session
+          return currentSessions.map(s => s.id === session.id ? { ...s, ...session } : s);
+        } else {
+          // Add new session
+          return [...currentSessions, session];
+        }
+      });
+      
+      // If session has conversation_id, update that cache too
+      if (session.conversation_id) {
+        const conversationCacheKey = `sessions:${session.conversation_id}`;
+        updateCache<{ sessions: ActiveSession[], error: string | null }>(
+          conversationCacheKey,
+          (currentData) => {
+            if (!currentData) {
+              return {
+                sessions: [session],
+                error: null
+              };
+            }
+            
+            // Check if session already exists
+            const exists = currentData.sessions.some(s => s.id === session.id);
+            if (exists) {
+              // Update existing session
+              return {
+                ...currentData,
+                sessions: currentData.sessions.map(s => s.id === session.id ? { ...s, ...session } : s)
+              };
+            } else {
+              // Add new session
+              return {
+                ...currentData,
+                sessions: [...currentData.sessions, session]
+              };
+            }
+          }
+        );
+      }
     }
   }, [user]);
 

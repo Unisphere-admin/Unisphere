@@ -654,144 +654,12 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     
     // Immediately update browser cache with the realtime data
     try {
-      // 1. Update session by ID cache in localStorage
-      try {
-        const sessionCacheKey = `session:${updatedSession.id}`;
-        const cachedSessionData = localStorage.getItem(sessionCacheKey);
-        
-        if (cachedSessionData) {
-          const parsedData = JSON.parse(cachedSessionData);
-          if (parsedData.data) {
-            // Merge new data over existing data
-            const updatedData = {
-              ...parsedData,
-              data: {
-                ...parsedData.data,
-                session: {
-                  ...parsedData.data.session,
-                  ...updatedSession,
-                }
-              }
-            };
-            
-            localStorage.setItem(sessionCacheKey, JSON.stringify(updatedData));
-          }
-        }
-      } catch (e) {
-        // Ignore localStorage errors
-      }
-      
-      // 2. Update all sessions cache in localStorage
-      if (updatedSession.conversation_id) {
-        try {
-          const sessionsCacheKey = `sessions:${updatedSession.conversation_id}`;
-          const cachedSessionsData = localStorage.getItem(sessionsCacheKey);
-          
-          if (cachedSessionsData) {
-            const parsedData = JSON.parse(cachedSessionsData);
-            if (parsedData.data && parsedData.data.sessions) {
-              // Update the specific session in the array
-              const updatedData = {
-                ...parsedData,
-                data: {
-                  ...parsedData.data,
-                  sessions: parsedData.data.sessions.map((s: any) => 
-                    s.id === updatedSession.id ? { ...s, ...updatedSession } : s
-                  )
-                }
-              };
-              
-              localStorage.setItem(sessionsCacheKey, JSON.stringify(updatedData));
-            }
-          }
-        } catch (e) {
-          // Ignore localStorage errors
-        }
-      }
-      
-      // 3. Update user sessions caches in localStorage
-      if (updatedSession.tutor_id) {
-        try {
-          const tutorSessionsCacheKey = `user_sessions:${updatedSession.tutor_id}:tutor`;
-          const cachedTutorSessionsData = localStorage.getItem(tutorSessionsCacheKey);
-          
-          if (cachedTutorSessionsData) {
-            const parsedData = JSON.parse(cachedTutorSessionsData);
-            if (parsedData.data && parsedData.data.sessions) {
-              // Update the specific session in the array
-              const updatedData = {
-                ...parsedData,
-                data: {
-                  ...parsedData.data,
-                  sessions: parsedData.data.sessions.map((s: any) => 
-                    s.id === updatedSession.id ? { ...s, ...updatedSession } : s
-                  )
-                }
-              };
-              
-              localStorage.setItem(tutorSessionsCacheKey, JSON.stringify(updatedData));
-            }
-          }
-        } catch (e) {
-          // Ignore localStorage errors
-        }
-      }
-      
-      if (updatedSession.student_id) {
-        try {
-          const studentSessionsCacheKey = `user_sessions:${updatedSession.student_id}:student`;
-          const cachedStudentSessionsData = localStorage.getItem(studentSessionsCacheKey);
-          
-          if (cachedStudentSessionsData) {
-            const parsedData = JSON.parse(cachedStudentSessionsData);
-            if (parsedData.data && parsedData.data.sessions) {
-              // Update the specific session in the array
-              const updatedData = {
-                ...parsedData,
-                data: {
-                  ...parsedData.data,
-                  sessions: parsedData.data.sessions.map((s: any) => 
-                    s.id === updatedSession.id ? { ...s, ...updatedSession } : s
-                  )
-                }
-              };
-              
-              localStorage.setItem(studentSessionsCacheKey, JSON.stringify(updatedData));
-            }
-          }
-        } catch (e) {
-          // Ignore localStorage errors
-        }
-      }
-      
-      // 4. Update the global sessions cache
-      try {
-        const globalSessionsCacheKey = CACHE_CONFIG.SESSIONS_CACHE_KEY;
-        const cachedGlobalSessionsData = localStorage.getItem(globalSessionsCacheKey);
-        
-        if (cachedGlobalSessionsData) {
-          const parsedData = JSON.parse(cachedGlobalSessionsData);
-          if (parsedData.data) {
-            // Update the specific session in the array
-            const updatedData = {
-              ...parsedData,
-              data: parsedData.data.map((s: any) => 
-                s.id === updatedSession.id ? { ...s, ...updatedSession } : s
-              )
-            };
-            
-            localStorage.setItem(globalSessionsCacheKey, JSON.stringify(updatedData));
-          }
-        }
-      } catch (e) {
-        // Ignore localStorage errors
-      }
-      
-      // Also use the existing updateCache utility for backward compatibility
+      // 1. Update session by ID cache
       updateCache<{ session: any, error: string | null }>(
         `session:${updatedSession.id}`,
         (currentData) => {
           if (!currentData) return null;
+          // Merge new data over existing data to ensure all fields are updated
           return {
             ...currentData,
             session: {
@@ -802,6 +670,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         }
       );
       
+      // 2. Update all sessions cache
       if (updatedSession.conversation_id) {
         updateCache<{ sessions: any[], error: string | null }>(
           `sessions:${updatedSession.conversation_id}`,
@@ -817,6 +686,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         );
       }
       
+      // 3. Update user sessions caches
       if (updatedSession.tutor_id) {
         updateCache<{ sessions: any[], error: string | null }>(
           `user_sessions:${updatedSession.tutor_id}:tutor`,
@@ -847,6 +717,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         );
       }
       
+      // 4. Update the global sessions cache
       updateCache<any[]>(
         CACHE_CONFIG.SESSIONS_CACHE_KEY,
         (currentSessions) => {
