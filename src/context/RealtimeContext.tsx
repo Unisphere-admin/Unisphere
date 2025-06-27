@@ -331,6 +331,44 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         if (!supabaseRef.current) {
           supabaseRef.current = createClient();
           setConnected(true);
+          
+          // Set up a token refresh interval to prevent token expiration
+          const refreshInterval = setInterval(async () => {
+            try {
+              if (!supabaseRef.current) return;
+              
+              // Get the current session
+              const { data: { session } } = await supabaseRef.current.auth.getSession();
+              
+              if (session) {
+                // Get expiry time from JWT
+                const payload = JSON.parse(atob(session.access_token.split('.')[1]));
+                const expiresAt = payload.exp * 1000; // Convert to milliseconds
+                const now = Date.now();
+                
+                // If token expires in less than 5 minutes, refresh it
+                if (expiresAt - now < 5 * 60 * 1000) {
+                  await supabaseRef.current.auth.refreshSession();
+                  
+                  // After refreshing, reconnect all channels
+                  Object.entries(channelsRef.current).forEach(([key, channel]) => {
+                    if (key !== 'conversation-changes' && typeof channel?.subscribe === 'function') {
+                      try {
+                        // Resubscribe to refresh the connection with new token
+                        channel.subscribe();
+                      } catch (error) {
+                        console.warn(`Failed to reconnect channel ${key}:`, error);
+                      }
+                    }
+                  });
+                }
+              }
+            } catch (error) {
+              console.warn("Failed to refresh token:", error);
+            }
+          }, 4 * 60 * 1000); // Check every 4 minutes
+          
+          return () => clearInterval(refreshInterval);
         }
       } else {
         // Clean up any existing channels when premium access is revoked
@@ -343,6 +381,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
                 channel.unsubscribe();
               }
             } catch (error) {
+              // Ignore errors during cleanup
             }
           });
           
@@ -813,6 +852,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
           }
           delete channelsRef.current[conversationId];
         } catch (e) {
+          // Ignore cleanup errors
         }
       }
     }
@@ -821,18 +861,54 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     const channelName = `tutoring_session:conversation:${conversationId}`;
     
     try {
+      // Ensure token is fresh by checking the session
+      try {
+        const { data: { session } } = await supabaseRef.current.auth.getSession();
+        
+        if (session) {
+          // Get expiry time from JWT
+          const payload = JSON.parse(atob(session.access_token.split('.')[1]));
+          const expiresAt = payload.exp * 1000; // Convert to milliseconds
+          const now = Date.now();
+          
+          // If token expires in less than 5 minutes, refresh it
+          if (expiresAt - now < 5 * 60 * 1000) {
+            await supabaseRef.current.auth.refreshSession();
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to refresh token before subscription:", error);
+      }
+      
       // Create and subscribe to the channel
       const channel = supabaseRef.current.channel(channelName)
         .on('broadcast', { event: 'message' }, (payload: { payload: RealtimeMessage }) => {
           // Wrap the async call in a function that catches errors
           handleRealtimeMessage(payload).catch(err => {
+            console.warn("Error handling realtime message:", err);
           });
         })
         .on('broadcast', { event: 'session_update' }, handleSessionUpdate)
         .on('broadcast', { event: 'session_list_update' }, handleSessionListUpdate)
         .on('broadcast', { event: 'typing' }, handleTypingIndicator)
-        .subscribe((status: string) => {
+        .on('error', (error: any) => {
+          console.error(`Channel error for ${conversationId}:`, error);
           
+          // If we get a token error, try to refresh and reconnect
+          if (error?.message?.includes('JWT') || error?.message?.includes('token')) {
+            supabaseRef.current?.auth.refreshSession()
+              .then(() => {
+                // Try to resubscribe after token refresh
+                if (channel) {
+                  channel.subscribe();
+                }
+              })
+              .catch((refreshError: Error) => {
+                console.error("Failed to refresh token after error:", refreshError);
+              });
+          }
+        })
+        .subscribe((status: string) => {
           // Update subscribed channels list for UI
           if (status === 'SUBSCRIBED') {
             setSubscribedChannels(prev => 
@@ -849,6 +925,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       // Return the channel so it can be used for unsubscription
       return channel;
     } catch (error) {
+      console.error(`Failed to subscribe to conversation ${conversationId}:`, error);
       return null;
     }
   }, [user, handleRealtimeMessage, handleSessionUpdate, handleSessionListUpdate, handleTypingIndicator, hasPremiumAccess, checkPremiumAccess]);
@@ -1000,13 +1077,32 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
   }, []);
   
   // Broadcast a message to all subscribers
-  const broadcastMessage = useCallback((message: RealtimeMessage) => {
+  const broadcastMessage = useCallback(async (message: RealtimeMessage) => {
     if (!supabaseRef.current || !message.conversation_id) return;
     
     const conversationId = message.conversation_id;
     const channelName = `tutoring_session:conversation:${conversationId}`;
     
     try {
+      // Ensure token is fresh before broadcasting
+      try {
+        const { data: { session } } = await supabaseRef.current.auth.getSession();
+        
+        if (session) {
+          // Get expiry time from JWT
+          const payload = JSON.parse(atob(session.access_token.split('.')[1]));
+          const expiresAt = payload.exp * 1000; // Convert to milliseconds
+          const now = Date.now();
+          
+          // If token expires in less than 5 minutes, refresh it
+          if (expiresAt - now < 5 * 60 * 1000) {
+            await supabaseRef.current.auth.refreshSession();
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to refresh token before broadcast:", error);
+      }
+      
       // Get existing channel or create a new one
       let channel = channelsRef.current[conversationId];
       
@@ -1014,6 +1110,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       if (!channel) {
         channel = supabaseRef.current.channel(channelName);
         channel.subscribe((status: string) => {
+          console.log(`Channel ${channelName} status: ${status}`);
         });
         channelsRef.current[conversationId] = channel;
       }
@@ -1026,17 +1123,37 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       });
       
     } catch (error) {
+      console.error("Error broadcasting message:", error);
     }
   }, []);
 
   // Broadcast a session update
-  const broadcastSessionUpdate = useCallback((session: RealtimeSession) => {
+  const broadcastSessionUpdate = useCallback(async (session: RealtimeSession) => {
     if (!supabaseRef.current || !session.conversation_id) return;
     
     const conversationId = session.conversation_id;
     const channelName = `tutoring_session:conversation:${conversationId}`;
     
     try {
+      // Ensure token is fresh before broadcasting
+      try {
+        const { data: { session: authSession } } = await supabaseRef.current.auth.getSession();
+        
+        if (authSession) {
+          // Get expiry time from JWT
+          const payload = JSON.parse(atob(authSession.access_token.split('.')[1]));
+          const expiresAt = payload.exp * 1000; // Convert to milliseconds
+          const now = Date.now();
+          
+          // If token expires in less than 5 minutes, refresh it
+          if (expiresAt - now < 5 * 60 * 1000) {
+            await supabaseRef.current.auth.refreshSession();
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to refresh token before broadcast:", error);
+      }
+      
       // Get existing channel or create a new one
       let channel = channelsRef.current[conversationId];
       
@@ -1044,28 +1161,49 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       if (!channel) {
         channel = supabaseRef.current.channel(channelName);
         channel.subscribe((status: string) => {
+          console.log(`Channel ${channelName} status: ${status}`);
         });
         channelsRef.current[conversationId] = channel;
       }
       
       // Send the broadcast
-          channel.send({
-            type: 'broadcast',
+      channel.send({
+        type: 'broadcast',
         event: 'session_update',
         payload: { session }
       });
       
     } catch (error) {
+      console.error("Error broadcasting session update:", error);
     }
   }, []);
 
   // Broadcast a typing indicator
-  const broadcastTypingIndicator = useCallback((conversationId: string, isTyping: boolean) => {
+  const broadcastTypingIndicator = useCallback(async (conversationId: string, isTyping: boolean) => {
     if (!supabaseRef.current || !conversationId || !user) return;
     
     const channelName = `tutoring_session:conversation:${conversationId}`;
     
     try {
+      // Ensure token is fresh before broadcasting
+      try {
+        const { data: { session } } = await supabaseRef.current.auth.getSession();
+        
+        if (session) {
+          // Get expiry time from JWT
+          const payload = JSON.parse(atob(session.access_token.split('.')[1]));
+          const expiresAt = payload.exp * 1000; // Convert to milliseconds
+          const now = Date.now();
+          
+          // If token expires in less than 5 minutes, refresh it
+          if (expiresAt - now < 5 * 60 * 1000) {
+            await supabaseRef.current.auth.refreshSession();
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to refresh token before typing indicator broadcast:", error);
+      }
+      
       // Get existing channel or create a new one
       let channel = channelsRef.current[conversationId];
       
@@ -1073,6 +1211,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       if (!channel) {
         channel = supabaseRef.current.channel(channelName);
         channel.subscribe((status: string) => {
+          console.log(`Channel ${channelName} status: ${status}`);
         });
         channelsRef.current[conversationId] = channel;
       }
@@ -1091,6 +1230,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       });
       
     } catch (error) {
+      console.error("Error broadcasting typing indicator:", error);
     }
   }, [user]);
 
