@@ -704,21 +704,42 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       } as ActiveSession;
       
       sessionContext.updateSession(convertedSession);
-      } else {
+    } else {
       // Fall back to refreshing all sessions
       if (sessionContext.refreshSessions) {
         sessionContext.refreshSessions();
       }
     }
+
+    // Trigger cache invalidation across tabs using localStorage
+    try {
+      // Store timestamp to ensure the event is unique
+      localStorage.setItem('session_cache_invalidated', Date.now().toString());
+    } catch (e) {
+      // Silently handle localStorage errors
+    }
   }, [sessionContext, user, showNotification]);
 
   // Handle session list update events  
   const handleSessionListUpdate = useCallback(() => {
-    
-    // We no longer need to refresh the entire session list
-    // Individual session updates are already handled by handleSessionUpdate
-    // This reduces unnecessary API calls
-  }, []);
+    // Trigger a cache invalidation and session refresh
+    if (sessionContext?.refreshSessions) {
+      sessionContext.refreshSessions();
+    }
+
+    // Dispatch a custom event to notify other components about the update
+    if (typeof window !== 'undefined') {
+      const customEvent = new CustomEvent('session-list-updated');
+      window.dispatchEvent(customEvent);
+    }
+
+    // Also trigger cache invalidation across tabs using localStorage
+    try {
+      localStorage.setItem('session_cache_invalidated', Date.now().toString());
+    } catch (e) {
+      // Silently handle localStorage errors
+    }
+  }, [sessionContext]);
   
   // Handle typing indicator events
   const handleTypingIndicator = useCallback((payload: { payload: TypingIndicatorPayload }) => {

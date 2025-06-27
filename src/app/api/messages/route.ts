@@ -14,7 +14,8 @@ export const dynamic = 'force-dynamic';
 
 // Cache recent responses to reduce database load
 const responseCache = new Map<string, { data: any, timestamp: number }>();
-const CACHE_TTL = 900000; // 15 minutes TTL for cache (was 10 seconds)
+// Reduce TTL to 1 minute for better real-time updates while still providing caching benefits
+const CACHE_TTL = 60000; // 1 minute TTL (reduced from 15 minutes)
 
 // Helper to get cached responses or fetch new ones
 const getCachedOrFresh = async <T>(
@@ -39,6 +40,16 @@ const getCachedOrFresh = async <T>(
   });
   
   return result;
+};
+
+// Helper to invalidate cache for a specific conversation
+const invalidateConversationCache = (conversationId: string) => {
+  // Remove all cache entries related to this conversation
+  Array.from(responseCache.keys()).forEach(key => {
+    if (key.includes(`:${conversationId}:`)) {
+      responseCache.delete(key);
+    }
+  });
 };
 
 interface TransformedMessage {
@@ -77,8 +88,9 @@ async function getMessagesHandler(
     // Start a performance timer
     const startTime = performance.now();
 
-    // Create a cache key based on request parameters
-    const cacheKey = `messages:${conversationId}:${limit}:${before || 'latest'}`;
+    // Create a more specific cache key based on request parameters and user ID
+    // Including user ID ensures different users get different caches
+    const cacheKey = `messages:${conversationId}:${limit}:${before || 'latest'}:${user.id}`;
 
     // Get the data from cache or fresh from database
     const result = await getCachedOrFresh(cacheKey, async () => {
@@ -337,6 +349,9 @@ async function postMessagesHandler(
       return NextResponse.json({ error: "Failed to send message" }, { status: 500 });
     }
 
+    // Immediately invalidate the cache for this conversation to ensure fresh data
+    invalidateConversationCache(normalizedConversationId);
+
     // Broadcast message to realtime subscribers
     await broadcastMessage(message, normalizedConversationId);
     
@@ -364,15 +379,17 @@ async function deleteMessageHandler(
       return NextResponse.json({ error: 'Message ID is required' }, { status: 400 });
     }
 
+    // Get the conversation ID to invalidate its cache after deletion
+    const supabase = await createRouteHandlerClientWithCookies();
+    const { data: messageData } = await supabase
+      .from('messages')
+      .select('conversation_id')
+      .eq('id', messageId)
+      .single();
+      
+    // If we found the message, prepare to invalidate its conversation cache
+    const conversationId = messageData?.conversation_id;
 
-    // Invalidate the messages cache
-    // This needs to be more generic since we don't know the conversation ID yet
-    Array.from(responseCache.entries()).forEach(([key, _]) => {
-      if (key.startsWith('messages:')) {
-        responseCache.delete(key);
-      }
-    });
-    
     // Delete the message
     const { success, error } = await deleteMessage(user, messageId);
 
@@ -384,6 +401,18 @@ async function deleteMessageHandler(
 
     if (!success) {
       return NextResponse.json({ error: 'Failed to delete message' }, { status: 500 });
+    }
+
+    // If we have the conversation ID, invalidate its cache
+    if (conversationId) {
+      invalidateConversationCache(conversationId);
+    } else {
+      // Otherwise invalidate all message caches to be safe
+      Array.from(responseCache.keys()).forEach(key => {
+        if (key.startsWith('messages:')) {
+          responseCache.delete(key);
+        }
+      });
     }
 
     return NextResponse.json({ success: true });

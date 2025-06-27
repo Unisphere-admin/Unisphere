@@ -24,7 +24,8 @@ export const dynamic = 'force-dynamic';
 
 // Cache recent responses to reduce database load
 const responseCache = new Map<string, { data: any, timestamp: number }>();
-const CACHE_TTL = 900000; // 15 minutes TTL for cache (was 10 seconds)
+// Reduce TTL to 1 minute for better real-time updates while still providing caching benefits
+const CACHE_TTL = 60000; // 1 minute TTL (reduced from 15 minutes)
 
 // Helper to get cached responses or fetch new ones
 const getCachedOrFresh = async <T>(
@@ -100,26 +101,56 @@ const broadcastUpdate = async (session: ExtendedTutoringSession) => {
       }
     });
     
-    // We no longer need to send a list update broadcast
-    // This prevents unnecessary API calls to refresh the entire session list
+    // Also broadcast to update session lists for all participants
+    channel.send({
+      type: 'broadcast',
+      event: 'session_list_update',
+      payload: { 
+        updated: true,
+        timestamp: Date.now()
+      }
+    });
   } catch (error) {
     // Silently handle error - don't break API response for broadcast failures
   }
 };
 
-// Helper to invalidate cache for a conversation's sessions
-const invalidateSessionCache = (conversationId: string) => {
+// Enhanced cache invalidation for sessions
+const invalidateSessionCache = (conversationId: string, sessionId?: string, userId?: string) => {
   // Remove conversation sessions from cache
-  const cacheKey = `sessions:${conversationId}`;
-  responseCache.delete(cacheKey);
+  const conversationCacheKey = `sessions:${conversationId}`;
+  responseCache.delete(conversationCacheKey);
+  
+  // Invalidate specific session cache if provided
+  if (sessionId) {
+    const sessionCacheKey = `session:${sessionId}`;
+    responseCache.delete(sessionCacheKey);
+  }
+  
+  // Invalidate user session caches if affected
+  if (userId) {
+    // Both tutor and student types might be affected
+    responseCache.delete(`user_sessions:${userId}:tutor`);
+    responseCache.delete(`user_sessions:${userId}:student`);
+  }
   
   // Find and remove any individual session cache entries for this conversation
-  // Convert the Map entries to an array to avoid iteration issues
   Array.from(responseCache.entries()).forEach(([key, value]) => {
-    if (key.startsWith('session:') && value.data?.session?.conversation_id === conversationId) {
+    // Check if this cache entry is related to the conversation
+    if (key.startsWith('session:') && 
+        (value.data?.session?.conversation_id === conversationId ||
+         value.data?.sessions?.some((s: any) => s.conversation_id === conversationId))) {
+      responseCache.delete(key);
+    }
+    
+    // Also clear session lists that might contain this session
+    if (key.startsWith('user_sessions:') || key === 'cached_sessions') {
       responseCache.delete(key);
     }
   });
+  
+  // Also clear CACHE_CONFIG.SESSIONS_CACHE_KEY from browser cache via localStorage
+  // This must be done on the client side, so we trigger it via the broadcast
 };
 
 // Helper function to get other user's tokens via edge function
@@ -179,7 +210,14 @@ async function getTutoringSessionsHandler(
     
     // If session ID is provided, get a specific session by ID
     if (sessionId) {
-      const { session, error } = await getSessionById(user, sessionId);
+      // Create a cache key that includes user ID to prevent cache conflicts
+      const cacheKey = `session:${sessionId}:${user.id}`;
+      
+      const result = await getCachedOrFresh(cacheKey, async () => {
+        return await getSessionById(user, sessionId);
+      });
+      
+      const { session, error } = result;
       
       if (error) {
         return NextResponse.json({ error: 'Failed to fetch session' }, { status: 500 });
@@ -210,7 +248,14 @@ async function getTutoringSessionsHandler(
         }, { status: 403 });
       }
       
-      const { sessions, error } = await getUserSessions(userId, userType as 'tutor' | 'student');
+      // Create a cache key that includes user ID and user type
+      const cacheKey = `user_sessions:${userId}:${userType}`;
+      
+      const result = await getCachedOrFresh(cacheKey, async () => {
+        return await getUserSessions(userId, userType as 'tutor' | 'student');
+      });
+      
+      const { sessions, error } = result;
       
       if (error) {
         return NextResponse.json({ error }, { status: 500 });
@@ -224,7 +269,14 @@ async function getTutoringSessionsHandler(
     
     // If message ID is provided, get the session associated with that message
     if (messageId) {
-      const { sessions, error } = await getSessionsByMessageId(messageId);
+      // Create a cache key that includes the message ID and user ID
+      const cacheKey = `message_sessions:${messageId}:${user.id}`;
+      
+      const result = await getCachedOrFresh(cacheKey, async () => {
+        return await getSessionsByMessageId(messageId);
+      });
+      
+      const { sessions, error } = result;
       
       if (error) {
         return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
@@ -258,8 +310,13 @@ async function getTutoringSessionsHandler(
     }
     
     try {
-      // Direct call to getSessionsByConversation with only the conversationId parameter
-      const result = await getSessionsByConversation(conversationId);
+      // Create a cache key that includes the conversation ID and user ID
+      const cacheKey = `sessions:${conversationId}:${user.id}`;
+      
+      const result = await getCachedOrFresh(cacheKey, async () => {
+        // Direct call to getSessionsByConversation with only the conversationId parameter
+        return await getSessionsByConversation(conversationId);
+      });
       
       if (result.error) {
         return NextResponse.json({ error: result.error }, { status: 500 });
@@ -355,9 +412,18 @@ async function postTutoringSessionsHandler(
       return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
     }
     
-    // Invalidate cache for this conversation
+    // Invalidate all relevant caches
     if (session) {
-      invalidateSessionCache(conversation_id);
+      invalidateSessionCache(
+        conversation_id,
+        session.id,
+        student_id  // Invalidate student's caches
+      );
+      
+      // Also invalidate tutor's caches
+      if (user.id) {
+        invalidateSessionCache(conversation_id, session.id, user.id);
+      }
       
       // Broadcast the update with the extended interface
       await broadcastUpdate(session as ExtendedTutoringSession);
@@ -387,6 +453,24 @@ async function patchTutoringSessionsHandler(
       }, { status: 400 });
     }
     
+    // Get the session details to find conversation ID for cache invalidation
+    const supabase = await createRouteHandlerClientWithCookies();
+    const { data: sessionData } = await supabase
+      .from('tutoring_session')
+      .select('conversation_id, tutor_id, student_id, cost')
+      .eq('id', session_id)
+      .single();
+      
+    if (!sessionData) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+    
+    // Store participants for cache invalidation
+    const participantIds = [
+      sessionData.tutor_id, 
+      sessionData.student_id
+    ].filter(Boolean);
+    
     let response;
     
     // Handle different actions
@@ -398,44 +482,33 @@ async function patchTutoringSessionsHandler(
         
         // If accepting a session, check student's tokens against the session cost
         if (status === 'accepted') {
-          // Get the session details to find student ID and cost
-          const client = await createRouteHandlerClientWithCookies();
-          const { data: sessionData } = await client
-            .from('tutoring_session')
-            .select('tutor_id, student_id, cost')
-            .eq('id', session_id)
-            .single();
+          // We already have session data from above
+          const sessionCost = sessionData.cost || 1;
             
-          if (sessionData) {
-            const sessionCost = sessionData.cost || 1;
-            
-            if (user.id === sessionData.student_id) {
-              // Student is accepting - check own tokens
-              if (user.tokens !== undefined && user.tokens < sessionCost) {
-                return NextResponse.json({ 
-                  error: `You don't have enough tokens for this session. Required: ${sessionCost}, Available: ${user.tokens}` 
-                }, { status: 400 });
-              }
-              response = await updateSessionStatus(user, session_id, status);
-            } else if (user.id === sessionData.tutor_id) {
+          if (user.id === sessionData.student_id) {
+            // Student is accepting - check own tokens
+            if (user.tokens !== undefined && user.tokens < sessionCost) {
+              return NextResponse.json({ 
+                error: `You don't have enough tokens for this session. Required: ${sessionCost}, Available: ${user.tokens}` 
+              }, { status: 400 });
+            }
+            response = await updateSessionStatus(user, session_id, status);
+          } else if (user.id === sessionData.tutor_id) {
             // Tutor is accepting - check student tokens via edge function
             const studentTokens = await getUserTokens(sessionData.student_id);
-              if (studentTokens < sessionCost) {
+            if (studentTokens < sessionCost) {
               return NextResponse.json({ 
-                  error: `Student does not have enough tokens for this session. Required: ${sessionCost}, Available: ${studentTokens}` 
+                error: `Student does not have enough tokens for this session. Required: ${sessionCost}, Available: ${studentTokens}` 
               }, { status: 400 });
             }
             
             // Pass the tokens to the updateSessionStatus function
             response = await updateSessionStatus(user, session_id, status, studentTokens);
           } else {
-              return NextResponse.json({ error: 'Not authorized to update this session' }, { status: 403 });
-            }
-          } else {
-            return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+            return NextResponse.json({ error: 'Not authorized to update this session' }, { status: 403 });
           }
         } else {
-        response = await updateSessionStatus(user, session_id, status);
+          response = await updateSessionStatus(user, session_id, status);
         }
         break;
         
@@ -447,20 +520,6 @@ async function patchTutoringSessionsHandler(
       case 'update_message_id':
         if (!message_id) {
           return NextResponse.json({ error: 'Message ID is required' }, { status: 400 });
-        }
-
-        // Update the message ID for the session
-        const supabase = await createRouteHandlerClientWithCookies();
-        
-        // First get the session details to verify user permissions
-        const { data: sessionData, error: sessionError } = await supabase
-          .from('tutoring_session')
-          .select('conversation_id, tutor_id, student_id')
-          .eq('id', session_id)
-          .single();
-
-        if (sessionError || !sessionData) {
-          return NextResponse.json({ error: 'Session not found' }, { status: 404 });
         }
 
         // Check if user is part of the session
@@ -502,13 +561,15 @@ async function patchTutoringSessionsHandler(
     
     // Invalidate cache and broadcast the update
     if (response.session) {
-      // Clear cache
-      invalidateSessionCache(response.session.conversation_id);
-      responseCache.delete(`session:${session_id}`);
+      // Clear all caches related to this session and conversation
+      invalidateSessionCache(sessionData.conversation_id, session_id);
       
-      // Also clear any user session caches that might include this session
-      responseCache.delete(`user_sessions:${response.session.tutor_id}:tutor`);
-      responseCache.delete(`user_sessions:${response.session.student_id}:student`);
+      // Also invalidate caches for all participants
+      participantIds.forEach(participantId => {
+        if (participantId) {
+          invalidateSessionCache(sessionData.conversation_id, session_id, participantId);
+        }
+      });
       
       // Broadcast the update with the extended interface
       await broadcastUpdate(response.session as ExtendedTutoringSession);

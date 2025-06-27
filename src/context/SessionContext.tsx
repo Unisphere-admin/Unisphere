@@ -152,6 +152,29 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   // Fetch user's sessions
   useEffect(() => {
     refreshSessions();
+    
+    // Set up storage event listener to handle cross-tab cache invalidation
+    const handleStorageEvent = (event: StorageEvent) => {
+      if (event.key === 'session_cache_invalidated') {
+        // Refresh sessions when another tab invalidates the cache
+        refreshSessions();
+      }
+    };
+    
+    // Add event listener for storage events
+    window.addEventListener('storage', handleStorageEvent);
+    
+    // Also listen for custom session update events from RealtimeContext
+    const handleSessionUpdate = () => {
+      refreshSessions();
+    };
+    
+    window.addEventListener('session-list-updated', handleSessionUpdate);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageEvent);
+      window.removeEventListener('session-list-updated', handleSessionUpdate);
+    };
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
   
   // Get a session by ID
