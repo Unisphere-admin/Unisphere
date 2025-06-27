@@ -760,6 +760,32 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [user]);
 
+  // Add event listener for session-updated event
+  useEffect(() => {
+    const handleSessionUpdated = (event: CustomEvent) => {
+      const updatedSession = event.detail?.session;
+      if (updatedSession && updatedSession.id) {
+        // Update the session in our state
+        updateSession(updatedSession);
+      }
+    };
+
+    // Listen for both session-updated and session-list-updated events
+    window.addEventListener('session-updated', handleSessionUpdated as EventListener);
+    
+    // The session-list-updated event should trigger a refresh
+    const handleSessionListUpdated = () => {
+      refreshSessions();
+    };
+    
+    window.addEventListener('session-list-updated', handleSessionListUpdated);
+    
+    return () => {
+      window.removeEventListener('session-updated', handleSessionUpdated as EventListener);
+      window.removeEventListener('session-list-updated', handleSessionListUpdated);
+    };
+  }, [updateSession, refreshSessions]);
+
   return (
     <SessionContext.Provider
       value={{

@@ -15,10 +15,19 @@ import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 import { createClient } from '@supabase/supabase-js';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { withCsrfProtection } from '@/lib/csrf-next';
+import { 
+  saveToCache, 
+  getFromCache, 
+  updateCache, 
+  updateItemInArrayCache, 
+  CACHE_CONFIG 
+} from '@/lib/caching';
 
-// Disable Vercel's default caching behavior
+// Export runtime config for improved performance
+
+
+// Force dynamic to ensure tutoring sessions are never cached by Vercel
 export const dynamic = 'force-dynamic';
-export const fetchCache = 'force-no-store';
 
 // Cache recent responses to reduce database load
 const responseCache = new Map<string, { data: any, timestamp: number }>();
@@ -37,48 +46,21 @@ const getCachedOrFresh = async <T>(
     sessionId?: string;
   } = {}
 ): Promise<T> => {
-  const now = Date.now();
-  const cached = responseCache.get(cacheKey);
+  const { forceRefresh = false, sessionId } = options;
   
-  // Force refresh if requested
-  if (options.forceRefresh) {
-    const result = await fetchFn();
-    responseCache.set(cacheKey, {
-      data: result,
-      timestamp: now
-    });
-    return result;
-  }
-  
-  // Check if this is a specific session being requested
-  if (options.sessionId) {
-    const lastModified = sessionLastModified.get(options.sessionId) || 0;
-    const cacheCreated = cached?.timestamp || 0;
-    
-    // If the session was modified after the cache was created, always fetch fresh
-    if (lastModified > cacheCreated) {
-      const result = await fetchFn();
-      responseCache.set(cacheKey, {
-        data: result,
-        timestamp: now
-      });
-      return result;
+  // Check browser cache first if not forcing refresh
+  if (!forceRefresh) {
+    const cachedData = getFromCache<T>(cacheKey);
+    if (cachedData) {
+      return cachedData;
     }
   }
   
-  // Use cache if available and not expired
-  if (cached && (now - cached.timestamp < CACHE_TTL)) {
-    return cached.data as T;
-  }
-  
-  // Otherwise fetch fresh data
+  // If not in browser cache or forcing refresh, fetch fresh data
   const result = await fetchFn();
   
-  // Cache the new result
-  responseCache.set(cacheKey, {
-    data: result,
-    timestamp: now
-  });
+  // Save to browser cache
+  saveToCache(cacheKey, result);
   
   return result;
 };
@@ -91,77 +73,62 @@ interface ExtendedTutoringSession extends TutoringSession {
 // Helper function to trigger a Supabase broadcast
 const broadcastUpdate = async (session: ExtendedTutoringSession) => {
   try {
-    // Record that this session was modified
-    sessionLastModified.set(session.id, Date.now());
+    // First update browser cache for this session
+    if (session.id) {
+      // Update the specific session cache
+      updateCache<ExtendedTutoringSession>(`session:${session.id}`, () => session);
+      
+      // Update the session in the sessions list cache
+      updateItemInArrayCache(
+        CACHE_CONFIG.SESSIONS_CACHE_KEY,
+        session.id,
+        () => session
+      );
+      
+      // Update in conversation sessions cache if available
+      if (session.conversation_id) {
+        updateItemInArrayCache(
+          `sessions:${session.conversation_id}`,
+          session.id,
+          () => session
+        );
+      }
+      
+      // Update in user sessions cache if available
+      if (session.tutor_id) {
+        updateItemInArrayCache(
+          `user_sessions:${session.tutor_id}:tutor`,
+          session.id,
+          () => session
+        );
+      }
+      
+      if (session.student_id) {
+        updateItemInArrayCache(
+          `user_sessions:${session.student_id}:student`,
+          session.id,
+          () => session
+        );
+      }
+    }
     
-    // Use createRouteHandlerClientWithCookies to properly await cookies
+    // Then broadcast the update via Supabase
+    if (!session.conversation_id) return;
+    
     const supabase = await createRouteHandlerClientWithCookies();
     
-    // Get the full session data directly, including the cost
-    const { data: fullSessionData, error: sessionError } = await supabase
-      .from('tutoring_session')
-      .select(`
-        *,
-        tutor_profile:tutor_id(first_name, last_name),
-        student_profile:student_id(first_name, last_name)
-      `)
-      .eq('id', session.id)
-      .single();
-      
-    if (sessionError) {
-      // Continue with existing session data if there's an error
-      console.warn('Error fetching full session data for broadcast:', sessionError);
+    // Broadcast the session update to all clients
+    try {
+      await supabase.channel(`tutoring_session:conversation:${session.conversation_id}`).send({
+        type: 'broadcast',
+        event: 'session_update',
+        payload: { session }
+      });
+    } catch (broadcastError) {
+      console.error('Error broadcasting session update:', broadcastError);
     }
-    
-    // Use the complete session data if available, otherwise use the provided session
-    const sessionToSend: ExtendedTutoringSession = fullSessionData || session;
-    
-    // Ensure cost is explicitly included
-    const sessionWithCost = {
-      ...sessionToSend,
-      cost: sessionToSend.cost !== undefined ? sessionToSend.cost : null
-    };
-    
-    // Force invalidation of this session's cache
-    responseCache.delete(`session:${session.id}`);
-    
-    // Also invalidate any user caches that might contain this session
-    if (sessionToSend.tutor_id) {
-      responseCache.delete(`user_sessions:${sessionToSend.tutor_id}:tutor`);
-    }
-    if (sessionToSend.student_id) {
-      responseCache.delete(`user_sessions:${sessionToSend.student_id}:student`);
-    }
-    
-    // Use the same channel name format as in RealtimeContext
-    const channelName = `tutoring_session:conversation:${sessionWithCost.conversation_id}`;
-    const channel = supabase.channel(channelName);
-    
-    // Subscribe to the channel before sending
-    await channel.subscribe();
-    
-    // Send the individual session update with an explicit emphasis on including the cost
-    await channel.send({
-      type: 'broadcast',
-      event: 'session_update',
-      payload: { 
-        session: sessionWithCost
-      }
-    });
-    
-    // Also broadcast to update session lists for all participants
-    channel.send({
-      type: 'broadcast',
-      event: 'session_list_update',
-      payload: { 
-        updated: true,
-        timestamp: Date.now(),
-        session_id: session.id
-      }
-    });
   } catch (error) {
-    // Log error but don't break API response for broadcast failures
-    console.error('Error broadcasting session update:', error);
+    // Silently handle error - don't break API response for broadcast failures
   }
 };
 
@@ -245,18 +212,6 @@ async function getUserTokens(userId: string): Promise<number> {
   }
 }
 
-// Helper function to create a response with proper cache headers
-const createApiResponse = (data: any, status = 200) => {
-  const response = NextResponse.json(data, { status });
-  
-  // Set cache control headers to prevent caching
-  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  response.headers.set('Pragma', 'no-cache');
-  response.headers.set('Expires', '0');
-  
-  return response;
-};
-
 // GET handler for tutoring sessions
 async function getTutoringSessionsHandler(
   req: NextRequest, 
@@ -282,30 +237,32 @@ async function getTutoringSessionsHandler(
       const { session, error } = result;
       
       if (error) {
-        return createApiResponse({ error: 'Failed to fetch session' }, 500);
+        return NextResponse.json({ error: 'Failed to fetch session' }, { status: 500 });
       }
       
       if (!session) {
-        return createApiResponse({ error: 'Session not found' }, 404);
+        return NextResponse.json({ error: 'Session not found' }, { status: 404 });
       }
       
       // Check if user is authorized to view this session
       const isAuthorized = session.tutor_id === user.id || session.student_id === user.id;
       
       if (!isAuthorized) {
-        return createApiResponse({ error: 'Not authorized to access this session' }, 403);
+        return NextResponse.json({ error: 'Not authorized to access this session' }, { status: 403 });
       }
       
-      return createApiResponse({ session });
+      const response = NextResponse.json({ session });
+      response.headers.set('Cache-Tag', `user-${user.id}`);
+      return response;
     }
     
     // If user ID is provided, get the user's sessions
     if (userId && userType) {
       // Check if the user has permission to fetch these sessions
       if (userId !== user.id && !user.is_tutor) {
-        return createApiResponse({ 
+        return NextResponse.json({ 
           error: 'Not authorized to access these sessions' 
-        }, 403);
+        }, { status: 403 });
       }
       
       // Create a cache key that includes user ID and user type
@@ -318,10 +275,13 @@ async function getTutoringSessionsHandler(
       const { sessions, error } = result;
       
       if (error) {
-        return createApiResponse({ error }, 500);
+        return NextResponse.json({ error }, { status: 500 });
       }
       
-      return createApiResponse({ sessions });
+      const response = NextResponse.json({ sessions });
+      // Add cache tag for this user to enable proper invalidation on logout
+      response.headers.set('Cache-Tag', `user-${user.id}`);
+      return response;
     }
     
     // If message ID is provided, get the session associated with that message
@@ -336,13 +296,15 @@ async function getTutoringSessionsHandler(
       const { sessions, error } = result;
       
       if (error) {
-        return createApiResponse({ error: 'Failed to fetch sessions' }, 500);
+        return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
       }
         
       // If no sessions found, return empty array
       if (!sessions || sessions.length === 0) {
-        return createApiResponse({ sessions: [] });
-      }
+        const response = NextResponse.json({ sessions: [] });
+          response.headers.set('Cache-Tag', `user-${user.id}`);
+          return response;
+        }
         
       // Check if user is authorized to view these sessions
       const isAuthorized = sessions.some(session => 
@@ -350,15 +312,18 @@ async function getTutoringSessionsHandler(
       );
       
       if (!isAuthorized) {
-        return createApiResponse({ error: 'Not authorized to access these sessions' }, 403);
+        return NextResponse.json({ error: 'Not authorized to access these sessions' }, { status: 403 });
       }
       
-      return createApiResponse({ sessions });
+      const response = NextResponse.json({ sessions });
+      // Add cache tag for this user to enable proper invalidation on logout
+      response.headers.set('Cache-Tag', `user-${user.id}`);
+      return response;
     }
     
     // Otherwise, get sessions for a conversation
     if (!conversationId) {
-      return createApiResponse({ error: 'Required parameters missing' }, 400);
+      return NextResponse.json({ error: 'Required parameters missing' }, { status: 400 });
     }
     
     try {
@@ -371,223 +336,265 @@ async function getTutoringSessionsHandler(
       }, { forceRefresh: true });
       
       if (result.error) {
-        return createApiResponse({ error: result.error }, 500);
+        return NextResponse.json({ error: result.error }, { status: 500 });
       }
       
-      return createApiResponse({ sessions: result.sessions });
+      const response = NextResponse.json({ sessions: result.sessions });
+      // Add cache tag for this user to enable proper invalidation on logout
+      response.headers.set('Cache-Tag', `user-${user.id}`);
+      return response;
     } catch (error) {
-      return createApiResponse({ error: 'Failed to fetch sessions' }, 500);
+      return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
     }
   } catch (error) {
-    return createApiResponse({ error: 'Internal server error' }, 500);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// POST handler for tutoring sessions
+// POST handler for creating tutoring sessions
 async function postTutoringSessionsHandler(
   req: NextRequest, 
   user: AuthUser
 ): Promise<NextResponse> {
   try {
     const body = await req.json();
-    const { 
-      conversation_id, 
-      message_id, 
-      tutor_id, 
-      student_id, 
-      name, 
-      scheduled_for,
-      status = "requested"
-    } = body;
+    const { conversation_id, message_id, student_id, tutor_id, scheduled_for, name, status: requestedStatus, cost } = body;
     
-    // Validate required fields
     if (!conversation_id) {
-      return createApiResponse({ error: 'Conversation ID is required' }, 400);
+      return NextResponse.json({ 
+        error: 'Conversation ID is required' 
+      }, { status: 400 });
+    }
+
+    // Ensure only tutors can create sessions - new restriction
+    if (!user.is_tutor) {
+      return NextResponse.json({ 
+        error: 'Only tutors can create tutoring sessions' 
+      }, { status: 403 });
+    }
+
+    // Create options object for optional fields
+    const options: { scheduled_for?: string; name?: string; cost?: number } = {};
+    if (scheduled_for) options.scheduled_for = scheduled_for;
+    if (name) options.name = name;
+    if (cost !== undefined) options.cost = cost;
+    
+    // No longer need to check student tokens during session creation
+    if (!student_id) {
+      return NextResponse.json({ 
+        error: 'Student ID is required when creating a session' 
+      }, { status: 400 });
     }
     
-    // Validate that status is one of the allowed values
-    const allowedStatuses = ["requested", "accepted", "started", "ended", "cancelled"];
-    if (!allowedStatuses.includes(status)) {
-      return createApiResponse({ error: 'Invalid status value' }, 400);
-    }
-    
-    // Check if the user has permission to create a session
-    // Only the tutor or student involved can create a session
-    if (tutor_id && student_id) {
-      const isAuthorized = tutor_id === user.id || student_id === user.id;
-      if (!isAuthorized) {
-        return createApiResponse({ error: 'Not authorized to create this session' }, 403);
-      }
-    }
-    
-    // If this is a tutor creating a session, check if the student has enough tokens
-    if (user.is_tutor && student_id) {
-      // Get student's tokens
-      const studentTokens = await getUserTokens(student_id);
-      
-      // Default cost is 5 tokens per session
-      const sessionCost = 5;
-      
-      if (studentTokens < sessionCost) {
-        return createApiResponse({
-          error: 'Student does not have enough tokens for this session',
-          required: sessionCost,
-          available: studentTokens
-        }, 402); // 402 Payment Required
-      }
-    }
-    
-    // Create the session
     let result;
-    if (status === "requested") {
-      // Create a session request
-      result = await createTutoringSessionRequest(
-        user,
+    
+    // Check if the tutor wants to create a request or directly accept
+    const isCreateRequest = requestedStatus === 'requested';
+    
+    // Create the session object - note that message_id may be null
+    const sessionData: any = {
+      conversation_id,
+      tutor_id: user.id, // Tutor is the current user
+      student_id,
+      status: isCreateRequest ? 'requested' : 'accepted',
+      tutor_ready: false,
+      student_ready: false
+    };
+    
+    // Add optional message_id if provided
+    if (message_id) {
+      sessionData.message_id = message_id;
+    }
+    
+    // Add other optional fields
+    if (scheduled_for) sessionData.scheduled_for = scheduled_for;
+    if (name) sessionData.name = name;
+    if (cost !== undefined) sessionData.cost = cost;
+    
+    // Create a client
+    const supabase = await createRouteHandlerClientWithCookies();
+    
+    // Insert the session
+    const { data: session, error: sessionError } = await supabase
+      .from('tutoring_session')
+      .insert(sessionData)
+      .select(`
+        *,
+        tutor_profile:tutor_id(first_name, last_name),
+        student_profile:student_id(first_name, last_name)
+      `)
+      .single();
+    
+    if (sessionError) {
+      return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
+    }
+    
+    // Invalidate all relevant caches
+    if (session) {
+      invalidateSessionCache(
         conversation_id,
-        message_id,
-        tutor_id,
-        student_id,
-        name,
-        scheduled_for
+        session.id,
+        student_id  // Invalidate student's caches
       );
+      
+      // Also invalidate tutor's caches
+      if (user.id) {
+        invalidateSessionCache(conversation_id, session.id, user.id);
+      }
+      
+      // Broadcast the update with the extended interface
+      await broadcastUpdate(session as ExtendedTutoringSession);
     } else {
-      // Create a session with the specified status
-      result = await createTutoringSession(
-        user,
-        conversation_id,
-        message_id,
-        tutor_id,
-        student_id,
-        name,
-        scheduled_for
-      );
+      return NextResponse.json({ error: "Failed to create session" }, { status: 500 });
     }
     
-    const { session, error } = result;
-    
-    if (error) {
-      return createApiResponse({ error }, 500);
-    }
-    
-    if (!session) {
-      return createApiResponse({ error: 'Failed to create session' }, 500);
-    }
-    
-    // Invalidate caches
-    invalidateSessionCache(conversation_id, undefined, user.id);
-    
-    // Broadcast the update to all clients
-    await broadcastUpdate(session);
-    
-    return createApiResponse({ session });
+    return NextResponse.json({ session });
   } catch (error) {
-    return createApiResponse({ error: 'Internal server error' }, 500);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
-// PATCH handler for tutoring sessions
+// PATCH handler for updating tutoring sessions
 async function patchTutoringSessionsHandler(
   req: NextRequest, 
   user: AuthUser
 ): Promise<NextResponse> {
   try {
     const body = await req.json();
-    const { session_id, action } = body;
+    const { session_id, action, status, message_id } = body;
     
     if (!session_id || !action) {
-      return createApiResponse({ error: 'Session ID and action are required' }, 400);
+      return NextResponse.json({ 
+        error: 'Session ID and action are required' 
+      }, { status: 400 });
     }
     
-    // Get the session to check permissions
-    const { session, error: getSessionError } = await getSessionById(user, session_id);
-    
-    if (getSessionError || !session) {
-      return createApiResponse({ error: getSessionError || 'Session not found' }, 404);
+    // Get the session details to find conversation ID for cache invalidation
+    const supabase = await createRouteHandlerClientWithCookies();
+    const { data: sessionData } = await supabase
+      .from('tutoring_session')
+      .select('conversation_id, tutor_id, student_id, cost')
+      .eq('id', session_id)
+      .single();
+      
+    if (!sessionData) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
     
-    // Check if the user has permission to update this session
-    const isAuthorized = session.tutor_id === user.id || session.student_id === user.id;
+    // Store participants for cache invalidation
+    const participantIds = [
+      sessionData.tutor_id, 
+      sessionData.student_id
+    ].filter(Boolean);
     
-    if (!isAuthorized) {
-      return createApiResponse({ error: 'Not authorized to update this session' }, 403);
-    }
-    
-    let result;
+    let response;
     
     // Handle different actions
     switch (action) {
-      case 'update_status': {
-        const { status } = body;
-        
+      case 'update_status':
         if (!status) {
-          return createApiResponse({ error: 'Status is required' }, 400);
+          return NextResponse.json({ error: 'Status is required' }, { status: 400 });
         }
         
-        // Validate that status is one of the allowed values
-        const allowedStatuses = ["requested", "accepted", "started", "ended", "cancelled"];
-        if (!allowedStatuses.includes(status)) {
-          return createApiResponse({ error: 'Invalid status value' }, 400);
-        }
-        
-        // Additional checks for specific status transitions
-        if (status === 'started') {
-          // Only tutor can start a session
-          if (user.id !== session.tutor_id) {
-            return createApiResponse({ error: 'Only the tutor can start a session' }, 403);
-          }
-          
-          // Session must be in 'accepted' status to be started
-          if (session.status !== 'accepted') {
-            return createApiResponse({ error: 'Session must be accepted before it can be started' }, 400);
-          }
-          
-          // Both participants should be ready
-          if (!session.tutor_ready || !session.student_ready) {
-            // Allow starting if tutor is ready (changed requirement)
-            if (!session.tutor_ready) {
-              return createApiResponse({ error: 'Tutor must be ready to start the session' }, 400);
+        // If accepting a session, check student's tokens against the session cost
+        if (status === 'accepted') {
+          // We already have session data from above
+          const sessionCost = sessionData.cost || 1;
+            
+          if (user.id === sessionData.student_id) {
+            // Student is accepting - check own tokens
+            if (user.tokens !== undefined && user.tokens < sessionCost) {
+              return NextResponse.json({ 
+                error: `You don't have enough tokens for this session. Required: ${sessionCost}, Available: ${user.tokens}` 
+              }, { status: 400 });
             }
+            response = await updateSessionStatus(user, session_id, status);
+          } else if (user.id === sessionData.tutor_id) {
+            // Tutor is accepting - check student tokens via edge function
+            const studentTokens = await getUserTokens(sessionData.student_id);
+            if (studentTokens < sessionCost) {
+              return NextResponse.json({ 
+                error: `Student does not have enough tokens for this session. Required: ${sessionCost}, Available: ${studentTokens}` 
+              }, { status: 400 });
+            }
+            
+            // Pass the tokens to the updateSessionStatus function
+            response = await updateSessionStatus(user, session_id, status, studentTokens);
+          } else {
+            return NextResponse.json({ error: 'Not authorized to update this session' }, { status: 403 });
           }
+        } else {
+          response = await updateSessionStatus(user, session_id, status);
+        }
+        break;
+        
+      case 'set_ready':
+        const isReady = body.is_ready === true;
+        response = await updateReadyStatus(user, session_id, isReady);
+        break;
+        
+      case 'update_message_id':
+        if (!message_id) {
+          return NextResponse.json({ error: 'Message ID is required' }, { status: 400 });
+        }
+
+        // Check if user is part of the session
+        if (sessionData.tutor_id !== user.id && sessionData.student_id !== user.id) {
+          return NextResponse.json({ error: 'Not authorized to update this session' }, { status: 403 });
+        }
+
+        // Update the message ID
+        const { data, error } = await supabase
+          .from('tutoring_session')
+          .update({ message_id })
+          .eq('id', session_id)
+          .select(`
+            *,
+            tutor_profile:tutor_id(first_name, last_name),
+            student_profile:student_id(first_name, last_name)
+          `)
+          .single();
+
+        if (error) {
+          return NextResponse.json({ error: error.message }, { status: 500 });
         }
         
-        result = await updateSessionStatus(user, session_id, status);
+        response = { session: data };
         break;
-      }
-      
-      case 'set_ready': {
-        const { is_ready } = body;
         
-        if (is_ready === undefined) {
-          return createApiResponse({ error: 'Ready status is required' }, 400);
-        }
-        
-        result = await updateReadyStatus(user, session_id, is_ready);
-        break;
-      }
-      
       default:
-        return createApiResponse({ error: 'Invalid action' }, 400);
+        return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
     
-    const { session: updatedSession, error: updateError } = result;
-    
-    if (updateError) {
-      return createApiResponse({ error: updateError }, 500);
+    // Check for auth errors first (using type checking)
+    if ('authError' in response && response.authError) {
+      return NextResponse.json({ error: response.authError }, { status: 401 });
     }
     
-    if (!updatedSession) {
-      return createApiResponse({ error: 'Failed to update session' }, 500);
+    if (response.error) {
+      return NextResponse.json({ error: response.error }, { status: 500 });
     }
     
-    // Invalidate caches
-    invalidateSessionCache(updatedSession.conversation_id, session_id, user.id);
+    // Invalidate cache and broadcast the update
+    if (response.session) {
+      // Clear all caches related to this session and conversation
+      invalidateSessionCache(sessionData.conversation_id, session_id);
+      
+      // Also invalidate caches for all participants
+      participantIds.forEach(participantId => {
+        if (participantId) {
+          invalidateSessionCache(sessionData.conversation_id, session_id, participantId);
+        }
+      });
+      
+      // Broadcast the update with the extended interface
+      await broadcastUpdate(response.session as ExtendedTutoringSession);
+    }
     
-    // Broadcast the update to all clients
-    await broadcastUpdate(updatedSession);
-    
-    return createApiResponse({ session: updatedSession });
+    return NextResponse.json({ session: response.session });
   } catch (error) {
-    return createApiResponse({ error: 'Internal server error' }, 500);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 

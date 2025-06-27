@@ -5,52 +5,41 @@ import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 import { validateText, sanitizeInput, checkForMaliciousContent } from "@/lib/validation";
 import { withCsrfProtection } from "@/lib/csrf-next";
+import { 
+  saveToCache, 
+  getFromCache, 
+  updateCache, 
+  updateItemInArrayCache, 
+  CACHE_CONFIG 
+} from '@/lib/caching';
 
 // Export runtime config for improved performance
 
 
 // Force dynamic to ensure messages are never cached by Vercel
 export const dynamic = 'force-dynamic';
-export const fetchCache = 'force-no-store';
-
-// Helper function to create a response with proper cache headers
-const createApiResponse = (data: any, status = 200) => {
-  const response = NextResponse.json(data, { status });
-  
-  // Set cache control headers to prevent caching
-  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  response.headers.set('Pragma', 'no-cache');
-  response.headers.set('Expires', '0');
-  
-  return response;
-};
 
 // Cache recent responses to reduce database load
 const responseCache = new Map<string, { data: any, timestamp: number }>();
-// Reduce TTL to 30 seconds for better real-time updates while still providing caching benefits
-const CACHE_TTL = 30000; // 30 seconds TTL (reduced from 1 minute)
+// Reduce TTL to 1 minute for better real-time updates while still providing caching benefits
+const CACHE_TTL = 60000; // 1 minute TTL (reduced from 15 minutes)
 
 // Helper to get cached responses or fetch new ones
 const getCachedOrFresh = async <T>(
   cacheKey: string,
   fetchFn: () => Promise<T>
 ): Promise<T> => {
-  const now = Date.now();
-  const cached = responseCache.get(cacheKey);
-  
-  // Use cache if available and not expired
-  if (cached && (now - cached.timestamp < CACHE_TTL)) {
-    return cached.data as T;
+  // Check browser cache first
+  const cachedData = getFromCache<T>(cacheKey);
+  if (cachedData) {
+    return cachedData;
   }
   
   // Otherwise fetch fresh data
   const result = await fetchFn();
   
   // Cache the new result
-  responseCache.set(cacheKey, {
-    data: result,
-    timestamp: now
-  });
+  saveToCache(cacheKey, result);
   
   return result;
 };
@@ -94,8 +83,9 @@ async function getMessagesHandler(
     const before = searchParams.get('before') || undefined;
 
     if (!conversationId) {
-      return createApiResponse({ error: 'Conversation ID is required' }, 400);
+      return NextResponse.json({ error: 'Conversation ID is required' }, { status: 400 });
     }
+
 
     // Start a performance timer
     const startTime = performance.now();
@@ -184,11 +174,11 @@ async function getMessagesHandler(
     
     // Handle errors
     if (result.error) {
-      return createApiResponse({ error: result.error }, 500);
+      return NextResponse.json({ error: result.error }, { status: 500 });
     }
 
     if (!result.conversation) {
-      return createApiResponse({ error: 'Conversation not found' }, 404);
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
     // Check if user is a participant
@@ -196,168 +186,283 @@ async function getMessagesHandler(
     
     // Allow premium users or tutors to access any conversation even if not a participant
     if (!isParticipant && !(user.is_tutor || user.has_access)) {
-      return createApiResponse({ error: 'Not authorized to access this conversation' }, 403);
+      return NextResponse.json({ error: 'Not authorized to access this conversation' }, { status: 403 });
     }
 
     // End the performance timer
     const endTime = performance.now();
     const processingTime = Math.round(endTime - startTime);
     
+    
     // Create response with cache tag for user
-    return createApiResponse({ 
+    const response = NextResponse.json({ 
       messages: result.transformedMessages, 
       has_more: false, // The DAL doesn't currently support pagination
       processing_time_ms: processingTime
     });
+    
+    // Add cache tag for this user to enable proper invalidation on logout
+    response.headers.set('Cache-Tag', `user-${user.id}`);
+    
+    return response;
   } catch (error) {
     const errorDetails = error instanceof Error 
       ? error.message + (error.stack ? '\n' + error.stack : '') 
       : JSON.stringify(error);
     
-    return createApiResponse({ 
+    return NextResponse.json({ 
       error: 'Internal server error', 
       details: process.env.NODE_ENV === 'development' ? errorDetails : undefined 
-    }, 500);
+    }, { status: 500 });
   }
 }
 
 // Helper function to trigger a Supabase broadcast for new messages
 const broadcastMessage = async (message: Message, conversationId: string) => {
   try {
-    // Use createRouteHandlerClientWithCookies to properly await cookies
+    // First update browser cache for this message
+    if (message.id) {
+      // Update the message in the messages list cache
+      const messagesCacheKey = `${CACHE_CONFIG.MESSAGES_CACHE_PREFIX}${conversationId}`;
+      
+      updateItemInArrayCache(
+        messagesCacheKey,
+        message.id,
+        () => message
+      );
+      
+      // Also update the conversation's last message if applicable
+      updateCache(CACHE_CONFIG.CONVERSATIONS_CACHE_KEY, (conversations) => {
+        if (!conversations || !Array.isArray(conversations)) {
+          return conversations;
+        }
+        
+        return conversations.map(conversation => {
+          if (conversation.id === conversationId) {
+            return {
+              ...conversation,
+              last_message: {
+                id: message.id,
+                content: message.content,
+                created_at: message.created_at,
+                sender_id: message.sender_id
+              },
+              last_message_at: message.created_at
+            };
+          }
+          return conversation;
+        });
+      });
+    }
+    
+    // Then broadcast the message via Supabase
     const supabase = await createRouteHandlerClientWithCookies();
     
-    // Use the same channel name format as in RealtimeContext
-    const channelName = `tutoring_session:conversation:${conversationId}`;
-    const channel = supabase.channel(channelName);
+    // Broadcast the message to all clients
+    try {
+      await supabase.channel(`tutoring_session:conversation:${conversationId}`).send({
+        type: 'broadcast',
+        event: 'message',
+        payload: message
+      });
+    } catch (broadcastError) {
+      console.error('Error broadcasting message:', broadcastError);
+    }
     
-    // Subscribe to the channel before sending
-    await channel.subscribe();
-    
-    // Send the message broadcast
-    await channel.send({
-      type: 'broadcast',
-      event: 'message',
-      payload: message
-    });
-    
+    // Also store in localStorage to enable cross-tab communication
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('latest_message', JSON.stringify(message));
+    }
   } catch (error) {
-    // Silently handle error - don't break API response for broadcast failures
+    // Silent fail - don't break API response for broadcast failures
   }
 };
 
-// POST handler for sending messages
+// POST handler for messages - updated with CSRF protection
 async function postMessagesHandler(
   req: NextRequest, 
   user: AuthUser
 ): Promise<NextResponse> {
   try {
+    // Parse request body
     const body = await req.json();
-    const { conversation_id, content } = body;
-    
-    if (!conversation_id) {
-      return createApiResponse({ error: 'Conversation ID is required' }, 400);
+    const { conversation_id, conversationId, content, options } = body;
+
+    // Normalize conversation ID parameter (handle both conversation_id and conversationId)
+    const normalizedConversationId = conversation_id || conversationId;
+
+    // Enhanced conversation ID validation
+    if (!normalizedConversationId) {
+      return NextResponse.json({ error: "Conversation ID is required" }, { status: 400 });
     }
-    
+
+    if (typeof normalizedConversationId !== 'string' || normalizedConversationId.trim() === '') {
+      return NextResponse.json({ error: "Invalid conversation ID format" }, { status: 400 });
+    }
+
+    // Validate and sanitize message content
     if (!content) {
-      return createApiResponse({ error: 'Message content is required' }, 400);
+      return NextResponse.json({ error: "Message content is required" }, { status: 400 });
+    }
+
+    const validationResult = validateText(content, { 
+      min: 1, 
+      max: 5000,
+      allowHtml: false,
+      trim: true 
+    });
+
+    if (!validationResult.valid) {
+      return NextResponse.json({ 
+        error: validationResult.error || "Invalid message content" 
+      }, { status: 400 });
+    }
+
+    // Check for potentially malicious content
+    if (checkForMaliciousContent(validationResult.value)) {
+      return NextResponse.json({ 
+        error: "Message contains invalid content" 
+      }, { status: 400 });
+    }
+
+    const sanitizedContent = validationResult.value;
+    
+    // Set the sender ID to the authenticated user's ID
+    const senderId = user.id;
+    
+    // Set options defaults if not provided
+    const messageOptions = options || { maxRetries: 1 };
+    
+    // Track retries for robust error handling
+    let retryCount = 0;
+    const maxRetries = messageOptions.maxRetries || 1;
+    
+    let message = null;
+    let error = null;
+    
+    // Retry loop for better resilience
+    while (retryCount <= maxRetries) {
+      try {
+        // Send the message
+        const result = await sendMessage(user, normalizedConversationId, senderId, sanitizedContent);
+        message = result.message;
+        error = result.error;
+        
+        // If successful or error is not retryable, break the loop
+        if (message || (error && !error.includes("network") && !error.includes("timeout"))) {
+          break;
+        }
+      } catch (err) {
+        // Store the error for better error reporting
+        error = err instanceof Error ? err.message : String(err);
+      }
+      
+      retryCount++;
+      if (retryCount <= maxRetries) {
+        // Wait before retrying (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, retryCount - 1)));
+      }
     }
     
-    // Validate and sanitize the message content
-    const sanitizedContent = sanitizeInput(content);
-    
-    // Basic validation for message content
-    if (!validateText(sanitizedContent)) {
-      return createApiResponse({ error: 'Invalid message content' }, 400);
-    }
-    
-    // Check for malicious content
-    if (checkForMaliciousContent(sanitizedContent)) {
-      return createApiResponse({ 
-        error: 'Message contains potentially harmful content'
-      }, 400);
-    }
-    
-    // Send the message
-    const { message, error } = await sendMessage(user, conversation_id, user.id, sanitizedContent);
-    
+    // Handle errors after retries
     if (error) {
-      return createApiResponse({ error }, 500);
+      
+      // Provide more specific error messages for common issues
+      if (error.includes("not found") || error.includes("doesn't exist")) {
+        return NextResponse.json({ 
+          error: "Conversation not found or no longer available" 
+        }, { status: 404 });
+      }
+      
+      if (error.includes("permission") || error.includes("not authorized") || error.includes("access")) {
+        return NextResponse.json({ 
+          error: "You don't have permission to send messages in this conversation" 
+        }, { status: 403 });
+      }
+      
+      return NextResponse.json({ error }, { status: 500 });
     }
-    
+
     if (!message) {
-      return createApiResponse({ error: 'Failed to send message' }, 500);
+      return NextResponse.json({ error: "Failed to send message" }, { status: 500 });
     }
+
+    // Immediately invalidate the cache for this conversation to ensure fresh data
+    invalidateConversationCache(normalizedConversationId);
+
+    // Broadcast message to realtime subscribers
+    await broadcastMessage(message, normalizedConversationId);
     
-    // Invalidate the conversation's message cache
-    invalidateConversationCache(conversation_id);
-    
-    // Broadcast the message to all clients
-    await broadcastMessage(message, conversation_id);
-    
-    return createApiResponse({ message });
+    return NextResponse.json(message);
   } catch (error) {
-    const errorDetails = error instanceof Error 
-      ? error.message + (error.stack ? '\n' + error.stack : '') 
-      : JSON.stringify(error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     
-    return createApiResponse({ 
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? errorDetails : undefined
-    }, 500);
+    return NextResponse.json(
+      { error: "An unexpected error occurred", details: errorMessage },
+      { status: 500 }
+    );
   }
 }
 
-// DELETE handler for messages
+// Delete message handler
 async function deleteMessageHandler(
   req: NextRequest, 
   user: AuthUser
 ): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(req.url);
-    const messageId = searchParams.get('message_id');
-    
+    const messageId = searchParams.get('id');
+
     if (!messageId) {
-      return createApiResponse({ error: 'Message ID is required' }, 400);
+      return NextResponse.json({ error: 'Message ID is required' }, { status: 400 });
     }
-    
+
+    // Get the conversation ID to invalidate its cache after deletion
+    const supabase = await createRouteHandlerClientWithCookies();
+    const { data: messageData } = await supabase
+      .from('messages')
+      .select('conversation_id')
+      .eq('id', messageId)
+      .single();
+      
+    // If we found the message, prepare to invalidate its conversation cache
+    const conversationId = messageData?.conversation_id;
+
     // Delete the message
     const { success, error } = await deleteMessage(user, messageId);
-    
-    let conversationId: string | undefined;
 
-    // Handle errors
     if (error) {
-      return createApiResponse({ error }, 500);
+      const statusCode = error.includes('Not authorized') ? 403 : 
+                         error.includes('not found') ? 404 : 500;
+      return NextResponse.json({ error }, { status: statusCode });
     }
 
     if (!success) {
-      return createApiResponse({ error: 'Failed to delete message' }, 500);
+      return NextResponse.json({ error: 'Failed to delete message' }, { status: 500 });
     }
 
-    // If deletion was successful, get the conversation ID from the message cache
-    // or we could just invalidate all message caches
-    // Invalidate all message caches to be safe
-    Array.from(responseCache.keys()).forEach(key => {
-      if (key.startsWith('messages:')) {
-        const parts = key.split(':');
-        if (parts.length > 1) {
-          conversationId = parts[1];
+    // If we have the conversation ID, invalidate its cache
+    if (conversationId) {
+      invalidateConversationCache(conversationId);
+    } else {
+      // Otherwise invalidate all message caches to be safe
+      Array.from(responseCache.keys()).forEach(key => {
+        if (key.startsWith('messages:')) {
+          responseCache.delete(key);
         }
-        responseCache.delete(key);
-      }
-    });
-    
-    return createApiResponse({ success: success });
+      });
+    }
+
+    return NextResponse.json({ success: true });
   } catch (error) {
     const errorDetails = error instanceof Error 
       ? error.message + (error.stack ? '\n' + error.stack : '') 
       : JSON.stringify(error);
     
-    return createApiResponse({ 
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? errorDetails : undefined
-    }, 500);
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      details: process.env.NODE_ENV === 'development' ? errorDetails : undefined 
+    }, { status: 500 });
   }
 }
 
