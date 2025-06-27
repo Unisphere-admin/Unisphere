@@ -15,14 +15,6 @@ import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 import { createClient } from '@supabase/supabase-js';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { withCsrfProtection } from '@/lib/csrf-next';
-import { 
-  saveToServerCache, 
-  getFromServerCache, 
-  updateServerCache, 
-  updateItemInServerArrayCache,
-  getCachedOrFreshFromServer
-} from '@/lib/serverCaching';
-import { CACHE_CONFIG } from '@/lib/caching';
 
 // Export runtime config for improved performance
 
@@ -47,16 +39,50 @@ const getCachedOrFresh = async <T>(
     sessionId?: string;
   } = {}
 ): Promise<T> => {
-  const { forceRefresh = false } = options;
+  const now = Date.now();
+  const cached = responseCache.get(cacheKey);
   
-  if (forceRefresh) {
-    // If forcing refresh, bypass cache
+  // Force refresh if requested
+  if (options.forceRefresh) {
     const result = await fetchFn();
-    saveToServerCache(cacheKey, result);
+    responseCache.set(cacheKey, {
+      data: result,
+      timestamp: now
+    });
     return result;
   }
   
-  return getCachedOrFreshFromServer(cacheKey, fetchFn);
+  // Check if this is a specific session being requested
+  if (options.sessionId) {
+    const lastModified = sessionLastModified.get(options.sessionId) || 0;
+    const cacheCreated = cached?.timestamp || 0;
+    
+    // If the session was modified after the cache was created, always fetch fresh
+    if (lastModified > cacheCreated) {
+      const result = await fetchFn();
+      responseCache.set(cacheKey, {
+        data: result,
+        timestamp: now
+      });
+      return result;
+    }
+  }
+  
+  // Use cache if available and not expired
+  if (cached && (now - cached.timestamp < CACHE_TTL)) {
+    return cached.data as T;
+  }
+  
+  // Otherwise fetch fresh data
+  const result = await fetchFn();
+  
+  // Cache the new result
+  responseCache.set(cacheKey, {
+    data: result,
+    timestamp: now
+  });
+  
+  return result;
 };
 
 // Extend the TutoringSession interface to include cost
@@ -67,60 +93,62 @@ interface ExtendedTutoringSession extends TutoringSession {
 // Helper function to trigger a Supabase broadcast
 const broadcastUpdate = async (session: ExtendedTutoringSession) => {
   try {
-    // First update server-side cache for this session
-    if (session.id) {
-      // Update the specific session cache
-      updateServerCache<ExtendedTutoringSession>(`session:${session.id}`, () => session);
-      
-      // Update the session in the sessions list cache
-      updateItemInServerArrayCache(
-        CACHE_CONFIG.SESSIONS_CACHE_KEY,
-        session.id,
-        () => session
-      );
-      
-      // Update in conversation sessions cache if available
-      if (session.conversation_id) {
-        updateItemInServerArrayCache(
-          `sessions:${session.conversation_id}`,
-          session.id,
-          () => session
-        );
-      }
-      
-      // Update in user sessions cache if available
-      if (session.tutor_id) {
-        updateItemInServerArrayCache(
-          `user_sessions:${session.tutor_id}:tutor`,
-          session.id,
-          () => session
-        );
-      }
-      
-      if (session.student_id) {
-        updateItemInServerArrayCache(
-          `user_sessions:${session.student_id}:student`,
-          session.id,
-          () => session
-        );
-      }
-    }
+    // Record that this session was modified
+    sessionLastModified.set(session.id, Date.now());
     
-    // Then broadcast the update via Supabase
-    if (!session.conversation_id) return;
-    
+    // Use createRouteHandlerClientWithCookies to properly await cookies
     const supabase = await createRouteHandlerClientWithCookies();
     
-    // Broadcast the session update to all clients
-    try {
-      await supabase.channel(`tutoring_session:conversation:${session.conversation_id}`).send({
-        type: 'broadcast',
-        event: 'session_update',
-        payload: { session }
-      });
-    } catch (broadcastError) {
-      console.error('Error broadcasting session update:', broadcastError);
+    // Get the full session data directly, including the cost
+    const { data: fullSessionData, error: sessionError } = await supabase
+      .from('tutoring_session')
+      .select(`
+        *,
+        tutor_profile:tutor_id(first_name, last_name),
+        student_profile:student_id(first_name, last_name)
+      `)
+      .eq('id', session.id)
+      .single();
+      
+    if (sessionError) {
+      // Continue with existing session data if there's an error
     }
+    
+    // Use the complete session data if available, otherwise use the provided session
+    const sessionToSend: ExtendedTutoringSession = fullSessionData || session;
+    
+    // Force invalidation of this session's cache
+    responseCache.delete(`session:${session.id}`);
+    
+    // Use the same channel name format as in RealtimeContext
+    const channelName = `tutoring_session:conversation:${sessionToSend.conversation_id}`;
+    const channel = supabase.channel(channelName);
+    
+    // Subscribe to the channel before sending
+    await channel.subscribe();
+    
+    // Send the individual session update with an explicit emphasis on including the cost
+    await channel.send({
+      type: 'broadcast',
+      event: 'session_update',
+      payload: { 
+        session: {
+          ...sessionToSend,
+          // Make sure cost is explicitly included
+          cost: sessionToSend.cost
+        } 
+      }
+    });
+    
+    // Also broadcast to update session lists for all participants
+    channel.send({
+      type: 'broadcast',
+      event: 'session_list_update',
+      payload: { 
+        updated: true,
+        timestamp: Date.now()
+      }
+    });
   } catch (error) {
     // Silently handle error - don't break API response for broadcast failures
   }

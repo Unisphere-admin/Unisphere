@@ -5,20 +5,6 @@ import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 import { validateText, sanitizeInput, checkForMaliciousContent } from "@/lib/validation";
 import { withCsrfProtection } from "@/lib/csrf-next";
-import { 
-  saveToCache, 
-  getFromCache, 
-  updateCache, 
-  updateItemInArrayCache, 
-  CACHE_CONFIG 
-} from '@/lib/caching';
-import { 
-  saveToServerCache, 
-  getFromServerCache, 
-  updateServerCache, 
-  updateItemInServerArrayCache,
-  getCachedOrFreshFromServer
-} from '@/lib/serverCaching';
 
 // Export runtime config for improved performance
 
@@ -36,7 +22,24 @@ const getCachedOrFresh = async <T>(
   cacheKey: string,
   fetchFn: () => Promise<T>
 ): Promise<T> => {
-  return getCachedOrFreshFromServer(cacheKey, fetchFn);
+  const now = Date.now();
+  const cached = responseCache.get(cacheKey);
+  
+  // Use cache if available and not expired
+  if (cached && (now - cached.timestamp < CACHE_TTL)) {
+    return cached.data as T;
+  }
+  
+  // Otherwise fetch fresh data
+  const result = await fetchFn();
+  
+  // Cache the new result
+  responseCache.set(cacheKey, {
+    data: result,
+    timestamp: now
+  });
+  
+  return result;
 };
 
 // Helper to invalidate cache for a specific conversation
@@ -215,56 +218,25 @@ async function getMessagesHandler(
 // Helper function to trigger a Supabase broadcast for new messages
 const broadcastMessage = async (message: Message, conversationId: string) => {
   try {
-    // First update server-side cache for this message
-    if (message.id) {
-      // Update the message in the messages list cache
-      const messagesCacheKey = `${CACHE_CONFIG.MESSAGES_CACHE_PREFIX}${conversationId}`;
-      
-      updateItemInServerArrayCache(
-        messagesCacheKey,
-        message.id,
-        () => message
-      );
-      
-      // Also update the conversation's last message if applicable
-      updateServerCache(CACHE_CONFIG.CONVERSATIONS_CACHE_KEY, (conversations) => {
-        if (!conversations || !Array.isArray(conversations)) {
-          return conversations;
-        }
-        
-        return conversations.map(conversation => {
-          if (conversation.id === conversationId) {
-            return {
-              ...conversation,
-              last_message: {
-                id: message.id,
-                content: message.content,
-                created_at: message.created_at,
-                sender_id: message.sender_id
-              },
-              last_message_at: message.created_at
-            };
-          }
-          return conversation;
-        });
-      });
-    }
-    
-    // Then broadcast the message via Supabase
+    // Use createRouteHandlerClientWithCookies to properly await cookies
     const supabase = await createRouteHandlerClientWithCookies();
     
-    // Broadcast the message to all clients
-    try {
-      await supabase.channel(`tutoring_session:conversation:${conversationId}`).send({
-        type: 'broadcast',
-        event: 'message',
-        payload: message
-      });
-    } catch (broadcastError) {
-      console.error('Error broadcasting message:', broadcastError);
-    }
+    // Use the same channel name format as in RealtimeContext
+    const channelName = `tutoring_session:conversation:${conversationId}`;
+    const channel = supabase.channel(channelName);
+    
+    // Subscribe to the channel before sending
+    await channel.subscribe();
+    
+    // Send the message broadcast
+    await channel.send({
+      type: 'broadcast',
+      event: 'message',
+      payload: message
+    });
+    
   } catch (error) {
-    // Silent fail - don't break API response for broadcast failures
+    // Silently handle error - don't break API response for broadcast failures
   }
 };
 
