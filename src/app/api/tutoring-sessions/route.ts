@@ -16,12 +16,13 @@ import { createClient } from '@supabase/supabase-js';
 import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { withCsrfProtection } from '@/lib/csrf-next';
 import { 
-  saveToCache, 
-  getFromCache, 
-  updateCache, 
-  updateItemInArrayCache, 
-  CACHE_CONFIG 
-} from '@/lib/caching';
+  saveToServerCache, 
+  getFromServerCache, 
+  updateServerCache, 
+  updateItemInServerArrayCache,
+  getCachedOrFreshFromServer
+} from '@/lib/serverCaching';
+import { CACHE_CONFIG } from '@/lib/caching';
 
 // Export runtime config for improved performance
 
@@ -46,23 +47,16 @@ const getCachedOrFresh = async <T>(
     sessionId?: string;
   } = {}
 ): Promise<T> => {
-  const { forceRefresh = false, sessionId } = options;
+  const { forceRefresh = false } = options;
   
-  // Check browser cache first if not forcing refresh
-  if (!forceRefresh) {
-    const cachedData = getFromCache<T>(cacheKey);
-    if (cachedData) {
-      return cachedData;
-    }
+  if (forceRefresh) {
+    // If forcing refresh, bypass cache
+    const result = await fetchFn();
+    saveToServerCache(cacheKey, result);
+    return result;
   }
   
-  // If not in browser cache or forcing refresh, fetch fresh data
-  const result = await fetchFn();
-  
-  // Save to browser cache
-  saveToCache(cacheKey, result);
-  
-  return result;
+  return getCachedOrFreshFromServer(cacheKey, fetchFn);
 };
 
 // Extend the TutoringSession interface to include cost
@@ -73,13 +67,13 @@ interface ExtendedTutoringSession extends TutoringSession {
 // Helper function to trigger a Supabase broadcast
 const broadcastUpdate = async (session: ExtendedTutoringSession) => {
   try {
-    // First update browser cache for this session
+    // First update server-side cache for this session
     if (session.id) {
       // Update the specific session cache
-      updateCache<ExtendedTutoringSession>(`session:${session.id}`, () => session);
+      updateServerCache<ExtendedTutoringSession>(`session:${session.id}`, () => session);
       
       // Update the session in the sessions list cache
-      updateItemInArrayCache(
+      updateItemInServerArrayCache(
         CACHE_CONFIG.SESSIONS_CACHE_KEY,
         session.id,
         () => session
@@ -87,7 +81,7 @@ const broadcastUpdate = async (session: ExtendedTutoringSession) => {
       
       // Update in conversation sessions cache if available
       if (session.conversation_id) {
-        updateItemInArrayCache(
+        updateItemInServerArrayCache(
           `sessions:${session.conversation_id}`,
           session.id,
           () => session
@@ -96,7 +90,7 @@ const broadcastUpdate = async (session: ExtendedTutoringSession) => {
       
       // Update in user sessions cache if available
       if (session.tutor_id) {
-        updateItemInArrayCache(
+        updateItemInServerArrayCache(
           `user_sessions:${session.tutor_id}:tutor`,
           session.id,
           () => session
@@ -104,7 +98,7 @@ const broadcastUpdate = async (session: ExtendedTutoringSession) => {
       }
       
       if (session.student_id) {
-        updateItemInArrayCache(
+        updateItemInServerArrayCache(
           `user_sessions:${session.student_id}:student`,
           session.id,
           () => session

@@ -12,6 +12,13 @@ import {
   updateItemInArrayCache, 
   CACHE_CONFIG 
 } from '@/lib/caching';
+import { 
+  saveToServerCache, 
+  getFromServerCache, 
+  updateServerCache, 
+  updateItemInServerArrayCache,
+  getCachedOrFreshFromServer
+} from '@/lib/serverCaching';
 
 // Export runtime config for improved performance
 
@@ -29,19 +36,7 @@ const getCachedOrFresh = async <T>(
   cacheKey: string,
   fetchFn: () => Promise<T>
 ): Promise<T> => {
-  // Check browser cache first
-  const cachedData = getFromCache<T>(cacheKey);
-  if (cachedData) {
-    return cachedData;
-  }
-  
-  // Otherwise fetch fresh data
-  const result = await fetchFn();
-  
-  // Cache the new result
-  saveToCache(cacheKey, result);
-  
-  return result;
+  return getCachedOrFreshFromServer(cacheKey, fetchFn);
 };
 
 // Helper to invalidate cache for a specific conversation
@@ -220,19 +215,19 @@ async function getMessagesHandler(
 // Helper function to trigger a Supabase broadcast for new messages
 const broadcastMessage = async (message: Message, conversationId: string) => {
   try {
-    // First update browser cache for this message
+    // First update server-side cache for this message
     if (message.id) {
       // Update the message in the messages list cache
       const messagesCacheKey = `${CACHE_CONFIG.MESSAGES_CACHE_PREFIX}${conversationId}`;
       
-      updateItemInArrayCache(
+      updateItemInServerArrayCache(
         messagesCacheKey,
         message.id,
         () => message
       );
       
       // Also update the conversation's last message if applicable
-      updateCache(CACHE_CONFIG.CONVERSATIONS_CACHE_KEY, (conversations) => {
+      updateServerCache(CACHE_CONFIG.CONVERSATIONS_CACHE_KEY, (conversations) => {
         if (!conversations || !Array.isArray(conversations)) {
           return conversations;
         }
@@ -267,11 +262,6 @@ const broadcastMessage = async (message: Message, conversationId: string) => {
       });
     } catch (broadcastError) {
       console.error('Error broadcasting message:', broadcastError);
-    }
-    
-    // Also store in localStorage to enable cross-tab communication
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('latest_message', JSON.stringify(message));
     }
   } catch (error) {
     // Silent fail - don't break API response for broadcast failures

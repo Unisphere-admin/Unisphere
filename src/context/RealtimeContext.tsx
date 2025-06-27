@@ -433,13 +433,16 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  // Handle realtime message
+  // Check if we're in a browser environment before using localStorage
+  const isBrowser = typeof window !== 'undefined';
+
+  // Update the handleRealtimeMessage function to check for browser environment
   const handleRealtimeMessage = useCallback(async (payload: any) => {
     const messageData = payload.payload;
     if (!messageData || !messageData.conversation_id) return;
     
-    // Update the message in browser cache
-    if (messageData.id) {
+    // Update the message in browser cache - only if in browser environment
+    if (isBrowser && messageData.id) {
       // Update in messages cache for the conversation
       const messagesCacheKey = `${CACHE_CONFIG.MESSAGES_CACHE_PREFIX}${messageData.conversation_id}`;
       
@@ -500,59 +503,63 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [messageContext, user, showNotification]);
 
-  // Handle realtime session update events
+  // Update the handleSessionUpdate function to check for browser environment
   const handleSessionUpdate = useCallback((payload: any) => {
     const sessionData = payload.payload?.session;
     if (!sessionData || !sessionData.id) return;
     
-    // Update the session in browser cache
-    // Update the specific session cache
-    updateCache(`session:${sessionData.id}`, () => sessionData);
-    
-    // Update the session in the sessions list cache
-    updateItemInArrayCache(
-      CACHE_CONFIG.SESSIONS_CACHE_KEY,
-      sessionData.id,
-      () => sessionData
-    );
-    
-    // Update in conversation sessions cache if available
-    if (sessionData.conversation_id) {
+    // Update the session in browser cache - only if in browser environment
+    if (isBrowser) {
+      // Update the specific session cache
+      updateCache(`session:${sessionData.id}`, () => sessionData);
+      
+      // Update the session in the sessions list cache
       updateItemInArrayCache(
-        `sessions:${sessionData.conversation_id}`,
+        CACHE_CONFIG.SESSIONS_CACHE_KEY,
         sessionData.id,
         () => sessionData
       );
-    }
-    
-    // Update in user sessions cache if available
-    if (user) {
-      if (sessionData.tutor_id === user.id) {
+      
+      // Update in conversation sessions cache if available
+      if (sessionData.conversation_id) {
         updateItemInArrayCache(
-          `user_sessions:${user.id}:tutor`,
+          `sessions:${sessionData.conversation_id}`,
           sessionData.id,
           () => sessionData
         );
       }
       
-      if (sessionData.student_id === user.id) {
-        updateItemInArrayCache(
-          `user_sessions:${user.id}:student`,
-          sessionData.id,
-          () => sessionData
-        );
+      // Update in user sessions cache if available
+      if (user) {
+        if (sessionData.tutor_id === user.id) {
+          updateItemInArrayCache(
+            `user_sessions:${user.id}:tutor`,
+            sessionData.id,
+            () => sessionData
+          );
+        }
+        
+        if (sessionData.student_id === user.id) {
+          updateItemInArrayCache(
+            `user_sessions:${user.id}:student`,
+            sessionData.id,
+            () => sessionData
+          );
+        }
       }
     }
     
     // Dispatch a custom event to notify SessionContext
-    const event = new CustomEvent('session-updated', { 
-      detail: { session: sessionData } 
-    });
-    window.dispatchEvent(event);
-    
-    // Also dispatch a session list update event
-    const listEvent = new CustomEvent('session-list-updated');
-    window.dispatchEvent(listEvent);
+    if (isBrowser) {
+      const event = new CustomEvent('session-updated', { 
+        detail: { session: sessionData } 
+      });
+      window.dispatchEvent(event);
+      
+      // Also dispatch a session list update event
+      const listEvent = new CustomEvent('session-list-updated');
+      window.dispatchEvent(listEvent);
+    }
   }, [user]);
 
   // Handle session list update events  
