@@ -1,12 +1,13 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
 import { useRouter, usePathname } from 'next/navigation';
 import { shouldProtectRoute, PUBLIC_PATHS, isTutorProfilePath } from '@/lib/auth/protectResource';
 import { resetPrefetchStatus } from '@/lib/prefetch';
 import { clearAllCache } from '@/lib/caching';
+import { initializeTokenRefresh, refreshTokenIfNeeded } from '@/lib/auth/tokenRefresh';
 
 interface AuthUser {
   id: string;
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
   const router = useRouter();
   const pathname = usePathname();
+  const refreshCleanupRef = useRef<(() => void) | null>(null);
 
   const fetchUserProfile = async () => {
     try {
@@ -86,6 +88,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       setError(null);
       setLastRefreshed(now);
+      
+      // First ensure token is refreshed if needed
+      await refreshTokenIfNeeded(supabase);
       
       // Get authenticated user - safer than getSession()
       const { data: { user: authUser }, error: userError } = await supabase.auth.getUser();
@@ -256,6 +261,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
     
+    // Initialize token refresh system when component mounts
+    if (typeof window !== 'undefined') {
+      // Clean up any existing refresh system
+      if (refreshCleanupRef.current) {
+        refreshCleanupRef.current();
+      }
+      
+      // Initialize new token refresh system and store cleanup function
+      refreshCleanupRef.current = initializeTokenRefresh();
+    }
+    
     // Handle visibility change to refresh session when tab becomes visible again
     // but only do a silent refresh
     const handleVisibilityChange = () => {
@@ -270,6 +286,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      
+      // Clean up the token refresh system
+      if (refreshCleanupRef.current) {
+        refreshCleanupRef.current();
+        refreshCleanupRef.current = null;
+      }
     };
   }, [refreshUser]);
 

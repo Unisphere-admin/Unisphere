@@ -70,7 +70,7 @@ async function canAccessMeeting(user: any, sessionId: string): Promise<boolean> 
     }
     
     // Check if session is active
-    if (data.status !== 'started' && data.status !== 'accepted') {
+    if (data.status !== 'started') {
       return false;
     }
     
@@ -79,17 +79,7 @@ async function canAccessMeeting(user: any, sessionId: string): Promise<boolean> 
       return false;
     }
     
-    // Check if it's not too early for scheduled sessions
-    if (data.scheduled_for) {
-      const scheduledTime = new Date(data.scheduled_for);
-      const currentTime = new Date();
-      const timeDiffMinutes = (scheduledTime.getTime() - currentTime.getTime()) / (1000 * 60);
-      
-      // If more than 30 minutes before scheduled time
-      if (timeDiffMinutes > 30) {
-        return false;
-      }
-    }
+    
     
     // All checks passed
     return true;

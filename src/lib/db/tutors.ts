@@ -102,11 +102,11 @@ export async function getAllTutors(hasPremiumAccess = false): Promise<{
       } else {
         // Non-premium users get limited data with anonymized names
         processedTutors = (data as any as TutorRawData[]).map((tutor, index) => ({
-          ...tutor,
+        ...tutor,
           first_name: "T", // First name is "T"
           last_name: (index + 1).toString(), // Last name is a sequential number
-          description: "Upgrade to premium to see full tutor details."
-        } as TutorBasic));
+        description: "Upgrade to premium to see full tutor details."
+      } as TutorBasic));
       }
       
       return { tutors: processedTutors, error: null };

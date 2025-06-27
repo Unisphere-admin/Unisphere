@@ -63,25 +63,6 @@ const broadcastUpdate = async (session: ExtendedTutoringSession) => {
     // Use createRouteHandlerClientWithCookies to properly await cookies
     const supabase = await createRouteHandlerClientWithCookies();
     
-    // Refresh the session to ensure we have a valid token
-    try {
-      const { data: { session: authSession } } = await supabase.auth.getSession();
-      
-      if (authSession) {
-        // Get expiry time from JWT
-        const payload = JSON.parse(atob(authSession.access_token.split('.')[1]));
-        const expiresAt = payload.exp * 1000; // Convert to milliseconds
-        const now = Date.now();
-        
-        // If token expires in less than 5 minutes, refresh it
-        if (expiresAt - now < 5 * 60 * 1000) {
-          await supabase.auth.refreshSession();
-        }
-      }
-    } catch (error) {
-      console.warn("Failed to refresh token before broadcast:", error);
-    }
-    
     // Get the full session data directly, including the cost
     const { data: fullSessionData, error: sessionError } = await supabase
       .from('tutoring_session')
@@ -95,7 +76,6 @@ const broadcastUpdate = async (session: ExtendedTutoringSession) => {
       
     if (sessionError) {
       // Continue with existing session data if there's an error
-      console.warn("Error fetching full session data:", sessionError);
     }
     
     // Use the complete session data if available, otherwise use the provided session
@@ -132,7 +112,6 @@ const broadcastUpdate = async (session: ExtendedTutoringSession) => {
     });
   } catch (error) {
     // Silently handle error - don't break API response for broadcast failures
-    console.error("Error broadcasting session update:", error);
   }
 };
 

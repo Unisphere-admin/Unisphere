@@ -1,6 +1,7 @@
 import { createClient } from './supabase/client';
 import { invalidateCache, CACHE_CONFIG } from '@/lib/caching';
 import { clearStoredCsrfToken } from '@/lib/csrf/client';
+import { logTokenExpiration, refreshTokenIfNeeded } from '@/lib/auth/tokenRefresh';
 
 /**
  * Checks if the user is authenticated and clears tutor cache if not
@@ -88,4 +89,89 @@ export function setupAuthCacheCheck() {
     checkAuthAndClearCacheIfNeeded();
     fetchCsrfTokenIfAuthenticated();
   }, 5 * 60 * 1000);
+}
+
+/**
+ * Utility function to check token status from the browser console
+ * This can be called by developers to diagnose token issues
+ */
+export async function checkAuthToken() {
+  try {
+    console.log('%c[Auth Diagnostics] Checking authentication token status...', 'color: blue; font-weight: bold');
+    
+    const supabase = createClient();
+    
+    // Get current session
+    console.log('[Auth Diagnostics] Fetching current session...');
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('[Auth Diagnostics] Error getting session:', sessionError);
+      return;
+    }
+    
+    if (!sessionData.session) {
+      console.warn('[Auth Diagnostics] No active session found. User is not authenticated.');
+      return;
+    }
+    
+    // Get user
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    
+    if (userError) {
+      console.error('[Auth Diagnostics] Error getting user:', userError);
+    } else if (userData.user) {
+      console.log('[Auth Diagnostics] Authenticated user:', {
+        id: userData.user.id,
+        email: userData.user.email,
+        lastSignIn: userData.user.last_sign_in_at
+      });
+    }
+    
+    // Check token expiration
+    const token = sessionData.session.access_token;
+    
+    if (!token) {
+      console.error('[Auth Diagnostics] Session exists but no access token found');
+      return;
+    }
+    
+    console.log('[Auth Diagnostics] Access token found, checking expiration...');
+    
+    // Use the logTokenExpiration utility to display token expiry details
+    logTokenExpiration(token, sessionData.session.expires_at ? sessionData.session.expires_at * 1000 : undefined);
+    
+    // Try to refresh the token
+    console.log('[Auth Diagnostics] Attempting to refresh token...');
+    const refreshed = await refreshTokenIfNeeded(supabase);
+    
+    if (refreshed) {
+      console.log('%c[Auth Diagnostics] Token refresh successful or not needed', 'color: green; font-weight: bold');
+    } else {
+      console.error('%c[Auth Diagnostics] Failed to refresh token', 'color: red; font-weight: bold');
+    }
+    
+    // Output how to use this utility
+    console.log(
+      '%c[Auth Diagnostics] To check token status at any time, run this in console: checkAuthToken()',
+      'color: purple; font-style: italic'
+    );
+    
+    // Return the current session data for inspection
+    return sessionData.session;
+  } catch (error) {
+    console.error('[Auth Diagnostics] An error occurred during token check:', error);
+    return null;
+  }
+}
+
+// Make the utility available globally in development environments
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  (window as any).checkAuthToken = checkAuthToken;
+  
+  // Log a message to help developers
+  console.info(
+    '%c[Auth Utils] Token diagnostic utility available. Run checkAuthToken() to check token status.',
+    'color: blue; font-weight: bold'
+  );
 } 

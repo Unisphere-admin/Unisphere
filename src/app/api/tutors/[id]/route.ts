@@ -45,11 +45,11 @@ export async function GET(
     if (error) {
       // If not found by search_id, try by actual ID
       if (error === 'Tutor not found') {
-        const supabase = await createRouteHandlerClientWithCookies();
-        
+    const supabase = await createRouteHandlerClientWithCookies();
+    
         const { data: tutorById, error: idError } = await supabase
-          .from('tutor_profile')
-          .select('*')
+      .from('tutor_profile')
+      .select('*')
           .eq('id', id)
           .single();
           

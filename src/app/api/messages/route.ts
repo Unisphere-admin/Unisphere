@@ -221,25 +221,6 @@ const broadcastMessage = async (message: Message, conversationId: string) => {
     // Use createRouteHandlerClientWithCookies to properly await cookies
     const supabase = await createRouteHandlerClientWithCookies();
     
-    // Refresh the session to ensure we have a valid token
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session) {
-        // Get expiry time from JWT
-        const payload = JSON.parse(atob(session.access_token.split('.')[1]));
-        const expiresAt = payload.exp * 1000; // Convert to milliseconds
-        const now = Date.now();
-        
-        // If token expires in less than 5 minutes, refresh it
-        if (expiresAt - now < 5 * 60 * 1000) {
-          await supabase.auth.refreshSession();
-        }
-      }
-    } catch (error) {
-      console.warn("Failed to refresh token before broadcast:", error);
-    }
-    
     // Use the same channel name format as in RealtimeContext
     const channelName = `tutoring_session:conversation:${conversationId}`;
     const channel = supabase.channel(channelName);
@@ -256,7 +237,6 @@ const broadcastMessage = async (message: Message, conversationId: string) => {
     
   } catch (error) {
     // Silently handle error - don't break API response for broadcast failures
-    console.error("Error broadcasting message:", error);
   }
 };
 
