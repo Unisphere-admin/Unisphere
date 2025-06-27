@@ -24,16 +24,49 @@ export const dynamic = 'force-dynamic';
 
 // Cache recent responses to reduce database load
 const responseCache = new Map<string, { data: any, timestamp: number }>();
-// Reduce TTL to 1 minute for better real-time updates while still providing caching benefits
-const CACHE_TTL = 60000; // 1 minute TTL (reduced from 15 minutes)
+// Reduce TTL to improve real-time responsiveness
+const CACHE_TTL = 30000; // 30 seconds (reduced from 1 minute)
+
+// Track the last modified time for each session
+const sessionLastModified = new Map<string, number>();
 
 // Helper to get cached responses or fetch new ones
 const getCachedOrFresh = async <T>(
   cacheKey: string,
-  fetchFn: () => Promise<T>
+  fetchFn: () => Promise<T>,
+  options: {
+    forceRefresh?: boolean;
+    sessionId?: string;
+  } = {}
 ): Promise<T> => {
   const now = Date.now();
   const cached = responseCache.get(cacheKey);
+  
+  // Force refresh if requested
+  if (options.forceRefresh) {
+    const result = await fetchFn();
+    responseCache.set(cacheKey, {
+      data: result,
+      timestamp: now
+    });
+    return result;
+  }
+  
+  // Check if this is a specific session being requested
+  if (options.sessionId) {
+    const lastModified = sessionLastModified.get(options.sessionId) || 0;
+    const cacheCreated = cached?.timestamp || 0;
+    
+    // If the session was modified after the cache was created, always fetch fresh
+    if (lastModified > cacheCreated) {
+      const result = await fetchFn();
+      responseCache.set(cacheKey, {
+        data: result,
+        timestamp: now
+      });
+      return result;
+    }
+  }
   
   // Use cache if available and not expired
   if (cached && (now - cached.timestamp < CACHE_TTL)) {
@@ -60,6 +93,9 @@ interface ExtendedTutoringSession extends TutoringSession {
 // Helper function to trigger a Supabase broadcast
 const broadcastUpdate = async (session: ExtendedTutoringSession) => {
   try {
+    // Record that this session was modified
+    sessionLastModified.set(session.id, Date.now());
+    
     // Use createRouteHandlerClientWithCookies to properly await cookies
     const supabase = await createRouteHandlerClientWithCookies();
     
@@ -80,6 +116,9 @@ const broadcastUpdate = async (session: ExtendedTutoringSession) => {
     
     // Use the complete session data if available, otherwise use the provided session
     const sessionToSend: ExtendedTutoringSession = fullSessionData || session;
+    
+    // Force invalidation of this session's cache
+    responseCache.delete(`session:${session.id}`);
     
     // Use the same channel name format as in RealtimeContext
     const channelName = `tutoring_session:conversation:${sessionToSend.conversation_id}`;
@@ -215,7 +254,7 @@ async function getTutoringSessionsHandler(
       
       const result = await getCachedOrFresh(cacheKey, async () => {
         return await getSessionById(user, sessionId);
-      });
+      }, { sessionId });
       
       const { session, error } = result;
       
@@ -253,7 +292,7 @@ async function getTutoringSessionsHandler(
       
       const result = await getCachedOrFresh(cacheKey, async () => {
         return await getUserSessions(userId, userType as 'tutor' | 'student');
-      });
+      }, { forceRefresh: true });
       
       const { sessions, error } = result;
       
@@ -274,7 +313,7 @@ async function getTutoringSessionsHandler(
       
       const result = await getCachedOrFresh(cacheKey, async () => {
         return await getSessionsByMessageId(messageId);
-      });
+      }, { forceRefresh: true });
       
       const { sessions, error } = result;
       
@@ -316,7 +355,7 @@ async function getTutoringSessionsHandler(
       const result = await getCachedOrFresh(cacheKey, async () => {
         // Direct call to getSessionsByConversation with only the conversationId parameter
         return await getSessionsByConversation(conversationId);
-      });
+      }, { forceRefresh: true });
       
       if (result.error) {
         return NextResponse.json({ error: result.error }, { status: 500 });

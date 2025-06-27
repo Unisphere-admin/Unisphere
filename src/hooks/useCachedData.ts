@@ -277,35 +277,6 @@ export function useCachedTutorReviews(tutorId: string | null) {
  * Custom hook to retrieve and manage cached tutoring sessions
  */
 export function useCachedSessions() {
-  const [forceRefreshTrigger, setForceRefreshTrigger] = useState(0);
-  
-  // Set up event listeners for session cache invalidation events
-  useEffect(() => {
-    // Handler for localStorage events (works across tabs)
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === 'session_cache_invalidated') {
-        // Force refresh when another tab invalidates the cache
-        setForceRefreshTrigger(prev => prev + 1);
-      }
-    };
-    
-    // Handler for custom session update events from RealtimeContext
-    const handleSessionUpdate = () => {
-      setForceRefreshTrigger(prev => prev + 1);
-    };
-    
-    // Listen for both storage events and custom events
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('session-cache-updated', handleSessionUpdate);
-    window.addEventListener('session-list-updated', handleSessionUpdate);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('session-cache-updated', handleSessionUpdate);
-      window.removeEventListener('session-list-updated', handleSessionUpdate);
-    };
-  }, []);
-  
   return useCachedData(
     CACHE_CONFIG.SESSIONS_CACHE_KEY,
     async () => {
@@ -321,10 +292,6 @@ export function useCachedSessions() {
       const data = await response.json();
       return data.sessions || [];
     },
-    CACHE_CONFIG.CACHE_TTL,
-    { 
-      dependencyArray: [forceRefreshTrigger], // Add the trigger to dependencies
-      disableBackgroundRefresh: false // Allow background refresh
-    }
+    CACHE_CONFIG.CACHE_TTL
   );
 } 

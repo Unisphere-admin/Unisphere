@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "./AuthContext";
 import { createClient } from "@/utils/supabase/client";
-import { getFromCache, saveToCache, CACHE_CONFIG, updateCacheWithRealtimeData, updateItemInArrayCache } from "@/lib/caching";
+import { getFromCache, saveToCache, CACHE_CONFIG } from "@/lib/caching";
 import { useRouter } from "next/navigation";
 import { 
   getCsrfTokenFromStorage, 
@@ -894,75 +894,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         // Add the conversation at the top and ensure proper sorting
         return sortConversations([conversation, ...newConversations]);
       });
-
-      // IMPORTANT NEW CODE: Update the cached messages to ensure realtime data takes precedence
-      const messageCacheKey = `${CACHE_CONFIG.MESSAGES_CACHE_PREFIX}${message.conversation_id}`;
-      
-      try {
-        // Get existing cached messages for this conversation
-        const cachedMessagesData = getFromCache<Message[]>(messageCacheKey);
-        if (cachedMessagesData) {
-          // Find if this message already exists in cache
-          const existingIndex = cachedMessagesData.findIndex(msg => msg.id === message.id);
-          
-          // Update or add the message
-          let updatedMessages: Message[];
-          if (existingIndex >= 0) {
-            // Update existing message
-            updatedMessages = [...cachedMessagesData];
-            updatedMessages[existingIndex] = {
-              ...updatedMessages[existingIndex],
-              ...updateMessageStatus(message)
-            };
-          } else {
-            // Add new message
-            updatedMessages = [...cachedMessagesData, updateMessageStatus(message)];
-          }
-          
-          // Save updated messages back to cache
-          saveToCache(messageCacheKey, updatedMessages);
-        }
-        
-        // Also update the conversations cache
-        const cachedConversationsData = getFromCache<Conversation[]>(CACHE_CONFIG.CONVERSATIONS_CACHE_KEY);
-        if (cachedConversationsData) {
-          // Find conversation in cache
-          const conversationIndex = cachedConversationsData.findIndex(
-            c => c.id === message.conversation_id
-          );
-          
-          if (conversationIndex >= 0) {
-            // Update the conversation's last message if this message is newer
-            const conv = cachedConversationsData[conversationIndex];
-            const currentLastTime = conv.last_message?.created_at 
-              ? new Date(conv.last_message.created_at).getTime() 
-              : 0;
-            const newMsgTime = message.created_at 
-              ? new Date(message.created_at).getTime() 
-              : Date.now();
-            
-            if (!conv.last_message || newMsgTime > currentLastTime) {
-              const updatedConversations = [...cachedConversationsData];
-              updatedConversations[conversationIndex] = {
-                ...conv,
-                last_message: {
-                  id: message.id,
-                  content: message.content,
-                  created_at: message.created_at || new Date().toISOString(),
-                  sender_id: message.sender_id
-                },
-                last_message_at: message.created_at || new Date().toISOString()
-              };
-              
-              // Save updated conversations back to cache
-              saveToCache(CACHE_CONFIG.CONVERSATIONS_CACHE_KEY, updatedConversations);
-            }
-          }
-        }
-      } catch (error) {
-        // Log error but don't fail if cache update fails
-        console.warn('Failed to update cache with realtime message:', error);
-      }
     }
     
     // Only show notifications for messages from other users

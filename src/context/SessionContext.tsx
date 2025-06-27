@@ -4,7 +4,7 @@ import { createContext, useContext, useState, ReactNode, useCallback, useEffect 
 import { SessionRequest } from "./MessageContext";
 import { useAuth } from "./AuthContext";
 import { createClient } from "@/utils/supabase/client";
-import { CACHE_CONFIG, updateItemInArrayCache } from '@/lib/caching';
+import { CACHE_CONFIG, updateCache, updateItemInArrayCache, saveToCache, getFromCache } from '@/lib/caching';
 
 interface Review {
   id: string | number;
@@ -159,6 +159,25 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       if (event.key === 'session_cache_invalidated') {
         // Refresh sessions when another tab invalidates the cache
         refreshSessions();
+      }
+      
+      // Handle specific session updates from other tabs
+      if (event.key === 'session_updated' && event.newValue) {
+        try {
+          const { id, timestamp } = JSON.parse(event.newValue);
+          
+          // Only process reasonably recent updates (within last 10 seconds)
+          if (Date.now() - timestamp < 10000) {
+            // Fetch the single updated session to refresh it
+            getSessionById(id).then(updatedSession => {
+              if (updatedSession) {
+                updateSession(updatedSession);
+              }
+            });
+          }
+        } catch (e) {
+          // Invalid JSON, ignore
+        }
       }
     };
     
@@ -454,8 +473,32 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     try {
       // Include both user_id and user_type to satisfy API requirements
       const userType = user.role === 'tutor' ? 'tutor' : 'student';
+      const cacheKey = `user_sessions:${user.id}:${userType}`;
+      
+      // First check if we have cached data to show immediately
+      const cachedData = getFromCache<{ sessions: ActiveSession[] }>(cacheKey);
+      if (cachedData && cachedData.sessions) {
+        // Use cached data while we fetch fresh data
+        setSessions(cachedData.sessions);
+        
+        // Check for active sessions
+        const activeSessionCandidate = cachedData.sessions.find((s: ActiveSession) => 
+          s.status === 'started' || s.status === 'accepted'
+        );
+        
+        if (activeSessionCandidate) {
+          setActiveSession(activeSessionCandidate);
+        }
+      }
+      
+      // Always fetch fresh data from API to ensure we have latest state
       const response = await fetch(`/api/tutoring-sessions?user_id=${user.id}&user_type=${userType}`, {
-        credentials: 'include'
+        credentials: 'include',
+        // Add cache-busting headers
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
       });
       
       if (response.status === 401) {
@@ -470,7 +513,14 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       const data = await response.json();
       
       if (data.sessions) {
+        // Update state with fresh data
         setSessions(data.sessions);
+        
+        // Save fresh data to cache
+        saveToCache(cacheKey, data);
+        
+        // Also cache in the global sessions cache
+        saveToCache(CACHE_CONFIG.SESSIONS_CACHE_KEY, data.sessions);
         
         // Check for active sessions
         const activeSessionCandidate = data.sessions.find((s: ActiveSession) => 
@@ -479,6 +529,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         
         if (activeSessionCandidate) {
           setActiveSession(activeSessionCandidate);
+        } else if (activeSession && !data.sessions.some((s: ActiveSession) => s.id === activeSession.id)) {
+          // If the active session is no longer in the list, clear it
+          setActiveSession(null);
         }
       }
     } catch (error) {
@@ -486,47 +539,92 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoadingSessions(false);
     }
-  }, [user, checkPremiumAccess]);
+  }, [user, checkPremiumAccess, activeSession]);
 
   // Update a specific session
   const updateSession = useCallback((session: ActiveSession) => {
-    // Update in sessions list
+    // Update session in React state
     setSessions(prev => 
-      prev.map(s => s.id === session.id ? session : s)
+      prev.map(s => s.id === session.id ? { ...s, ...session } : s)
     );
     
     // Update active session if it matches
     if (activeSession && activeSession.id === session.id) {
-      setActiveSession(session);
+      setActiveSession({ ...activeSession, ...session });
     }
     
-    // Update the sessions cache to ensure the update persists across page reloads
-    updateItemInArrayCache(
-      CACHE_CONFIG.SESSIONS_CACHE_KEY,
-      session.id,
-      () => session, // Replace completely with new session
-      {
-        logUpdate: true,
-        addIfNotFound: true, 
-        createFn: () => session
+    // Update session in cache so other components and future loads use updated data
+    
+    // 1. Update the specific session cache
+    updateCache<{ session: ActiveSession | null, error: string | null }>(
+      `session:${session.id}`,
+      (currentData) => {
+        if (!currentData) return null;
+        return {
+          ...currentData,
+          session: { ...currentData.session, ...session }
+        };
       }
     );
     
-    // Also update any conversation-specific session cache if it exists
+    // 2. Update the conversation sessions cache
     if (session.conversation_id) {
-      const conversationSessionsKey = `${CACHE_CONFIG.SESSIONS_CACHE_KEY}_${session.conversation_id}`;
-      updateItemInArrayCache(
-        conversationSessionsKey,
-        session.id,
-        () => session,
-        { 
-          logUpdate: true,
-          addIfNotFound: true,
-          createFn: () => session
+      const conversationCacheKey = `sessions:${session.conversation_id}`;
+      updateCache<{ sessions: ActiveSession[], error: string | null }>(
+        conversationCacheKey,
+        (currentData) => {
+          if (!currentData || !currentData.sessions) return null;
+          return {
+            ...currentData,
+            sessions: currentData.sessions.map(s => 
+              s.id === session.id ? { ...s, ...session } : s
+            )
+          };
         }
       );
     }
-  }, [activeSession]);
+    
+    // 3. Update user sessions cache
+    if (user) {
+      // Update in both tutor and student caches as we might not know which one is relevant
+      ['tutor', 'student'].forEach(userType => {
+        const userSessionsCacheKey = `user_sessions:${user.id}:${userType}`;
+        updateCache<{ sessions: ActiveSession[], error: string | null }>(
+          userSessionsCacheKey,
+          (currentData) => {
+            if (!currentData || !currentData.sessions) return null;
+            return {
+              ...currentData,
+              sessions: currentData.sessions.map(s => 
+                s.id === session.id ? { ...s, ...session } : s
+              )
+            };
+          }
+        );
+      });
+    }
+    
+    // 4. Update in the global sessions cache
+    updateCache<ActiveSession[]>(
+      CACHE_CONFIG.SESSIONS_CACHE_KEY,
+      (currentSessions) => {
+        if (!currentSessions) return null;
+        return currentSessions.map((s: ActiveSession) => 
+          s.id === session.id ? { ...s, ...session } : s
+        );
+      }
+    );
+    
+    // Trigger session updated event so other tabs will know to refresh
+    try {
+      localStorage.setItem('session_updated', JSON.stringify({
+        id: session.id,
+        timestamp: Date.now()
+      }));
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+  }, [activeSession, user]);
 
   return (
     <SessionContext.Provider

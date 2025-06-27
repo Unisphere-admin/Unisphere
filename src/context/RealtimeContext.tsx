@@ -10,7 +10,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { X, MessageSquare, Calendar } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { refreshTokenIfNeeded } from '@/lib/auth/tokenRefresh';
-import { CACHE_CONFIG, updateCacheWithRealtimeData, updateItemInArrayCache, forceUpdateSessionCache } from '@/lib/caching';
+import { updateCache, CACHE_CONFIG } from '@/lib/caching';
+
+// Add this constant near the top of the file, after imports
+const VERBOSE_LOGGING = false; // Set to true to enable verbose debug logging
 
 // Define types for realtime events
 interface RealtimeMessage {
@@ -644,6 +647,91 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     
     const updatedSession = payload.payload.session;
     
+    // Log the realtime update for debugging
+    if (VERBOSE_LOGGING) {
+      console.log('[RealtimeContext] Received session update:', updatedSession);
+    }
+    
+    // Immediately update browser cache with the realtime data
+    try {
+      // 1. Update session by ID cache
+      updateCache<{ session: any, error: string | null }>(
+        `session:${updatedSession.id}`,
+        (currentData) => {
+          if (!currentData) return null;
+          // Merge new data over existing data to ensure all fields are updated
+          return {
+            ...currentData,
+            session: {
+              ...currentData.session,
+              ...updatedSession,
+            }
+          };
+        }
+      );
+      
+      // 2. Update all sessions cache
+      if (updatedSession.conversation_id) {
+        updateCache<{ sessions: any[], error: string | null }>(
+          `sessions:${updatedSession.conversation_id}`,
+          (currentData) => {
+            if (!currentData || !currentData.sessions) return null;
+            return {
+              ...currentData,
+              sessions: currentData.sessions.map(s => 
+                s.id === updatedSession.id ? { ...s, ...updatedSession } : s
+              )
+            };
+          }
+        );
+      }
+      
+      // 3. Update user sessions caches
+      if (updatedSession.tutor_id) {
+        updateCache<{ sessions: any[], error: string | null }>(
+          `user_sessions:${updatedSession.tutor_id}:tutor`,
+          (currentData) => {
+            if (!currentData || !currentData.sessions) return null;
+            return {
+              ...currentData,
+              sessions: currentData.sessions.map(s => 
+                s.id === updatedSession.id ? { ...s, ...updatedSession } : s
+              )
+            };
+          }
+        );
+      }
+      
+      if (updatedSession.student_id) {
+        updateCache<{ sessions: any[], error: string | null }>(
+          `user_sessions:${updatedSession.student_id}:student`,
+          (currentData) => {
+            if (!currentData || !currentData.sessions) return null;
+            return {
+              ...currentData,
+              sessions: currentData.sessions.map(s => 
+                s.id === updatedSession.id ? { ...s, ...updatedSession } : s
+              )
+            };
+          }
+        );
+      }
+      
+      // 4. Update the global sessions cache
+      updateCache<any[]>(
+        CACHE_CONFIG.SESSIONS_CACHE_KEY,
+        (currentSessions) => {
+          if (!currentSessions) return null;
+          return currentSessions.map(s => 
+            s.id === updatedSession.id ? { ...s, ...updatedSession } : s
+          );
+        }
+      );
+    } catch (error) {
+      // Log cache update errors but continue processing
+      console.warn('[RealtimeContext] Failed to update session cache:', error);
+    }
+    
     // Show notification for certain session status changes
     if (updatedSession.status && user) {
       const isForCurrentUser = 
@@ -674,7 +762,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
             notificationContent = `Session "${sessionName}" has ended`;
             break;
           case 'cancelled':
-            notificationContent = `Session "${sessionName}" has cancelled`;
+            notificationContent = `Session "${sessionName}" has been cancelled`;
             break;
         }
         
@@ -691,76 +779,38 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       }
     }
     
-    // Convert RealtimeSession to ActiveSession - we need to ensure all required properties are present
-    const convertedSession = {
-      // Include all existing properties
-      ...updatedSession,
-      // Ensure required properties exist
-      tutor_id: updatedSession.tutor_id || '',
-      student_id: updatedSession.student_id || '',
-      message_id: updatedSession.message_id || '',
-      // Explicitly include cost to ensure it's passed through
-      cost: updatedSession.cost
-    } as ActiveSession;
-    
-    // Update session in SessionContext
+    // Update the session directly in session context if available
     if (sessionContext.updateSession) {
+      // Convert RealtimeSession to ActiveSession - we need to ensure all required properties are present
+      const convertedSession = {
+        // Include all existing properties
+        ...updatedSession,
+        // Ensure required properties exist
+        tutor_id: updatedSession.tutor_id || '',
+        student_id: updatedSession.student_id || '',
+        message_id: updatedSession.message_id || '',
+        // Explicitly include cost to ensure it's passed through
+        cost: updatedSession.cost
+      } as ActiveSession;
+      
       sessionContext.updateSession(convertedSession);
-    }
-    
-    // IMPORTANT NEW CODE: Update the sessions cache directly to ensure realtime data takes precedence
-    updateItemInArrayCache(
-      CACHE_CONFIG.SESSIONS_CACHE_KEY,
-      updatedSession.id,
-      (existingSession) => ({
-        ...existingSession,
-        ...convertedSession,
-        // Make sure these values aren't overridden if they exist
-        tutor_profile: existingSession.tutor_profile || convertedSession.tutor_profile,
-        student_profile: existingSession.student_profile || convertedSession.student_profile
-      }),
-      {
-        dispatchEvent: 'session-cache-updated',
-        logUpdate: true,
-        addIfNotFound: true,
-        createFn: () => convertedSession
+    } else {
+      // Fall back to refreshing all sessions
+      if (sessionContext.refreshSessions) {
+        sessionContext.refreshSessions();
       }
-    );
-    
-    // Also update message cache if this session is associated with a message
-    if (updatedSession.message_id) {
-      const messageCacheKey = `${CACHE_CONFIG.MESSAGES_CACHE_PREFIX}${updatedSession.conversation_id}`;
-      updateItemInArrayCache(
-        messageCacheKey,
-        updatedSession.message_id,
-        (message) => ({
-          ...message,
-          sessionStatus: updatedSession.status,
-          sessionData: convertedSession
-        }),
-        { logUpdate: true }
-      );
-    }
-    
-    // Force update the session cache to ensure realtime data takes precedence
-    forceUpdateSessionCache({
-      ...convertedSession,
-      // Ensure critical fields are included
-      id: updatedSession.id,
-      status: updatedSession.status,
-      tutor_ready: updatedSession.tutor_ready,
-      student_ready: updatedSession.student_ready
-    });
-
-    // Refresh sessions list cache to ensure consistency
-    if (sessionContext.refreshSessions) {
-      sessionContext.refreshSessions();
     }
 
     // Trigger cache invalidation across tabs using localStorage
     try {
       // Store timestamp to ensure the event is unique
       localStorage.setItem('session_cache_invalidated', Date.now().toString());
+      
+      // Also store the specific session that was updated
+      localStorage.setItem('session_updated', JSON.stringify({
+        id: updatedSession.id,
+        timestamp: Date.now()
+      }));
     } catch (e) {
       // Silently handle localStorage errors
     }
@@ -768,9 +818,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
 
   // Handle session list update events  
   const handleSessionListUpdate = useCallback(() => {
-    // Force clear the sessions cache to ensure fresh data is loaded
-    localStorage.removeItem(CACHE_CONFIG.SESSIONS_CACHE_KEY);
-    
     // Trigger a cache invalidation and session refresh
     if (sessionContext?.refreshSessions) {
       sessionContext.refreshSessions();

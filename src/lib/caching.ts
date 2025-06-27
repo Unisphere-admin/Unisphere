@@ -151,6 +151,107 @@ export function invalidateCache(key: string): void {
 }
 
 /**
+ * Update cache data with realtime updates instead of invalidating
+ * This prevents cache from reverting to stale data after updates
+ * 
+ * @param key Cache key 
+ * @param updateFn Function that receives current data and returns updated data
+ * @returns True if cache was updated successfully
+ */
+export function updateCache<T>(key: string, updateFn: (currentData: T | null) => T | null): boolean {
+  try {
+    // Get the current cache item
+    const cachedData = localStorage.getItem(key);
+    let cacheItem: CacheItem<T> | null = null;
+    
+    if (cachedData) {
+      try {
+        cacheItem = JSON.parse(cachedData) as CacheItem<T>;
+      } catch (e) {
+        // If we can't parse the cache, just invalidate it
+        localStorage.removeItem(key);
+        return false;
+      }
+    }
+    
+    // Apply the update function to the current data
+    const currentData = cacheItem ? cacheItem.data : null;
+    const updatedData = updateFn(currentData);
+    
+    // If the update function returns null, remove the cache
+    if (updatedData === null) {
+      localStorage.removeItem(key);
+      return true;
+    }
+    
+    // Save the updated data with current timestamp
+    const now = Date.now();
+    const updatedCacheItem: CacheItem<T> = {
+      data: updatedData,
+      timestamp: now, // Update the timestamp to extend cache life
+      isLoading: false,
+      lastUpdated: new Date(now).toISOString()
+    };
+    
+    localStorage.setItem(key, JSON.stringify(updatedCacheItem));
+    return true;
+  } catch (error) {
+    console.warn('Failed to update cache:', error);
+    return false;
+  }
+}
+
+/**
+ * Update a specific item in an array cache by its ID
+ * Useful for updating sessions or messages in a collection
+ * 
+ * @param key Cache key for the array
+ * @param id ID of the item to update
+ * @param idField Field name that contains the ID (default: 'id')
+ * @param updateFn Function that updates the specific item
+ * @returns True if cache was updated successfully
+ */
+export function updateItemInArrayCache<T extends Record<string, any>>(
+  key: string,
+  id: string,
+  updateFn: (item: T) => T | null,
+  idField: string = 'id'
+): boolean {
+  return updateCache<T[]>(key, (currentItems) => {
+    // If no items cached, nothing to update
+    if (!currentItems || !Array.isArray(currentItems)) {
+      return null;
+    }
+    
+    // Find and update the specific item
+    const updatedItems: T[] = [];
+    let foundItem = false;
+    
+    for (const item of currentItems) {
+      if (item && item[idField] === id) {
+        // Found the item to update
+        foundItem = true;
+        const updatedItem = updateFn(item);
+        
+        // If update returns null, remove the item
+        if (updatedItem !== null) {
+          updatedItems.push(updatedItem);
+        }
+      } else {
+        updatedItems.push(item);
+      }
+    }
+    
+    // If we didn't find the item, just return the original array
+    if (!foundItem) {
+      return currentItems;
+    }
+    
+    return updatedItems;
+  });
+}
+
+/**
  * Clear all application cache data
  * Removes conversations, messages, tutors, and other caches
  */
@@ -356,235 +457,5 @@ export function initCachingSystem(): void {
       },
       clearCache: clearAllCache
     };
-  }
-}
-
-/**
- * Force update cached data with realtime updates
- * This ensures that realtime updates always override any existing cached data
- * 
- * @param key Cache key
- * @param updateFn Function that receives current cached data and returns updated data
- * @param options Additional options
- */
-export function updateCacheWithRealtimeData<T>(
-  key: string, 
-  updateFn: (currentData: T | null) => T,
-  options: {
-    dispatchEvent?: string;  // Optional event name to dispatch
-    logUpdate?: boolean;     // Whether to log the update (for debugging)
-  } = {}
-): void {
-  try {
-    const { dispatchEvent, logUpdate = false } = options;
-    
-    // Get current cached data
-    let cachedData: CacheItem<T> | null = null;
-    try {
-      const cachedRaw = localStorage.getItem(key);
-      if (cachedRaw) {
-        cachedData = JSON.parse(cachedRaw);
-      }
-    } catch (e) {
-      // If parsing fails, we'll create a new cache item
-    }
-    
-    // Get the current data or null
-    const currentData = cachedData?.data || null;
-    
-    // Apply the update function
-    const updatedData = updateFn(currentData);
-    
-    // Create a new cache item with the updated data
-    // Keep the original timestamp and just update the data
-    const newCacheItem: CacheItem<T> = {
-      data: updatedData,
-      timestamp: cachedData?.timestamp || Date.now(),
-      isLoading: false,
-      lastUpdated: new Date().toISOString()
-    };
-    
-    // Save to localStorage
-    localStorage.setItem(key, JSON.stringify(newCacheItem));
-    
-    // Log the update if requested
-    if (logUpdate) {
-      console.info(`[Cache] Realtime update for key: ${key}`, { 
-        before: currentData, 
-        after: updatedData 
-      });
-    }
-    
-    // Dispatch an event to notify other components about the update
-    if (dispatchEvent && typeof window !== 'undefined') {
-      const event = new CustomEvent(dispatchEvent, { detail: { key, data: updatedData } });
-      window.dispatchEvent(event);
-    }
-  } catch (error) {
-    console.warn('[Cache] Failed to update cache with realtime data:', error);
-  }
-}
-
-/**
- * Find and update an item in an array cache
- * Useful for updating items like sessions or messages that are stored in arrays
- * 
- * @param key Cache key for the array
- * @param itemId ID of the item to update
- * @param idField Field name to use as ID (defaults to 'id')
- * @param updateFn Function to update the item
- * @param options Additional options
- */
-export function updateItemInArrayCache<T extends object>(
-  key: string,
-  itemId: string | number,
-  updateFn: (item: T) => T,
-  options: {
-    idField?: string;
-    dispatchEvent?: string;
-    logUpdate?: boolean;
-    addIfNotFound?: boolean; // Whether to add the item if not found
-    createFn?: () => T;      // Function to create a new item if not found
-  } = {}
-): void {
-  const { 
-    idField = 'id', 
-    dispatchEvent,
-    logUpdate = false,
-    addIfNotFound = false,
-    createFn
-  } = options;
-  
-  updateCacheWithRealtimeData<T[]>(
-    key,
-    (currentItems) => {
-      // Handle empty cache
-      if (!currentItems || !Array.isArray(currentItems)) {
-        if (addIfNotFound && createFn) {
-          return [createFn()];
-        }
-        return [] as T[];
-      }
-      
-      // Find the item by ID
-      const itemIndex = currentItems.findIndex((item: any) => 
-        item && item[idField] === itemId
-      );
-      
-      // Item exists, update it
-      if (itemIndex !== -1) {
-        const updatedItems = [...currentItems];
-        updatedItems[itemIndex] = updateFn(updatedItems[itemIndex]);
-        return updatedItems;
-      }
-      
-      // Item not found
-      if (addIfNotFound && createFn) {
-        // Add as new item
-        return [...currentItems, createFn()];
-      }
-      
-      // No changes
-      return currentItems;
-    },
-    { dispatchEvent, logUpdate }
-  );
-}
-
-/**
- * Remove an item from an array cache
- * 
- * @param key Cache key for the array
- * @param itemId ID of the item to remove
- * @param idField Field name to use as ID (defaults to 'id')
- * @param options Additional options
- */
-export function removeItemFromArrayCache(
-  key: string,
-  itemId: string | number,
-  options: {
-    idField?: string;
-    dispatchEvent?: string;
-    logUpdate?: boolean;
-  } = {}
-): void {
-  const { 
-    idField = 'id', 
-    dispatchEvent,
-    logUpdate = false
-  } = options;
-  
-  updateCacheWithRealtimeData<any[]>(
-    key,
-    (currentItems) => {
-      if (!currentItems || !Array.isArray(currentItems)) {
-        return [] as any[];
-      }
-      
-      // Filter out the item with matching ID
-      return currentItems.filter(item => 
-        !item || item[idField] !== itemId
-      );
-    },
-    { dispatchEvent, logUpdate }
-  );
-}
-
-/**
- * Force update a session in the cache to ensure realtime updates take precedence
- * This is specifically designed to handle the issue with session state reverting
- * 
- * @param session The updated session object
- */
-export function forceUpdateSessionCache<T extends { 
-  id: string; 
-  status?: string;
-  tutor_ready?: boolean;
-  student_ready?: boolean;
-  [key: string]: any;
-}>(session: T): void {
-  try {
-    // Get the sessions cache key
-    const cacheKey = CACHE_CONFIG.SESSIONS_CACHE_KEY;
-    
-    // Get current cached data
-    const cachedRaw = localStorage.getItem(cacheKey);
-    if (!cachedRaw) return; // No cache to update
-    
-    const cachedData = JSON.parse(cachedRaw);
-    if (!cachedData?.data || !Array.isArray(cachedData.data)) return;
-    
-    // Find the session in the cache
-    const sessions = cachedData.data;
-    const sessionIndex = sessions.findIndex((s: any) => s.id === session.id);
-    
-    if (sessionIndex >= 0) {
-      // Update the session with new data, ensuring critical fields are preserved
-      sessions[sessionIndex] = {
-        ...sessions[sessionIndex],
-        ...session,
-        // Force these fields to be updated from the new session if they exist
-        ...(session.status !== undefined && { status: session.status }),
-        ...(session.tutor_ready !== undefined && { tutor_ready: session.tutor_ready }),
-        ...(session.student_ready !== undefined && { student_ready: session.student_ready })
-      };
-      
-      // Update the cache with the modified data
-      cachedData.data = sessions;
-      cachedData.lastUpdated = new Date().toISOString();
-      
-      // Save back to localStorage
-      localStorage.setItem(cacheKey, JSON.stringify(cachedData));
-      
-      // Dispatch an event to notify components about the update
-      if (typeof window !== 'undefined') {
-        const event = new CustomEvent('session-cache-forced-update', { 
-          detail: { session } 
-        });
-        window.dispatchEvent(event);
-      }
-    }
-  } catch (error) {
-    console.warn('[Cache] Failed to force update session cache:', error);
   }
 } 
