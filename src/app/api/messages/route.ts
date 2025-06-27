@@ -12,44 +12,79 @@ import { withCsrfProtection } from "@/lib/csrf-next";
 // Force dynamic to ensure messages are never cached by Vercel
 export const dynamic = 'force-dynamic';
 
-// Cache recent responses to reduce database load
-const responseCache = new Map<string, { data: any, timestamp: number }>();
-// Reduce TTL to 1 minute for better real-time updates while still providing caching benefits
-const CACHE_TTL = 60000; // 1 minute TTL (reduced from 15 minutes)
+// Reduce TTL to 15 seconds for better real-time updates while still providing caching benefits
+const CACHE_TTL = 15000; // 15 seconds TTL (reduced from 1 minute)
 
-// Helper to get cached responses or fetch new ones
+// Helper to get cached responses or fetch new ones - use localStorage instead of in-memory cache
 const getCachedOrFresh = async <T>(
   cacheKey: string,
-  fetchFn: () => Promise<T>
+  fetchFn: () => Promise<T>,
+  options: { forceRefresh?: boolean } = {}
 ): Promise<T> => {
-  const now = Date.now();
-  const cached = responseCache.get(cacheKey);
-  
-  // Use cache if available and not expired
-  if (cached && (now - cached.timestamp < CACHE_TTL)) {
-    return cached.data as T;
+  // Force refresh if requested
+  if (options.forceRefresh) {
+    const result = await fetchFn();
+    
+    // Still save to cache for other components to use
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({
+        data: result,
+        timestamp: Date.now()
+      }));
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+    
+    return result;
   }
   
-  // Otherwise fetch fresh data
-  const result = await fetchFn();
-  
-  // Cache the new result
-  responseCache.set(cacheKey, {
-    data: result,
-    timestamp: now
-  });
-  
-  return result;
+  // Try to get from localStorage
+  try {
+    const cachedItem = localStorage.getItem(cacheKey);
+    
+    if (cachedItem) {
+      const { data, timestamp } = JSON.parse(cachedItem);
+      
+      // Use a very short TTL to ensure relatively fresh data
+      if (Date.now() - timestamp < CACHE_TTL) {
+        return data as T;
+      }
+    }
+    
+    // Cache miss or expired, fetch fresh data
+    const freshData = await fetchFn();
+    
+    // Save to cache
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({
+        data: freshData,
+        timestamp: Date.now()
+      }));
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+    
+    return freshData;
+  } catch (error) {
+    // If anything goes wrong, just try to fetch fresh data
+    return fetchFn();
+  }
 };
 
 // Helper to invalidate cache for a specific conversation
 const invalidateConversationCache = (conversationId: string) => {
   // Remove all cache entries related to this conversation
-  Array.from(responseCache.keys()).forEach(key => {
-    if (key.includes(`:${conversationId}:`)) {
-      responseCache.delete(key);
+  try {
+    // Get all localStorage keys
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.includes(`:${conversationId}:`)) {
+        localStorage.removeItem(key);
+      }
     }
-  });
+  } catch (e) {
+    // Ignore localStorage errors
+  }
 };
 
 interface TransformedMessage {
@@ -408,11 +443,17 @@ async function deleteMessageHandler(
       invalidateConversationCache(conversationId);
     } else {
       // Otherwise invalidate all message caches to be safe
-      Array.from(responseCache.keys()).forEach(key => {
-        if (key.startsWith('messages:')) {
-          responseCache.delete(key);
+      try {
+        // Get all localStorage keys
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('messages:')) {
+            localStorage.removeItem(key);
+          }
         }
-      });
+      } catch (e) {
+        // Ignore localStorage errors
+      }
     }
 
     return NextResponse.json({ success: true });

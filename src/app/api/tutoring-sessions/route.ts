@@ -17,9 +17,6 @@ import { withRouteAuth } from '@/lib/auth/validateRequest';
 import { withCsrfProtection } from '@/lib/csrf-next';
 
 // Export runtime config for improved performance
-
-
-// Force dynamic to ensure tutoring sessions are never cached by Vercel
 export const dynamic = 'force-dynamic';
 
 // Cache recent responses to reduce database load
@@ -39,50 +36,73 @@ const getCachedOrFresh = async <T>(
     sessionId?: string;
   } = {}
 ): Promise<T> => {
-  const now = Date.now();
-  const cached = responseCache.get(cacheKey);
+  // Force refresh for session data to ensure we always have fresh data
+  const forceRefresh = options.forceRefresh || options.sessionId !== undefined;
   
-  // Force refresh if requested
-  if (options.forceRefresh) {
-    const result = await fetchFn();
-    responseCache.set(cacheKey, {
-      data: result,
-      timestamp: now
-    });
-    return result;
-  }
-  
-  // Check if this is a specific session being requested
-  if (options.sessionId) {
-    const lastModified = sessionLastModified.get(options.sessionId) || 0;
-    const cacheCreated = cached?.timestamp || 0;
-    
-    // If the session was modified after the cache was created, always fetch fresh
-    if (lastModified > cacheCreated) {
-      const result = await fetchFn();
-      responseCache.set(cacheKey, {
-        data: result,
-        timestamp: now
-      });
-      return result;
+  if (forceRefresh) {
+    try {
+      // Always fetch fresh data for sessions
+      const freshData = await fetchFn();
+      
+      // Still save to cache for other components to use
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({
+          data: freshData,
+          timestamp: Date.now()
+        }));
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+      
+      return freshData;
+    } catch (error) {
+      // If fetch fails, try to fall back to cache
+      try {
+        const cachedItem = localStorage.getItem(cacheKey);
+        if (cachedItem) {
+          const { data } = JSON.parse(cachedItem);
+          return data;
+        }
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+      
+      // Re-throw the original error if we can't get cached data
+      throw error;
     }
   }
   
-  // Use cache if available and not expired
-  if (cached && (now - cached.timestamp < CACHE_TTL)) {
-    return cached.data as T;
+  // For non-session data, use normal caching with shorter TTL (5 seconds)
+  try {
+    const cachedItem = localStorage.getItem(cacheKey);
+    
+    if (cachedItem) {
+      const { data, timestamp } = JSON.parse(cachedItem);
+      
+      // Use a very short TTL (5 seconds) to ensure relatively fresh data
+      if (Date.now() - timestamp < 5000) {
+        return data;
+      }
+    }
+    
+    // Cache miss or expired, fetch fresh data
+    const freshData = await fetchFn();
+    
+    // Save to cache
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({
+        data: freshData,
+        timestamp: Date.now()
+      }));
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+    
+    return freshData;
+  } catch (error) {
+    // If anything goes wrong, just try to fetch fresh data
+    return fetchFn();
   }
-  
-  // Otherwise fetch fresh data
-  const result = await fetchFn();
-  
-  // Cache the new result
-  responseCache.set(cacheKey, {
-    data: result,
-    timestamp: now
-  });
-  
-  return result;
 };
 
 // Extend the TutoringSession interface to include cost
@@ -274,7 +294,13 @@ async function getTutoringSessionsHandler(
       }
       
       const response = NextResponse.json({ session });
-      response.headers.set('Cache-Tag', `user-${user.id}`);
+      
+      // Add cache-busting headers
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      response.headers.set('Pragma', 'no-cache');
+      response.headers.set('Expires', '0');
+      response.headers.set('Surrogate-Control', 'no-store');
+      
       return response;
     }
     
@@ -301,8 +327,13 @@ async function getTutoringSessionsHandler(
       }
       
       const response = NextResponse.json({ sessions });
-      // Add cache tag for this user to enable proper invalidation on logout
-      response.headers.set('Cache-Tag', `user-${user.id}`);
+      
+      // Add cache-busting headers
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      response.headers.set('Pragma', 'no-cache');
+      response.headers.set('Expires', '0');
+      response.headers.set('Surrogate-Control', 'no-store');
+      
       return response;
     }
     
@@ -340,6 +371,13 @@ async function getTutoringSessionsHandler(
       const response = NextResponse.json({ sessions });
       // Add cache tag for this user to enable proper invalidation on logout
       response.headers.set('Cache-Tag', `user-${user.id}`);
+      
+      // Add cache-busting headers
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      response.headers.set('Pragma', 'no-cache');
+      response.headers.set('Expires', '0');
+      response.headers.set('Surrogate-Control', 'no-store');
+      
       return response;
     }
     
@@ -362,8 +400,13 @@ async function getTutoringSessionsHandler(
       }
       
       const response = NextResponse.json({ sessions: result.sessions });
-      // Add cache tag for this user to enable proper invalidation on logout
-      response.headers.set('Cache-Tag', `user-${user.id}`);
+      
+      // Add cache-busting headers
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      response.headers.set('Pragma', 'no-cache');
+      response.headers.set('Expires', '0');
+      response.headers.set('Surrogate-Control', 'no-store');
+      
       return response;
     } catch (error) {
       return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
@@ -470,7 +513,47 @@ async function postTutoringSessionsHandler(
       return NextResponse.json({ error: "Failed to create session" }, { status: 500 });
     }
     
-    return NextResponse.json({ session });
+    // Add options to session data
+    Object.assign(sessionData, options);
+    
+    if (isCreateRequest) {
+      // Create a session request - fix function signature to match lib/db/tutoringSessions.ts
+      result = await createTutoringSessionRequest(
+        user,
+        conversation_id,
+        message_id || '',  // Provide empty string if message_id is undefined
+        tutor_id || user.id, // Use current user ID as fallback
+        student_id,
+        options
+      );
+    } else {
+      // Create and accept a session directly - fix function signature to match lib/db/tutoringSessions.ts
+      result = await createTutoringSession(
+        user,
+        conversation_id,
+        message_id || '',  // Provide empty string if message_id is undefined
+        tutor_id || user.id, // Use current user ID as fallback
+        student_id,
+        options
+      );
+    }
+    
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+    
+    // Invalidate cache for this conversation
+    invalidateSessionCache(conversation_id, result.session?.id, user.id);
+    
+    const response = NextResponse.json(result);
+    
+    // Add cache-busting headers
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    response.headers.set('Surrogate-Control', 'no-store');
+    
+    return response;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return NextResponse.json({ error: errorMessage }, { status: 500 });
@@ -610,11 +693,19 @@ async function patchTutoringSessionsHandler(
         }
       });
       
-      // Broadcast the update with the extended interface
+      // Add back the broadcast update call that was accidentally removed
       await broadcastUpdate(response.session as ExtendedTutoringSession);
     }
     
-    return NextResponse.json({ session: response.session });
+    const responseFinal = NextResponse.json(response);
+    
+    // Add cache-busting headers
+    responseFinal.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    responseFinal.headers.set('Pragma', 'no-cache');
+    responseFinal.headers.set('Expires', '0');
+    responseFinal.headers.set('Surrogate-Control', 'no-store');
+    
+    return responseFinal;
   } catch (error) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
