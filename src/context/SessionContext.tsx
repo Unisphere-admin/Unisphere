@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode, useCallback, useEffect } from "react";
+import { createContext, useContext, useState, ReactNode, useCallback, useEffect, useRef } from "react";
 import { SessionRequest } from "./MessageContext";
 import { useAuth } from "./AuthContext";
 import { createClient } from "@/utils/supabase/client";
@@ -55,8 +55,9 @@ interface SessionContextType {
   loading: boolean;
   sessions: ActiveSession[];
   loadingSessions: boolean;
-  refreshSessions: () => Promise<void>;
+  refreshSessions: (options?: { force?: boolean }) => Promise<void>;
   updateSession: (session: ActiveSession) => void;
+  addOptimisticSession: (session: ActiveSession) => void;
 }
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -68,6 +69,10 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const [reviewHistory, setReviewHistory] = useState<Review[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(false);
+  
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastRefreshTimeRef = useRef<number>(0);
+  const REFRESH_COOLDOWN = 5000; // 5 seconds minimum between refreshes
   
   // Check if user has premium access
   const checkPremiumAccess = useCallback(async () => {
@@ -456,11 +461,37 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // Refresh sessions list
-  const refreshSessions = useCallback(async (): Promise<void> => {
+  const refreshSessions = useCallback(async (options: { force?: boolean } = {}): Promise<void> => {
     if (!user) {
       setSessions([]);
       return;
     }
+    
+    const now = Date.now();
+    const timeSinceLastRefresh = now - lastRefreshTimeRef.current;
+    
+    // Skip refresh if we refreshed recently, unless force is true
+    if (!options.force && timeSinceLastRefresh < REFRESH_COOLDOWN) {
+      // If we're in cooldown period, schedule a refresh for later
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+      
+      refreshTimeoutRef.current = setTimeout(() => {
+        refreshSessions({ force: true });
+      }, REFRESH_COOLDOWN - timeSinceLastRefresh);
+      
+      return;
+    }
+    
+    // Clear any pending refresh
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = null;
+    }
+    
+    // Update the last refresh timestamp
+    lastRefreshTimeRef.current = now;
     
     // Check if user has premium access before making API calls
     const hasPremiumAccess = await checkPremiumAccess();
@@ -626,6 +657,109 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [activeSession, user]);
 
+  // Add this new function to handle optimistic updates
+  const addOptimisticSession = useCallback((session: ActiveSession): void => {
+    // First update the state
+    setSessions(prev => {
+      // Check if session already exists
+      const exists = prev.some(s => s.id === session.id);
+      if (exists) {
+        // Update existing session
+        return prev.map(s => s.id === session.id ? { ...s, ...session } : s);
+      } else {
+        // Add new session
+        return [...prev, session];
+      }
+    });
+    
+    // Update active session if needed
+    if (session.status === 'started' || session.status === 'accepted') {
+      setActiveSession(session);
+    }
+    
+    // Update session in all caches
+    if (user) {
+      // Update user sessions cache for both tutor and student
+      const userType = user.role === 'tutor' ? 'tutor' : 'student';
+      const cacheKey = `user_sessions:${user.id}:${userType}`;
+      
+      updateCache<{ sessions: ActiveSession[], error: string | null }>(cacheKey, (currentData) => {
+        if (!currentData) {
+          // Create new cache entry if none exists
+          return {
+            sessions: [session],
+            error: null
+          };
+        }
+        
+        // Check if session already exists in cache
+        const exists = currentData.sessions.some(s => s.id === session.id);
+        if (exists) {
+          // Update existing session
+          return {
+            ...currentData,
+            sessions: currentData.sessions.map(s => s.id === session.id ? { ...s, ...session } : s)
+          };
+        } else {
+          // Add new session
+          return {
+            ...currentData,
+            sessions: [...currentData.sessions, session]
+          };
+        }
+      });
+      
+      // Also update the global sessions cache
+      updateCache<ActiveSession[]>(CACHE_CONFIG.SESSIONS_CACHE_KEY, (currentSessions) => {
+        if (!currentSessions) {
+          return [session];
+        }
+        
+        // Check if session already exists
+        const exists = currentSessions.some(s => s.id === session.id);
+        if (exists) {
+          // Update existing session
+          return currentSessions.map(s => s.id === session.id ? { ...s, ...session } : s);
+        } else {
+          // Add new session
+          return [...currentSessions, session];
+        }
+      });
+      
+      // If session has conversation_id, update that cache too
+      if (session.conversation_id) {
+        const conversationCacheKey = `sessions:${session.conversation_id}`;
+        updateCache<{ sessions: ActiveSession[], error: string | null }>(
+          conversationCacheKey,
+          (currentData) => {
+            if (!currentData) {
+              return {
+                sessions: [session],
+                error: null
+              };
+            }
+            
+            // Check if session already exists
+            const exists = currentData.sessions.some(s => s.id === session.id);
+            if (exists) {
+              // Update existing session
+              return {
+                ...currentData,
+                sessions: currentData.sessions.map(s => s.id === session.id ? { ...s, ...session } : s)
+              };
+            } else {
+              // Add new session
+              return {
+                ...currentData,
+                sessions: [...currentData.sessions, session]
+              };
+            }
+          }
+        );
+      }
+    }
+  }, [user]);
+
   return (
     <SessionContext.Provider
       value={{
@@ -640,7 +774,8 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         sessions,
         loadingSessions,
         refreshSessions,
-        updateSession
+        updateSession,
+        addOptimisticSession
       }}
     >
       {children}
@@ -666,7 +801,8 @@ export const useSessions = () => {
     sessions,
     loadingSessions,
     refreshSessions,
-    updateSession
+    updateSession,
+    addOptimisticSession
   } = context;
   
   return {
@@ -681,6 +817,7 @@ export const useSessions = () => {
     sessions,
     loadingSessions,
     refreshSessions,
-    updateSession
+    updateSession,
+    addOptimisticSession
   };
 };

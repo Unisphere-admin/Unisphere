@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { SessionLink } from "@/components/SessionLink";
 import { getCsrfTokenFromStorage, CSRF_HEADER_NAME, useCsrfToken } from '@/lib/csrf/client';
+import { useRouter } from 'next/navigation';
 
 interface SessionRequestCardProps {
   messageId: string;
@@ -84,7 +85,7 @@ export function SessionRequestCard({
   cost
 }: SessionRequestCardProps) {
   const { user } = useAuth();
-  const { sessions, refreshSessions } = useSessions();
+  const { sessions, refreshSessions, addOptimisticSession } = useSessions();
   const { subscribeToConversation } = useRealtime();
   const { toast } = useToast();
   const { fetchCsrfToken } = useCsrfToken();
@@ -98,6 +99,7 @@ export function SessionRequestCard({
   const [messageContent, setMessageContent] = useState<string | null>(null);
   const isTutor = user?.role === "tutor";
   const pathname = usePathname();
+  const router = useRouter();
   
   // Check if we're already in the messages page
   const isInMessagesPage = pathname === '/dashboard/messages';
@@ -280,6 +282,24 @@ export function SessionRequestCard({
     
     try {
       if (sessionId) {
+        // Create optimistic update for existing session
+        const optimisticSession = {
+          id: sessionId,
+          conversation_id: conversationId,
+          message_id: messageId,
+          status: "accepted" as const,
+          tutor_ready: tutorReady,
+          student_ready: studentReady,
+          tutor_id: user.role === "tutor" ? user.id : "", // Will be filled in by API response
+          student_id: user.role === "student" ? user.id : "", // Will be filled in by API response
+          name: title,
+          scheduled_for: scheduledFor,
+          cost: cost
+        };
+        
+        // Apply optimistic update
+        addOptimisticSession(optimisticSession);
+        
         // Update existing session to accepted
         const response = await fetch("/api/tutoring-sessions", {
           method: "PATCH",
@@ -350,6 +370,25 @@ export function SessionRequestCard({
         // Determine tutor and student IDs
         const tutorId = user.role === "tutor" ? user.id : otherParticipant.user_id;
         const studentId = user.role === "tutor" ? otherParticipant.user_id : user.id;
+        
+        // Create optimistic session
+        const optimisticSession = {
+          // Use a temporary ID that will be replaced when the real session is created
+          id: `temp-${Date.now()}`,
+          conversation_id: conversationId,
+          message_id: messageId,
+          status: "accepted" as const,
+          tutor_ready: false,
+          student_ready: false,
+          tutor_id: tutorId,
+          student_id: studentId,
+          name: title,
+          scheduled_for: scheduledFor,
+          cost: cost
+        };
+        
+        // Apply optimistic update
+        addOptimisticSession(optimisticSession);
         
         // Create the session with accepted status
         const sessionResponse = await fetch("/api/tutoring-sessions", {
@@ -437,9 +476,27 @@ export function SessionRequestCard({
     
     try {
       // Determine the current ready state based on user role
-      const isCurrentlyReady = user.role === "tutor" ? tutorReady : studentReady;
-      const newReadyState = !isCurrentlyReady;
+      const isCurrentUserTutor = user.role === "tutor";
+      const currentReadyState = isCurrentUserTutor ? tutorReady : studentReady;
+      const newReadyState = !currentReadyState;
       
+      // Create optimistic update
+      const optimisticSession = {
+        id: sessionId,
+        conversation_id: conversationId,
+        message_id: messageId,
+        status: status as "requested" | "accepted" | "started" | "ended" | "cancelled",
+        tutor_ready: isCurrentUserTutor ? newReadyState : tutorReady,
+        student_ready: isCurrentUserTutor ? studentReady : newReadyState,
+        tutor_id: "", // Will be filled by API response
+        student_id: "", // Will be filled by API response
+        name: title,
+        scheduled_for: scheduledFor,
+        cost: cost
+      };
+      
+      // Apply optimistic update
+      addOptimisticSession(optimisticSession);
       
       // Update session ready status
       const response = await fetch("/api/tutoring-sessions", {
@@ -486,17 +543,7 @@ export function SessionRequestCard({
   const handleStartSession = async () => {
     if (!sessionId || !user) return;
     
-    // Validate that both users are ready
-    if (!(tutorReady && studentReady)) {
-      toast({
-        title: "Cannot start session",
-        description: "Both participants must be ready to start the meeting",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setLoading(true);
+    setUpdating(true);
 
     // Get CSRF token for API requests - force fetch a fresh token
     let csrfToken: string | null = null;
@@ -512,11 +559,29 @@ export function SessionRequestCard({
         description: "Unable to verify your security token. Please refresh the page and try again.",
         variant: "destructive",
       });
-      setLoading(false);
+      setUpdating(false);
       return;
     }
     
     try {
+      // Create optimistic update
+      const optimisticSession = {
+        id: sessionId,
+        conversation_id: conversationId,
+        message_id: messageId,
+        status: "started" as const,
+        tutor_ready: tutorReady,
+        student_ready: studentReady,
+        tutor_id: "", // Will be filled by API response
+        student_id: "", // Will be filled by API response
+        name: title,
+        scheduled_for: scheduledFor,
+        cost: cost
+      };
+      
+      // Apply optimistic update
+      addOptimisticSession(optimisticSession);
+      
       // Update session status to started
       const response = await fetch("/api/tutoring-sessions", {
         method: "PATCH",
@@ -539,17 +604,8 @@ export function SessionRequestCard({
       
       const data = await response.json();
       
-      // No need to manually refresh sessions - realtime updates will handle this
-      
-      toast({
-        title: "Meeting started",
-        description: "The meeting has been started and is now available to join",
-      });
-
-      // Navigate to the meeting page after starting
-      if (typeof window !== "undefined") {
-        window.location.href = `/meeting/${sessionId}`;
-      }
+      // Redirect to meeting room
+      router.push(`/meeting/${sessionId}`);
     } catch (error) {
       toast({
         title: "Error",
@@ -557,7 +613,7 @@ export function SessionRequestCard({
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setUpdating(false);
     }
   };
 
@@ -565,7 +621,7 @@ export function SessionRequestCard({
   const handleEndSession = async () => {
     if (!sessionId || !user) return;
     
-    setLoading(true);
+    setUpdating(true);
 
     // Get CSRF token for API requests - force fetch a fresh token
     let csrfToken: string | null = null;
@@ -581,11 +637,29 @@ export function SessionRequestCard({
         description: "Unable to verify your security token. Please refresh the page and try again.",
         variant: "destructive",
       });
-      setLoading(false);
+      setUpdating(false);
       return;
     }
     
     try {
+      // Create optimistic update
+      const optimisticSession = {
+        id: sessionId,
+        conversation_id: conversationId,
+        message_id: messageId,
+        status: "ended" as const,
+        tutor_ready: false,
+        student_ready: false,
+        tutor_id: "", // Will be filled by API response
+        student_id: "", // Will be filled by API response
+        name: title,
+        scheduled_for: scheduledFor,
+        cost: cost
+      };
+      
+      // Apply optimistic update
+      addOptimisticSession(optimisticSession);
+      
       // Update session status to ended
       const response = await fetch("/api/tutoring-sessions", {
         method: "PATCH",
@@ -606,40 +680,27 @@ export function SessionRequestCard({
         throw new Error(errorData.error || "Failed to end session");
       }
       
-      // No need to manually refresh sessions - realtime updates will handle this
-      
+      // Show success message
       toast({
         title: "Session ended",
-        description: "The tutoring session has ended",
+        description: "The tutoring session has been ended",
       });
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to end the session",
+        description: error instanceof Error ? error.message : "Failed to end the session",
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setUpdating(false);
     }
   };
 
   // Handle cancelling a session
   const handleCancelSession = async () => {
-    if (!conversationId || (!messageId && !sessionId) || !user) return;
+    if (!sessionId || !user) return;
     
-    // Check if this is a temporary conversation ID first
-    const isTempConversation = conversationId.startsWith('temp-');
-    if (isTempConversation) {
-      toast({
-        title: "Action Required",
-        description: "Please send a message first to create a real conversation before managing sessions.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setLoading(true);
-    setShowCancelDialog(false);
+    setUpdating(true);
 
     // Get CSRF token for API requests - force fetch a fresh token
     let csrfToken: string | null = null;
@@ -655,134 +716,54 @@ export function SessionRequestCard({
         description: "Unable to verify your security token. Please refresh the page and try again.",
         variant: "destructive",
       });
-      setLoading(false);
+      setUpdating(false);
       return;
     }
     
     try {
-      if (sessionId) {
-        // Update existing session to cancelled
-        const response = await fetch("/api/tutoring-sessions", {
-          method: "PATCH",
-          headers: { 
-            "Content-Type": "application/json", 
-            [CSRF_HEADER_NAME]: csrfToken
-          },
-          body: JSON.stringify({
-            session_id: sessionId,
-            action: "update_status",
-            status: "cancelled"
-          }),
-          credentials: 'include'
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          
-          // Enhanced token-related error detection
-          const errorMessage = errorData.error || "Failed to cancel session";
-          if (errorMessage.toLowerCase().includes("token") || 
-              errorMessage.toLowerCase().includes("csrf") ||
-              errorMessage.toLowerCase().includes("insufficient") ||
-              errorMessage.toLowerCase().includes("enough")) {
-            toast({
-              title: errorMessage.toLowerCase().includes("token") ? "Security Token Error" : "Insufficient Tokens",
-              description: errorMessage,
-              variant: "destructive",
-            });
-            setLoading(false);
-            return; // Early return to prevent showing the success toast
-          }
-          
-          throw new Error(errorMessage);
-        }
-        
-        const data = await response.json();
-      } else {
-        // Create a new session with cancelled status
-        const conversationResponse = await fetch(`/api/conversations?conversation_id=${conversationId}`, {
-          headers: {
-            [CSRF_HEADER_NAME]: csrfToken
-          },
-          credentials: 'include'
-        });
-        
-        if (!conversationResponse.ok) {
-          const errorText = await conversationResponse.text();
-          throw new Error("Failed to fetch conversation details");
-        }
-        
-        const conversationData = await conversationResponse.json();
-        const conversation = conversationData.conversation;
-        
-        if (!conversation) {
-          throw new Error("Conversation not found");
-        }
-        
-        // Find the other participant (not the current user)
-        const otherParticipant = conversation.participants.find(
-          (p: any) => p.user_id !== user.id
-        );
-        
-        if (!otherParticipant) {
-          throw new Error("Could not identify the other participant");
-        }
-        
-        // Determine tutor and student IDs
-        const tutorId = user.role === "tutor" ? user.id : otherParticipant.user_id;
-        const studentId = user.role === "tutor" ? otherParticipant.user_id : user.id;
-        
-        // Create the session with cancelled status
-        const sessionResponse = await fetch("/api/tutoring-sessions", {
-          method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            [CSRF_HEADER_NAME]: csrfToken
-          },
-          body: JSON.stringify({
-            conversation_id: conversationId,
-            message_id: messageId,
-            tutor_id: tutorId,
-            student_id: studentId,
-            name: title,
-            scheduled_for: scheduledFor,
-            status: "cancelled"
-          }),
-          credentials: 'include'
-        });
-        
-        if (!sessionResponse.ok) {
-          const errorData = await sessionResponse.json();
-          
-          // Enhanced token-related error detection
-          const errorMessage = errorData.error || "Failed to cancel session";
-          if (errorMessage.toLowerCase().includes("token") || 
-              errorMessage.toLowerCase().includes("csrf") ||
-              errorMessage.toLowerCase().includes("insufficient") ||
-              errorMessage.toLowerCase().includes("enough")) {
-            toast({
-              title: errorMessage.toLowerCase().includes("token") ? "Security Token Error" : "Insufficient Tokens",
-              description: errorMessage,
-              variant: "destructive",
-            });
-            setLoading(false);
-            return; // Early return to prevent showing the success toast
-          }
-          
-          throw new Error(errorMessage);
-        }
-        
-        const sessionData = await sessionResponse.json();
+      // Create optimistic update
+      const optimisticSession = {
+        id: sessionId,
+        conversation_id: conversationId,
+        message_id: messageId,
+        status: "cancelled" as const,
+        tutor_ready: false,
+        student_ready: false,
+        tutor_id: "", // Will be filled by API response
+        student_id: "", // Will be filled by API response
+        name: title,
+        scheduled_for: scheduledFor,
+        cost: cost
+      };
+      
+      // Apply optimistic update
+      addOptimisticSession(optimisticSession);
+      
+      // Update session status to cancelled
+      const response = await fetch("/api/tutoring-sessions", {
+        method: "PATCH",
+        headers: { 
+          "Content-Type": "application/json",
+          [CSRF_HEADER_NAME]: csrfToken
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          action: "update_status",
+          status: "cancelled"
+        }),
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to cancel session");
       }
       
-      // No need to manually refresh sessions - realtime updates will handle this
-      
+      // Show success message
       toast({
         title: "Session cancelled",
         description: "The tutoring session has been cancelled",
       });
-      
-      setShowCancelDialog(false);
     } catch (error) {
       toast({
         title: "Error",
@@ -790,7 +771,7 @@ export function SessionRequestCard({
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setUpdating(false);
     }
   };
 

@@ -19,14 +19,15 @@ export const CACHE_CONFIG = {
   SESSIONS_CACHE_KEY: 'cached_sessions',
   
   // TTL settings (milliseconds)
-  CACHE_TTL: 15 * 60 * 1000, // 15 minutes by default
-  TUTORS_CACHE_TTL: 24 * 60 * 60 * 1000, // 24 hours for tutors
-  USER_PROFILE_CACHE_TTL: 60 * 60 * 1000, // 1 hour for user profiles
-  REVIEWS_CACHE_TTL: 30 * 60 * 1000, // 30 minutes for reviews
+  CACHE_TTL: 30 * 1000, // 30 seconds for most data (was 15 minutes)
+  SESSIONS_CACHE_TTL: 30 * 1000, // 30 seconds for sessions
+  TUTORS_CACHE_TTL: 5 * 60 * 1000, // 5 minutes for tutors (was 24 hours)
+  USER_PROFILE_CACHE_TTL: 5 * 60 * 1000, // 5 minutes for user profiles (was 1 hour)
+  REVIEWS_CACHE_TTL: 5 * 60 * 1000, // 5 minutes for reviews (was 30 minutes)
   
   // Background refresh settings
-  BACKGROUND_REFRESH_INTERVAL: 5 * 60 * 1000, // 5 minutes
-  STALE_WHILE_REVALIDATE_TTL: 60 * 60 * 1000, // 1 hour (allow stale content while revalidating)
+  BACKGROUND_REFRESH_INTERVAL: 60 * 1000, // 1 minute (was 5 minutes)
+  STALE_WHILE_REVALIDATE_TTL: 5 * 60 * 1000, // 5 minutes (was 1 hour)
 };
 
 // Track pending refreshes
@@ -68,7 +69,27 @@ export function getFromCache<T>(key: string, ttl?: number, allowStale = true): T
 
     const cacheItem: CacheItem<T> = JSON.parse(cachedData);
     const now = Date.now();
-    const maxAge = ttl || CACHE_CONFIG.CACHE_TTL;
+    
+    // Determine appropriate TTL based on the key
+    let maxAge = ttl;
+    if (!maxAge) {
+      // Use specific TTL based on cache key type
+      if (key === CACHE_CONFIG.TUTORS_CACHE_KEY) {
+        maxAge = CACHE_CONFIG.TUTORS_CACHE_TTL;
+      } else if (key === CACHE_CONFIG.USER_PROFILE_CACHE_KEY) {
+        maxAge = CACHE_CONFIG.USER_PROFILE_CACHE_TTL;
+      } else if (key.startsWith(CACHE_CONFIG.REVIEWS_CACHE_PREFIX)) {
+        maxAge = CACHE_CONFIG.REVIEWS_CACHE_TTL;
+      } else if (key === CACHE_CONFIG.SESSIONS_CACHE_KEY || 
+                key.startsWith('user_sessions:') || 
+                key.startsWith('session:')) {
+        maxAge = CACHE_CONFIG.SESSIONS_CACHE_TTL;
+      } else {
+        // Default TTL for other types
+        maxAge = CACHE_CONFIG.CACHE_TTL;
+      }
+    }
+    
     const staleWhileRevalidateTtl = CACHE_CONFIG.STALE_WHILE_REVALIDATE_TTL;
 
     // Check if cache is still fresh
