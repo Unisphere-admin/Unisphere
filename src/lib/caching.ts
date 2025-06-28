@@ -19,15 +19,14 @@ export const CACHE_CONFIG = {
   SESSIONS_CACHE_KEY: 'cached_sessions',
   
   // TTL settings (milliseconds)
-  CACHE_TTL: 30 * 1000, // 30 seconds for most data (was 15 minutes)
-  SESSIONS_CACHE_TTL: 30 * 1000, // 30 seconds for sessions
-  TUTORS_CACHE_TTL: 5 * 60 * 1000, // 5 minutes for tutors (was 24 hours)
-  USER_PROFILE_CACHE_TTL: 5 * 60 * 1000, // 5 minutes for user profiles (was 1 hour)
-  REVIEWS_CACHE_TTL: 5 * 60 * 1000, // 5 minutes for reviews (was 30 minutes)
+  CACHE_TTL: 15 * 60 * 1000, // 15 minutes by default
+  TUTORS_CACHE_TTL: 24 * 60 * 60 * 1000, // 24 hours for tutors
+  USER_PROFILE_CACHE_TTL: 60 * 60 * 1000, // 1 hour for user profiles
+  REVIEWS_CACHE_TTL: 30 * 60 * 1000, // 30 minutes for reviews
   
   // Background refresh settings
-  BACKGROUND_REFRESH_INTERVAL: 60 * 1000, // 1 minute (was 5 minutes)
-  STALE_WHILE_REVALIDATE_TTL: 5 * 60 * 1000, // 5 minutes (was 1 hour)
+  BACKGROUND_REFRESH_INTERVAL: 5 * 60 * 1000, // 5 minutes
+  STALE_WHILE_REVALIDATE_TTL: 60 * 60 * 1000, // 1 hour (allow stale content while revalidating)
 };
 
 // Track pending refreshes
@@ -69,27 +68,7 @@ export function getFromCache<T>(key: string, ttl?: number, allowStale = true): T
 
     const cacheItem: CacheItem<T> = JSON.parse(cachedData);
     const now = Date.now();
-    
-    // Determine appropriate TTL based on the key
-    let maxAge = ttl;
-    if (!maxAge) {
-      // Use specific TTL based on cache key type
-      if (key === CACHE_CONFIG.TUTORS_CACHE_KEY) {
-        maxAge = CACHE_CONFIG.TUTORS_CACHE_TTL;
-      } else if (key === CACHE_CONFIG.USER_PROFILE_CACHE_KEY) {
-        maxAge = CACHE_CONFIG.USER_PROFILE_CACHE_TTL;
-      } else if (key.startsWith(CACHE_CONFIG.REVIEWS_CACHE_PREFIX)) {
-        maxAge = CACHE_CONFIG.REVIEWS_CACHE_TTL;
-      } else if (key === CACHE_CONFIG.SESSIONS_CACHE_KEY || 
-                key.startsWith('user_sessions:') || 
-                key.startsWith('session:')) {
-        maxAge = CACHE_CONFIG.SESSIONS_CACHE_TTL;
-      } else {
-        // Default TTL for other types
-        maxAge = CACHE_CONFIG.CACHE_TTL;
-      }
-    }
-    
+    const maxAge = ttl || CACHE_CONFIG.CACHE_TTL;
     const staleWhileRevalidateTtl = CACHE_CONFIG.STALE_WHILE_REVALIDATE_TTL;
 
     // Check if cache is still fresh
@@ -169,107 +148,6 @@ export function invalidateCache(key: string): void {
   } catch (error) {
     console.warn('Failed to invalidate cache:', error);
   }
-}
-
-/**
- * Update cache data with realtime updates instead of invalidating
- * This prevents cache from reverting to stale data after updates
- * 
- * @param key Cache key 
- * @param updateFn Function that receives current data and returns updated data
- * @returns True if cache was updated successfully
- */
-export function updateCache<T>(key: string, updateFn: (currentData: T | null) => T | null): boolean {
-  try {
-    // Get the current cache item
-    const cachedData = localStorage.getItem(key);
-    let cacheItem: CacheItem<T> | null = null;
-    
-    if (cachedData) {
-      try {
-        cacheItem = JSON.parse(cachedData) as CacheItem<T>;
-      } catch (e) {
-        // If we can't parse the cache, just invalidate it
-        localStorage.removeItem(key);
-        return false;
-      }
-    }
-    
-    // Apply the update function to the current data
-    const currentData = cacheItem ? cacheItem.data : null;
-    const updatedData = updateFn(currentData);
-    
-    // If the update function returns null, remove the cache
-    if (updatedData === null) {
-      localStorage.removeItem(key);
-      return true;
-    }
-    
-    // Save the updated data with current timestamp
-    const now = Date.now();
-    const updatedCacheItem: CacheItem<T> = {
-      data: updatedData,
-      timestamp: now, // Update the timestamp to extend cache life
-      isLoading: false,
-      lastUpdated: new Date(now).toISOString()
-    };
-    
-    localStorage.setItem(key, JSON.stringify(updatedCacheItem));
-    return true;
-  } catch (error) {
-    console.warn('Failed to update cache:', error);
-    return false;
-  }
-}
-
-/**
- * Update a specific item in an array cache by its ID
- * Useful for updating sessions or messages in a collection
- * 
- * @param key Cache key for the array
- * @param id ID of the item to update
- * @param idField Field name that contains the ID (default: 'id')
- * @param updateFn Function that updates the specific item
- * @returns True if cache was updated successfully
- */
-export function updateItemInArrayCache<T extends Record<string, any>>(
-  key: string,
-  id: string,
-  updateFn: (item: T) => T | null,
-  idField: string = 'id'
-): boolean {
-  return updateCache<T[]>(key, (currentItems) => {
-    // If no items cached, nothing to update
-    if (!currentItems || !Array.isArray(currentItems)) {
-      return null;
-    }
-    
-    // Find and update the specific item
-    const updatedItems: T[] = [];
-    let foundItem = false;
-    
-    for (const item of currentItems) {
-      if (item && item[idField] === id) {
-        // Found the item to update
-        foundItem = true;
-        const updatedItem = updateFn(item);
-        
-        // If update returns null, remove the item
-        if (updatedItem !== null) {
-          updatedItems.push(updatedItem);
-        }
-      } else {
-        updatedItems.push(item);
-      }
-    }
-    
-    // If we didn't find the item, just return the original array
-    if (!foundItem) {
-      return currentItems;
-    }
-    
-    return updatedItems;
-  });
 }
 
 /**

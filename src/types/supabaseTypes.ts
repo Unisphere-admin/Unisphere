@@ -57,11 +57,12 @@ export interface TutoringSession {
   created_at: string;
   updated_at: string;
   conversation_id: string;
-  message_id: string;
+  message_id?: string | null;
   tutor_ready: boolean;
   student_ready: boolean;
   cancelled_at?: string | null;
   cost?: number | null;
+  display_order?: string | null;
 }
 
 export interface Conversation {

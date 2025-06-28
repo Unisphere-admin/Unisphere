@@ -10,7 +10,9 @@ export interface TutoringSession {
   created_at: string;
   updated_at: string;
   conversation_id: string;
-  message_id: string;
+  // message_id is completely optional - sessions can be created without an associated message
+  // created_at is used for ordering sessions instead of display_order or message_id
+  message_id?: string | null;
   tutor_id: string;
   student_id: string;
   status: 'requested' | 'accepted' | 'started' | 'ended' | 'cancelled';
@@ -36,12 +38,12 @@ export interface TutoringSession {
 async function _createTutoringSessionRequest(
   authUser: AuthUser,
   conversationId: string,
-  messageId: string,
   tutorId: string,
   studentId: string,
   options?: {
     scheduled_for?: string;
     name?: string;
+    message_id?: string;
   },
   studentTokens?: number
 ): Promise<{
@@ -49,78 +51,59 @@ async function _createTutoringSessionRequest(
   error: string | null;
   authError?: string;
 }> {
+  if (!authUser || authUser.id !== tutorId) {
+    return {
+      session: null,
+      error: null,
+      authError: 'Not authorized to create tutoring session request'
+    };
+  }
+  
   try {
-    // Security check - verify authenticated user 
-    const securityError = securityCheck(authUser);
-    if (securityError) {
-      return { session: null, error: null, authError: securityError };
-    }
+    const supabase = await createRouteHandlerClientWithCookies();
     
-    // Only allow tutors to create session requests
-    if (authUser.is_tutor) {
-      // Tutor is creating a request - verify they are the tutor in the request
-      if (authUser.id !== tutorId) {
-        return { session: null, error: 'Tutors can only create sessions for themselves' };
-      }
-      // Check student's tokens - use provided tokens if available, otherwise fetch them
-      if (studentTokens !== undefined) {
-        if (studentTokens <= 0) {
-          return { session: null, error: "Student does not have enough tokens to create this session." };
-        }
-      } else {
-      const { user: studentProfile, error: studentProfileError } = await getUserProfile(studentId);
-      if (studentProfileError || !studentProfile) {
-        return { session: null, error: "Could not retrieve student profile to check tokens." };
-      }
-      if (!studentProfile.tokens || studentProfile.tokens <= 0) {
-        return { session: null, error: "Student does not have enough tokens to create this session." };
-        }
-      }
-    } else {
-      // Student is trying to create a request - disallow this action
-      return { session: null, error: 'Only tutors can create tutoring sessions' };
-    }
-    
-    // Create client
-    const client = await createRouteHandlerClientWithCookies();
-    
-    // Prepare session data with required fields
+    // Prepare session data
     const sessionData: any = {
-        conversation_id: conversationId,
-        message_id: messageId,
-        tutor_id: tutorId,
-        student_id: studentId,
-        status: 'requested', // Set to 'requested' since this is called when a student creates a request
-        tutor_ready: false,
-        student_ready: false
+      conversation_id: conversationId,
+      tutor_id: tutorId,
+      student_id: studentId,
+      status: 'requested',
+      tutor_ready: false,
+      student_ready: false
     };
     
-    // Add optional fields if provided
-    if (options?.scheduled_for) {
-      sessionData.scheduled_for = options.scheduled_for;
-    }
+    // Add optional fields
+    if (options?.scheduled_for) sessionData.scheduled_for = options.scheduled_for;
+    if (options?.name) sessionData.name = options.name;
+    if (options?.message_id) sessionData.message_id = options.message_id;
     
-    if (options?.name) {
-      sessionData.name = options.name;
-    }
-    
-    // Create the session
-    
-    const { data: session, error: sessionError } = await client
+    // Insert the session
+    const { data: session, error: sessionError } = await supabase
       .from('tutoring_session')
       .insert(sessionData)
-      .select()
+      .select(`
+        *,
+        tutor_profile:tutor_id(first_name, last_name),
+        student_profile:student_id(first_name, last_name)
+      `)
       .single();
-      
+    
     if (sessionError) {
-      return { session: null, error: 'Failed to create tutoring session request' };
+      return {
+        session: null,
+        error: `Failed to create tutoring session request: ${sessionError.message}`
+      };
     }
     
-    
-    return { session, error: null };
+    return {
+      session,
+      error: null
+    };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return { session: null, error: errorMessage };
+    return {
+      session: null,
+      error: `Unexpected error: ${error instanceof Error ? error.message : String(error)}`
+    };
   }
 }
 
@@ -130,12 +113,12 @@ async function _createTutoringSessionRequest(
 async function _createTutoringSession(
   authUser: AuthUser,
   conversationId: string,
-  messageId: string,
   tutorId: string,
   studentId: string,
   options?: {
     scheduled_for?: string;
     name?: string;
+    message_id?: string;
   },
   studentTokens?: number
 ): Promise<{
@@ -143,88 +126,67 @@ async function _createTutoringSession(
   error: string | null;
   authError?: string;
 }> {
+  if (!authUser || authUser.id !== tutorId) {
+    return {
+      session: null,
+      error: null,
+      authError: 'Not authorized to create tutoring session'
+    };
+  }
+  
   try {
-    // Extra security check - verify authenticated user
-    const securityError = securityCheck(authUser);
-    if (securityError) {
-      return { session: null, error: null, authError: securityError };
+    const supabase = await createRouteHandlerClientWithCookies();
+    
+    // Check tokens if provided
+    if (typeof studentTokens === 'number' && studentTokens < 1) {
+      return {
+        session: null,
+        error: 'Insufficient tokens for session'
+      };
     }
     
-    // Verify user is the tutor
-    const permissionError = await verifyUserPermission(authUser, tutorId);
-    if (permissionError) {
-      return { session: null, error: permissionError };
-    }
-
-    // Check student's tokens - use provided tokens if available, otherwise fetch them
-    if (studentTokens !== undefined) {
-      if (studentTokens <= 0) {
-        return { session: null, error: "Student does not have enough tokens for this session." };
-      }
-    } else {
-    const { user: studentProfile, error: studentProfileError } = await getUserProfile(studentId);
-    if (studentProfileError || !studentProfile) {
-      return { session: null, error: "Could not retrieve student profile to check tokens." };
-    }
-    if (!studentProfile.tokens || studentProfile.tokens <= 0) {
-      return { session: null, error: "Student does not have enough tokens for this session." };
-      }
-    }
-    
-    // Check if user is actually a tutor - ensure client is awaited
-    const client = await createRouteHandlerClientWithCookies();
-    
-    const { data: userData, error: profileError } = await client
-      .from('users')
-      .select('is_tutor')
-      .eq('id', tutorId)
-      .single();
-      
-    if (profileError) {
-      return { session: null, error: 'Failed to verify tutor status' };
-    }
-    
-    if (!userData?.is_tutor) {
-      return { session: null, error: 'Only tutors can create tutoring sessions' };
-    }
-    
-    // Prepare session data with required fields
+    // Prepare session data
     const sessionData: any = {
-        conversation_id: conversationId,
-        message_id: messageId,
-        tutor_id: tutorId,
-        student_id: studentId,
-        status: 'accepted', // Set to 'accepted' since this is called when a tutor accepts a session request
-        tutor_ready: false,
-        student_ready: false
+      conversation_id: conversationId,
+      tutor_id: tutorId,
+      student_id: studentId,
+      status: 'accepted',
+      tutor_ready: false,
+      student_ready: false
     };
     
-    // Add optional fields if provided
-    if (options?.scheduled_for) {
-      sessionData.scheduled_for = options.scheduled_for;
-    }
+    // Add optional fields
+    if (options?.scheduled_for) sessionData.scheduled_for = options.scheduled_for;
+    if (options?.name) sessionData.name = options.name;
+    if (options?.message_id) sessionData.message_id = options.message_id;
     
-    if (options?.name) {
-      sessionData.name = options.name;
-    }
-    
-    // Create the session
-    
-    const { data: session, error: sessionError } = await client
+    // Insert the session
+    const { data: session, error: sessionError } = await supabase
       .from('tutoring_session')
       .insert(sessionData)
-      .select()
+      .select(`
+        *,
+        tutor_profile:tutor_id(first_name, last_name),
+        student_profile:student_id(first_name, last_name)
+      `)
       .single();
-      
+    
     if (sessionError) {
-      return { session: null, error: 'Failed to create tutoring session' };
+      return {
+        session: null,
+        error: `Failed to create tutoring session: ${sessionError.message}`
+      };
     }
     
-    
-    return { session, error: null };
+    return {
+      session,
+      error: null
+    };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return { session: null, error: errorMessage };
+    return {
+      session: null,
+      error: `Unexpected error: ${error instanceof Error ? error.message : String(error)}`
+    };
   }
 }
 
@@ -431,7 +393,7 @@ async function _getSessionsByConversation(
       .from('tutoring_session')
       .select('*')
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: true });
       
     if (sessionsError) {
       return { sessions: [], error: 'Failed to fetch tutoring sessions' };
@@ -488,7 +450,7 @@ export async function getSessionsByConversation(conversationId: string) {
         student_profile:student_id(first_name, last_name)
       `)
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: true });
       
     if (error) {
       return { error: error.message };
@@ -553,13 +515,16 @@ export async function getUserSessions(userId: string, userType: 'tutor' | 'stude
 export const createTutoringSessionRequestAuth = withAuth(function _createTutoringSessionRequestWrapped(
   authUser: AuthUser, 
   conversationId: string, 
-  messageId: string, 
   tutorId: string, 
   studentId: string, 
-  options: { scheduled_for?: string; name?: string; } = {},
+  options: { 
+    scheduled_for?: string; 
+    name?: string; 
+    message_id?: string;
+  } = {},
   studentTokens?: number
 ) {
-  return _createTutoringSessionRequest(authUser, conversationId, messageId, tutorId, studentId, options, studentTokens);
+  return _createTutoringSessionRequest(authUser, conversationId, tutorId, studentId, options, studentTokens);
 });
 
 /**
@@ -568,13 +533,16 @@ export const createTutoringSessionRequestAuth = withAuth(function _createTutorin
 export const createTutoringSessionAuth = withAuth(function _createTutoringSessionWrapped(
   authUser: AuthUser, 
   conversationId: string, 
-  messageId: string, 
   tutorId: string, 
   studentId: string, 
-  options: { scheduled_for?: string; name?: string; } = {},
+  options: { 
+    scheduled_for?: string; 
+    name?: string; 
+    message_id?: string;
+  } = {},
   studentTokens?: number
 ) {
-  return _createTutoringSession(authUser, conversationId, messageId, tutorId, studentId, options, studentTokens);
+  return _createTutoringSession(authUser, conversationId, tutorId, studentId, options, studentTokens);
 });
 
 /**
@@ -583,12 +551,12 @@ export const createTutoringSessionAuth = withAuth(function _createTutoringSessio
 export async function createTutoringSession(
   user: AuthUser,
   conversationId: string,
-  messageId: string,
   tutorId: string,
   studentId: string,
   options: {
     scheduled_for?: string;
     name?: string;
+    message_id?: string;
   } = {},
   studentTokens?: number
 ) {
@@ -598,7 +566,6 @@ export async function createTutoringSession(
     return _createTutoringSession(
       user,
       conversationId,
-      messageId,
       tutorId,
       studentId,
       options,
@@ -616,12 +583,12 @@ export async function createTutoringSession(
 export async function createTutoringSessionRequest(
   user: AuthUser,
   conversationId: string,
-  messageId: string,
   tutorId: string,
   studentId: string,
   options: {
     scheduled_for?: string;
     name?: string;
+    message_id?: string;
   } = {},
   studentTokens?: number
 ) {
@@ -636,7 +603,6 @@ export async function createTutoringSessionRequest(
     return _createTutoringSessionRequest(
       user,
       conversationId,
-      messageId,
       tutorId,
       studentId,
       options,
@@ -755,34 +721,59 @@ export const getSessionsByConversationAuth = withAuth(_getSessionsByConversation
 
 /**
  * Get tutoring sessions by message ID
+ * This function now primarily uses conversation_id and timestamps to find related sessions,
+ * since message_id is now completely optional
  */
 export async function getSessionsByMessageId(messageId: string) {
   try {
     const supabase = await createRouteHandlerClientWithCookies();
     
-    // Log that we're fetching sessions by message ID
+    // Get the message to find its conversation_id
+    const { data: messageData, error: messageError } = await supabase
+      .from('message')
+      .select('conversation_id, created_at')
+      .eq('id', messageId)
+      .single();
     
-    const { data, error } = await supabase
+    if (messageError || !messageData) {
+      return { sessions: [], error: 'Message not found' };
+    }
+    
+    const conversationId = messageData.conversation_id;
+    const messageTimestamp = messageData.created_at;
+    
+    if (!messageTimestamp) {
+      return { sessions: [], error: 'Message timestamp not found' };
+    }
+    
+    // Create a time window around the message (10 seconds before and after)
+    // This helps find sessions created around the same time as the message
+    const timeWindowStart = new Date(new Date(messageTimestamp).getTime() - 10000).toISOString();
+    const timeWindowEnd = new Date(new Date(messageTimestamp).getTime() + 10000).toISOString();
+    
+    // Look for sessions in this conversation with:
+    // 1. Explicitly attached to this message_id (for backward compatibility)
+    // 2. OR created within a time window around the message
+    const { data: sessions, error } = await supabase
       .from('tutoring_session')
       .select(`
         *,
         tutor_profile:tutor_id(first_name, last_name),
         student_profile:student_id(first_name, last_name)
       `)
-      .eq('message_id', messageId)
+      .eq('conversation_id', conversationId)
+      .or(`message_id.eq.${messageId},and(created_at.gte.${timeWindowStart},created_at.lte.${timeWindowEnd})`)
       .order('created_at', { ascending: false });
-      
+    
     if (error) {
-      return { error: error.message };
+      return { sessions: [], error: error.message };
     }
     
-    // Log the sessions found
-    if (data && data.length > 0) {
-    } else {
-    }
-    
-    return { sessions: data as TutoringSession[] };
-  } catch (err) {
-    return { error: 'Failed to get sessions' };
+    return { sessions: sessions || [], error: null };
+  } catch (error) {
+    return { 
+      sessions: [], 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    };
   }
 } 

@@ -46,7 +46,7 @@ interface SessionType {
   tutor_ready?: boolean;
   student_ready?: boolean;
   conversation_id?: string;
-  message_id?: string;
+  message_id?: string | null;
   tutor_profile?: { first_name?: string; last_name?: string };
   student_profile?: { first_name?: string; last_name?: string };
   created_by?: string;
@@ -61,7 +61,7 @@ export default function SchedulePage() {
   const { toast } = useToast();
   const [cancelingSession, setCancelingSession] = useState<string | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
-  const [sessionToCancel, setSessionToCancel] = useState<{ id: string, message_id: string | undefined } | null>(null);
+  const [sessionToCancel, setSessionToCancel] = useState<{ id: string, message_id: string | null | undefined } | null>(null);
   
   // Action loading state
   const [actionLoading, setActionLoading] = useState<string | null>(null);

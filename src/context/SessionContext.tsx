@@ -1,10 +1,9 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode, useCallback, useEffect, useRef } from "react";
+import { createContext, useContext, useState, ReactNode, useCallback, useEffect } from "react";
 import { SessionRequest } from "./MessageContext";
 import { useAuth } from "./AuthContext";
 import { createClient } from "@/utils/supabase/client";
-import { CACHE_CONFIG, updateCache, updateItemInArrayCache, saveToCache, getFromCache } from '@/lib/caching';
 
 interface Review {
   id: string | number;
@@ -29,10 +28,12 @@ export interface ActiveSession {
   ended_at?: string | null;
   scheduled_for?: string | null;
   conversation_id: string;
-  message_id: string;
+  message_id?: string | null;
   tutor_ready: boolean;
   student_ready: boolean;
   cost?: number | null;
+  created_at: string;
+  updated_at?: string;
   tutor_profile?: {
     first_name: string;
     last_name: string;
@@ -55,9 +56,8 @@ interface SessionContextType {
   loading: boolean;
   sessions: ActiveSession[];
   loadingSessions: boolean;
-  refreshSessions: (options?: { force?: boolean }) => Promise<void>;
+  refreshSessions: () => Promise<void>;
   updateSession: (session: ActiveSession) => void;
-  addOptimisticSession: (session: ActiveSession) => void;
 }
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -69,10 +69,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const [reviewHistory, setReviewHistory] = useState<Review[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(false);
-  
-  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastRefreshTimeRef = useRef<number>(0);
-  const REFRESH_COOLDOWN = 5000; // 5 seconds minimum between refreshes
   
   // Check if user has premium access
   const checkPremiumAccess = useCallback(async () => {
@@ -164,25 +160,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       if (event.key === 'session_cache_invalidated') {
         // Refresh sessions when another tab invalidates the cache
         refreshSessions();
-      }
-      
-      // Handle specific session updates from other tabs
-      if (event.key === 'session_updated' && event.newValue) {
-        try {
-          const { id, timestamp } = JSON.parse(event.newValue);
-          
-          // Only process reasonably recent updates (within last 10 seconds)
-          if (Date.now() - timestamp < 10000) {
-            // Fetch the single updated session to refresh it
-            getSessionById(id).then(updatedSession => {
-              if (updatedSession) {
-                updateSession(updatedSession);
-              }
-            });
-          }
-        } catch (e) {
-          // Invalid JSON, ignore
-        }
       }
     };
     
@@ -461,37 +438,11 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // Refresh sessions list
-  const refreshSessions = useCallback(async (options: { force?: boolean } = {}): Promise<void> => {
+  const refreshSessions = useCallback(async (): Promise<void> => {
     if (!user) {
       setSessions([]);
       return;
     }
-    
-    const now = Date.now();
-    const timeSinceLastRefresh = now - lastRefreshTimeRef.current;
-    
-    // Skip refresh if we refreshed recently, unless force is true
-    if (!options.force && timeSinceLastRefresh < REFRESH_COOLDOWN) {
-      // If we're in cooldown period, schedule a refresh for later
-      if (refreshTimeoutRef.current) {
-        clearTimeout(refreshTimeoutRef.current);
-      }
-      
-      refreshTimeoutRef.current = setTimeout(() => {
-        refreshSessions({ force: true });
-      }, REFRESH_COOLDOWN - timeSinceLastRefresh);
-      
-      return;
-    }
-    
-    // Clear any pending refresh
-    if (refreshTimeoutRef.current) {
-      clearTimeout(refreshTimeoutRef.current);
-      refreshTimeoutRef.current = null;
-    }
-    
-    // Update the last refresh timestamp
-    lastRefreshTimeRef.current = now;
     
     // Check if user has premium access before making API calls
     const hasPremiumAccess = await checkPremiumAccess();
@@ -504,32 +455,8 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     try {
       // Include both user_id and user_type to satisfy API requirements
       const userType = user.role === 'tutor' ? 'tutor' : 'student';
-      const cacheKey = `user_sessions:${user.id}:${userType}`;
-      
-      // First check if we have cached data to show immediately
-      const cachedData = getFromCache<{ sessions: ActiveSession[] }>(cacheKey);
-      if (cachedData && cachedData.sessions) {
-        // Use cached data while we fetch fresh data
-        setSessions(cachedData.sessions);
-        
-        // Check for active sessions
-        const activeSessionCandidate = cachedData.sessions.find((s: ActiveSession) => 
-          s.status === 'started' || s.status === 'accepted'
-        );
-        
-        if (activeSessionCandidate) {
-          setActiveSession(activeSessionCandidate);
-        }
-      }
-      
-      // Always fetch fresh data from API to ensure we have latest state
       const response = await fetch(`/api/tutoring-sessions?user_id=${user.id}&user_type=${userType}`, {
-        credentials: 'include',
-        // Add cache-busting headers
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        }
+        credentials: 'include'
       });
       
       if (response.status === 401) {
@@ -544,14 +471,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       const data = await response.json();
       
       if (data.sessions) {
-        // Update state with fresh data
         setSessions(data.sessions);
-        
-        // Save fresh data to cache
-        saveToCache(cacheKey, data);
-        
-        // Also cache in the global sessions cache
-        saveToCache(CACHE_CONFIG.SESSIONS_CACHE_KEY, data.sessions);
         
         // Check for active sessions
         const activeSessionCandidate = data.sessions.find((s: ActiveSession) => 
@@ -560,9 +480,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         
         if (activeSessionCandidate) {
           setActiveSession(activeSessionCandidate);
-        } else if (activeSession && !data.sessions.some((s: ActiveSession) => s.id === activeSession.id)) {
-          // If the active session is no longer in the list, clear it
-          setActiveSession(null);
         }
       }
     } catch (error) {
@@ -570,195 +487,52 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoadingSessions(false);
     }
-  }, [user, checkPremiumAccess, activeSession]);
+  }, [user, checkPremiumAccess]);
 
-  // Update a specific session
-  const updateSession = useCallback((session: ActiveSession) => {
-    // Update session in React state
-    setSessions(prev => 
-      prev.map(s => s.id === session.id ? { ...s, ...session } : s)
-    );
+  // Update session in local state
+  const updateSession = useCallback((updatedSession: ActiveSession) => {
+    if (!updatedSession || !updatedSession.id) return;
     
-    // Update active session if it matches
-    if (activeSession && activeSession.id === session.id) {
-      setActiveSession({ ...activeSession, ...session });
-    }
+    // Ensure created_at is present
+    const sessionWithCreatedAt = {
+      ...updatedSession,
+      created_at: updatedSession.created_at || new Date().toISOString()
+    };
     
-    // Update session in cache so other components and future loads use updated data
-    
-    // 1. Update the specific session cache
-    updateCache<{ session: ActiveSession | null, error: string | null }>(
-      `session:${session.id}`,
-      (currentData) => {
-        if (!currentData) return null;
-        return {
-          ...currentData,
-          session: { ...currentData.session, ...session }
-        };
-      }
-    );
-    
-    // 2. Update the conversation sessions cache
-    if (session.conversation_id) {
-      const conversationCacheKey = `sessions:${session.conversation_id}`;
-      updateCache<{ sessions: ActiveSession[], error: string | null }>(
-        conversationCacheKey,
-        (currentData) => {
-          if (!currentData || !currentData.sessions) return null;
-          return {
-            ...currentData,
-            sessions: currentData.sessions.map(s => 
-              s.id === session.id ? { ...s, ...session } : s
-            )
-          };
-        }
-      );
-    }
-    
-    // 3. Update user sessions cache
-    if (user) {
-      // Update in both tutor and student caches as we might not know which one is relevant
-      ['tutor', 'student'].forEach(userType => {
-        const userSessionsCacheKey = `user_sessions:${user.id}:${userType}`;
-        updateCache<{ sessions: ActiveSession[], error: string | null }>(
-          userSessionsCacheKey,
-          (currentData) => {
-            if (!currentData || !currentData.sessions) return null;
-            return {
-              ...currentData,
-              sessions: currentData.sessions.map(s => 
-                s.id === session.id ? { ...s, ...session } : s
-              )
-            };
-          }
-        );
-      });
-    }
-    
-    // 4. Update in the global sessions cache
-    updateCache<ActiveSession[]>(
-      CACHE_CONFIG.SESSIONS_CACHE_KEY,
-      (currentSessions) => {
-        if (!currentSessions) return null;
-        return currentSessions.map((s: ActiveSession) => 
-          s.id === session.id ? { ...s, ...session } : s
-        );
-      }
-    );
-    
-    // Trigger session updated event so other tabs will know to refresh
-    try {
-      localStorage.setItem('session_updated', JSON.stringify({
-        id: session.id,
-        timestamp: Date.now()
-      }));
-    } catch (e) {
-      // Ignore localStorage errors
-    }
-  }, [activeSession, user]);
-
-  // Add this new function to handle optimistic updates
-  const addOptimisticSession = useCallback((session: ActiveSession): void => {
-    // First update the state
+    // Update in sessions list
     setSessions(prev => {
-      // Check if session already exists
-      const exists = prev.some(s => s.id === session.id);
+      const exists = prev.some(s => s.id === sessionWithCreatedAt.id);
+      
       if (exists) {
         // Update existing session
-        return prev.map(s => s.id === session.id ? { ...s, ...session } : s);
+        return prev.map(s => 
+          s.id === sessionWithCreatedAt.id 
+            ? { ...s, ...sessionWithCreatedAt } 
+            : s
+        );
       } else {
         // Add new session
-        return [...prev, session];
+        return [...prev, sessionWithCreatedAt];
       }
     });
     
-    // Update active session if needed
-    if (session.status === 'started' || session.status === 'accepted') {
-      setActiveSession(session);
+    // If this is the active session, update it
+    if (activeSession && activeSession.id === sessionWithCreatedAt.id) {
+      setActiveSession({
+        ...activeSession,
+        ...sessionWithCreatedAt
+      });
     }
     
-    // Update session in all caches
-    if (user) {
-      // Update user sessions cache for both tutor and student
-      const userType = user.role === 'tutor' ? 'tutor' : 'student';
-      const cacheKey = `user_sessions:${user.id}:${userType}`;
+    // Trigger a custom event to notify other components
+    if (typeof window !== 'undefined') {
+      const event = new Event('session-updated');
+      window.dispatchEvent(event);
       
-      updateCache<{ sessions: ActiveSession[], error: string | null }>(cacheKey, (currentData) => {
-        if (!currentData) {
-          // Create new cache entry if none exists
-          return {
-            sessions: [session],
-            error: null
-          };
-        }
-        
-        // Check if session already exists in cache
-        const exists = currentData.sessions.some(s => s.id === session.id);
-        if (exists) {
-          // Update existing session
-          return {
-            ...currentData,
-            sessions: currentData.sessions.map(s => s.id === session.id ? { ...s, ...session } : s)
-          };
-        } else {
-          // Add new session
-          return {
-            ...currentData,
-            sessions: [...currentData.sessions, session]
-          };
-        }
-      });
-      
-      // Also update the global sessions cache
-      updateCache<ActiveSession[]>(CACHE_CONFIG.SESSIONS_CACHE_KEY, (currentSessions) => {
-        if (!currentSessions) {
-          return [session];
-        }
-        
-        // Check if session already exists
-        const exists = currentSessions.some(s => s.id === session.id);
-        if (exists) {
-          // Update existing session
-          return currentSessions.map(s => s.id === session.id ? { ...s, ...session } : s);
-        } else {
-          // Add new session
-          return [...currentSessions, session];
-        }
-      });
-      
-      // If session has conversation_id, update that cache too
-      if (session.conversation_id) {
-        const conversationCacheKey = `sessions:${session.conversation_id}`;
-        updateCache<{ sessions: ActiveSession[], error: string | null }>(
-          conversationCacheKey,
-          (currentData) => {
-            if (!currentData) {
-              return {
-                sessions: [session],
-                error: null
-              };
-            }
-            
-            // Check if session already exists
-            const exists = currentData.sessions.some(s => s.id === session.id);
-            if (exists) {
-              // Update existing session
-              return {
-                ...currentData,
-                sessions: currentData.sessions.map(s => s.id === session.id ? { ...s, ...session } : s)
-              };
-            } else {
-              // Add new session
-              return {
-                ...currentData,
-                sessions: [...currentData.sessions, session]
-              };
-            }
-          }
-        );
-      }
+      // Also trigger a refresh of all sessions to ensure proper sorting
+      setTimeout(() => refreshSessions(), 100);
     }
-  }, [user]);
+  }, [activeSession, refreshSessions]);
 
   return (
     <SessionContext.Provider
@@ -774,8 +548,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         sessions,
         loadingSessions,
         refreshSessions,
-        updateSession,
-        addOptimisticSession
+        updateSession
       }}
     >
       {children}
@@ -801,8 +574,7 @@ export const useSessions = () => {
     sessions,
     loadingSessions,
     refreshSessions,
-    updateSession,
-    addOptimisticSession
+    updateSession
   } = context;
   
   return {
@@ -817,7 +589,6 @@ export const useSessions = () => {
     sessions,
     loadingSessions,
     refreshSessions,
-    updateSession,
-    addOptimisticSession
+    updateSession
   };
 };

@@ -37,7 +37,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { SessionLink } from "@/components/SessionLink";
 import { getCsrfTokenFromStorage, CSRF_HEADER_NAME, useCsrfToken } from '@/lib/csrf/client';
-import { useRouter } from 'next/navigation';
 
 interface SessionRequestCardProps {
   messageId: string;
@@ -85,7 +84,7 @@ export function SessionRequestCard({
   cost
 }: SessionRequestCardProps) {
   const { user } = useAuth();
-  const { sessions, refreshSessions, addOptimisticSession } = useSessions();
+  const { sessions, refreshSessions } = useSessions();
   const { subscribeToConversation } = useRealtime();
   const { toast } = useToast();
   const { fetchCsrfToken } = useCsrfToken();
@@ -99,7 +98,6 @@ export function SessionRequestCard({
   const [messageContent, setMessageContent] = useState<string | null>(null);
   const isTutor = user?.role === "tutor";
   const pathname = usePathname();
-  const router = useRouter();
   
   // Check if we're already in the messages page
   const isInMessagesPage = pathname === '/dashboard/messages';
@@ -122,12 +120,9 @@ export function SessionRequestCard({
       if (!messageId || !conversationId) return;
       
       try {
-        setIsLoading(true);
-        
         // Skip API calls for temporary conversations
         if (conversationId.startsWith('temp-')) {
           setIsCreatedByTutor(user?.role === 'tutor');
-          setIsLoading(false);
           return;
         }
         
@@ -165,8 +160,7 @@ export function SessionRequestCard({
           }
         }
       } catch (error) {
-      } finally {
-        setIsLoading(false);
+        console.error("Error fetching message details:", error);
       }
     };
     
@@ -175,13 +169,15 @@ export function SessionRequestCard({
 
   // Fetch session if it doesn't exist yet but should
   useEffect(() => {
+    // Always set loading to false immediately to prevent UI getting stuck
+    setIsLoading(false);
+    
     // If we don't have a sessionId but we have messageId and conversationId,
     // we might be in a state where the session was just created
     // but not yet associated with the message in the UI
     if (!sessionId && messageId && conversationId) {
       // Skip API calls for temporary conversations
       if (conversationId.startsWith('temp-')) {
-        setIsLoading(false);
         return;
       }
 
@@ -199,8 +195,6 @@ export function SessionRequestCard({
       // Check if there's a session for this message in the database
       const checkForSession = async () => {
         try {
-          setIsLoading(true);
-          
           // Try to fetch the session directly by message ID
           const response = await fetch(`/api/tutoring-sessions?message_id=${messageId}`, {
             credentials: 'include'
@@ -211,21 +205,24 @@ export function SessionRequestCard({
             
             // Check if we have valid sessions data 
             if (data.sessions && data.sessions.length > 0) {
-              
               // Force refresh sessions to update the UI
               await refreshSessions();
+            } else {
+              // If no sessions found for this message, try to find by conversation ID
+              const convResponse = await fetch(`/api/tutoring-sessions?conversation_id=${conversationId}`, {
+                credentials: 'include'
+              });
               
-              // Clear loading state after successful refresh
-              setTimeout(() => setIsLoading(false), 300);
-              return;
+              if (convResponse.ok) {
+                await refreshSessions();
+              }
             }
+          } else {
+            // If API call fails, still try to refresh sessions
+            await refreshSessions();
           }
-          
-          // If we can't find a session, just refresh sessions and continue
-          refreshSessions();
-          setIsLoading(false);
         } catch (error) {
-          setIsLoading(false);
+          console.error("Error checking for session:", error);
         }
       };
       
@@ -247,7 +244,17 @@ export function SessionRequestCard({
 
   // Handle accepting a session
   const handleAcceptSession = async () => {
-    if (!conversationId || (!messageId && !sessionId) || !user) return;
+    if (!conversationId || !user) return;
+    
+    // Either sessionId or messageId must be present
+    if (!sessionId && !messageId) {
+      toast({
+        title: "Error",
+        description: "Missing session information. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     // Check if this is a temporary conversation ID first
     const isTempConversation = conversationId.startsWith('temp-');
@@ -282,24 +289,6 @@ export function SessionRequestCard({
     
     try {
       if (sessionId) {
-        // Create optimistic update for existing session
-        const optimisticSession = {
-          id: sessionId,
-          conversation_id: conversationId,
-          message_id: messageId,
-          status: "accepted" as const,
-          tutor_ready: tutorReady,
-          student_ready: studentReady,
-          tutor_id: user.role === "tutor" ? user.id : "", // Will be filled in by API response
-          student_id: user.role === "student" ? user.id : "", // Will be filled in by API response
-          name: title,
-          scheduled_for: scheduledFor,
-          cost: cost
-        };
-        
-        // Apply optimistic update
-        addOptimisticSession(optimisticSession);
-        
         // Update existing session to accepted
         const response = await fetch("/api/tutoring-sessions", {
           method: "PATCH",
@@ -371,25 +360,6 @@ export function SessionRequestCard({
         const tutorId = user.role === "tutor" ? user.id : otherParticipant.user_id;
         const studentId = user.role === "tutor" ? otherParticipant.user_id : user.id;
         
-        // Create optimistic session
-        const optimisticSession = {
-          // Use a temporary ID that will be replaced when the real session is created
-          id: `temp-${Date.now()}`,
-          conversation_id: conversationId,
-          message_id: messageId,
-          status: "accepted" as const,
-          tutor_ready: false,
-          student_ready: false,
-          tutor_id: tutorId,
-          student_id: studentId,
-          name: title,
-          scheduled_for: scheduledFor,
-          cost: cost
-        };
-        
-        // Apply optimistic update
-        addOptimisticSession(optimisticSession);
-        
         // Create the session with accepted status
         const sessionResponse = await fetch("/api/tutoring-sessions", {
           method: "POST",
@@ -399,7 +369,7 @@ export function SessionRequestCard({
           },
           body: JSON.stringify({
             conversation_id: conversationId,
-            message_id: messageId,
+            message_id: messageId || null,
             tutor_id: tutorId,
             student_id: studentId,
             name: title,
@@ -476,27 +446,9 @@ export function SessionRequestCard({
     
     try {
       // Determine the current ready state based on user role
-      const isCurrentUserTutor = user.role === "tutor";
-      const currentReadyState = isCurrentUserTutor ? tutorReady : studentReady;
-      const newReadyState = !currentReadyState;
+      const isCurrentlyReady = user.role === "tutor" ? tutorReady : studentReady;
+      const newReadyState = !isCurrentlyReady;
       
-      // Create optimistic update
-      const optimisticSession = {
-        id: sessionId,
-        conversation_id: conversationId,
-        message_id: messageId,
-        status: status as "requested" | "accepted" | "started" | "ended" | "cancelled",
-        tutor_ready: isCurrentUserTutor ? newReadyState : tutorReady,
-        student_ready: isCurrentUserTutor ? studentReady : newReadyState,
-        tutor_id: "", // Will be filled by API response
-        student_id: "", // Will be filled by API response
-        name: title,
-        scheduled_for: scheduledFor,
-        cost: cost
-      };
-      
-      // Apply optimistic update
-      addOptimisticSession(optimisticSession);
       
       // Update session ready status
       const response = await fetch("/api/tutoring-sessions", {
@@ -543,7 +495,17 @@ export function SessionRequestCard({
   const handleStartSession = async () => {
     if (!sessionId || !user) return;
     
-    setUpdating(true);
+    // Validate that both users are ready
+    if (!(tutorReady && studentReady)) {
+      toast({
+        title: "Cannot start session",
+        description: "Both participants must be ready to start the meeting",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setLoading(true);
 
     // Get CSRF token for API requests - force fetch a fresh token
     let csrfToken: string | null = null;
@@ -559,29 +521,11 @@ export function SessionRequestCard({
         description: "Unable to verify your security token. Please refresh the page and try again.",
         variant: "destructive",
       });
-      setUpdating(false);
+      setLoading(false);
       return;
     }
     
     try {
-      // Create optimistic update
-      const optimisticSession = {
-        id: sessionId,
-        conversation_id: conversationId,
-        message_id: messageId,
-        status: "started" as const,
-        tutor_ready: tutorReady,
-        student_ready: studentReady,
-        tutor_id: "", // Will be filled by API response
-        student_id: "", // Will be filled by API response
-        name: title,
-        scheduled_for: scheduledFor,
-        cost: cost
-      };
-      
-      // Apply optimistic update
-      addOptimisticSession(optimisticSession);
-      
       // Update session status to started
       const response = await fetch("/api/tutoring-sessions", {
         method: "PATCH",
@@ -604,8 +548,17 @@ export function SessionRequestCard({
       
       const data = await response.json();
       
-      // Redirect to meeting room
-      router.push(`/meeting/${sessionId}`);
+      // No need to manually refresh sessions - realtime updates will handle this
+      
+      toast({
+        title: "Meeting started",
+        description: "The meeting has been started and is now available to join",
+      });
+
+      // Navigate to the meeting page after starting
+      if (typeof window !== "undefined") {
+        window.location.href = `/meeting/${sessionId}`;
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -613,7 +566,7 @@ export function SessionRequestCard({
         variant: "destructive",
       });
     } finally {
-      setUpdating(false);
+      setLoading(false);
     }
   };
 
@@ -621,7 +574,7 @@ export function SessionRequestCard({
   const handleEndSession = async () => {
     if (!sessionId || !user) return;
     
-    setUpdating(true);
+    setLoading(true);
 
     // Get CSRF token for API requests - force fetch a fresh token
     let csrfToken: string | null = null;
@@ -637,29 +590,11 @@ export function SessionRequestCard({
         description: "Unable to verify your security token. Please refresh the page and try again.",
         variant: "destructive",
       });
-      setUpdating(false);
+      setLoading(false);
       return;
     }
     
     try {
-      // Create optimistic update
-      const optimisticSession = {
-        id: sessionId,
-        conversation_id: conversationId,
-        message_id: messageId,
-        status: "ended" as const,
-        tutor_ready: false,
-        student_ready: false,
-        tutor_id: "", // Will be filled by API response
-        student_id: "", // Will be filled by API response
-        name: title,
-        scheduled_for: scheduledFor,
-        cost: cost
-      };
-      
-      // Apply optimistic update
-      addOptimisticSession(optimisticSession);
-      
       // Update session status to ended
       const response = await fetch("/api/tutoring-sessions", {
         method: "PATCH",
@@ -680,27 +615,40 @@ export function SessionRequestCard({
         throw new Error(errorData.error || "Failed to end session");
       }
       
-      // Show success message
+      // No need to manually refresh sessions - realtime updates will handle this
+      
       toast({
         title: "Session ended",
-        description: "The tutoring session has been ended",
+        description: "The tutoring session has ended",
       });
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to end the session",
+        description: "Failed to end the session",
         variant: "destructive",
       });
     } finally {
-      setUpdating(false);
+      setLoading(false);
     }
   };
 
   // Handle cancelling a session
   const handleCancelSession = async () => {
-    if (!sessionId || !user) return;
+    if (!conversationId || (!messageId && !sessionId) || !user) return;
     
-    setUpdating(true);
+    // Check if this is a temporary conversation ID first
+    const isTempConversation = conversationId.startsWith('temp-');
+    if (isTempConversation) {
+      toast({
+        title: "Action Required",
+        description: "Please send a message first to create a real conversation before managing sessions.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setLoading(true);
+    setShowCancelDialog(false);
 
     // Get CSRF token for API requests - force fetch a fresh token
     let csrfToken: string | null = null;
@@ -716,54 +664,134 @@ export function SessionRequestCard({
         description: "Unable to verify your security token. Please refresh the page and try again.",
         variant: "destructive",
       });
-      setUpdating(false);
+      setLoading(false);
       return;
     }
     
     try {
-      // Create optimistic update
-      const optimisticSession = {
-        id: sessionId,
-        conversation_id: conversationId,
-        message_id: messageId,
-        status: "cancelled" as const,
-        tutor_ready: false,
-        student_ready: false,
-        tutor_id: "", // Will be filled by API response
-        student_id: "", // Will be filled by API response
-        name: title,
-        scheduled_for: scheduledFor,
-        cost: cost
-      };
-      
-      // Apply optimistic update
-      addOptimisticSession(optimisticSession);
-      
-      // Update session status to cancelled
-      const response = await fetch("/api/tutoring-sessions", {
-        method: "PATCH",
-        headers: { 
-          "Content-Type": "application/json",
-          [CSRF_HEADER_NAME]: csrfToken
-        },
-        body: JSON.stringify({
-          session_id: sessionId,
-          action: "update_status",
-          status: "cancelled"
-        }),
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to cancel session");
+      if (sessionId) {
+        // Update existing session to cancelled
+        const response = await fetch("/api/tutoring-sessions", {
+          method: "PATCH",
+          headers: { 
+            "Content-Type": "application/json", 
+            [CSRF_HEADER_NAME]: csrfToken
+          },
+          body: JSON.stringify({
+            session_id: sessionId,
+            action: "update_status",
+            status: "cancelled"
+          }),
+          credentials: 'include'
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          
+          // Enhanced token-related error detection
+          const errorMessage = errorData.error || "Failed to cancel session";
+          if (errorMessage.toLowerCase().includes("token") || 
+              errorMessage.toLowerCase().includes("csrf") ||
+              errorMessage.toLowerCase().includes("insufficient") ||
+              errorMessage.toLowerCase().includes("enough")) {
+            toast({
+              title: errorMessage.toLowerCase().includes("token") ? "Security Token Error" : "Insufficient Tokens",
+              description: errorMessage,
+              variant: "destructive",
+            });
+            setLoading(false);
+            return; // Early return to prevent showing the success toast
+          }
+          
+          throw new Error(errorMessage);
+        }
+        
+        const data = await response.json();
+      } else {
+        // Create a new session with cancelled status
+        const conversationResponse = await fetch(`/api/conversations?conversation_id=${conversationId}`, {
+          headers: {
+            [CSRF_HEADER_NAME]: csrfToken
+          },
+          credentials: 'include'
+        });
+        
+        if (!conversationResponse.ok) {
+          const errorText = await conversationResponse.text();
+          throw new Error("Failed to fetch conversation details");
+        }
+        
+        const conversationData = await conversationResponse.json();
+        const conversation = conversationData.conversation;
+        
+        if (!conversation) {
+          throw new Error("Conversation not found");
+        }
+        
+        // Find the other participant (not the current user)
+        const otherParticipant = conversation.participants.find(
+          (p: any) => p.user_id !== user.id
+        );
+        
+        if (!otherParticipant) {
+          throw new Error("Could not identify the other participant");
+        }
+        
+        // Determine tutor and student IDs
+        const tutorId = user.role === "tutor" ? user.id : otherParticipant.user_id;
+        const studentId = user.role === "tutor" ? otherParticipant.user_id : user.id;
+        
+        // Create the session with cancelled status
+        const sessionResponse = await fetch("/api/tutoring-sessions", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            [CSRF_HEADER_NAME]: csrfToken
+          },
+          body: JSON.stringify({
+            conversation_id: conversationId,
+            message_id: messageId || null,
+            tutor_id: tutorId,
+            student_id: studentId,
+            name: title,
+            scheduled_for: scheduledFor,
+            status: "cancelled"
+          }),
+          credentials: 'include'
+        });
+        
+        if (!sessionResponse.ok) {
+          const errorData = await sessionResponse.json();
+          
+          // Enhanced token-related error detection
+          const errorMessage = errorData.error || "Failed to cancel session";
+          if (errorMessage.toLowerCase().includes("token") || 
+              errorMessage.toLowerCase().includes("csrf") ||
+              errorMessage.toLowerCase().includes("insufficient") ||
+              errorMessage.toLowerCase().includes("enough")) {
+            toast({
+              title: errorMessage.toLowerCase().includes("token") ? "Security Token Error" : "Insufficient Tokens",
+              description: errorMessage,
+              variant: "destructive",
+            });
+            setLoading(false);
+            return; // Early return to prevent showing the success toast
+          }
+          
+          throw new Error(errorMessage);
+        }
+        
+        const sessionData = await sessionResponse.json();
       }
       
-      // Show success message
+      // No need to manually refresh sessions - realtime updates will handle this
+      
       toast({
         title: "Session cancelled",
         description: "The tutoring session has been cancelled",
       });
+      
+      setShowCancelDialog(false);
     } catch (error) {
       toast({
         title: "Error",
@@ -771,7 +799,7 @@ export function SessionRequestCard({
         variant: "destructive",
       });
     } finally {
-      setUpdating(false);
+      setLoading(false);
     }
   };
 
@@ -818,11 +846,11 @@ export function SessionRequestCard({
 
   // Update shouldShowAcceptButton to be more optimistic
   const shouldShowAcceptButton = () => {
+    // Only show accept button for requested sessions
+    if (status !== "requested") return false;
+
     // If we already know whether the creator is a tutor, use that info
     if (isCreatedByTutor !== null) {
-      // Don't show accept button if there's no session or message to work with
-      if (!sessionId && !messageId) return false;
-      
       if (isCreatedByTutor) {
         // If tutor created it, student should accept
         return !isTutor;
@@ -832,15 +860,10 @@ export function SessionRequestCard({
       }
     }
     
-    // If we still don't know, but the message content indicates a session request,
-    // make an educated guess based on common patterns
-    if (messageContent && messageContent.trim().startsWith('Session Request:')) {
-      // Session requests are almost always created by tutors, so students should accept
-      return !isTutor;
-    }
-    
-    // If nothing else, don't show the button until we have proper information
-    return false;
+    // For sessions without clear creator info, use this logic:
+    // 1. If the current user is a tutor, they shouldn't see the accept button (they created it)
+    // 2. If the current user is a student, they should see the accept button
+    return !isTutor;
   };
 
   // If the session is cancelled, render the cancelled card
@@ -901,7 +924,7 @@ export function SessionRequestCard({
     
     // We've detected this is likely a session request message, show placeholder card
     return (
-      <Card className="bg-slate-50 border border-slate-200 shadow-sm dark:bg-slate-900/50 dark:border-slate-800 animate-pulse">
+      <Card className="bg-slate-50 border border-slate-200 shadow-sm dark:bg-slate-900/50 dark:border-slate-800">
         <CardContent className="pt-4 pb-2">
           <div className="flex items-start gap-3">
             <Calendar className="h-5 w-5 text-blue-600 mt-0.5" />
@@ -909,7 +932,7 @@ export function SessionRequestCard({
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-medium text-base">{placeholderSession.title}</h3>
                 <Badge variant="outline" className="text-blue-600 border-blue-400 bg-blue-50 dark:bg-blue-950/30 dark:text-blue-300 rounded-full px-4 py-0.5 font-medium">
-                  {isLoading ? "Loading..." : "Requested"}
+                  Requested
                 </Badge>
               </div>
               <div className="flex items-center text-sm text-muted-foreground">
@@ -926,28 +949,21 @@ export function SessionRequestCard({
                 </span>
               </div>
               <div className="mt-3 text-xs text-muted-foreground">
-                {isLoading ? (
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    <span>Loading session...</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    {shouldShowAcceptButton() ? (
-                      <Button 
-                        variant="default" 
-                        size="sm" 
-                        onClick={handleAcceptSession}
-                        disabled={loading || isLoading}
-                      >
-                        {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                        Accept
-                      </Button>
-                    ) : (
-                      <span>{isTutor ? "Waiting for student to accept..." : "Waiting for tutor to accept..."}</span>
-                    )}
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  {shouldShowAcceptButton() ? (
+                    <Button 
+                      variant="default" 
+                      size="sm" 
+                      onClick={handleAcceptSession}
+                      disabled={loading}
+                    >
+                      {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                      Accept
+                    </Button>
+                  ) : (
+                    <span>{isTutor ? "Waiting for student to accept..." : "Waiting for tutor to accept..."}</span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -972,11 +988,7 @@ export function SessionRequestCard({
             </div>
             <div className="flex items-center text-sm text-muted-foreground mt-1">
               <span className="font-medium">
-                {isLoading ? (
-                  "Cost: Loading..."
-                ) : (
-                  <>Cost: {cost ?? '...'} {cost ? (cost === 1 ? 'token' : 'tokens') : ''}</>
-                )}
+                <>Cost: {cost ?? '...'} {cost ? (cost === 1 ? 'token' : 'tokens') : ''}</>
               </span>
             </div>
             {renderReadyStatus()}

@@ -36,7 +36,7 @@ function TokenRefreshInitializer() {
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={queryClient}>
       {/* Add TokenRefreshInitializer at the top level to start refreshing as early as possible */}
       <TokenRefreshInitializer />
       
@@ -60,6 +60,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
             </AuthProvider>
           </SidebarProvider>
       </ThemeProvider>
-    </QueryClientProvider>
+      </QueryClientProvider>
   );
 } 

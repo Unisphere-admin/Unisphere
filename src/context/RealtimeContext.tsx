@@ -10,10 +10,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { X, MessageSquare, Calendar } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { refreshTokenIfNeeded } from '@/lib/auth/tokenRefresh';
-import { updateCache, CACHE_CONFIG } from '@/lib/caching';
-
-// Add this constant near the top of the file, after imports
-const VERBOSE_LOGGING = false; // Set to true to enable verbose debug logging
 
 // Define types for realtime events
 interface RealtimeMessage {
@@ -56,6 +52,8 @@ interface RealtimeSession {
   name?: string | null;
   subject?: string | null;
   cost?: number | null;
+  created_at: string;
+  updated_at?: string;
   [key: string]: any; // Allow for additional properties
 }
 
@@ -645,92 +643,12 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
   const handleSessionUpdate = useCallback((payload: { payload: { session: RealtimeSession } }) => {
     if (!payload.payload?.session || !sessionContext) return;
     
-    const updatedSession = payload.payload.session;
-    
-    // Log the realtime update for debugging
-    if (VERBOSE_LOGGING) {
-      console.log('[RealtimeContext] Received session update:', updatedSession);
-    }
-    
-    // Immediately update browser cache with the realtime data
-    try {
-      // 1. Update session by ID cache
-      updateCache<{ session: any, error: string | null }>(
-        `session:${updatedSession.id}`,
-        (currentData) => {
-          if (!currentData) return null;
-          // Merge new data over existing data to ensure all fields are updated
-          return {
-            ...currentData,
-            session: {
-              ...currentData.session,
-              ...updatedSession,
-            }
-          };
-        }
-      );
-      
-      // 2. Update all sessions cache
-      if (updatedSession.conversation_id) {
-        updateCache<{ sessions: any[], error: string | null }>(
-          `sessions:${updatedSession.conversation_id}`,
-          (currentData) => {
-            if (!currentData || !currentData.sessions) return null;
-            return {
-              ...currentData,
-              sessions: currentData.sessions.map(s => 
-                s.id === updatedSession.id ? { ...s, ...updatedSession } : s
-              )
-            };
-          }
-        );
-      }
-      
-      // 3. Update user sessions caches
-      if (updatedSession.tutor_id) {
-        updateCache<{ sessions: any[], error: string | null }>(
-          `user_sessions:${updatedSession.tutor_id}:tutor`,
-          (currentData) => {
-            if (!currentData || !currentData.sessions) return null;
-            return {
-              ...currentData,
-              sessions: currentData.sessions.map(s => 
-                s.id === updatedSession.id ? { ...s, ...updatedSession } : s
-              )
-            };
-          }
-        );
-      }
-      
-      if (updatedSession.student_id) {
-        updateCache<{ sessions: any[], error: string | null }>(
-          `user_sessions:${updatedSession.student_id}:student`,
-          (currentData) => {
-            if (!currentData || !currentData.sessions) return null;
-            return {
-              ...currentData,
-              sessions: currentData.sessions.map(s => 
-                s.id === updatedSession.id ? { ...s, ...updatedSession } : s
-              )
-            };
-          }
-        );
-      }
-      
-      // 4. Update the global sessions cache
-      updateCache<any[]>(
-        CACHE_CONFIG.SESSIONS_CACHE_KEY,
-        (currentSessions) => {
-          if (!currentSessions) return null;
-          return currentSessions.map(s => 
-            s.id === updatedSession.id ? { ...s, ...updatedSession } : s
-          );
-        }
-      );
-    } catch (error) {
-      // Log cache update errors but continue processing
-      console.warn('[RealtimeContext] Failed to update session cache:', error);
-    }
+    // Ensure the session has all required fields
+    const updatedSession = {
+      ...payload.payload.session,
+      // Ensure created_at is present
+      created_at: payload.payload.session.created_at || new Date().toISOString()
+    };
     
     // Show notification for certain session status changes
     if (updatedSession.status && user) {
@@ -794,7 +712,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       } as ActiveSession;
       
       sessionContext.updateSession(convertedSession);
-    } else {
+      } else {
       // Fall back to refreshing all sessions
       if (sessionContext.refreshSessions) {
         sessionContext.refreshSessions();
@@ -805,12 +723,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     try {
       // Store timestamp to ensure the event is unique
       localStorage.setItem('session_cache_invalidated', Date.now().toString());
-      
-      // Also store the specific session that was updated
-      localStorage.setItem('session_updated', JSON.stringify({
-        id: updatedSession.id,
-        timestamp: Date.now()
-      }));
     } catch (e) {
       // Silently handle localStorage errors
     }
@@ -1110,23 +1022,23 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     try {
       // Refresh token before sending broadcast
       refreshTokenIfNeeded(supabaseRef.current).then(() => {
-        // Get existing channel or create a new one
-        let channel = channelsRef.current[conversationId];
-        
-        // If no existing channel, create and subscribe to a new one
-        if (!channel) {
-          channel = supabaseRef.current.channel(channelName);
-          channel.subscribe((status: string) => {
-          });
-          channelsRef.current[conversationId] = channel;
-        }
-        
-        // Send the broadcast
-        channel.send({
-          type: 'broadcast',
-          event: 'message',
-          payload: message
+      // Get existing channel or create a new one
+      let channel = channelsRef.current[conversationId];
+      
+      // If no existing channel, create and subscribe to a new one
+      if (!channel) {
+        channel = supabaseRef.current.channel(channelName);
+        channel.subscribe((status: string) => {
         });
+        channelsRef.current[conversationId] = channel;
+      }
+      
+      // Send the broadcast
+      channel.send({
+        type: 'broadcast',
+        event: 'message',
+        payload: message
+      });
       });
     } catch (error) {
     }
@@ -1142,23 +1054,23 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     try {
       // Refresh token before sending broadcast
       refreshTokenIfNeeded(supabaseRef.current).then(() => {
-        // Get existing channel or create a new one
-        let channel = channelsRef.current[conversationId];
-        
-        // If no existing channel, create and subscribe to a new one
-        if (!channel) {
-          channel = supabaseRef.current.channel(channelName);
-          channel.subscribe((status: string) => {
-          });
-          channelsRef.current[conversationId] = channel;
-        }
-        
-        // Send the broadcast
-        channel.send({
-          type: 'broadcast',
-          event: 'session_update',
-          payload: { session }
+      // Get existing channel or create a new one
+      let channel = channelsRef.current[conversationId];
+      
+      // If no existing channel, create and subscribe to a new one
+      if (!channel) {
+        channel = supabaseRef.current.channel(channelName);
+        channel.subscribe((status: string) => {
         });
+        channelsRef.current[conversationId] = channel;
+      }
+      
+      // Send the broadcast
+          channel.send({
+            type: 'broadcast',
+        event: 'session_update',
+        payload: { session }
+      });
       });
     } catch (error) {
     }
@@ -1173,29 +1085,29 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     try {
       // Refresh token before sending broadcast
       refreshTokenIfNeeded(supabaseRef.current).then(() => {
-        // Get existing channel or create a new one
-        let channel = channelsRef.current[conversationId];
-        
-        // If no existing channel, create and subscribe to a new one
-        if (!channel) {
-          channel = supabaseRef.current.channel(channelName);
-          channel.subscribe((status: string) => {
-          });
-          channelsRef.current[conversationId] = channel;
-        }
-        
-        // Send the broadcast
-        channel.send({
-          type: 'broadcast',
-          event: 'typing',
-          payload: {
-            user_id: user.id,
-            conversation_id: conversationId,
-            is_typing: isTyping,
-            display_name: user.name,
-            timestamp: Date.now()
-          }
+      // Get existing channel or create a new one
+      let channel = channelsRef.current[conversationId];
+      
+      // If no existing channel, create and subscribe to a new one
+      if (!channel) {
+        channel = supabaseRef.current.channel(channelName);
+        channel.subscribe((status: string) => {
         });
+        channelsRef.current[conversationId] = channel;
+      }
+      
+      // Send the broadcast
+      channel.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: {
+          user_id: user.id,
+          conversation_id: conversationId,
+          is_typing: isTyping,
+          display_name: user.name,
+          timestamp: Date.now()
+        }
+      });
       });
     } catch (error) {
     }

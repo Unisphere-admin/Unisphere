@@ -85,7 +85,7 @@ interface Message {
 // Define interface for session objects
 interface ActiveSession {
   id: string;
-  message_id: string;
+  message_id?: string | null;
   name?: string | null;
   scheduled_for?: string | null;
   status?: string;
@@ -95,6 +95,8 @@ interface ActiveSession {
   student_id?: string;
   conversation_id?: string;
   cost?: number | null;
+  created_at: string; // Required field
+  updated_at?: string;
 }
 
 interface StudentProfileData {
@@ -106,6 +108,14 @@ interface StudentProfileData {
   current_subjects?: string[] | string;
   avatar_url?: string;
   bio?: string;
+}
+
+// Add a custom type for session items that will be displayed in the messages list
+interface SessionItem {
+  id: string;
+  type: 'session'; // To identify it as a session vs a message
+  display_order: string; // Using created_at value for sorting in message list
+  session: ActiveSession; // The actual session data
 }
 
 // Create a standalone UnreadBadge component
@@ -188,6 +198,9 @@ export default function MessagesPage() {
     sessions,
     refreshSessions,
   } = useSessions();
+  
+  // Add sessionItems state here at the top of the component
+  const [sessionItems, setSessionItems] = useState<SessionItem[]>([]);
   
   const { fetchCsrfToken } = useCsrfToken();
   
@@ -276,6 +289,34 @@ export default function MessagesPage() {
   useEffect(() => {
     refreshSessions(); // Keep this initial refresh for page load
   }, [refreshSessions]);
+  
+  // Add an effect to update sessionItems when sessions change
+  useEffect(() => {
+    if (!selectedConversationId || !sessions.length) return;
+
+    // Filter sessions for the current conversation
+    const sessionsForConversation = sessions.filter(
+      session => session.conversation_id === selectedConversationId
+    );
+    
+    // Sort sessions by created_at to ensure chronological ordering
+    const sortedSessions = [...sessionsForConversation].sort((a, b) => {
+      // Always use created_at for sorting, as it's guaranteed to exist
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return timeA - timeB;
+    });
+
+    // Map sessions to a format compatible with message display
+    const newSessionItems = sortedSessions.map((session) => ({
+      id: `session-${session.id}`,
+      type: 'session' as const,
+      display_order: session.created_at || new Date().toISOString(),
+      session
+    })) as SessionItem[];
+
+    setSessionItems(newSessionItems);
+  }, [sessions, selectedConversationId]);
   
   // Update the effect that handles URL parameters
   useEffect(() => {
@@ -681,104 +722,21 @@ export default function MessagesPage() {
     }
   };
 
-  // Create session string formatter
-  const formatSessionRequest = (title: string, date: string) => {
-    return `Session Request: ${title}`;
-  };
-
   // Schedule a session
   const handleScheduleSession = async () => {
     if (!selectedConversationId || !user || !currentConversation) {
-      return;
-    }
-
-    // Ensure only tutors can create sessions
-    if (user.role !== 'tutor') {
       toast({
-        title: "Permission Denied",
-        description: "Only tutors can schedule tutoring sessions.",
         variant: "destructive",
+        title: "Error",
+        description: "Missing required session information"
       });
       return;
     }
-
-    // Validate input fields
-    // Title validation
-    const titleValidation = validateText(sessionTitle, { min: 3, max: 100 });
-    if (!titleValidation.valid) {
-      toast({
-        title: "Invalid title",
-        description: titleValidation.error || "Please enter a valid session title (3-100 characters)",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Date validation
-    if (!sessionDate) {
-      toast({
-        title: "Missing date",
-        description: "Please select a session date",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Time validation
-    if (!sessionTime) {
-      toast({
-        title: "Missing time",
-        description: "Please select a session time",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Sanitize inputs
-    const sanitizedTitle = sanitizeInput(titleValidation.value);
-
-    // Check for malicious content
-    if (checkForMaliciousContent(sanitizedTitle)) {
-      toast({
-        title: "Invalid content",
-        description: "Your session title contains invalid content",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Check if this is a temporary conversation ID first
-    const isTempConversation = selectedConversationId.startsWith('temp-');
-    if (isTempConversation) {
-      toast({
-        title: "Action Required",
-        description: "Please send a message first to create a real conversation before scheduling a session.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Combine date and time
-    const dateTime = `${sessionDate}T${sessionTime}:00`;
-    const formattedMessage = formatSessionRequest(sanitizedTitle, dateTime);
     
-    // Validate that the session is not scheduled in the past
-    const scheduledDateTime = new Date(dateTime);
-    const now = new Date();
-    
-    if (scheduledDateTime <= now) {
-      toast({
-        title: "Invalid Date",
-        description: "Sessions cannot be scheduled in the past. Please select a future date and time.",
-        variant: "destructive",
-      });
-      return;
-    }
+    setIsSchedulingSession(true);
     
     try {
-      setIsSchedulingSession(true);
-      
-      // Find the other participant in the conversation first to determine roles
+      // Find the other participant in the conversation
       const otherParticipant = currentConversation.participants.find(
         (p) => p.user_id !== user.id
       );
@@ -786,155 +744,54 @@ export default function MessagesPage() {
       if (!otherParticipant) {
         throw new Error("Could not identify the conversation participant");
       }
-      
-      // Since we already validated user is a tutor, set roles accordingly
-      const tutorId = user.id;
-      const studentId = otherParticipant.user_id;
-      
-      
-      // STEP 1: Create the session first (without message ID)
-      const sessionRequest = {
-        conversation_id: selectedConversationId,
-        tutor_id: tutorId,
-        student_id: studentId,
-        name: sanitizedTitle,
-        scheduled_for: dateTime,
-        status: "requested",
-        cost: sessionCost
-      };
-      
-      
-      // Get CSRF token
-      let csrfToken = getCsrfTokenFromStorage();
-      if (!csrfToken) {
-        try {
-          // Try to fetch a new token
-          csrfToken = await fetchCsrfToken();
-          if (!csrfToken) {
-            throw new Error("Failed to fetch CSRF token");
-          }
-        } catch (tokenError) {
-          toast({
-            title: "Error",
-            description: "Security token missing. Please try refreshing the page.",
-            variant: "destructive",
-          });
-          return;
-        }
-      }
-      
-      const sessionResponse = await fetch("/api/tutoring-sessions", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          [CSRF_HEADER_NAME]: csrfToken
-        },
-        body: JSON.stringify(sessionRequest),
-        credentials: 'include'
-      });
-      
-      // Check for non-2xx responses and get the error message
-      if (!sessionResponse.ok) {
-        const errorData = await sessionResponse.json();
-        
-        // Check for token-specific errors with expanded criteria
-        if (errorData.error) {
-          const errorLower = errorData.error.toLowerCase();
-          if (
-            errorLower.includes("token") || 
-            errorLower.includes("insufficient") || 
-            errorLower.includes("enough") || 
-            errorLower.includes("credit")
-          ) {
-            toast({
-              title: "Insufficient Tokens",
-              description: errorData.error,
-              variant: "destructive",
-            });
-          } else {
-            // Generic error
-            throw new Error(errorData.error || "Failed to create tutoring session");
-          }
-        } else {
-          throw new Error("Failed to create tutoring session");
-        }
-        return;
-      }
-      
-      // Session created successfully
-      const responseData = await sessionResponse.json();
-      const session = responseData.session;
-      
-      if (!session || !session.id) {
-        throw new Error("Failed to create session: Invalid response");
-      }
-      
-      // STEP 2: Now send the message
-      const sentMessage = await sendMessage(selectedConversationId, formattedMessage, { maxRetries: 3 });
-      
-      if (!sentMessage || !sentMessage.id) {
-        // If message sending fails, we should clean up the session
-        toast({
-          title: "Error",
-          description: "Failed to send session message. The session has been created but may not display correctly.",
-          variant: "destructive",
-        });
-        
-        // Continue with session but without message
-        await refreshSessions();
-        setSessionTitle("");
-        setSessionDate("");
-        setSessionTime("");
-        setShowSessionDialog(false);
-        return;
-      }
-      
-      // STEP 3: Update the session with the message ID
-      const updateResponse = await fetch("/api/tutoring-sessions", {
-        method: "PATCH",
-        headers: { 
-          "Content-Type": "application/json",
-          [CSRF_HEADER_NAME]: csrfToken // Use the same CSRF token from earlier
+
+      // Create session request directly - no message needed
+      const response = await fetch('/api/tutoring-sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          session_id: session.id,
-          action: "update_message_id",
-          message_id: sentMessage.id
+          conversation_id: selectedConversationId,
+          student_id: otherParticipant.user_id,
+          tutor_id: user.id,
+          scheduled_for: new Date(`${sessionDate}T${sessionTime}:00`).toISOString(),
+          name: sessionTitle,
+          status: 'requested',
+          cost: sessionCost
         }),
-        credentials: 'include'
       });
-      
-      if (!updateResponse.ok) {
-        // This is not a critical error, so we continue
-      } else {
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: `Failed to schedule session: ${errorData.error || 'Unknown error'}`
+        });
+        setIsSchedulingSession(false);
+        return;
       }
-      
-      // Force refresh sessions to ensure UI shows the card immediately
-      await refreshSessions();
-      
-      // Also refresh messages to get the proper view with session card
-      if (selectedConversationId) {
-        await refreshMessages(selectedConversationId);
-      }
-      
+
       // Session created successfully
       setSessionTitle("");
       setSessionDate("");
       setSessionTime("");
       setShowSessionDialog(false);
-      
+      setIsSchedulingSession(false);
       toast({
         title: "Success",
-        description: "Session request created successfully.",
+        description: "Session scheduled successfully!"
       });
-    } catch (error) {
       
+      // Refresh data to show the new session - force refresh sessions
+      refreshSessions();
+    } catch (error) {
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to schedule session. Please try again.",
         variant: "destructive",
+        title: "Error",
+        description: `${error instanceof Error ? error.message : 'Failed to schedule session'}`
       });
-    } finally {
       setIsSchedulingSession(false);
     }
   };
@@ -1304,7 +1161,7 @@ export default function MessagesPage() {
     // Use a ref to track if the component is still mounted when the fetch completes
     const isMounted = { current: true };
     
-    const loadMessages = async () => {
+    const loadMessagesAndSessions = async () => {
       try {
         // Check if this is a temporary conversation
         const isTemp = isTempConversation(selectedConversationId);
@@ -1327,12 +1184,39 @@ export default function MessagesPage() {
         
         fetchInProgressRef.current[selectedConversationId] = true;
         
-        // Check if we already have messages for this conversation
-        // Always fetch messages when the selected conversation changes to ensure we have the latest data
-        
         try {
           // Load the messages
           await refreshMessages(selectedConversationId);
+          
+          // Also fetch sessions for this conversation
+          const sessionsResponse = await fetch(`/api/tutoring-sessions?conversation_id=${selectedConversationId}`, {
+            method: 'GET',
+            credentials: 'include',
+            headers: { 'Cache-Control': 'no-cache' },
+          });
+          
+          if (sessionsResponse.ok && isMounted.current) {
+            const sessionsData = await sessionsResponse.json();
+            const sessionsForConversation = sessionsData.sessions || [];
+            
+            // Sort sessions by created_at to ensure chronological ordering
+            const sortedSessions = [...sessionsForConversation].sort((a, b) => {
+              // Always use created_at for sorting, as it's guaranteed to exist
+              return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+            });
+            
+            // Map sessions to a format compatible with message display
+            const newSessionItems = sortedSessions.map((session) => ({
+              id: `session-${session.id}`,
+              type: 'session' as const,
+              display_order: session.created_at || new Date().toISOString(),
+              session
+            })) as SessionItem[];
+            
+            if (isMounted.current) {
+              setSessionItems(newSessionItems);
+            }
+          }
           
           // Mark this conversation as loaded
           if (isMounted.current) {
@@ -1344,8 +1228,10 @@ export default function MessagesPage() {
             }
           }
         } catch (error) {
+          console.error("Error loading messages and sessions:", error);
         }
       } catch (error) {
+        console.error("Error in loadMessagesAndSessions:", error);
       } finally {
         // Clear the in-progress flag after a delay to prevent rapid refetching
         setTimeout(() => {
@@ -1356,7 +1242,7 @@ export default function MessagesPage() {
       }
     };
     
-    loadMessages();
+    loadMessagesAndSessions();
     
     // Cleanup function
     return () => {
@@ -1432,6 +1318,42 @@ export default function MessagesPage() {
     fetchStudentProfile(studentId);
     setShowProfileDialog(true);
   };
+
+  // Create a combined items array with messages and sessions
+  const combinedItems = useMemo(() => {
+    if (!selectedConversationId || !messages[selectedConversationId]) {
+      return [];
+    }
+    
+    // Get messages for the current conversation
+    const currentMessages = getStableMessages(selectedConversationId);
+    
+    // Create message-like objects from messages
+    const messageItems = currentMessages.map(msg => ({
+      id: msg.id,
+      type: 'message' as const,
+      display_order: msg.created_at || '',
+      message: msg
+    }));
+    
+    // Combine message items with session items
+    const combined = [...messageItems, ...sessionItems];
+    
+    // Sort by timestamp/created_at
+    return combined.sort((a, b) => {
+      // For messages, use created_at timestamp
+      // For sessions, use created_at which is specifically for chronological sorting
+      const timeA = a.type === 'message' 
+        ? new Date(a.message.created_at || '').getTime()
+        : new Date(a.session.created_at).getTime();
+      
+      const timeB = b.type === 'message'
+        ? new Date(b.message.created_at || '').getTime()
+        : new Date(b.session.created_at).getTime();
+        
+      return timeA - timeB;
+    });
+  }, [selectedConversationId, messages, sessionItems, getStableMessages]);
 
   return (
     <div className="min-h-[calc(100vh-4rem)] w-full  relative">
@@ -1758,158 +1680,112 @@ export default function MessagesPage() {
                     </div>
                   ) : (
                     <div className="space-y-6 min-h-full flex flex-col">
-                      {getStableMessages(selectedConversationId).map((message: any) => {
+                      {combinedItems.map((item) => {
                         // Always use a stable key based on ID to maintain component identity
-                        // This is critical for smooth transitions between sending/sent states
-                        const uniqueMessageKey = `message-fragment-${message.id}`;
+                        const uniqueItemKey = item.type === 'message' 
+                          ? `message-fragment-${item.message.id}` 
+                          : `session-fragment-${item.session.id}`;
                         
-                        const isFromMe = message.sender_id === user.id;
+                        // Get date info for this item
+                        const currentDate = item.type === 'message'
+                          ? (item.message.created_at ? new Date(item.message.created_at) : new Date())
+                          : (item.session.created_at ? new Date(item.session.created_at) : new Date());
                         
-                        // Get date info for this message
-                        const currentDate = message.created_at ? new Date(message.created_at) : new Date();
+                        // Find previous item for date comparison
+                        const currentItemIndex = combinedItems.findIndex(i => i.id === item.id);
+                        const prevItem = currentItemIndex > 0 ? combinedItems[currentItemIndex - 1] : null;
+                        const prevDate = prevItem 
+                          ? (prevItem.type === 'message' 
+                              ? (prevItem.message.created_at ? new Date(prevItem.message.created_at) : null)
+                              : (prevItem.session.created_at ? new Date(prevItem.session.created_at) : null))
+                          : null;
                         
-                        // Find previous message for date comparison (without modifying array)
-                        const currentMsgIndex = getStableMessages(selectedConversationId).findIndex(m => m.id === message.id);
-                        const prevMessage = currentMsgIndex > 0 ? getStableMessages(selectedConversationId)[currentMsgIndex - 1] : null;
-                        const prevDate = prevMessage?.created_at ? new Date(prevMessage.created_at) : null;
-                        
-                        // Only show date header when the date changes (not for every message)
+                        // Only show date header when the date changes
                         const showDateHeader = !prevDate || !isSameDay(currentDate, prevDate);
                         
-                        // Find session data
-                        const associatedSession = sessions.find(s => s.message_id === message.id);
-                        
-                        // Check if message is a session request - ONLY use the associated session
-                        // Also check the sessionRequest property from the message
-                        const isSessionRequest = message.isSessionRequest || 
-                                               Boolean(associatedSession) || 
-                                               Boolean(message.sessionRequest);
-                        
-                        // Create a temporary session object for session request messages without a session
-                        let sessionData = associatedSession;
-                        if (!sessionData && isSessionRequest) {
-                          // This fallback should rarely be needed since we're no longer checking content
-                          // But kept for backwards compatibility with any messages marked isSessionRequest
-                          const defaultTitle = "Tutoring Session";
-                          const defaultScheduledFor = new Date().toISOString();
+                        if (item.type === 'message') {
+                          // Render message (existing message rendering code)
+                          const message = item.message;
+                          const isFromMe = message.sender_id === user.id;
                           
-                          // Only use parseSessionRequest if absolutely necessary
-                          let title = defaultTitle;
-                          let scheduledFor = defaultScheduledFor;
-                          
-                          if (message.sessionRequest) {
-                            // Use the session request data from the message if available
-                            title = message.sessionRequest.title || defaultTitle;
-                            scheduledFor = message.sessionRequest.scheduledFor || defaultScheduledFor;
-                          } else if (message.content) {
-                            try {
-                              const parsed = parseSessionRequest(message.content);
-                              // Only use parsed values if they're meaningful
-                              title = parsed.title || defaultTitle;
-                              scheduledFor = parsed.scheduledFor || defaultScheduledFor;
-                            } catch (e) {
+                          // Store a reference to the message element
+                          const setMessageRef = (el: HTMLDivElement | null) => {
+                            if (el) {
+                              messageElementRefs.current[message.id] = el;
                             }
-                          }
-                          
-                          sessionData = {
-                            id: `pending-${message.id}`,
-                            message_id: message.id,
-                            name: title,
-                            scheduled_for: scheduledFor,
-                            status: "requested",
-                            tutor_ready: false,
-                            student_ready: false,
-                            conversation_id: selectedConversationId,
-                            tutor_id: '',
-                            student_id: '',
-                            cost: 1
                           };
-                        }
-                        
-                        // Store a reference to the message element
-                        const setMessageRef = (el: HTMLDivElement | null) => {
-                          if (el) {
-                            messageElementRefs.current[message.id] = el;
-                          }
-                        };
-                        
-                        return (
-                          <div key={uniqueMessageKey} ref={setMessageRef}>
-                            {/* Date header shown when date changes */}
-                            {showDateHeader && (
-                              <div className="flex justify-center my-4">
-                                <div className="bg-muted/70 backdrop-blur-sm px-3 py-1 rounded-full text-xs text-muted-foreground shadow-sm border border-border/20">
-                                  {formatFullDate(currentDate)}
+                          
+                          return (
+                            <div key={uniqueItemKey} ref={setMessageRef}>
+                              {/* Date header shown when date changes */}
+                              {showDateHeader && (
+                                <div className="flex justify-center my-4">
+                                  <div className="bg-muted/70 backdrop-blur-sm px-3 py-1 rounded-full text-xs text-muted-foreground shadow-sm border border-border/20">
+                                    {formatFullDate(currentDate)}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
-                            
-                            {/* Message */}
-                            <div className={`flex ${isFromMe ? "justify-end" : "justify-start"} mb-4`}>
-                              {/* For normal messages */}
-                              {!isSessionRequest && !associatedSession && (
+                              )}
+                              
+                              {/* Message */}
+                              <div className={`flex ${isFromMe ? "justify-end" : "justify-start"} mb-4`}>
                                 <div className="flex items-end gap-2 max-w-[85%]">
-                                {!isFromMe && (
+                                  {!isFromMe && (
                                     <Avatar className="h-7 w-7 border border-border/40 shadow-sm">
                                       <AvatarImage src={message.sender?.avatar_url || undefined} alt={message.sender?.display_name || 'User'} />
                                       <AvatarFallback className="text-xs bg-primary/10 text-primary">
                                         {message.sender?.display_name?.charAt(0) || '?'}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                )}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                  )}
                                   <div>
                                     <div 
                                       className={`px-4 py-2.5 rounded-2xl ${
-                                      isFromMe
+                                        isFromMe
                                           ? "bg-primary text-primary-foreground shadow-sm hover:shadow-md transition-shadow" 
                                           : "bg-card dark:bg-card/80 border border-border/40 shadow-sm hover:shadow-md hover:bg-card/90 dark:hover:bg-card/90 transition-all"
-                                    }`}
-                                  >
+                                      }`}
+                                    >
                                       {message.content}
-                                  </div>
+                                    </div>
                                     <div className={`flex items-center text-xs text-muted-foreground mt-1 ${isFromMe ? 'justify-end pr-1' : 'justify-start pl-1'}`}>
                                       {formatMessageTime(message.created_at)}
                                       {isFromMe && (
                                         <span className="ml-1">{renderMessageStatus(message.status)}</span>
                                       )}
+                                    </div>
                                   </div>
                                 </div>
-                                {isFromMe && (
-                                    <Avatar className="h-7 w-7 border border-border/40 shadow-sm">
-                                      <AvatarImage src={user.profilePic || undefined} alt={user.name || 'User'} />
-                                      <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                                        {user.name?.charAt(0) || 'U'}
-                                      </AvatarFallback>
-                                  </Avatar>
-                                )}
                               </div>
-                            )}
-
-                              {/* Special handling for session request messages */}
-                              {sessionData && (
-                                <div className="max-w-md w-full">
-                                  <SessionRequestCard 
-                                    messageId={message.id}
-                                    conversationId={selectedConversationId}
-                                    sessionId={sessionData.id}
-                                    title={sessionData.name || "Tutoring Session"}
-                                    scheduledFor={sessionData.scheduled_for || new Date().toISOString()}
-                                    status={sessionData.status as "requested" | "accepted" | "started" | "ended" | "cancelled"}
-                                    tutorReady={sessionData.tutor_ready}
-                                    studentReady={sessionData.student_ready}
-                                    cost={sessionData.cost ?? undefined}
-                                  />
-                                  <div className={`flex items-center text-xs text-muted-foreground mt-1 ${isFromMe ? 'justify-end' : 'justify-start'}`}>
-                                    {formatMessageTime(message.created_at)}
-                                    {isFromMe && message.status && (
-                                      <span className="ml-1">{renderMessageStatus(message.status)}</span>
-                                    )}
                             </div>
-                        </div>
-                      )}
+                          );
+                        } else {
+                          // Render a session
+                          const session = item.session;
+                          return (
+                            <div key={uniqueItemKey}>
+                              {showDateHeader && (
+                                <div className="flex justify-center my-4">
+                                  <div className="bg-muted/70 backdrop-blur-sm px-3 py-1 rounded-full text-xs text-muted-foreground shadow-sm border border-border/20">
+                                    {formatFullDate(currentDate)}
+                                  </div>
+                                </div>
+                              )}
+                              <div className="w-full flex flex-col p-2">
+                                <SessionRequestCard
+                                  messageId=""  // Empty string since there's no message associated directly
+                                  sessionId={session.id}
+                                  conversationId={session.conversation_id || selectedConversationId || ""}
+                                  title={session.name || "Tutoring Session"}
+                                  scheduledFor={session.scheduled_for || new Date().toISOString()}
+                                  status={session.status as any || "requested"}
+                                  tutorReady={session.tutor_ready || false}
+                                  studentReady={session.student_ready || false}
+                                  cost={session.cost || undefined}
+                                />
+                              </div>
                             </div>
-                          </div>
-                        );
+                          );
+                        }
                       })}
                       <div ref={messagesEndRef} />
                     </div>

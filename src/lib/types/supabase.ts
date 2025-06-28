@@ -15,7 +15,7 @@ export interface Database {
           created_at: string
           updated_at: string
           conversation_id: string
-          message_id: string
+          message_id?: string | null
           tutor_id: string
           student_id: string
           status: 'requested' | 'accepted' | 'started' | 'ended' | 'cancelled'
@@ -31,7 +31,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
           conversation_id: string
-          message_id: string
+          message_id?: string | null
           tutor_id: string
           student_id: string
           status?: 'requested' | 'accepted' | 'started' | 'ended' | 'cancelled'
@@ -47,7 +47,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
           conversation_id?: string
-          message_id?: string
+          message_id?: string | null
           tutor_id?: string
           student_id?: string
           status?: 'requested' | 'accepted' | 'started' | 'ended' | 'cancelled'

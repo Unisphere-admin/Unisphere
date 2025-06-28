@@ -24,49 +24,16 @@ export const dynamic = 'force-dynamic';
 
 // Cache recent responses to reduce database load
 const responseCache = new Map<string, { data: any, timestamp: number }>();
-// Reduce TTL to improve real-time responsiveness
-const CACHE_TTL = 30000; // 30 seconds (reduced from 1 minute)
-
-// Track the last modified time for each session
-const sessionLastModified = new Map<string, number>();
+// Reduce TTL to 1 minute for better real-time updates while still providing caching benefits
+const CACHE_TTL = 60000; // 1 minute TTL (reduced from 15 minutes)
 
 // Helper to get cached responses or fetch new ones
 const getCachedOrFresh = async <T>(
   cacheKey: string,
-  fetchFn: () => Promise<T>,
-  options: {
-    forceRefresh?: boolean;
-    sessionId?: string;
-  } = {}
+  fetchFn: () => Promise<T>
 ): Promise<T> => {
   const now = Date.now();
   const cached = responseCache.get(cacheKey);
-  
-  // Force refresh if requested
-  if (options.forceRefresh) {
-    const result = await fetchFn();
-    responseCache.set(cacheKey, {
-      data: result,
-      timestamp: now
-    });
-    return result;
-  }
-  
-  // Check if this is a specific session being requested
-  if (options.sessionId) {
-    const lastModified = sessionLastModified.get(options.sessionId) || 0;
-    const cacheCreated = cached?.timestamp || 0;
-    
-    // If the session was modified after the cache was created, always fetch fresh
-    if (lastModified > cacheCreated) {
-      const result = await fetchFn();
-      responseCache.set(cacheKey, {
-        data: result,
-        timestamp: now
-      });
-      return result;
-    }
-  }
   
   // Use cache if available and not expired
   if (cached && (now - cached.timestamp < CACHE_TTL)) {
@@ -93,9 +60,6 @@ interface ExtendedTutoringSession extends TutoringSession {
 // Helper function to trigger a Supabase broadcast
 const broadcastUpdate = async (session: ExtendedTutoringSession) => {
   try {
-    // Record that this session was modified
-    sessionLastModified.set(session.id, Date.now());
-    
     // Use createRouteHandlerClientWithCookies to properly await cookies
     const supabase = await createRouteHandlerClientWithCookies();
     
@@ -117,9 +81,6 @@ const broadcastUpdate = async (session: ExtendedTutoringSession) => {
     // Use the complete session data if available, otherwise use the provided session
     const sessionToSend: ExtendedTutoringSession = fullSessionData || session;
     
-    // Force invalidation of this session's cache
-    responseCache.delete(`session:${session.id}`);
-    
     // Use the same channel name format as in RealtimeContext
     const channelName = `tutoring_session:conversation:${sessionToSend.conversation_id}`;
     const channel = supabase.channel(channelName);
@@ -127,15 +88,21 @@ const broadcastUpdate = async (session: ExtendedTutoringSession) => {
     // Subscribe to the channel before sending
     await channel.subscribe();
     
-    // Send the individual session update with an explicit emphasis on including the cost
+    // Send the individual session update with all critical fields explicitly included
     await channel.send({
       type: 'broadcast',
       event: 'session_update',
       payload: { 
         session: {
           ...sessionToSend,
-          // Make sure cost is explicitly included
-          cost: sessionToSend.cost
+          // Make sure critical fields are explicitly included
+          cost: sessionToSend.cost,
+          created_at: sessionToSend.created_at || new Date().toISOString(),
+          id: sessionToSend.id,
+          conversation_id: sessionToSend.conversation_id,
+          status: sessionToSend.status,
+          // Explicitly include message_id (which may be null)
+          message_id: sessionToSend.message_id || null
         } 
       }
     });
@@ -254,7 +221,7 @@ async function getTutoringSessionsHandler(
       
       const result = await getCachedOrFresh(cacheKey, async () => {
         return await getSessionById(user, sessionId);
-      }, { sessionId });
+      });
       
       const { session, error } = result;
       
@@ -292,7 +259,7 @@ async function getTutoringSessionsHandler(
       
       const result = await getCachedOrFresh(cacheKey, async () => {
         return await getUserSessions(userId, userType as 'tutor' | 'student');
-      }, { forceRefresh: true });
+      });
       
       const { sessions, error } = result;
       
@@ -313,7 +280,7 @@ async function getTutoringSessionsHandler(
       
       const result = await getCachedOrFresh(cacheKey, async () => {
         return await getSessionsByMessageId(messageId);
-      }, { forceRefresh: true });
+      });
       
       const { sessions, error } = result;
       
@@ -355,7 +322,7 @@ async function getTutoringSessionsHandler(
       const result = await getCachedOrFresh(cacheKey, async () => {
         // Direct call to getSessionsByConversation with only the conversationId parameter
         return await getSessionsByConversation(conversationId);
-      }, { forceRefresh: true });
+      });
       
       if (result.error) {
         return NextResponse.json({ error: result.error }, { status: 500 });
@@ -380,7 +347,15 @@ async function postTutoringSessionsHandler(
 ): Promise<NextResponse> {
   try {
     const body = await req.json();
-    const { conversation_id, message_id, student_id, tutor_id, scheduled_for, name, status: requestedStatus, cost } = body;
+    const { 
+      conversation_id, 
+      student_id, 
+      tutor_id, 
+      scheduled_for, 
+      name, 
+      status: requestedStatus, 
+      cost
+    } = body;
     
     if (!conversation_id) {
       return NextResponse.json({ 
@@ -396,9 +371,17 @@ async function postTutoringSessionsHandler(
     }
 
     // Create options object for optional fields
-    const options: { scheduled_for?: string; name?: string; cost?: number } = {};
+    const options: { 
+      scheduled_for?: string; 
+      name?: string; 
+      message_id?: string; 
+      cost?: number 
+    } = {};
+    
     if (scheduled_for) options.scheduled_for = scheduled_for;
     if (name) options.name = name;
+    // message_id is still accepted if provided, but completely optional
+    if (body.message_id) options.message_id = body.message_id;
     if (cost !== undefined) options.cost = cost;
     
     // No longer need to check student tokens during session creation
@@ -413,19 +396,21 @@ async function postTutoringSessionsHandler(
     // Check if the tutor wants to create a request or directly accept
     const isCreateRequest = requestedStatus === 'requested';
     
-    // Create the session object - note that message_id may be null
+    // Create the session object - no message_id required
     const sessionData: any = {
       conversation_id,
       tutor_id: user.id, // Tutor is the current user
       student_id,
       status: isCreateRequest ? 'requested' : 'accepted',
       tutor_ready: false,
-      student_ready: false
+      student_ready: false,
+      // Ensure created_at is set explicitly for consistent ordering
+      created_at: new Date().toISOString()
     };
     
     // Add optional message_id if provided
-    if (message_id) {
-      sessionData.message_id = message_id;
+    if (body.message_id) {
+      sessionData.message_id = body.message_id;
     }
     
     // Add other optional fields
