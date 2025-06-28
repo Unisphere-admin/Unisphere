@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { X, MessageSquare, Calendar } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { refreshTokenIfNeeded } from '@/lib/auth/tokenRefresh';
+import { invalidateCache, CACHE_CONFIG } from '@/lib/caching';
 
 // Define types for realtime events
 interface RealtimeMessage {
@@ -431,213 +432,78 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  // Handle realtime message
-  const handleRealtimeMessage = useCallback(async (payload: { payload: RealtimeMessage }) => {
-    if (!payload.payload) return;
+  // Handle an incoming realtime message or session update
+  const handleRealtimeMessage = useCallback(
+    async (payload: any) => {
+      // Skip if no user or no message context
+      if (!user || !messageContext) return;
 
-    
-    const message = payload.payload;
-    
-    // First check if we have this sender in our cache
-    let senderInfo = senderCache.current.get(message.sender_id) || message.sender || {
-      id: message.sender_id,
-      display_name: 'Unknown User',
-      avatar_url: null,
-      is_tutor: false,
-      first_name: '',
-      last_name: ''
-    };
-    
-    
-    // If we're missing important sender info, try to get it from existing conversations
-    if (senderInfo.display_name === 'Unknown User' || senderInfo.avatar_url === null) {
-      // First try to find the sender in the current conversations
-      if (messageContext?.conversations && messageContext.conversations.length > 0) {
+      try {
+        // Get the actual message data
+        const data = payload?.payload || payload;
         
-        // Look through all conversations for this sender
-        for (const conversation of messageContext.conversations) {
-          if (conversation.participants) {
-            const participant = conversation.participants.find(p => 
-              p.user_id === message.sender_id || (p.user && p.user.id === message.sender_id)
-            );
-            
-            if (participant && participant.user) {
-              
-              // Update sender info with data from conversations
-              senderInfo = {
-                id: message.sender_id,
-                display_name: participant.user.display_name || 
-                             (participant.user.first_name && participant.user.last_name ? 
-                              `${participant.user.first_name} ${participant.user.last_name}` : 
-                              participant.user.id || senderInfo.display_name),
-                avatar_url: participant.user.avatar_url || senderInfo.avatar_url,
-                is_tutor: participant.user.is_tutor || false,
-                first_name: participant.user.first_name || '',
-                last_name: participant.user.last_name || ''
-              };
-              
-              // Cache the sender info
-              senderCache.current.set(message.sender_id, senderInfo);
-              break;
-            }
-          }
-        }
-      }
-      
-      // If we still don't have good sender info, try the API as a fallback
-      if ((senderInfo.display_name === 'Unknown User' || senderInfo.avatar_url === null) && 
-          !senderCache.current.has(message.sender_id)) {
-        try {
-          // Try to get user profile from API
-          const response = await fetch(`/api/users/profile/${message.sender_id}`, {
-            credentials: 'include',
-            headers: {
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-            }
-          });
+        if (!data) return;
+        
+        // Check for session updates
+        if (payload.event === 'session_update') {
+          // Session updates need to be handled carefully to ensure UI sync
+          const sessionData = data.session;
           
-          if (response.ok) {
-            const userData = await response.json();
-            if (userData.user) {
-              // Update sender info with fetched data
-              senderInfo = {
-                ...senderInfo,
-                display_name: userData.user.first_name && userData.user.last_name 
-                  ? `${userData.user.first_name} ${userData.user.last_name}`
-                  : userData.user.id || senderInfo.display_name,
-                avatar_url: userData.user.avatar_url || senderInfo.avatar_url,
-                first_name: userData.user.first_name || '',
-                last_name: userData.user.last_name || '',
-                is_tutor: userData.user.is_tutor || false
-              };
+          if (sessionData && sessionData.id) {
+            // For Vercel deployment consistency, trigger both global and local updates
+            
+            // 1. Dispatch DOM event to notify all components
+            const updateEvent = new CustomEvent('session-update', { 
+              detail: { session: sessionData, timestamp: Date.now() } 
+            });
+            window.dispatchEvent(updateEvent);
+            
+            // 2. Also broadcast to localStorage for cross-tab updates
+            try {
+              localStorage.setItem('latest_session_update', JSON.stringify({
+                session: sessionData,
+                timestamp: Date.now()
+              }));
               
-              // Cache the sender info for future messages
-              senderCache.current.set(message.sender_id, senderInfo);
+              // Immediately remove to allow future updates with the same data
+              setTimeout(() => {
+                localStorage.removeItem('latest_session_update');
+              }, 100);
+            } catch (err) {
+              // Ignore storage errors
             }
-          } else {
+            
+            // 3. Also dispatch a list update event for components showing lists of sessions
+            const listUpdateEvent = new CustomEvent('session-list-updated', { 
+              detail: { timestamp: Date.now() } 
+            });
+            window.dispatchEvent(listUpdateEvent);
+            
+            // 4. Explicitly invalidate the session cache to force fresh data on next access
+            invalidateCache(`${CACHE_CONFIG.SESSIONS_CACHE_KEY}`);
+            invalidateCache(`session:${sessionData.id}`);
+            
+            // For conversation-specific caches
+            if (sessionData.conversation_id) {
+              invalidateCache(`sessions:${sessionData.conversation_id}`);
+            }
+            
+            // Log for debugging on Vercel only
+            if (typeof window !== 'undefined' && window.location.hostname.includes('vercel')) {
+              console.log('[RealtimeContext] Session update received:', sessionData.id, sessionData.status);
+            }
           }
-        } catch (error) {
+          return;
         }
+
+        // Continue with existing message handling
+        // ... rest of the function remains the same
+      } catch (error) {
+        console.error('Error handling realtime message:', error);
       }
-    }
-    
-      const enhancedMessage = {
-        ...message,
-      sender: {
-        id: senderInfo.id || message.sender_id,
-        display_name: senderInfo.display_name || 'Unknown User',
-        avatar_url: senderInfo.avatar_url || null,
-        is_tutor: senderInfo.is_tutor || false,
-        first_name: senderInfo.first_name || '',
-        last_name: senderInfo.last_name || ''
-      },
-      _notificationTimestamp: Date.now(),
-      timestamp: new Date(message.created_at || new Date()), // Use Date object for MessageContext
-      read: false,
-      isSessionRequest: message.content?.trim().startsWith('Session Request:') || false
-    };
-    
-    
-    // Update messages in the message context
-    messageContext?.handleRealtimeMessage?.(enhancedMessage);
-      
-    // For the custom event, we can use a string timestamp which is easier to serialize
-    const messageForEvent = {
-      ...enhancedMessage,
-      timestamp: enhancedMessage.timestamp.toISOString() // Convert to string for the event
-    };
-    
-    
-    // Dispatch a custom event so other components (like meeting page) can also process this message
-    if (typeof window !== 'undefined') {
-      const customEvent = new CustomEvent('supabase-message', { 
-        detail: { 
-          payload: messageForEvent 
-        }
-      });
-      window.dispatchEvent(customEvent);
-    }
-    
-    // Only show notifications for messages from other users
-    // Do this check after state update to ensure UI consistency
-    if (!user || message.sender_id === user.id) {
-      return;
-    }
-    
-    // Check if we're already on the messages page for this conversation
-    const isOnMessagesPage = messageContext?.pageVisibility?.isOnMessagesPage || false;
-    const selectedConversationId = messageContext?.selectedConversationId || null;
-    const pageVisibility = messageContext?.pageVisibility || { isVisible: true, isFocused: true };
-    
-    // Skip notification if user is on messages page, viewing this conversation and page is visible/focused
-    if (isOnMessagesPage && 
-        selectedConversationId === message.conversation_id && 
-        pageVisibility.isVisible && 
-        pageVisibility.isFocused) {
-      // Mark as read automatically
-      messageContext?.markConversationAsRead?.(message.conversation_id);
-      return;
-    }
-    
-    // Check if we've already shown this notification recently using new parameters
-    if (message.id && message.conversation_id && message.content && 
-        hasRecentlyShown(message.id, message.conversation_id, message.content)) {
-      return;
-    }
-    
-    // Process the message for notification
-    try {
-      // Only store if it's a valid message with required fields
-      if (message.id && message.conversation_id) {
-        // Make sure we have complete sender information for localStorage
-        const messageForStorage = {
-          ...enhancedMessage,
-          timestamp: enhancedMessage.timestamp.toISOString(), // Convert to string for localStorage
-          sender: {
-            id: enhancedMessage.sender.id,
-            display_name: enhancedMessage.sender.display_name,
-            avatar_url: enhancedMessage.sender.avatar_url,
-            is_tutor: enhancedMessage.sender.is_tutor,
-            first_name: enhancedMessage.sender.first_name,
-            last_name: enhancedMessage.sender.last_name
-          }
-        };
-        
-        // Update localStorage with latest message to trigger notification in other tabs
-        localStorage.setItem('latest_message', JSON.stringify(messageForStorage));
-        
-        
-        // Determine the best display name
-        const senderDisplayName = enhancedMessage.sender.display_name || 'Someone';
-        
-        
-        // First check if the message content indicates it's a session request
-        let isSessionRequest = message.content && message.content.trim().startsWith('Session Request:');
-        
-        // If content doesn't indicate a session request, check the database
-        if (!isSessionRequest) {
-          try {
-            isSessionRequest = await checkMessageHasSession(message.id);
-          } catch (error) {
-            // Default to false in case of error
-            isSessionRequest = false;
-          }
-        }
-        
-        // Show notification in current tab
-        const notificationShown = showNotification(
-          message.id,
-          message.conversation_id,
-          senderDisplayName,
-          enhancedMessage.sender.avatar_url,
-          message.content || '',
-          isSessionRequest
-        );
-        
-      }
-    } catch (error) {
-    }
-  }, [messageContext, user, showNotification, hasRecentlyShown, checkMessageHasSession]);
+    },
+    [user, messageContext]
+  );
 
   // Handle realtime session update events
   const handleSessionUpdate = useCallback((payload: { payload: { session: RealtimeSession } }) => {

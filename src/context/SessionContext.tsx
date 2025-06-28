@@ -99,6 +99,89 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [user]);
   
+  // Define updateSession function
+  const updateSession = useCallback((session: ActiveSession) => {
+    if (!session || !session.id) return;
+    
+    // Update in our sessions list
+    setSessions(prevSessions => {
+      const sessionExists = prevSessions.some(s => s.id === session.id);
+      
+      if (sessionExists) {
+        // Update existing session
+        return prevSessions.map(s => 
+          s.id === session.id ? { ...s, ...session } : s
+        );
+      } else if (['requested', 'accepted', 'started'].includes(session.status)) {
+        // Add new session if it's active
+        return [...prevSessions, session];
+      }
+      
+      return prevSessions;
+    });
+    
+    // Update active session if it matches
+    if (activeSession && activeSession.id === session.id) {
+      setActiveSession({ ...activeSession, ...session });
+    }
+  }, [activeSession]);
+  
+  // Define refreshSessions function
+  const refreshSessions = useCallback(async () => {
+    if (!user) {
+      setSessions([]);
+      return;
+    }
+    
+    // Check if user has premium access before making API calls
+    const hasPremiumAccess = await checkPremiumAccess();
+    if (!hasPremiumAccess && user.role !== 'tutor') {
+      setSessions([]);
+      return;
+    }
+    
+    setLoadingSessions(true);
+    try {
+      // Include both user_id and user_type to satisfy API requirements
+      const userType = user.role === 'tutor' ? 'tutor' : 'student';
+      const response = await fetch(`/api/tutoring-sessions?user_id=${user.id}&user_type=${userType}`, {
+        credentials: 'include',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (response.status === 401) {
+        return;
+      }
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(errorData.error || `Failed to fetch sessions: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.sessions) {
+        setSessions(data.sessions);
+        
+        // Check for active sessions
+        const activeSessionCandidate = data.sessions.find((s: ActiveSession) => 
+          s.status === 'started' || s.status === 'accepted'
+        );
+        
+        if (activeSessionCandidate) {
+          setActiveSession(activeSessionCandidate);
+        }
+      }
+    } catch (error) {
+      // Don't throw error here - handle it gracefully
+    } finally {
+      setLoadingSessions(false);
+    }
+  }, [user, checkPremiumAccess]);
+  
   // Fetch reviews for user
   useEffect(() => {
     const fetchReviews = async () => {
@@ -161,23 +244,59 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         // Refresh sessions when another tab invalidates the cache
         refreshSessions();
       }
+      
+      // Also check for specific session updates
+      if (event.key === 'latest_session_update' && event.newValue) {
+        try {
+          const updateData = JSON.parse(event.newValue);
+          if (updateData.session && updateData.session.id) {
+            // Update the session in our local state
+            updateSession(updateData.session);
+            
+            // For Vercel deployments, also refresh the session list after a short delay
+            // to ensure latest data is pulled from the server
+            if (typeof window !== 'undefined' && window.location.hostname.includes('vercel')) {
+              setTimeout(() => refreshSessions(), 300);
+            }
+          }
+        } catch (error) {
+          // Ignore parse errors
+        }
+      }
     };
     
     // Add event listener for storage events
     window.addEventListener('storage', handleStorageEvent);
     
     // Also listen for custom session update events from RealtimeContext
-    const handleSessionUpdate = () => {
+    const handleSessionUpdate = (event: CustomEvent) => {
+      if (event.detail?.session) {
+        updateSession(event.detail.session);
+        
+        // For Vercel deployments, also refresh the full session list
+        if (typeof window !== 'undefined' && window.location.hostname.includes('vercel')) {
+          setTimeout(() => refreshSessions(), 300);
+        }
+      } else {
+        // If no specific session, just refresh all
+        refreshSessions();
+      }
+    };
+    
+    const handleSessionListUpdate = () => {
       refreshSessions();
     };
     
-    window.addEventListener('session-list-updated', handleSessionUpdate);
+    // Add custom event listeners
+    window.addEventListener('session-update', handleSessionUpdate as EventListener);
+    window.addEventListener('session-list-updated', handleSessionListUpdate);
     
     return () => {
       window.removeEventListener('storage', handleStorageEvent);
-      window.removeEventListener('session-list-updated', handleSessionUpdate);
+      window.removeEventListener('session-update', handleSessionUpdate as EventListener);
+      window.removeEventListener('session-list-updated', handleSessionListUpdate);
     };
-  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, refreshSessions, updateSession]); // Add updateSession to dependencies
   
   // Get a session by ID
   const getSessionById = useCallback(async (sessionId: string): Promise<ActiveSession | null> => {
@@ -436,103 +555,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       return [];
     }
   }, []);
-
-  // Refresh sessions list
-  const refreshSessions = useCallback(async (): Promise<void> => {
-    if (!user) {
-      setSessions([]);
-      return;
-    }
-    
-    // Check if user has premium access before making API calls
-    const hasPremiumAccess = await checkPremiumAccess();
-    if (!hasPremiumAccess && user.role !== 'tutor') {
-      setSessions([]);
-      return;
-    }
-    
-    setLoadingSessions(true);
-    try {
-      // Include both user_id and user_type to satisfy API requirements
-      const userType = user.role === 'tutor' ? 'tutor' : 'student';
-      const response = await fetch(`/api/tutoring-sessions?user_id=${user.id}&user_type=${userType}`, {
-        credentials: 'include'
-      });
-      
-      if (response.status === 401) {
-        return;
-      }
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-        throw new Error(errorData.error || `Failed to fetch sessions: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.sessions) {
-        setSessions(data.sessions);
-        
-        // Check for active sessions
-        const activeSessionCandidate = data.sessions.find((s: ActiveSession) => 
-          s.status === 'started' || s.status === 'accepted'
-        );
-        
-        if (activeSessionCandidate) {
-          setActiveSession(activeSessionCandidate);
-        }
-      }
-    } catch (error) {
-      // Don't throw error here - handle it gracefully
-    } finally {
-      setLoadingSessions(false);
-    }
-  }, [user, checkPremiumAccess]);
-
-  // Update session in local state
-  const updateSession = useCallback((updatedSession: ActiveSession) => {
-    if (!updatedSession || !updatedSession.id) return;
-    
-    // Ensure created_at is present
-    const sessionWithCreatedAt = {
-      ...updatedSession,
-      created_at: updatedSession.created_at || new Date().toISOString()
-    };
-    
-    // Update in sessions list
-    setSessions(prev => {
-      const exists = prev.some(s => s.id === sessionWithCreatedAt.id);
-      
-      if (exists) {
-        // Update existing session
-        return prev.map(s => 
-          s.id === sessionWithCreatedAt.id 
-            ? { ...s, ...sessionWithCreatedAt } 
-            : s
-        );
-      } else {
-        // Add new session
-        return [...prev, sessionWithCreatedAt];
-      }
-    });
-    
-    // If this is the active session, update it
-    if (activeSession && activeSession.id === sessionWithCreatedAt.id) {
-      setActiveSession({
-        ...activeSession,
-        ...sessionWithCreatedAt
-      });
-    }
-    
-    // Trigger a custom event to notify other components
-    if (typeof window !== 'undefined') {
-      const event = new Event('session-updated');
-      window.dispatchEvent(event);
-      
-      // Also trigger a refresh of all sessions to ensure proper sorting
-      setTimeout(() => refreshSessions(), 100);
-    }
-  }, [activeSession, refreshSessions]);
 
   return (
     <SessionContext.Provider
