@@ -160,42 +160,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       if (event.key === 'session_cache_invalidated') {
         // Refresh sessions when another tab invalidates the cache
         refreshSessions();
-        
-        // Also check if we have specific session data to update immediately
-        try {
-          const sessionDataStr = localStorage.getItem('last_updated_session');
-          if (sessionDataStr) {
-            const sessionData = JSON.parse(sessionDataStr);
-            
-            // Find and update the session in our local state
-            if (sessionData && sessionData.id) {
-              setSessions(prev => {
-                return prev.map(session => {
-                  if (session.id === sessionData.id) {
-                    // Update the status and other relevant fields
-                    return {
-                      ...session,
-                      status: sessionData.status,
-                      // Update any other fields as needed
-                    };
-                  }
-                  return session;
-                });
-              });
-              
-              // If this is the active session, update it as well
-              if (activeSession && activeSession.id === sessionData.id) {
-                setActiveSession(current => ({
-                  ...current!,
-                  status: sessionData.status,
-                  // Update other relevant fields
-                }));
-              }
-            }
-          }
-        } catch (e) {
-          // Ignore JSON parsing errors
-        }
       }
     };
     
@@ -535,7 +499,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       created_at: updatedSession.created_at || new Date().toISOString()
     };
     
-    // Update in sessions list - immediately and atomically
+    // Update in sessions list
     setSessions(prev => {
       const exists = prev.some(s => s.id === sessionWithCreatedAt.id);
       
@@ -545,7 +509,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           s.id === sessionWithCreatedAt.id 
             ? { ...s, ...sessionWithCreatedAt } 
             : s
-        );
+    );
       } else {
         // Add new session
         return [...prev, sessionWithCreatedAt];
@@ -565,23 +529,10 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       const event = new Event('session-updated');
       window.dispatchEvent(event);
       
-      // Dispatch storage event to notify other tabs
-      try {
-        // Use timestamp to ensure the event is unique
-        localStorage.setItem('session_cache_invalidated', new Date().toISOString());
-        
-        // Also store serialized session data for other tabs to consume
-        const sessionData = JSON.stringify({
-          id: sessionWithCreatedAt.id,
-          status: sessionWithCreatedAt.status,
-          updated: Date.now()
-        });
-        localStorage.setItem('last_updated_session', sessionData);
-      } catch (e) {
-        // Ignore local storage errors
-      }
+      // Also trigger a refresh of all sessions to ensure proper sorting
+      setTimeout(() => refreshSessions(), 100);
     }
-  }, [activeSession]);
+  }, [activeSession, refreshSessions]);
 
   return (
     <SessionContext.Provider

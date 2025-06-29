@@ -712,28 +712,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       } as ActiveSession;
       
       sessionContext.updateSession(convertedSession);
-
-      // Fire a special event to let any components with loading states clear them
-      // This ensures the UI is responsive after a session update without waiting for renders
-      if (typeof window !== 'undefined') {
-        try {
-          const sessionActionClearedEvent = new CustomEvent('session-action-completed', { 
-            detail: { sessionId: updatedSession.id, status: updatedSession.status }
-          });
-          window.dispatchEvent(sessionActionClearedEvent);
-          
-          // Also store the session ID that just completed an action in localStorage
-          // so that other components can react to it and clear their loading states
-          localStorage.setItem('session_action_completed', JSON.stringify({
-            sessionId: updatedSession.id,
-            status: updatedSession.status,
-            timestamp: Date.now()
-          }));
-        } catch (e) {
-          // Ignore localStorage errors
-        }
-      }
-    } else {
+      } else {
       // Fall back to refreshing all sessions
       if (sessionContext.refreshSessions) {
         sessionContext.refreshSessions();
@@ -1075,28 +1054,28 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     try {
       // Refresh token before sending broadcast
       refreshTokenIfNeeded(supabaseRef.current).then(() => {
-        // Get existing channel or create a new one
-        let channel = channelsRef.current[conversationId];
-        
-        // If no existing channel, create and subscribe to a new one
-        if (!channel) {
-          channel = supabaseRef.current.channel(channelName);
-          channel.subscribe((status: string) => {
-          });
-          channelsRef.current[conversationId] = channel;
-        }
-        
-        // Send the broadcast
-        channel.send({
-          type: 'broadcast',
-          event: 'session_update',
-          payload: { session }
+      // Get existing channel or create a new one
+      let channel = channelsRef.current[conversationId];
+      
+      // If no existing channel, create and subscribe to a new one
+      if (!channel) {
+        channel = supabaseRef.current.channel(channelName);
+        channel.subscribe((status: string) => {
         });
+        channelsRef.current[conversationId] = channel;
+      }
+      
+      // Send the broadcast
+          channel.send({
+            type: 'broadcast',
+        event: 'session_update',
+        payload: { session }
+      });
       });
     } catch (error) {
     }
   }, []);
-  
+
   // Broadcast a typing indicator
   const broadcastTypingIndicator = useCallback((conversationId: string, isTyping: boolean) => {
     if (!supabaseRef.current || !conversationId || !user) return;
@@ -1106,34 +1085,34 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     try {
       // Refresh token before sending broadcast
       refreshTokenIfNeeded(supabaseRef.current).then(() => {
-        // Get existing channel or create a new one
-        let channel = channelsRef.current[conversationId];
-        
-        // If no existing channel, create and subscribe to a new one
-        if (!channel) {
-          channel = supabaseRef.current.channel(channelName);
-          channel.subscribe((status: string) => {
-          });
-          channelsRef.current[conversationId] = channel;
-        }
-        
-        // Send the broadcast
-        channel.send({
-          type: 'broadcast',
-          event: 'typing',
-          payload: {
-            user_id: user.id,
-            conversation_id: conversationId,
-            is_typing: isTyping,
-            display_name: user.name,
-            timestamp: Date.now()
-          }
+      // Get existing channel or create a new one
+      let channel = channelsRef.current[conversationId];
+      
+      // If no existing channel, create and subscribe to a new one
+      if (!channel) {
+        channel = supabaseRef.current.channel(channelName);
+        channel.subscribe((status: string) => {
         });
+        channelsRef.current[conversationId] = channel;
+      }
+      
+      // Send the broadcast
+      channel.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: {
+          user_id: user.id,
+          conversation_id: conversationId,
+          is_typing: isTyping,
+          display_name: user.name,
+          timestamp: Date.now()
+        }
+      });
       });
     } catch (error) {
     }
   }, [user]);
-  
+
   // Listen for storage events for new messages
   useEffect(() => {
     if (!user) return;
@@ -1172,7 +1151,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [user, handleRealtimeMessage, subscribeToConversation]);
-  
+
   // Provide the realtime context
   return (
     <RealtimeContext.Provider
@@ -1199,4 +1178,4 @@ export const useRealtime = () => {
     throw new Error("useRealtime must be used within a RealtimeProvider");
   }
   return context;
-};
+}; 

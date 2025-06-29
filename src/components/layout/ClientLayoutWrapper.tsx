@@ -10,7 +10,6 @@ import { toast } from "@/components/ui/sonner";
 import { initializeCache } from '@/lib/cacheInitializer';
 import { setupAuthCacheCheck } from '@/utils/authUtils';
 import { prefetchTutors } from '@/lib/tutorsCaching';
-import { useSessions } from '@/context/SessionContext';
 
 interface ClientLayoutWrapperProps {
   children: ReactNode;
@@ -18,7 +17,6 @@ interface ClientLayoutWrapperProps {
 
 export default function ClientLayoutWrapper({ children }: ClientLayoutWrapperProps) {
   const { loading, silentLoading, user } = useAuth();
-  const { sessions, refreshSessions } = useSessions();
   const pathname = usePathname();
   const isDashboard = pathname?.startsWith('/dashboard');
   const isTutorsPage = pathname?.startsWith('/tutors');
@@ -28,7 +26,6 @@ export default function ClientLayoutWrapper({ children }: ClientLayoutWrapperPro
   
   // Use ref instead of state to track initialization
   const cacheInitializedRef = useRef(false);
-  const sessionsInitializedRef = useRef(false);
   
   useEffect(() => {
     setIsDev(process.env.NODE_ENV === 'development');
@@ -71,32 +68,6 @@ export default function ClientLayoutWrapper({ children }: ClientLayoutWrapperPro
   useEffect(() => {
     setupAuthCacheCheck();
   }, []);
-
-  // Ensure session state is synced between tabs on initial load
-  useEffect(() => {
-    if (user && !sessionsInitializedRef.current && isDashboard) {
-      sessionsInitializedRef.current = true;
-      
-      // Check if we have session data in localStorage that might be newer
-      try {
-        const lastUpdatedTimestamp = localStorage.getItem('session_cache_invalidated');
-        const sessionDataStr = localStorage.getItem('last_updated_session');
-        
-        if (lastUpdatedTimestamp || sessionDataStr) {
-          // If we have any cached session data, refresh sessions to ensure we're in sync
-          refreshSessions();
-          
-          // Fire an event to ensure session data is properly updated across all components
-          if (typeof window !== 'undefined') {
-            const syncEvent = new Event('session-list-updated');
-            window.dispatchEvent(syncEvent);
-          }
-        }
-      } catch (e) {
-        // Ignore localStorage errors
-      }
-    }
-  }, [user, isDashboard, refreshSessions]);
   
   // Show loading screen during initial auth load and critical data prefetch
   // This prevents "no data" flashes

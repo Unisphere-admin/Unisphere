@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useLayoutEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -29,9 +29,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { SessionLink } from "@/components/SessionLink";
+import { useCsrfToken } from "@/lib/csrf/client";
 
 // Define a type for the sessions to avoid TypeScript errors
 interface SessionType {
@@ -52,42 +51,79 @@ interface SessionType {
   student_profile?: { first_name?: string; last_name?: string };
   created_by?: string;
   cost?: number | null;
+  sessionKey?: string; // Added to help with tracking state changes
 }
 
 export default function SchedulePage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { sessions, loadingSessions } = useSessions();
+  const { sessions, loadingSessions, refreshSessions } = useSessions();
   const { subscribeToConversation, unsubscribeFromConversation } = useRealtime();
   const { toast } = useToast();
-  const [cancelingSession, setCancelingSession] = useState<string | null>(null);
+  const { fetchCsrfToken } = useCsrfToken();
+  
+  // State for session actions
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [sessionToCancel, setSessionToCancel] = useState<{ id: string, message_id: string | null | undefined } | null>(null);
   
-  // Action loading state
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  // Maintain processed sessions with stable keys to help React reconciliation
+  const [processedSessions, setProcessedSessions] = useState<SessionType[]>([]);
   
-  // Track visible sessions state
-  const [visibleSessions, setVisibleSessions] = useState<string[]>([]);
-  const previousSessionsRef = useRef<SessionType[]>([]);
+  // Track if component is mounted to avoid state updates after unmount
+  const isMounted = useRef(true);
+  const lastActionRef = useRef<{action: string, id: string, timestamp: number} | null>(null);
   
-  // Save scroll position
-  const contentRef = useRef<HTMLDivElement>(null);
-  const scrollPosition = useRef<number>(0);
-  
-  // Save scroll position
-  const saveScrollPosition = () => {
-    if (contentRef.current) {
-      scrollPosition.current = window.scrollY;
+  // Generate a stable session key for reconciliation
+  const getSessionKey = useCallback((session: SessionType): string => {
+    return `${session.id}::${session.status}::${session.tutor_ready}::${session.student_ready}`;
+  }, []);
+
+  // Create processed session objects with stable keys
+  const processSessionsData = useCallback((rawSessions: SessionType[]): SessionType[] => {
+    if (!rawSessions || !Array.isArray(rawSessions)) return [];
+    
+    return rawSessions
+      .filter((session): session is SessionType => {
+        const status = session?.status?.toLowerCase?.() || '';
+        return Boolean(session) && 
+          ['requested', 'accepted', 'started'].includes(status);
+      })
+      .map(session => ({
+        ...session,
+        sessionKey: getSessionKey(session)
+      }))
+      .sort((a, b) => {
+        // First, sort by status priority
+        const statusOrder: Record<string, number> = { 
+          started: 0, 
+          accepted: 1, 
+          requested: 2 
+        };
+        const statusA = (a.status || '').toLowerCase();
+        const statusB = (b.status || '').toLowerCase();
+        const statusDiff = (statusOrder[statusA] || 99) - (statusOrder[statusB] || 99);
+        if (statusDiff !== 0) return statusDiff;
+        
+        // Then sort by scheduled date
+        if (a.scheduled_for && b.scheduled_for) {
+          return new Date(a.scheduled_for).getTime() - new Date(b.scheduled_for).getTime();
+        }
+        
+        // Fall back to any available timestamp for sorting
+        const timeA = new Date(a.scheduled_for || a.updated_at || a.created_at || Date.now()).getTime();
+        const timeB = new Date(b.scheduled_for || b.updated_at || b.created_at || Date.now()).getTime();
+        return timeA - timeB;
+      });
+  }, [getSessionKey]);
+
+  // Update processed sessions whenever raw sessions change
+  useEffect(() => {
+    if (!loadingSessions && Array.isArray(sessions)) {
+      const updated = processSessionsData(sessions);
+      setProcessedSessions(updated);
     }
-  };
-  
-  // Restore scroll position after data changes
-  useLayoutEffect(() => {
-    if (!loadingSessions && scrollPosition.current > 0) {
-      window.scrollTo(0, scrollPosition.current);
-    }
-  }, [sessions, loadingSessions, visibleSessions]);
+  }, [sessions, loadingSessions, processSessionsData]);
 
   // Redirect if not logged in
   useEffect(() => {
@@ -96,67 +132,17 @@ export default function SchedulePage() {
     }
   }, [user, router, loadingSessions]);
 
-  // Add this useEffect for handling session refreshes
+  // Track component mount status to prevent state updates after unmount
   useEffect(() => {
-    // Save scroll position before sessions update
-    saveScrollPosition();
-    
-    if (!loadingSessions && sessions && sessions.length > 0) {
-      // Keep track of session IDs for maintaining UI state
-      const currentSessionIds = sessions.map(session => session.id);
-      setVisibleSessions(prev => {
-        const existingIds = prev.filter(id => currentSessionIds.includes(id));
-        const newIds = currentSessionIds.filter(id => !prev.includes(id));
-        return [...existingIds, ...newIds];
-      });
-      
-      // Store previous sessions state for reference
-      previousSessionsRef.current = [...sessions];
-    }
-  }, [sessions, loadingSessions]);
-
-  // Add event listener for session-updated events
-  useEffect(() => {
-    const handleSessionUpdate = () => {
-      // Check localStorage for updated session data
-      try {
-        const sessionDataStr = localStorage.getItem('last_updated_session');
-        if (sessionDataStr) {
-          const sessionData = JSON.parse(sessionDataStr);
-          
-          // Clear any loading state since session has been updated
-          setActionLoading(null);
-          
-          // Instead of doing anything with local state directly,
-          // the sessions data from SessionContext is the source of truth
-          // and the useEffect above will handle the state update properly
-          
-          // Just ensure we save scroll position
-          saveScrollPosition();
-        }
-      } catch (e) {
-        // Ignore localStorage errors
-      }
-    };
-    
-    // Listen for session-updated events
-    window.addEventListener('session-updated', handleSessionUpdate);
-    // Also listen for storage events from other tabs
-    window.addEventListener('storage', (event) => {
-      if (event.key === 'session_cache_invalidated') {
-        handleSessionUpdate();
-      }
-    });
-    
+    isMounted.current = true;
     return () => {
-      window.removeEventListener('session-updated', handleSessionUpdate);
-      window.removeEventListener('storage', handleSessionUpdate);
+      isMounted.current = false;
     };
   }, []);
 
   // Subscribe to realtime updates for all conversation IDs in the sessions
   useEffect(() => {
-    if (!sessions || !sessions.length) return;
+    if (!Array.isArray(sessions) || !sessions.length) return;
     
     // Get unique conversation IDs from sessions
     const conversationIds = Array.from(
@@ -176,74 +162,28 @@ export default function SchedulePage() {
     };
   }, [sessions, subscribeToConversation, unsubscribeFromConversation]);
 
-  // This is the single source of truth for updating visible sessions from the sessions prop
+  // Force refresh sessions every 30 seconds to ensure data consistency
   useEffect(() => {
-    if (!loadingSessions && sessions) {
-      // Transform sessions into a map for faster lookups
-      const sessionsMap = new Map(
-        sessions.map(session => [session.id, session])
-      );
-      
-      // Update the visible sessions with the full sessions data
-      setVisibleSessions(prev => {
-        // Keep existing visible sessions in the same order
-        const updatedVisible = prev
-          .filter(id => sessionsMap.has(id))
-          .map(id => sessionsMap.get(id)!.id);
-        
-        // Add any new sessions that should be visible but aren't yet
-        const newSessionIds = sessions
-          .filter(session => !prev.includes(session.id) && 
-            ['requested', 'accepted', 'started'].includes(session.status?.toLowerCase() || ''))
-          .map(session => session.id);
-          
-        return [...updatedVisible, ...newSessionIds];
-      });
-      
-      // Save current sessions for reference
-      previousSessionsRef.current = [...sessions];
+    const intervalId = setInterval(() => {
+      if (isMounted.current) {
+        refreshSessions();
+      }
+    }, 30000);
+    
+    return () => clearInterval(intervalId);
+  }, [refreshSessions]);
+
+  // After an action completes, ensure we refresh to get the latest state
+  useEffect(() => {
+    if (lastActionRef.current) {
+      const { timestamp } = lastActionRef.current;
+      const now = Date.now();
+      if (now - timestamp > 1000) {
+        refreshSessions();
+        lastActionRef.current = null;
+      }
     }
-  }, [sessions, loadingSessions]);
-
-  // Add event listener for session-action-completed events
-  useEffect(() => {
-    const handleSessionActionCompleted = (event: CustomEvent) => {
-      if (event.detail && event.detail.sessionId) {
-        // Clear action loading state for this session
-        setActionLoading(null);
-        setCancelingSession(null);
-      }
-    };
-
-    // Listen for session action completion events from RealtimeContext
-    window.addEventListener('session-action-completed', handleSessionActionCompleted as EventListener);
-    
-    // Also check localStorage for recently completed actions
-    const checkLocalStorage = () => {
-      try {
-        const actionCompletedStr = localStorage.getItem('session_action_completed');
-        if (actionCompletedStr) {
-          const actionData = JSON.parse(actionCompletedStr);
-          const now = Date.now();
-          
-          // Only process if the action was completed in the last 5 seconds
-          if (actionData && actionData.timestamp && now - actionData.timestamp < 5000) {
-            setActionLoading(null);
-            setCancelingSession(null);
-          }
-        }
-      } catch (e) {
-        // Ignore localStorage errors
-      }
-    };
-    
-    // Check localStorage immediately
-    checkLocalStorage();
-    
-    return () => {
-      window.removeEventListener('session-action-completed', handleSessionActionCompleted as EventListener);
-    };
-  }, []);
+  }, [actionLoading, refreshSessions]);
 
   const today = new Date();
   const formattedDate = new Intl.DateTimeFormat('en-US', {
@@ -290,12 +230,22 @@ export default function SchedulePage() {
   const handleCancelSession = async () => {
     if (!sessionToCancel) return;
     
-    setCancelingSession(sessionToCancel.id);
+    setActionLoading(sessionToCancel.id);
+    
     try {
-      // Step 1: Cancel the session
+      // Get CSRF token
+      const csrfToken = await fetchCsrfToken();
+      if (!csrfToken) {
+        throw new Error("Failed to get security token");
+      }
+      
+      // Cancel the session
       const response = await fetch("/api/tutoring-sessions", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken
+        },
         body: JSON.stringify({
           session_id: sessionToCancel.id,
           action: "update_status",
@@ -309,41 +259,53 @@ export default function SchedulePage() {
         throw new Error(errorData.error || "Failed to cancel session");
       }
       
-      // Get updated data from response
-      const data = await response.json();
+      // Update last action
+      lastActionRef.current = {
+        action: "cancel",
+        id: sessionToCancel.id,
+        timestamp: Date.now()
+      };
       
       toast({
         title: "Session cancelled",
         description: "The tutoring session has been cancelled",
       });
       
-      // Hide the dialog
-      setShowCancelDialog(false);
-      
-      // Don't clear canceling session yet - let context update handle it
-      // But do clear the session to cancel since we're done with it
-      setSessionToCancel(null);
+      // Force refresh sessions
+      refreshSessions();
     } catch (error) {
+      console.error("Cancel session error:", error);
       toast({
         title: "Error cancelling session",
         description: error instanceof Error ? error.message : "Failed to cancel session",
         variant: "destructive"
       });
-      
-      // Clear all cancellation-related state on error
-      setCancelingSession(null);
-      setSessionToCancel(null);
-      setShowCancelDialog(false);
+    } finally {
+      if (isMounted.current) {
+        setActionLoading(null);
+        setSessionToCancel(null);
+        setShowCancelDialog(false);
+      }
     }
   };
   
   // Handle accepting a session request (for tutors)
   const handleAcceptSession = async (sessionId: string) => {
     setActionLoading(sessionId);
+    
     try {
+      // Get CSRF token
+      const csrfToken = await fetchCsrfToken();
+      if (!csrfToken) {
+        throw new Error("Failed to get security token");
+      }
+      
       const response = await fetch("/api/tutoring-sessions", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken
+        },
         body: JSON.stringify({
           session_id: sessionId,
           action: "update_status",
@@ -357,81 +319,109 @@ export default function SchedulePage() {
         throw new Error(errorData.error || "Failed to accept session");
       }
       
-      // Get updated session data from response
-      const data = await response.json();
+      // Update last action
+      lastActionRef.current = {
+        action: "accept",
+        id: sessionId,
+        timestamp: Date.now()
+      };
       
       toast({
         title: "Session accepted",
         description: "You've successfully accepted the tutoring session",
       });
       
-      // Don't set action loading to null immediately
-      // Let the session updates flow through the SessionContext
+      // Force refresh sessions
+      refreshSessions();
     } catch (error) {
+      console.error("Accept session error:", error);
       toast({
         title: "Error accepting session",
         description: error instanceof Error ? error.message : "Failed to accept session",
         variant: "destructive"
       });
-      // Only clear loading state on error
-      setActionLoading(null);
+    } finally {
+      if (isMounted.current) {
+        setActionLoading(null);
+      }
     }
   };
   
-  // Handle ready status toggle
+  // Handle ready status
   const handleReadyToggle = async (sessionId: string, currentStatus: boolean | undefined) => {
     setActionLoading(sessionId);
+    
     try {
-      // Determine the new status (opposite of current)
-      const newReadyStatus = !(currentStatus === true);
+      // Get CSRF token
+      const csrfToken = await fetchCsrfToken();
+      if (!csrfToken) {
+        throw new Error("Failed to get security token");
+      }
       
       const response = await fetch("/api/tutoring-sessions", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken
+        },
         body: JSON.stringify({
           session_id: sessionId,
-          action: "update_ready",
-          is_ready: newReadyStatus
+          action: "set_ready",
+          is_ready: !currentStatus
         }),
         credentials: 'include'
       });
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to update ready status");
+        throw new Error(errorData.error || "Failed to update status");
       }
       
-      // Get the updated session data from response
-      const data = await response.json();
+      // Update last action
+      lastActionRef.current = {
+        action: "ready",
+        id: sessionId,
+        timestamp: Date.now()
+      };
       
-      // Success message
       toast({
-        title: newReadyStatus ? "You're ready" : "Ready status removed",
-        description: newReadyStatus 
-          ? "You've set your status to ready. Waiting for other participant."
-          : "You've set your status to not ready.",
+        title: currentStatus ? "No Longer Ready" : "Ready",
+        description: currentStatus ? "You've marked yourself as not ready" : "You've marked yourself as ready",
       });
       
-      // Don't clear action loading state here
-      // Let the context update handle it when the state flows through
+      // Force refresh sessions
+      refreshSessions();
     } catch (error) {
+      console.error("Toggle ready error:", error);
       toast({
-        title: "Error updating ready status",
-        description: error instanceof Error ? error.message : "Failed to update ready status",
+        title: "Error updating status",
+        description: error instanceof Error ? error.message : "Failed to update status",
         variant: "destructive"
       });
-      // Only clear loading on error
-      setActionLoading(null);
+    } finally {
+      if (isMounted.current) {
+        setActionLoading(null);
+      }
     }
   };
   
   // Handle starting a session
   const handleStartSession = async (sessionId: string) => {
     setActionLoading(sessionId);
+    
     try {
+      // Get CSRF token
+      const csrfToken = await fetchCsrfToken();
+      if (!csrfToken) {
+        throw new Error("Failed to get security token");
+      }
+      
       const response = await fetch("/api/tutoring-sessions", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken
+        },
         body: JSON.stringify({
           session_id: sessionId,
           action: "update_status",
@@ -445,25 +435,31 @@ export default function SchedulePage() {
         throw new Error(errorData.error || "Failed to start session");
       }
       
-      // Get updated data from response
-      const data = await response.json();
+      // Update last action
+      lastActionRef.current = {
+        action: "start",
+        id: sessionId,
+        timestamp: Date.now()
+      };
       
       toast({
         title: "Session started",
         description: "Your tutoring session has started successfully",
       });
       
-      // Redirect to the session page - this will unmount the component
-      // so we don't need to worry about clearing action loading
-      router.push(`/session/${sessionId}`);
+      // Redirect to the meeting page
+      router.push(`/meeting/${sessionId}`);
     } catch (error) {
+      console.error("Start session error:", error);
       toast({
         title: "Error starting session",
         description: error instanceof Error ? error.message : "Failed to start session",
         variant: "destructive"
       });
-      // Only clear loading state on error
-      setActionLoading(null);
+    } finally {
+      if (isMounted.current) {
+        setActionLoading(null);
+      }
     }
   };
 
@@ -482,10 +478,20 @@ export default function SchedulePage() {
     }
     
     setActionLoading(sessionId);
+    
     try {
+      // Get CSRF token
+      const csrfToken = await fetchCsrfToken();
+      if (!csrfToken) {
+        throw new Error("Failed to get security token");
+      }
+      
       const response = await fetch("/api/tutoring-sessions", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken
+        },
         body: JSON.stringify({
           session_id: sessionId,
           action: "update_status",
@@ -499,24 +505,31 @@ export default function SchedulePage() {
         throw new Error(errorData.error || "Failed to end session");
       }
       
-      // Get updated data from response
-      const data = await response.json();
+      // Update last action
+      lastActionRef.current = {
+        action: "end",
+        id: sessionId,
+        timestamp: Date.now()
+      };
       
       toast({
         title: "Session ended",
         description: "The tutoring session has ended",
       });
       
-      // Don't clear action loading state here
-      // Let the context update handle it
+      // Force refresh sessions
+      refreshSessions();
     } catch (error) {
+      console.error("End session error:", error);
       toast({
         title: "Error",
         description: "Failed to end the session",
         variant: "destructive",
       });
-      // Only clear loading on error
-      setActionLoading(null);
+    } finally {
+      if (isMounted.current) {
+        setActionLoading(null);
+      }
     }
   };
 
@@ -540,44 +553,13 @@ export default function SchedulePage() {
 
   // Remove the loading condition that shows a spinner when loadingSessions is true
   // Only show loading spinner when there are no sessions available yet
-  if (loadingSessions && (!sessions || sessions.length === 0)) {
+  if (loadingSessions && (!Array.isArray(sessions) || sessions.length === 0)) {
     return (
       <div className="flex items-center justify-center min-h-[500px]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
-
-  // Get the sessions that should be displayed
-  const upcomingSessions = visibleSessions
-    // Map ID to actual session object and cast to SessionType
-    .map(id => sessions.find(session => session.id === id) as SessionType | undefined)
-    .filter((session): session is SessionType => session !== undefined) // Type guard
-    // Make sure we only show upcoming and active sessions
-    .filter((session) => {
-      const normalizedStatus = session.status?.toLowerCase?.() || '';
-      return normalizedStatus === "requested" || 
-             normalizedStatus === "accepted" || 
-             normalizedStatus === "started";
-    })
-    .sort((a, b) => {
-      // First, sort by status (started > accepted > requested)
-      const statusOrder: Record<string, number> = { started: 0, accepted: 1, requested: 2 };
-      const statusA = (a.status || '').toLowerCase();
-      const statusB = (b.status || '').toLowerCase();
-      const statusDiff = (statusOrder[statusA] || 99) - (statusOrder[statusB] || 99);
-      if (statusDiff !== 0) return statusDiff;
-      
-      // For same status, sort by scheduled date (soonest first)
-      if (a.scheduled_for && b.scheduled_for) {
-        return new Date(a.scheduled_for).getTime() - new Date(b.scheduled_for).getTime();
-      }
-      
-      // Use any available timestamp for sorting as fallback
-      const timeA = new Date(a.scheduled_for || a.updated_at || a.created_at || Date.now()).getTime();
-      const timeB = new Date(b.scheduled_for || b.updated_at || b.created_at || Date.now()).getTime();
-      return timeA - timeB;
-    });
 
   const getSessionStatusText = (status: string) => {
     switch(status) {
@@ -596,7 +578,6 @@ export default function SchedulePage() {
   const renderReadyStatus = (session: SessionType) => {
     if (session.status !== "accepted") return null;
     
-    const isTutor = user?.role === "tutor";
     const tutorReadyStatus = session.tutor_ready ? "Ready ✓" : "Not Ready";
     const studentReadyStatus = session.student_ready ? "Ready ✓" : "Not Ready";
     
@@ -631,7 +612,7 @@ export default function SchedulePage() {
           <CardDescription>Manage your upcoming tutoring sessions</CardDescription>
         </CardHeader>
         <CardContent>
-          {upcomingSessions.length === 0 ? (
+          {processedSessions.length === 0 ? (
             <div className="text-center py-8">
               <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5 shadow-sm">
                 <Calendar className="h-8 w-8 text-primary/80" strokeWidth={1.5} />
@@ -639,21 +620,27 @@ export default function SchedulePage() {
               <h3 className="text-xl font-medium mb-3">No upcoming sessions</h3>
               <p className="text-muted-foreground mb-6">You don't have any tutoring sessions scheduled</p>
               {user?.role !== 'tutor' && (
-              <Button asChild className="shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]">
-                <Link href="/tutors">Find a Tutor</Link>
-              </Button>
+                <Button 
+                  asChild 
+                  className="shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]"
+                >
+                  <Link href="/tutors">Find a Tutor</Link>
+                </Button>
               )}
             </div>
           ) : (
             <div className="space-y-4">
-              {upcomingSessions.map((session) => {
+              {processedSessions.map((session) => {
                 const isTutor = user?.role === "tutor";
                 const isCurrentUserReady = isTutor ? session.tutor_ready : session.student_ready;
                 const isOtherUserReady = isTutor ? session.student_ready : session.tutor_ready;
                 const bothReady = session.tutor_ready && session.student_ready;
                 
                 return (
-                  <div key={session.id} className="border rounded-lg p-4 bg-card/40 backdrop-blur-sm border-border/40 shadow-sm hover:shadow transition-all hover:bg-card/60 group">
+                  <div 
+                    key={session.sessionKey || session.id} 
+                    className="border rounded-lg p-4 bg-card/40 backdrop-blur-sm border-border/40 shadow-sm hover:shadow transition-all hover:bg-card/60 group"
+                  >
                     <div className="flex flex-col md:flex-row md:items-center justify-between mb-2">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
@@ -674,11 +661,7 @@ export default function SchedulePage() {
                         </p>
                         <div className="text-sm text-muted-foreground mt-1">
                           <span className="font-medium">
-                            {loadingSessions ? (
-                              "Cost: Loading..."
-                            ) : (
-                              <>Cost: {session.cost ?? '...'} {session.cost ? (session.cost === 1 ? 'token' : 'tokens') : ''}</>
-                            )}
+                            Cost: {session.cost ?? '...'} {session.cost ? (session.cost === 1 ? 'token' : 'tokens') : ''}
                           </span>
                         </div>
                       </div>
@@ -710,6 +693,21 @@ export default function SchedulePage() {
                               End Session
                             </Button>
                           )}
+                          
+                          <Button 
+                            asChild
+                            variant="default"
+                            className="shadow-md hover:shadow-lg transition-all"
+                          >
+                            <Link href={`/meeting/${session.id}`}>
+                              {actionLoading === session.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin mr-2" />
+                              ) : (
+                                <PlayCircle className="h-4 w-4 mr-2" />
+                              )}
+                              Join Session
+                            </Link>
+                          </Button>
                         </>
                       )}
                       
@@ -744,7 +742,11 @@ export default function SchedulePage() {
                             </Button>
                           )}
                           
-                          <Button variant="outline" asChild className="shadow-sm border-border/40 hover:bg-muted hover:border-primary/30 transition-all">
+                          <Button 
+                            variant="outline" 
+                            asChild 
+                            className="shadow-sm border-border/40 hover:bg-muted hover:border-primary/30 transition-all"
+                          >
                             <Link href={`/dashboard/messages?conversationId=${session.conversation_id}`}>
                               <MessageCircle className="h-4 w-4 mr-2" />
                               Message
@@ -754,7 +756,7 @@ export default function SchedulePage() {
                           <Button 
                             variant="outline" 
                             className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 shadow-sm transition-all"
-                            disabled={cancelingSession === session.id || actionLoading === session.id}
+                            disabled={actionLoading === session.id}
                             onClick={() => {
                               setSessionToCancel({
                                 id: session.id,
@@ -787,7 +789,12 @@ export default function SchedulePage() {
                               Accept
                             </Button>
                           )}
-                          <Button variant="outline" size="sm" asChild className="shadow-sm border-border/40 hover:bg-muted hover:border-primary/30 transition-all">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            asChild 
+                            className="shadow-sm border-border/40 hover:bg-muted hover:border-primary/30 transition-all"
+                          >
                             <Link href={`/dashboard/messages?conversationId=${session.conversation_id}`}>
                               <MessageCircle className="mr-2 h-4 w-4" />
                               View Details
@@ -801,9 +808,9 @@ export default function SchedulePage() {
                               setSessionToCancel({ id: session.id, message_id: session.message_id });
                               setShowCancelDialog(true);
                             }}
-                            disabled={actionLoading === session.id || cancelingSession === session.id}
+                            disabled={actionLoading === session.id}
                           >
-                            {cancelingSession === session.id ? (
+                            {actionLoading === session.id ? (
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             ) : (
                               <XCircle className="mr-2 h-4 w-4" />
@@ -831,14 +838,18 @@ export default function SchedulePage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setSessionToCancel(null)} className="border-border/40 hover:bg-muted hover:border-primary/30 transition-all">
+            <AlertDialogCancel 
+              onClick={() => setSessionToCancel(null)} 
+              className="border-border/40 hover:bg-muted hover:border-primary/30 transition-all"
+            >
               Keep Session
             </AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700 shadow-md hover:shadow-lg transition-all hover:translate-y-[-1px]"
               onClick={handleCancelSession}
+              disabled={!!actionLoading}
             >
-              {cancelingSession ? (
+              {actionLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Cancelling...
