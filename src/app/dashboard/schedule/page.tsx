@@ -139,9 +139,6 @@ export default function SchedulePage() {
   // Add an effect to handle session list updates from SessionContext
   useEffect(() => {
     if (!loadingSessions && sessions) {
-      // Save scroll position before sessions update
-      saveScrollPosition();
-      
       // Transform sessions into a map for faster lookups
       const sessionsMap = new Map(
         sessions.map(session => [session.id, session])
@@ -165,39 +162,29 @@ export default function SchedulePage() {
       
       // Save current sessions for reference
       previousSessionsRef.current = [...sessions];
-      
-      // Force a re-render if the number of sessions changed or session data was updated
-      // This helps ensure the UI is synchronized with the latest data
-      const forceUpdateIfNeeded = () => {
-        // Compare current sessions with previous (check both structure and content)
-        const didSessionsChange = 
-          previousSessionsRef.current.length !== sessions.length ||
-          sessions.some(session => {
-            const prevSession = previousSessionsRef.current.find(s => s.id === session.id);
-            if (!prevSession) return true; // New session
-            
-            // Check if status, ready states, or other key properties changed
-            return prevSession.status !== session.status ||
-                   prevSession.tutor_ready !== session.tutor_ready ||
-                   prevSession.student_ready !== session.student_ready;
-          });
-          
-        if (didSessionsChange) {
-          // Force React to recognize the state update
-          setVisibleSessions(prev => [...prev]);
-        }
-      };
-      
-      // Run with short delay to ensure DOM has time to process initial updates
-      setTimeout(forceUpdateIfNeeded, 50);
-      
-      // Debug logs for Vercel deployment only
-      if (typeof window !== 'undefined' && window.location.hostname.includes('vercel')) {
-        console.log('[Schedule] Sessions updated:', sessions.length, 
-          sessions.map(s => `${s.id.substring(0,6)}:${s.status}`).join(', '));
-      }
     }
   }, [sessions, loadingSessions]);
+
+  // Add logging to track sessions data
+  useEffect(() => {
+    console.log('[SCHEDULE DEBUG] Sessions data updated:', {
+      sessionsCount: sessions?.length || 0,
+      timestamp: new Date().toISOString(),
+      sessionIds: sessions?.map(s => s.id).join(',')
+    });
+    
+    if (sessions && sessions.length > 0) {
+      console.log('[SCHEDULE DEBUG] First 3 sessions:', 
+        sessions.slice(0, 3).map(s => ({
+          id: s.id,
+          status: s.status,
+          tutor_ready: s.tutor_ready,
+          student_ready: s.student_ready,
+          updated_at: s.updated_at
+        }))
+      );
+    }
+  }, [sessions]);
 
   const today = new Date();
   const formattedDate = new Intl.DateTimeFormat('en-US', {

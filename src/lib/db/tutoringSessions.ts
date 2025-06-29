@@ -57,19 +57,19 @@ async function _createTutoringSessionRequest(
       error: null,
       authError: 'Not authorized to create tutoring session request'
     };
-  }
+        }
   
   try {
     const supabase = await createRouteHandlerClientWithCookies();
     
     // Prepare session data
     const sessionData: any = {
-      conversation_id: conversationId,
-      tutor_id: tutorId,
-      student_id: studentId,
+        conversation_id: conversationId,
+        tutor_id: tutorId,
+        student_id: studentId,
       status: 'requested',
-      tutor_ready: false,
-      student_ready: false
+        tutor_ready: false,
+        student_ready: false
     };
     
     // Add optional fields
@@ -87,7 +87,7 @@ async function _createTutoringSessionRequest(
         student_profile:student_id(first_name, last_name)
       `)
       .single();
-    
+      
     if (sessionError) {
       return {
         session: null,
@@ -132,8 +132,8 @@ async function _createTutoringSession(
       error: null,
       authError: 'Not authorized to create tutoring session'
     };
-  }
-  
+    }
+
   try {
     const supabase = await createRouteHandlerClientWithCookies();
     
@@ -147,12 +147,12 @@ async function _createTutoringSession(
     
     // Prepare session data
     const sessionData: any = {
-      conversation_id: conversationId,
-      tutor_id: tutorId,
-      student_id: studentId,
+        conversation_id: conversationId,
+        tutor_id: tutorId,
+        student_id: studentId,
       status: 'accepted',
-      tutor_ready: false,
-      student_ready: false
+        tutor_ready: false,
+        student_ready: false
     };
     
     // Add optional fields
@@ -170,7 +170,7 @@ async function _createTutoringSession(
         student_profile:student_id(first_name, last_name)
       `)
       .single();
-    
+      
     if (sessionError) {
       return {
         session: null,
@@ -764,7 +764,7 @@ export async function getSessionsByMessageId(messageId: string) {
       .eq('conversation_id', conversationId)
       .or(`message_id.eq.${messageId},and(created_at.gte.${timeWindowStart},created_at.lte.${timeWindowEnd})`)
       .order('created_at', { ascending: false });
-    
+      
     if (error) {
       return { sessions: [], error: error.message };
     }

@@ -12,7 +12,7 @@ import {
   ConversationParticipant,
   Message
 } from '@/types/supabaseTypes';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 // Base API fetcher with error handling
 async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
@@ -166,39 +166,49 @@ export function useApiTutorReviews(tutorId: string | undefined) {
 
 // Hook for fetching tutoring sessions with React Query
 export function useApiTutoringSessions(userId: string | undefined, isForTutor = false) {
-  const { toast } = useToast();
+  const [sessions, setSessions] = useState<TutoringSession[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
   
-  const { data, error, isLoading } = useQuery({
-    queryKey: ['sessions', userId, isForTutor ? 'tutor' : 'student'],
-    queryFn: async () => {
-      if (!userId) return [];
-      const endpoint = isForTutor 
-        ? `/api/tutoring-sessions/tutor/${userId}`
-        : `/api/tutoring-sessions/student/${userId}`;
-      
-      const data = await fetchApi<{sessions: TutoringSession[]}>(endpoint);
-      return data.sessions || [];
-    },
-    enabled: !!userId,
-    ...defaultQueryOptions
-  });
-
-  // Handle errors separately
   useEffect(() => {
-    if (error) {
-      toast({
-        title: "Error loading sessions",
-        description: error instanceof Error ? error.message : String(error),
-        variant: "destructive"
-      });
-    }
-  }, [error, toast]);
-
-  return { 
-    sessions: data || [], 
-    loading: isLoading, 
-    error: error instanceof Error ? error : error ? new Error(String(error)) : null 
-  };
+    if (!userId) return;
+    
+    const fetchSessions = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const userType = isForTutor ? 'tutor' : 'student';
+        const response = await fetchApi<{ sessions: TutoringSession[] }>(
+          `/api/tutoring-sessions?user_id=${userId}&user_type=${userType}`
+        );
+        
+        console.log('[API CLIENT DEBUG] Sessions API response:', {
+          userId,
+          userType,
+          sessionsCount: response.sessions.length,
+          timestamp: new Date().toISOString(),
+          sessions: response.sessions.map(s => ({
+            id: s.id,
+            status: s.status,
+            tutor_ready: s.tutor_ready,
+            student_ready: s.student_ready,
+          }))
+        });
+        
+        setSessions(response.sessions);
+      } catch (err) {
+        console.error('[API CLIENT DEBUG] Sessions fetch error:', err);
+        setError(err instanceof Error ? err : new Error(String(err)));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchSessions();
+  }, [userId, isForTutor]);
+  
+  return { sessions, isLoading, error };
 }
 
 // Hook for creating a tutoring session with React Query

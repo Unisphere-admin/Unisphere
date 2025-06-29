@@ -99,89 +99,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [user]);
   
-  // Define updateSession function
-  const updateSession = useCallback((session: ActiveSession) => {
-    if (!session || !session.id) return;
-    
-    // Update in our sessions list
-    setSessions(prevSessions => {
-      const sessionExists = prevSessions.some(s => s.id === session.id);
-      
-      if (sessionExists) {
-        // Update existing session
-        return prevSessions.map(s => 
-          s.id === session.id ? { ...s, ...session } : s
-        );
-      } else if (['requested', 'accepted', 'started'].includes(session.status)) {
-        // Add new session if it's active
-        return [...prevSessions, session];
-      }
-      
-      return prevSessions;
-    });
-    
-    // Update active session if it matches
-    if (activeSession && activeSession.id === session.id) {
-      setActiveSession({ ...activeSession, ...session });
-    }
-  }, [activeSession]);
-  
-  // Define refreshSessions function
-  const refreshSessions = useCallback(async () => {
-    if (!user) {
-      setSessions([]);
-      return;
-    }
-    
-    // Check if user has premium access before making API calls
-    const hasPremiumAccess = await checkPremiumAccess();
-    if (!hasPremiumAccess && user.role !== 'tutor') {
-      setSessions([]);
-      return;
-    }
-    
-    setLoadingSessions(true);
-    try {
-      // Include both user_id and user_type to satisfy API requirements
-      const userType = user.role === 'tutor' ? 'tutor' : 'student';
-      const response = await fetch(`/api/tutoring-sessions?user_id=${user.id}&user_type=${userType}`, {
-        credentials: 'include',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        }
-      });
-      
-      if (response.status === 401) {
-        return;
-      }
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-        throw new Error(errorData.error || `Failed to fetch sessions: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.sessions) {
-        setSessions(data.sessions);
-        
-        // Check for active sessions
-        const activeSessionCandidate = data.sessions.find((s: ActiveSession) => 
-          s.status === 'started' || s.status === 'accepted'
-        );
-        
-        if (activeSessionCandidate) {
-          setActiveSession(activeSessionCandidate);
-        }
-      }
-    } catch (error) {
-      // Don't throw error here - handle it gracefully
-    } finally {
-      setLoadingSessions(false);
-    }
-  }, [user, checkPremiumAccess]);
-  
   // Fetch reviews for user
   useEffect(() => {
     const fetchReviews = async () => {
@@ -240,27 +157,62 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     
     // Set up storage event listener to handle cross-tab cache invalidation
     const handleStorageEvent = (event: StorageEvent) => {
+      if (!event.key) return;
+      
+      console.log('[SESSION DEBUG] Storage event detected:', {
+        key: event.key,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Original handler for cache invalidation
       if (event.key === 'session_cache_invalidated') {
+        console.log('[SESSION DEBUG] Session cache invalidation detected');
         // Refresh sessions when another tab invalidates the cache
         refreshSessions();
+        return;
       }
       
-      // Also check for specific session updates
-      if (event.key === 'latest_session_update' && event.newValue) {
+      // Handle session updates via localStorage
+      if (event.key.startsWith('session_update_') && event.newValue) {
         try {
-          const updateData = JSON.parse(event.newValue);
-          if (updateData.session && updateData.session.id) {
-            // Update the session in our local state
-            updateSession(updateData.session);
+          const data = JSON.parse(event.newValue);
+          
+          if (data.type === 'session_update' && data.session) {
+            console.log('[SESSION DEBUG] Processing session update from storage event:', {
+              sessionId: data.session.id,
+              status: data.session.status,
+              timestamp: new Date().toISOString()
+            });
             
-            // For Vercel deployments, also refresh the session list after a short delay
-            // to ensure latest data is pulled from the server
-            if (typeof window !== 'undefined' && window.location.hostname.includes('vercel')) {
-              setTimeout(() => refreshSessions(), 300);
-            }
+            // Update the session state if it matches our current active session
+            if (activeSession && data.session.id === activeSession.id) {
+              console.log('[SESSION DEBUG] Updating active session state', {
+                previous: { status: activeSession.status, ready: `T:${activeSession.tutor_ready}/S:${activeSession.student_ready}` },
+                new: { status: data.session.status, ready: `T:${data.session.tutor_ready}/S:${data.session.student_ready}` }
+              });
+              
+              setActiveSession(data.session);
+              
+              // Update in the sessions array too
+              setSessions(prev => {
+                const updatedSessions = prev.map(s => 
+                  s.id === data.session.id ? data.session : s
+                );
+                
+                console.log('[SESSION DEBUG] Updated sessions array', {
+                  sessionId: data.session.id,
+                  updatedCount: updatedSessions.filter(s => s.id === data.session.id).length
+                });
+                
+                return updatedSessions;
+              });
+            } 
+            
+            // Refresh sessions to ensure we have the latest data
+            handleSessionUpdate();
           }
         } catch (error) {
-          // Ignore parse errors
+          console.error('[SESSION DEBUG] Error processing storage event:', error);
         }
       }
     };
@@ -269,34 +221,20 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     window.addEventListener('storage', handleStorageEvent);
     
     // Also listen for custom session update events from RealtimeContext
-    const handleSessionUpdate = (event: CustomEvent) => {
-      if (event.detail?.session) {
-        updateSession(event.detail.session);
-        
-        // For Vercel deployments, also refresh the full session list
-        if (typeof window !== 'undefined' && window.location.hostname.includes('vercel')) {
-          setTimeout(() => refreshSessions(), 300);
-        }
-      } else {
-        // If no specific session, just refresh all
-        refreshSessions();
-      }
+    const handleSessionUpdate = () => {
+      console.log('[SESSION DEBUG] Session update triggered, refreshing sessions');
+      refreshSessions().catch(error => {
+        console.error('[SESSION DEBUG] Error refreshing sessions:', error);
+      });
     };
     
-    const handleSessionListUpdate = () => {
-      refreshSessions();
-    };
-    
-    // Add custom event listeners
-    window.addEventListener('session-update', handleSessionUpdate as EventListener);
-    window.addEventListener('session-list-updated', handleSessionListUpdate);
+    window.addEventListener('session-list-updated', handleSessionUpdate);
     
     return () => {
       window.removeEventListener('storage', handleStorageEvent);
-      window.removeEventListener('session-update', handleSessionUpdate as EventListener);
-      window.removeEventListener('session-list-updated', handleSessionListUpdate);
+      window.removeEventListener('session-list-updated', handleSessionUpdate);
     };
-  }, [user, refreshSessions, updateSession]); // Add updateSession to dependencies
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
   
   // Get a session by ID
   const getSessionById = useCallback(async (sessionId: string): Promise<ActiveSession | null> => {
@@ -555,6 +493,103 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       return [];
     }
   }, []);
+
+  // Refresh sessions list
+  const refreshSessions = useCallback(async (): Promise<void> => {
+    if (!user) {
+      setSessions([]);
+      return;
+    }
+    
+    // Check if user has premium access before making API calls
+    const hasPremiumAccess = await checkPremiumAccess();
+    if (!hasPremiumAccess && user.role !== 'tutor') {
+      setSessions([]);
+      return;
+    }
+    
+    setLoadingSessions(true);
+    try {
+      // Include both user_id and user_type to satisfy API requirements
+      const userType = user.role === 'tutor' ? 'tutor' : 'student';
+      const response = await fetch(`/api/tutoring-sessions?user_id=${user.id}&user_type=${userType}`, {
+        credentials: 'include'
+      });
+      
+      if (response.status === 401) {
+        return;
+      }
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(errorData.error || `Failed to fetch sessions: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.sessions) {
+        setSessions(data.sessions);
+        
+        // Check for active sessions
+        const activeSessionCandidate = data.sessions.find((s: ActiveSession) => 
+          s.status === 'started' || s.status === 'accepted'
+        );
+        
+        if (activeSessionCandidate) {
+          setActiveSession(activeSessionCandidate);
+        }
+      }
+    } catch (error) {
+      // Don't throw error here - handle it gracefully
+    } finally {
+      setLoadingSessions(false);
+    }
+  }, [user, checkPremiumAccess]);
+
+  // Update session in local state
+  const updateSession = useCallback((updatedSession: ActiveSession) => {
+    if (!updatedSession || !updatedSession.id) return;
+    
+    // Ensure created_at is present
+    const sessionWithCreatedAt = {
+      ...updatedSession,
+      created_at: updatedSession.created_at || new Date().toISOString()
+    };
+    
+    // Update in sessions list
+    setSessions(prev => {
+      const exists = prev.some(s => s.id === sessionWithCreatedAt.id);
+      
+      if (exists) {
+        // Update existing session
+        return prev.map(s => 
+          s.id === sessionWithCreatedAt.id 
+            ? { ...s, ...sessionWithCreatedAt } 
+            : s
+    );
+      } else {
+        // Add new session
+        return [...prev, sessionWithCreatedAt];
+      }
+    });
+    
+    // If this is the active session, update it
+    if (activeSession && activeSession.id === sessionWithCreatedAt.id) {
+      setActiveSession({
+        ...activeSession,
+        ...sessionWithCreatedAt
+      });
+    }
+    
+    // Trigger a custom event to notify other components
+    if (typeof window !== 'undefined') {
+      const event = new Event('session-updated');
+      window.dispatchEvent(event);
+      
+      // Also trigger a refresh of all sessions to ensure proper sorting
+      setTimeout(() => refreshSessions(), 100);
+    }
+  }, [activeSession, refreshSessions]);
 
   return (
     <SessionContext.Provider
