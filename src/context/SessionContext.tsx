@@ -157,62 +157,44 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     
     // Set up storage event listener to handle cross-tab cache invalidation
     const handleStorageEvent = (event: StorageEvent) => {
-      if (!event.key) return;
-      
-      console.log('[SESSION DEBUG] Storage event detected:', {
-        key: event.key,
-        timestamp: new Date().toISOString()
-      });
-      
-      // Original handler for cache invalidation
       if (event.key === 'session_cache_invalidated') {
-        console.log('[SESSION DEBUG] Session cache invalidation detected');
         // Refresh sessions when another tab invalidates the cache
         refreshSessions();
-        return;
-      }
-      
-      // Handle session updates via localStorage
-      if (event.key.startsWith('session_update_') && event.newValue) {
+        
+        // Also check if we have specific session data to update immediately
         try {
-          const data = JSON.parse(event.newValue);
-          
-          if (data.type === 'session_update' && data.session) {
-            console.log('[SESSION DEBUG] Processing session update from storage event:', {
-              sessionId: data.session.id,
-              status: data.session.status,
-              timestamp: new Date().toISOString()
-            });
+          const sessionDataStr = localStorage.getItem('last_updated_session');
+          if (sessionDataStr) {
+            const sessionData = JSON.parse(sessionDataStr);
             
-            // Update the session state if it matches our current active session
-            if (activeSession && data.session.id === activeSession.id) {
-              console.log('[SESSION DEBUG] Updating active session state', {
-                previous: { status: activeSession.status, ready: `T:${activeSession.tutor_ready}/S:${activeSession.student_ready}` },
-                new: { status: data.session.status, ready: `T:${data.session.tutor_ready}/S:${data.session.student_ready}` }
-              });
-              
-              setActiveSession(data.session);
-              
-              // Update in the sessions array too
+            // Find and update the session in our local state
+            if (sessionData && sessionData.id) {
               setSessions(prev => {
-                const updatedSessions = prev.map(s => 
-                  s.id === data.session.id ? data.session : s
-                );
-                
-                console.log('[SESSION DEBUG] Updated sessions array', {
-                  sessionId: data.session.id,
-                  updatedCount: updatedSessions.filter(s => s.id === data.session.id).length
+                return prev.map(session => {
+                  if (session.id === sessionData.id) {
+                    // Update the status and other relevant fields
+                    return {
+                      ...session,
+                      status: sessionData.status,
+                      // Update any other fields as needed
+                    };
+                  }
+                  return session;
                 });
-                
-                return updatedSessions;
               });
-            } 
-            
-            // Refresh sessions to ensure we have the latest data
-            handleSessionUpdate();
+              
+              // If this is the active session, update it as well
+              if (activeSession && activeSession.id === sessionData.id) {
+                setActiveSession(current => ({
+                  ...current!,
+                  status: sessionData.status,
+                  // Update other relevant fields
+                }));
+              }
+            }
           }
-        } catch (error) {
-          console.error('[SESSION DEBUG] Error processing storage event:', error);
+        } catch (e) {
+          // Ignore JSON parsing errors
         }
       }
     };
@@ -222,10 +204,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     
     // Also listen for custom session update events from RealtimeContext
     const handleSessionUpdate = () => {
-      console.log('[SESSION DEBUG] Session update triggered, refreshing sessions');
-      refreshSessions().catch(error => {
-        console.error('[SESSION DEBUG] Error refreshing sessions:', error);
-      });
+      refreshSessions();
     };
     
     window.addEventListener('session-list-updated', handleSessionUpdate);
@@ -556,7 +535,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       created_at: updatedSession.created_at || new Date().toISOString()
     };
     
-    // Update in sessions list
+    // Update in sessions list - immediately and atomically
     setSessions(prev => {
       const exists = prev.some(s => s.id === sessionWithCreatedAt.id);
       
@@ -566,7 +545,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           s.id === sessionWithCreatedAt.id 
             ? { ...s, ...sessionWithCreatedAt } 
             : s
-    );
+        );
       } else {
         // Add new session
         return [...prev, sessionWithCreatedAt];
@@ -586,10 +565,23 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       const event = new Event('session-updated');
       window.dispatchEvent(event);
       
-      // Also trigger a refresh of all sessions to ensure proper sorting
-      setTimeout(() => refreshSessions(), 100);
+      // Dispatch storage event to notify other tabs
+      try {
+        // Use timestamp to ensure the event is unique
+        localStorage.setItem('session_cache_invalidated', new Date().toISOString());
+        
+        // Also store serialized session data for other tabs to consume
+        const sessionData = JSON.stringify({
+          id: sessionWithCreatedAt.id,
+          status: sessionWithCreatedAt.status,
+          updated: Date.now()
+        });
+        localStorage.setItem('last_updated_session', sessionData);
+      } catch (e) {
+        // Ignore local storage errors
+      }
     }
-  }, [activeSession, refreshSessions]);
+  }, [activeSession]);
 
   return (
     <SessionContext.Provider

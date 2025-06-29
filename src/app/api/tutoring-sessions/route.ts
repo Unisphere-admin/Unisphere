@@ -207,31 +207,13 @@ async function getTutoringSessionsHandler(
   user: AuthUser
 ): Promise<NextResponse> {
   try {
-    // Extract query parameters
     const { searchParams } = new URL(req.url);
-    const userId = searchParams.get('user_id');
-    const userType = searchParams.get('user_type') as 'tutor' | 'student';
     const conversationId = searchParams.get('conversation_id');
     const messageId = searchParams.get('message_id');
+    const userId = searchParams.get('user_id');
+    const userType = searchParams.get('user_type');
     const sessionId = searchParams.get('session_id');
-
-    console.log('[API DEBUG] Tutoring sessions request:', {
-      userId,
-      userType,
-      conversationId,
-      messageId,
-      sessionId,
-      timestamp: new Date().toISOString(),
-      userAgent: req.headers.get('user-agent')
-    });
-
-    if (!userId || !userType) {
-      return NextResponse.json(
-        { error: "user_id and user_type are required parameters" },
-        { status: 400 }
-      );
-    }
-
+    
     // If session ID is provided, get a specific session by ID
     if (sessionId) {
       // Create a cache key that includes user ID to prevent cache conflicts
@@ -488,50 +470,32 @@ async function patchTutoringSessionsHandler(
   try {
     const body = await req.json();
     const { session_id, action, status, message_id } = body;
-
+    
     if (!session_id || !action) {
       return NextResponse.json({ 
         error: 'Session ID and action are required' 
       }, { status: 400 });
     }
-
-    console.log('[API DEBUG] Updating session:', {
-      sessionId: session_id,
-      action,
-      status,
-      message_id,
-      timestamp: new Date().toISOString(),
-      userId: user.id
-    });
-
-    // Create Supabase client
-    const supabase = await createRouteHandlerClientWithCookies();
     
-    // Fetch current session data
-    const { data: sessionData, error: sessionError } = await supabase
+    // Get the session details to find conversation ID for cache invalidation
+    const supabase = await createRouteHandlerClientWithCookies();
+    const { data: sessionData } = await supabase
       .from('tutoring_session')
       .select('conversation_id, tutor_id, student_id, cost')
       .eq('id', session_id)
       .single();
       
-    if (sessionError || !sessionData) {
-      return NextResponse.json(
-        { error: sessionError?.message || 'Session not found' },
-        { status: 404 }
-      );
+    if (!sessionData) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
     
-    // Check user authorization
-    const participantIds = [sessionData.tutor_id, sessionData.student_id];
-    if (!participantIds.includes(user.id) && !user.is_tutor) {
-      return NextResponse.json(
-        { error: 'Not authorized to access this session' },
-        { status: 403 }
-      );
-    }
+    // Store participants for cache invalidation
+    const participantIds = [
+      sessionData.tutor_id, 
+      sessionData.student_id
+    ].filter(Boolean);
     
-    // Prepare response container
-    let response: any = { error: 'Unknown error' };
+    let response;
     
     // Handle different actions
     switch (action) {
@@ -544,49 +508,21 @@ async function patchTutoringSessionsHandler(
         if (status === 'accepted') {
           // We already have session data from above
           const sessionCost = sessionData.cost || 1;
-          
-          if (user.id === sessionData.student_id && sessionData.tutor_id !== user.id) {
-            // Student is accepting - check tokens
-            const { data: userData, error: userError } = await supabase
-              .from('users')
-              .select('tokens')
-              .eq('id', user.id)
-              .single();
-              
-            if (userError) {
-              return NextResponse.json({ error: userError.message }, { status: 500 });
-            }
             
-            const userTokens = userData?.tokens || 0;
-              
-            if (userTokens < sessionCost) {
-              return NextResponse.json({
-                error: 'Not enough tokens',
-                requiredTokens: sessionCost,
-                availableTokens: userTokens
+          if (user.id === sessionData.student_id) {
+            // Student is accepting - check own tokens
+            if (user.tokens !== undefined && user.tokens < sessionCost) {
+              return NextResponse.json({ 
+                error: `You don't have enough tokens for this session. Required: ${sessionCost}, Available: ${user.tokens}` 
               }, { status: 400 });
             }
-              
             response = await updateSessionStatus(user, session_id, status);
           } else if (user.id === sessionData.tutor_id) {
             // Tutor is accepting - check student tokens via edge function
-            const { data: studentData, error: studentError } = await supabase
-              .from('users')
-              .select('tokens')
-              .eq('id', sessionData.student_id)
-              .single();
-              
-            if (studentError) {
-              return NextResponse.json({ error: studentError.message }, { status: 500 });
-            }
-            
-            const studentTokens = studentData?.tokens || 0;
-            
+            const studentTokens = await getUserTokens(sessionData.student_id);
             if (studentTokens < sessionCost) {
-              return NextResponse.json({
-                error: 'Student does not have enough tokens',
-                requiredTokens: sessionCost,
-                availableTokens: studentTokens
+              return NextResponse.json({ 
+                error: `Student does not have enough tokens for this session. Required: ${sessionCost}, Available: ${studentTokens}` 
               }, { status: 400 });
             }
             
@@ -638,22 +574,17 @@ async function patchTutoringSessionsHandler(
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
     
-    // Handle response
-    if (response.error) {
-      console.error('[API DEBUG] Session update error:', response.error);
-      return NextResponse.json({ error: response.error }, { status: 400 });
+    // Check for auth errors first (using type checking)
+    if ('authError' in response && response.authError) {
+      return NextResponse.json({ error: response.authError }, { status: 401 });
     }
     
-    if (response.session) {
-      // Log success with the updated session
-      console.log('[API DEBUG] Session updated successfully:', {
-        sessionId: session_id,
-        action,
-        status: response.session.status,
-        tutor_ready: response.session.tutor_ready,
-        student_ready: response.session.student_ready
-      });
+    if (response.error) {
+      return NextResponse.json({ error: response.error }, { status: 500 });
+    }
     
+    // Invalidate cache and broadcast the update
+    if (response.session) {
       // Clear all caches related to this session and conversation
       invalidateSessionCache(sessionData.conversation_id, session_id);
       
@@ -664,19 +595,13 @@ async function patchTutoringSessionsHandler(
         }
       });
       
-      // Broadcast the session update to all participants
-      broadcastUpdate(response.session);
-      
-      return NextResponse.json(response);
+      // Broadcast the update with the extended interface
+      await broadcastUpdate(response.session as ExtendedTutoringSession);
     }
     
-    return NextResponse.json({ error: "Unknown error" }, { status: 500 });
+    return NextResponse.json({ session: response.session });
   } catch (error) {
-    console.error('Error in PATCH /tutoring-sessions:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 

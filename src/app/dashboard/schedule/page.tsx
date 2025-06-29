@@ -31,6 +31,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { SessionLink } from "@/components/SessionLink";
 
 // Define a type for the sessions to avoid TypeScript errors
 interface SessionType {
@@ -114,6 +115,45 @@ export default function SchedulePage() {
     }
   }, [sessions, loadingSessions]);
 
+  // Add event listener for session-updated events
+  useEffect(() => {
+    const handleSessionUpdate = () => {
+      // Check localStorage for updated session data
+      try {
+        const sessionDataStr = localStorage.getItem('last_updated_session');
+        if (sessionDataStr) {
+          const sessionData = JSON.parse(sessionDataStr);
+          
+          // Clear any loading state since session has been updated
+          setActionLoading(null);
+          
+          // Instead of doing anything with local state directly,
+          // the sessions data from SessionContext is the source of truth
+          // and the useEffect above will handle the state update properly
+          
+          // Just ensure we save scroll position
+          saveScrollPosition();
+        }
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+    };
+    
+    // Listen for session-updated events
+    window.addEventListener('session-updated', handleSessionUpdate);
+    // Also listen for storage events from other tabs
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'session_cache_invalidated') {
+        handleSessionUpdate();
+      }
+    });
+    
+    return () => {
+      window.removeEventListener('session-updated', handleSessionUpdate);
+      window.removeEventListener('storage', handleSessionUpdate);
+    };
+  }, []);
+
   // Subscribe to realtime updates for all conversation IDs in the sessions
   useEffect(() => {
     if (!sessions || !sessions.length) return;
@@ -136,7 +176,7 @@ export default function SchedulePage() {
     };
   }, [sessions, subscribeToConversation, unsubscribeFromConversation]);
 
-  // Add an effect to handle session list updates from SessionContext
+  // This is the single source of truth for updating visible sessions from the sessions prop
   useEffect(() => {
     if (!loadingSessions && sessions) {
       // Transform sessions into a map for faster lookups
@@ -165,26 +205,45 @@ export default function SchedulePage() {
     }
   }, [sessions, loadingSessions]);
 
-  // Add logging to track sessions data
+  // Add event listener for session-action-completed events
   useEffect(() => {
-    console.log('[SCHEDULE DEBUG] Sessions data updated:', {
-      sessionsCount: sessions?.length || 0,
-      timestamp: new Date().toISOString(),
-      sessionIds: sessions?.map(s => s.id).join(',')
-    });
+    const handleSessionActionCompleted = (event: CustomEvent) => {
+      if (event.detail && event.detail.sessionId) {
+        // Clear action loading state for this session
+        setActionLoading(null);
+        setCancelingSession(null);
+      }
+    };
+
+    // Listen for session action completion events from RealtimeContext
+    window.addEventListener('session-action-completed', handleSessionActionCompleted as EventListener);
     
-    if (sessions && sessions.length > 0) {
-      console.log('[SCHEDULE DEBUG] First 3 sessions:', 
-        sessions.slice(0, 3).map(s => ({
-          id: s.id,
-          status: s.status,
-          tutor_ready: s.tutor_ready,
-          student_ready: s.student_ready,
-          updated_at: s.updated_at
-        }))
-      );
-    }
-  }, [sessions]);
+    // Also check localStorage for recently completed actions
+    const checkLocalStorage = () => {
+      try {
+        const actionCompletedStr = localStorage.getItem('session_action_completed');
+        if (actionCompletedStr) {
+          const actionData = JSON.parse(actionCompletedStr);
+          const now = Date.now();
+          
+          // Only process if the action was completed in the last 5 seconds
+          if (actionData && actionData.timestamp && now - actionData.timestamp < 5000) {
+            setActionLoading(null);
+            setCancelingSession(null);
+          }
+        }
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+    };
+    
+    // Check localStorage immediately
+    checkLocalStorage();
+    
+    return () => {
+      window.removeEventListener('session-action-completed', handleSessionActionCompleted as EventListener);
+    };
+  }, []);
 
   const today = new Date();
   const formattedDate = new Intl.DateTimeFormat('en-US', {
@@ -250,20 +309,28 @@ export default function SchedulePage() {
         throw new Error(errorData.error || "Failed to cancel session");
       }
       
+      // Get updated data from response
+      const data = await response.json();
+      
       toast({
         title: "Session cancelled",
         description: "The tutoring session has been cancelled",
       });
       
-      // Session updates will be handled by realtime updates
-    } catch (error) {
+      // Hide the dialog
+      setShowCancelDialog(false);
       
+      // Don't clear canceling session yet - let context update handle it
+      // But do clear the session to cancel since we're done with it
+      setSessionToCancel(null);
+    } catch (error) {
       toast({
         title: "Error cancelling session",
         description: error instanceof Error ? error.message : "Failed to cancel session",
         variant: "destructive"
       });
-    } finally {
+      
+      // Clear all cancellation-related state on error
       setCancelingSession(null);
       setSessionToCancel(null);
       setShowCancelDialog(false);
@@ -290,58 +357,70 @@ export default function SchedulePage() {
         throw new Error(errorData.error || "Failed to accept session");
       }
       
+      // Get updated session data from response
+      const data = await response.json();
+      
       toast({
         title: "Session accepted",
         description: "You've successfully accepted the tutoring session",
       });
       
-      // Session updates will be handled by realtime updates
+      // Don't set action loading to null immediately
+      // Let the session updates flow through the SessionContext
     } catch (error) {
-      
       toast({
         title: "Error accepting session",
         description: error instanceof Error ? error.message : "Failed to accept session",
         variant: "destructive"
       });
-    } finally {
+      // Only clear loading state on error
       setActionLoading(null);
     }
   };
   
-  // Handle ready status
+  // Handle ready status toggle
   const handleReadyToggle = async (sessionId: string, currentStatus: boolean | undefined) => {
     setActionLoading(sessionId);
     try {
+      // Determine the new status (opposite of current)
+      const newReadyStatus = !(currentStatus === true);
+      
       const response = await fetch("/api/tutoring-sessions", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           session_id: sessionId,
-          action: "set_ready",
-          is_ready: !currentStatus
+          action: "update_ready",
+          is_ready: newReadyStatus
         }),
         credentials: 'include'
       });
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to update status");
+        throw new Error(errorData.error || "Failed to update ready status");
       }
       
+      // Get the updated session data from response
+      const data = await response.json();
+      
+      // Success message
       toast({
-        title: currentStatus ? "No Longer Ready" : "Ready",
-        description: currentStatus ? "You've marked yourself as not ready" : "You've marked yourself as ready",
+        title: newReadyStatus ? "You're ready" : "Ready status removed",
+        description: newReadyStatus 
+          ? "You've set your status to ready. Waiting for other participant."
+          : "You've set your status to not ready.",
       });
       
-      // Session updates will be handled by realtime updates
+      // Don't clear action loading state here
+      // Let the context update handle it when the state flows through
     } catch (error) {
-      
       toast({
-        title: "Error updating status",
-        description: error instanceof Error ? error.message : "Failed to update status",
+        title: "Error updating ready status",
+        description: error instanceof Error ? error.message : "Failed to update ready status",
         variant: "destructive"
       });
-    } finally {
+      // Only clear loading on error
       setActionLoading(null);
     }
   };
@@ -366,21 +445,24 @@ export default function SchedulePage() {
         throw new Error(errorData.error || "Failed to start session");
       }
       
+      // Get updated data from response
+      const data = await response.json();
+      
       toast({
         title: "Session started",
         description: "Your tutoring session has started successfully",
       });
       
-      // Redirect to the session page
+      // Redirect to the session page - this will unmount the component
+      // so we don't need to worry about clearing action loading
       router.push(`/session/${sessionId}`);
     } catch (error) {
-      
       toast({
         title: "Error starting session",
         description: error instanceof Error ? error.message : "Failed to start session",
         variant: "destructive"
       });
-    } finally {
+      // Only clear loading state on error
       setActionLoading(null);
     }
   };
@@ -417,19 +499,23 @@ export default function SchedulePage() {
         throw new Error(errorData.error || "Failed to end session");
       }
       
-      // No need to manually refresh sessions - realtime updates will handle this
+      // Get updated data from response
+      const data = await response.json();
       
       toast({
         title: "Session ended",
         description: "The tutoring session has ended",
       });
+      
+      // Don't clear action loading state here
+      // Let the context update handle it
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to end the session",
         variant: "destructive",
       });
-    } finally {
+      // Only clear loading on error
       setActionLoading(null);
     }
   };

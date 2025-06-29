@@ -47,18 +47,6 @@ export function saveToCache<T>(key: string, data: T, ttl?: number): void {
       isLoading: false,
       lastUpdated: new Date(now).toISOString()
     };
-    
-    // Log session-related cache saves
-    if (key.includes('session')) {
-      console.log('[CACHE DEBUG] Saving to cache:', {
-        key,
-        timestamp: new Date(now).toISOString(),
-        ttl: Math.floor((ttl || CACHE_CONFIG.CACHE_TTL) / 1000) + 's',
-        dataType: Array.isArray(data) ? 'array' : typeof data,
-        dataSize: Array.isArray(data) ? data.length : 1
-      });
-    }
-    
     localStorage.setItem(key, JSON.stringify(cacheItem));
   } catch (error) {
     console.warn('Failed to save to cache:', error);
@@ -82,19 +70,6 @@ export function getFromCache<T>(key: string, ttl?: number, allowStale = true): T
     const now = Date.now();
     const maxAge = ttl || CACHE_CONFIG.CACHE_TTL;
     const staleWhileRevalidateTtl = CACHE_CONFIG.STALE_WHILE_REVALIDATE_TTL;
-    
-    // Log session-related cache access
-    if (key.includes('session')) {
-      console.log('[CACHE DEBUG] Getting from cache:', {
-        key,
-        age: Math.floor((now - cacheItem.timestamp) / 1000) + 's',
-        ttl: Math.floor(maxAge / 1000) + 's',
-        isFresh: now - cacheItem.timestamp < maxAge,
-        isStale: now - cacheItem.timestamp >= maxAge,
-        timestamp: new Date().toISOString(),
-        dataType: Array.isArray(cacheItem.data) ? 'array' : typeof cacheItem.data
-      });
-    }
 
     // Check if cache is still fresh
     if (now - cacheItem.timestamp < maxAge) {
@@ -103,17 +78,11 @@ export function getFromCache<T>(key: string, ttl?: number, allowStale = true): T
     
     // If stale but within stale-while-revalidate window, return data but mark for refresh
     if (allowStale && now - cacheItem.timestamp < maxAge + staleWhileRevalidateTtl) {
-      if (key.includes('session')) {
-        console.log('[CACHE DEBUG] Returning stale data from cache:', key);
-      }
       return cacheItem.data;
     }
     
     // Cache expired and beyond stale window, remove it
     localStorage.removeItem(key);
-    if (key.includes('session')) {
-      console.log('[CACHE DEBUG] Cache expired, removing:', key);
-    }
     return null;
   } catch (error) {
     console.warn('Failed to retrieve from cache:', error);
