@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode, useCallback, useEffect, useRef } from "react";
+import { createContext, useContext, useState, ReactNode, useCallback, useEffect } from "react";
 import { SessionRequest } from "./MessageContext";
 import { useAuth } from "./AuthContext";
 import { createClient } from "@/utils/supabase/client";
@@ -64,12 +64,11 @@ const SessionContext = createContext<SessionContextType | null>(null);
 
 export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
-  const [sessions, setSessions] = useState<ActiveSession[]>([]);
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [sessions, setSessions] = useState<ActiveSession[]>([]);
   const [reviewHistory, setReviewHistory] = useState<Review[]>([]);
-  const loadingSessions = useRef(false);
-  const currentRequest = useRef<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingSessions, setLoadingSessions] = useState(false);
   
   // Check if user has premium access
   const checkPremiumAccess = useCallback(async () => {
@@ -152,154 +151,44 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     fetchReviews();
   }, [user, checkPremiumAccess]);
   
-  // Fetch sessions with debouncing and caching
-  const refreshSessions = useCallback(async (forceRefresh = false) => {
-    if (!user || !user.id) return;
-    
-    // If we're already loading, don't start another fetch
-    if (loadingSessions.current && !forceRefresh) return;
-    
-    // Set loading state
-    loadingSessions.current = true;
-    setLoading(true);
-    
-    // Create a unique request ID to track this specific request
-    const requestId = `sessions_request_${Date.now()}`;
-    currentRequest.current = requestId;
-    
-    try {
-      // First check if we have cached sessions
-      const cachedSessionsJson = localStorage.getItem('cached_sessions');
-      let cachedSessions = null;
-      
-      if (!forceRefresh && cachedSessionsJson) {
-        try {
-          const cachedData = JSON.parse(cachedSessionsJson);
-          // Only use cache if it's recent (less than 30 seconds old)
-          if (Date.now() - cachedData.timestamp < 30000) {
-            cachedSessions = cachedData.sessions;
-            // Use cached data immediately but still fetch fresh data in background
-            setSessions(cachedSessions);
-          }
-        } catch (e) {
-          // Ignore cache parsing errors
-        }
-      }
-      
-      // Determine user type - handle different user object structures
-      const userType = (user.role === 'tutor' || (user as any).is_tutor === true) ? 'tutor' : 'student';
-      
-      // Fetch fresh data from API with timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
-      try {
-        const response = await fetch(`/api/tutoring-sessions?user_id=${user.id}&user_type=${userType}`, {
-          credentials: 'include',
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId); // Clear timeout on successful response
-        
-        // If this isn't the most recent request, ignore the result
-        if (currentRequest.current !== requestId) {
-          return;
-        }
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Failed to fetch sessions: ${response.status} ${response.statusText}`, errorText);
-          throw new Error(`Failed to fetch sessions: ${response.status} ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        
-        // If this isn't the most recent request, ignore the result
-        if (currentRequest.current !== requestId) {
-          return;
-        }
-        
-        // Update state with fresh data
-        setSessions(data.sessions || []);
-        
-        // Cache the sessions for quick access
-        try {
-          localStorage.setItem('cached_sessions', JSON.stringify({
-            sessions: data.sessions || [],
-            timestamp: Date.now()
-          }));
-        } catch (e) {
-          // Ignore localStorage errors
-        }
-      } catch (fetchError) {
-        console.error('Error fetching sessions:', fetchError);
-        // If we have cached sessions and this request failed, use the cached data
-        if (!cachedSessions) {
-          try {
-            const cachedSessionsJson = localStorage.getItem('cached_sessions');
-            if (cachedSessionsJson) {
-              const cachedData = JSON.parse(cachedSessionsJson);
-              setSessions(cachedData.sessions);
-            }
-          } catch (e) {
-            // Ignore cache parsing errors
-          }
-        }
-      } finally {
-        clearTimeout(timeoutId); // Ensure timeout is cleared
-      }
-    } catch (error) {
-      console.error('Unexpected error in refreshSessions:', error);
-    } finally {
-      // Only update loading state if this is the current request
-      if (currentRequest.current === requestId) {
-        loadingSessions.current = false;
-        setLoading(false);
-      }
-    }
-  }, [user]);
-  
-  // Load sessions on mount and when user changes
+  // Fetch user's sessions
   useEffect(() => {
-    if (!user || !user.id) return;
-    
-    // Try to load from cache first for immediate display
-    try {
-      const cachedSessionsJson = localStorage.getItem('cached_sessions');
-      if (cachedSessionsJson) {
-        const cachedData = JSON.parse(cachedSessionsJson);
-        // Only use cache if it's recent (less than 5 minutes old)
-        if (Date.now() - cachedData.timestamp < 300000) {
-          setSessions(cachedData.sessions);
+    // Only fetch sessions once when component mounts and user exists
+    if (user) {
+      // Use a ref to track if we've already done the initial fetch
+      const hasInitialFetchKey = `session_initial_fetch_${user.id}`;
+      const hasInitialFetch = sessionStorage.getItem(hasInitialFetchKey);
+      
+      if (!hasInitialFetch) {
+        // Only do the initial fetch once per session
+        refreshSessions(true); // Force refresh on first load
+        try {
+          sessionStorage.setItem(hasInitialFetchKey, 'true');
+        } catch (e) {
+          // Ignore storage errors
         }
       }
-    } catch (e) {
-      // Ignore cache errors
     }
     
-    // Always fetch fresh data
-    refreshSessions(true);
-    
-    // Set up periodic refresh
-    const refreshInterval = setInterval(() => {
-      refreshSessions(false);
-    }, 30000); // Refresh every 30 seconds
-    
-    // Listen for storage events to detect session updates from other tabs
+    // Set up storage event listener to handle cross-tab cache invalidation
     const handleStorageEvent = (event: StorageEvent) => {
-      if (event.key === 'session_update_notification') {
-        // Refresh sessions when we get a notification about updates
-        refreshSessions(false);
+      if (event.key === 'session_cache_invalidated') {
+        // Refresh sessions when another tab invalidates the cache
+        refreshSessions(true);
       }
     };
     
-    window.addEventListener('storage', handleStorageEvent);
+    // Add event listener for storage events
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleStorageEvent);
+    }
     
     return () => {
-      clearInterval(refreshInterval);
-      window.removeEventListener('storage', handleStorageEvent);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('storage', handleStorageEvent);
+      }
     };
-  }, [user, refreshSessions]);
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
   
   // Get a session by ID
   const getSessionById = useCallback(async (sessionId: string): Promise<ActiveSession | null> => {
@@ -559,6 +448,129 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  // Refresh sessions list
+  const refreshSessions = useCallback(async (forceRefresh: boolean = false): Promise<void> => {
+    // Skip refresh unless explicitly forced (manual refresh)
+    if (!forceRefresh && !user) {
+      return;
+    }
+    
+    // Create a unique key for this request
+    const requestKey = `sessions_request_${user?.id}_${Date.now()}`;
+    
+    // Check if there's an in-progress request
+    const inProgressKey = 'sessions_request_in_progress';
+    const inProgressRequest = sessionStorage.getItem(inProgressKey);
+    if (inProgressRequest && !forceRefresh) {
+      // If there's a request in progress and this isn't forced, skip it
+      return;
+    }
+    
+    // If not forced, we'll limit refreshes to critical situations only
+    if (!forceRefresh) {
+      // Throttle background refreshes to prevent excessive API calls
+      const lastRefreshTime = localStorage.getItem('last_sessions_refresh');
+      if (lastRefreshTime) {
+        const timeSinceRefresh = Date.now() - parseInt(lastRefreshTime, 10);
+        // Don't refresh if we've refreshed in the last 30 seconds
+        if (timeSinceRefresh < 30000) {
+          return;
+        }
+      }
+    }
+    
+    // Check if user has premium access before making API calls
+    const hasPremiumAccess = await checkPremiumAccess();
+    if (!hasPremiumAccess && user?.role !== 'tutor') {
+      setSessions([]);
+      return;
+    }
+    
+    try {
+      // Mark this request as in progress
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(inProgressKey, requestKey);
+      }
+      
+      setLoadingSessions(true);
+      
+      // Include both user_id and user_type to satisfy API requirements
+      const userType = user?.role === 'tutor' ? 'tutor' : 'student';
+      if (!user?.id) return;
+      
+      const response = await fetch(`/api/tutoring-sessions?user_id=${user.id}&user_type=${userType}`, {
+        credentials: 'include',
+        headers: {
+          // Add cache busting for forced refreshes
+          ...(forceRefresh ? {'Cache-Control': 'no-cache, no-store, must-revalidate'} : {})
+        }
+      });
+      
+      if (response.status === 401) {
+        return;
+      }
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(errorData.error || `Failed to fetch sessions: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.sessions) {
+        // Only update if the data has actually changed
+        setSessions(prev => {
+          // Check if the data is actually different
+          if (prev.length === data.sessions.length && 
+              prev.every(s => data.sessions.some(
+                (ds: ActiveSession) => ds.id === s.id && 
+                ds.status === s.status && 
+                ds.tutor_ready === s.tutor_ready && 
+                ds.student_ready === s.student_ready
+              ))) {
+            // Data hasn't changed, don't trigger a re-render
+            return prev;
+          }
+          return data.sessions;
+        });
+        
+        // Check for active sessions
+        const activeSessionCandidate = data.sessions.find((s: ActiveSession) => 
+          s.status === 'started' || s.status === 'accepted'
+        );
+        
+        if (activeSessionCandidate) {
+          setActiveSession(prev => {
+            // Only update if different
+            if (prev && prev.id === activeSessionCandidate.id && 
+                prev.status === activeSessionCandidate.status &&
+                prev.tutor_ready === activeSessionCandidate.tutor_ready &&
+                prev.student_ready === activeSessionCandidate.student_ready) {
+              return prev;
+            }
+            return activeSessionCandidate;
+          });
+        }
+      }
+      
+      // Update last refresh time
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('last_sessions_refresh', Date.now().toString());
+      }
+    } catch (error) {
+      // Don't throw error here - handle it gracefully
+    } finally {
+      setLoadingSessions(false);
+      // Clear the in-progress flag if this is the current request
+      if (typeof sessionStorage !== 'undefined') {
+        const currentRequest = sessionStorage.getItem(inProgressKey);
+        if (currentRequest === requestKey) {
+          sessionStorage.removeItem(inProgressKey);
+        }
+      }
+    }
+  }, [user, checkPremiumAccess]);
+
   // Update session in local state
   const updateSession = useCallback((updatedSession: ActiveSession) => {
     if (!updatedSession || !updatedSession.id) return;
@@ -628,7 +640,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         getSessionById,
         loading,
         sessions,
-        loadingSessions: loadingSessions.current,
+        loadingSessions,
         refreshSessions,
         updateSession
       }}
