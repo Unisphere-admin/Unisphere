@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useCallback, ReactNode, useState, useEffect, useRef } from "react";
+import React, { createContext, useContext, useCallback, ReactNode, useState, useEffect, useRef } from "react";
 import { useAuth } from "./AuthContext";
 import { createClient } from "@/utils/supabase/client";
 import { useMessages } from "./MessageContext";
@@ -129,115 +129,59 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     return false;
   }, [DUPLICATE_CHECK_WINDOW]);
   
-  // Centralized notification function
+  // Create a notification for a new message
   const showNotification = useCallback((
     messageId: string,
     conversationId: string,
     senderName: string,
-    senderAvatar: string | null | undefined,
+    senderAvatar: string | null,
     content: string,
-    isSessionRequest: boolean
-  ) => {
-    // Log notification data for debugging
-    const notificationData = {
-      messageId,
-      conversationId,
-      senderName,
-      senderAvatar,
-      contentPreview: content?.substring(0, 20),
-      isSessionRequest
-    };
-    
-    // Skip notifications for the current user's messages
-    if (user && messageId.includes(user.id)) {
+    isSessionRequest: boolean = false
+  ): boolean => {
+    // Skip notifications if user is already on the messages page
+    if (typeof window !== 'undefined' && window.location.pathname.includes('/messages')) {
       return false;
     }
     
-    // Skip if we've already shown this notification recently
-    if (hasRecentlyShown(messageId, conversationId, content)) {
-      return false;
-    }
+    // Generate a unique ID for the toast
+    const toastId = `${messageId}-${Date.now()}`;
     
-    // Check if we're already on the messages page for this conversation
-    const isOnMessagesPage = messageContext?.pageVisibility?.isOnMessagesPage || false;
-    const selectedConversationId = messageContext?.selectedConversationId || null;
-    const pageVisibility = messageContext?.pageVisibility || { isVisible: true, isFocused: true };
-    
-    // Only skip notifications if ALL of these conditions are true:
-    // 1. User is on the messages page
-    // 2. This specific conversation is selected
-    // 3. The page is visible (not backgrounded)
-    // 4. The page has focus (user is actively on this tab)
-    if (isOnMessagesPage && 
-        selectedConversationId === conversationId && 
-        pageVisibility.isVisible && 
-        pageVisibility.isFocused) {
-      // Mark as read automatically
-      messageContext?.markConversationAsRead?.(conversationId);
-      return false;
-    }
-    
-    // Try to find a better display name if we have 'Unknown User'
-    let displayName = senderName;
-    if (!displayName || displayName === 'Unknown User') {
-      // Try to find the conversation and get participant info
-      if (messageContext?.conversations) {
-        const conversation = messageContext.conversations.find(c => c.id === conversationId);
-        if (conversation?.participants) {
-          const sender = conversation.participants.find(
-            p => p.user_id === messageId.split('-')[0] || p.user?.id === messageId.split('-')[0]
-          );
-          if (sender?.user?.display_name) {
-            displayName = sender.user.display_name;
-          }
-        }
+    // Function to handle clicking on the notification
+    const handleClick = () => {
+      if (isSessionRequest) {
+        // For session requests, navigate to the messages page
+        router.push('/dashboard/messages');
+      } else {
+        // For regular messages, navigate to the conversation
+        router.push(`/dashboard/messages?conversation=${conversationId}`);
       }
       
-      // If we still don't have a good name, use a generic one
-      if (!displayName || displayName === 'Unknown User') {
-        displayName = 'Someone';
-      }
-    }
-    
-    
-    // Record this notification to prevent duplicates - use a compound key that includes the content
-    // This helps prevent functionally identical notifications
-    const notificationKey = `${messageId}-${conversationId}-${content.substring(0, 30)}`;
-    recentNotifications.current.set(notificationKey, Date.now());
-    
-    // Generate a unique ID for this notification to target it specifically
-    const toastId = `msg-${messageId}`;
+      // Dismiss the notification
+      toast.dismiss(toastId);
+    };
     
     // Create the notification
     toast(
       <div 
         className="flex items-start gap-3 w-full transition-all cursor-pointer"
-        onClick={() => {
-          // Dismiss the notification when clicked
-          toast.dismiss(toastId);
-          // Navigate to the conversation
-          router.push(`/dashboard/messages?conversationId=${conversationId}`);
-        }}
+        onClick={handleClick}
       >
-        <Avatar className="h-9 w-9 shrink-0">
-          <AvatarImage src={senderAvatar || undefined} />
-          <AvatarFallback>
-            {displayName?.charAt(0).toUpperCase() || 'U'}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1">
-          <p className="text-sm font-medium">{displayName}</p>
-          <p className="text-sm text-muted-foreground line-clamp-2">
-            {isSessionRequest ? 'Sent you a session request' : content}
-          </p>
+        <div className="flex-shrink-0 mt-0.5">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={senderAvatar || undefined} alt={senderName} />
+            <AvatarFallback>{senderName.substring(0, 2).toUpperCase()}</AvatarFallback>
+          </Avatar>
         </div>
-        <button 
+        <div className="flex-1 space-y-1">
+          <p className="font-medium text-sm">{senderName}</p>
+          <p className="text-sm text-muted-foreground line-clamp-2">{content}</p>
+        </div>
+        <button
           onClick={(e) => {
-            e.stopPropagation(); // Prevent navigation
-            toast.dismiss(toastId); // Dismiss only this notification
-          }} 
-          className="absolute top-1 right-1 p-1 rounded-full hover:bg-muted/60 z-50"
-          aria-label="Close notification"
+            e.stopPropagation();
+            toast.dismiss(toastId);
+          }}
+          className="opacity-70 hover:opacity-100 transition-opacity"
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -252,7 +196,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     );
     
     return true;
-  }, [hasRecentlyShown, messageContext, router, user]);
+  }, [router]);
   
   // Check if user has premium access
   const checkPremiumAccess = useCallback(async () => {
@@ -647,8 +591,48 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     const updatedSession = {
       ...payload.payload.session,
       // Ensure created_at is present
-      created_at: payload.payload.session.created_at || new Date().toISOString()
+      created_at: payload.payload.session.created_at || new Date().toISOString(),
+      // Ensure required fields have values to satisfy TypeScript
+      tutor_id: payload.payload.session.tutor_id || '',
+      student_id: payload.payload.session.student_id || ''
     };
+    
+    console.log("Received realtime session update:", updatedSession);
+    
+    // Always update the session in the context regardless of who triggered it
+    sessionContext.updateSession(updatedSession as ActiveSession);
+    
+    // Notify all tabs and windows about the session update
+    try {
+      // Store session data in localStorage to ensure it's available immediately
+      // even if the sessions context hasn't refreshed yet
+      const sessionKey = `session_data_${updatedSession.id}`;
+      localStorage.setItem(sessionKey, JSON.stringify({
+        id: updatedSession.id,
+        status: updatedSession.status,
+        tutor_ready: updatedSession.tutor_ready,
+        student_ready: updatedSession.student_ready,
+        timestamp: Date.now()
+      }));
+      
+      // Determine update type based on what changed
+      let updateType = 'session_update';
+      if (payload.payload.session.status) {
+        updateType = 'status_change';
+      } else if (payload.payload.session.tutor_ready !== undefined || 
+                payload.payload.session.student_ready !== undefined) {
+        updateType = 'ready_status_change';
+      }
+      
+      // Trigger a notification about the update with the specific type
+      localStorage.setItem('session_update_notification', JSON.stringify({
+        sessionId: updatedSession.id,
+        type: updateType,
+        timestamp: Date.now()
+      }));
+    } catch (e) {
+      // Ignore localStorage errors
+    }
     
     // Show notification for certain session status changes
     if (updatedSession.status && user) {
@@ -696,32 +680,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     }
-    
-    // Update the session directly in session context if available
-    if (sessionContext.updateSession) {
-      // Convert RealtimeSession to ActiveSession - we need to ensure all required properties are present
-      const convertedSession = {
-        // Include all existing properties
-        ...updatedSession,
-        // Ensure required properties exist
-        tutor_id: updatedSession.tutor_id || '',
-        student_id: updatedSession.student_id || '',
-        message_id: updatedSession.message_id || '',
-        // Explicitly include cost to ensure it's passed through
-        cost: updatedSession.cost
-      } as ActiveSession;
-      
-      sessionContext.updateSession(convertedSession);
-    }
-
-    // Trigger cache invalidation across tabs using localStorage
-    try {
-      // Store timestamp to ensure the event is unique
-      localStorage.setItem('session_cache_invalidated', Date.now().toString());
-    } catch (e) {
-      // Silently handle localStorage errors
-    }
-  }, [sessionContext, user, showNotification]);
+  }, [user, sessionContext, showNotification]);
 
   // Handle session list update events  
   const handleSessionListUpdate = useCallback(() => {

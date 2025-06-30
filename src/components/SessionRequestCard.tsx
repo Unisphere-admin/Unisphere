@@ -85,7 +85,7 @@ export function SessionRequestCard({
 }: SessionRequestCardProps) {
   const { user } = useAuth();
   const { sessions, refreshSessions } = useSessions();
-  const { subscribeToConversation } = useRealtime();
+  const { subscribeToConversation, broadcastSessionUpdate } = useRealtime();
   const { toast } = useToast();
   const { fetchCsrfToken } = useCsrfToken();
   const [loading, setLoading] = useState(false);
@@ -97,6 +97,12 @@ export function SessionRequestCard({
   const [isLoading, setIsLoading] = useState(true);
   const [pendingSession, setPendingSession] = useState<{title: string, scheduledFor: string} | null>(null);
   const [messageContent, setMessageContent] = useState<string | null>(null);
+  
+  // Use optimistic state to prevent flashing
+  const [displayStatus, setDisplayStatus] = useState(status);
+  const [displayTutorReady, setDisplayTutorReady] = useState(tutorReady);
+  const [displayStudentReady, setDisplayStudentReady] = useState(studentReady);
+  
   const isTutor = user?.role === "tutor";
   const pathname = usePathname();
   
@@ -108,6 +114,92 @@ export function SessionRequestCard({
     ? format(parseISO(scheduledFor), "EEE, MMM d, h:mm a")
     : "Date not set";
     
+  // Load optimistic state from storage if available
+  useEffect(() => {
+    if (!sessionId || typeof window === 'undefined') {
+      // No session ID or not in browser, use props
+      setDisplayStatus(status);
+      setDisplayTutorReady(tutorReady);
+      setDisplayStudentReady(studentReady);
+      return;
+    }
+    
+    // Function to load state from storage or props
+    const loadState = () => {
+      try {
+        const storedStateJson = sessionStorage.getItem(`session_state_${sessionId}`);
+        if (storedStateJson) {
+          const parsedState = JSON.parse(storedStateJson);
+          
+          // Only use stored state if it's recent (within last 30 seconds)
+          const isRecent = Date.now() - parsedState.timestamp < 30000;
+          
+          if (isRecent) {
+            setDisplayStatus(parsedState.status);
+            setDisplayTutorReady(parsedState.tutorReady);
+            setDisplayStudentReady(parsedState.studentReady);
+            return true; // State was loaded from storage
+          } else {
+            // Clear outdated state
+            sessionStorage.removeItem(`session_state_${sessionId}`);
+          }
+        }
+        return false; // No valid state in storage
+      } catch (e) {
+        // If there's an error, fall back to props
+        return false;
+      }
+    };
+    
+    // Try to load from storage, fall back to props if not found
+    if (!loadState()) {
+      setDisplayStatus(status);
+      setDisplayTutorReady(tutorReady);
+      setDisplayStudentReady(studentReady);
+    }
+    
+    // Listen for storage events to sync state across tabs
+    const handleStorageEvent = (event: StorageEvent) => {
+      if (event.key === `session_state_${sessionId}` && event.newValue) {
+        try {
+          const newState = JSON.parse(event.newValue);
+          setDisplayStatus(newState.status);
+          setDisplayTutorReady(newState.tutorReady);
+          setDisplayStudentReady(newState.studentReady);
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageEvent);
+    return () => {
+      window.removeEventListener('storage', handleStorageEvent);
+    };
+  }, [sessionId, status, tutorReady, studentReady]);
+  
+  // Update display state when props change significantly - simplified to avoid conflicts
+  useEffect(() => {
+    // Skip if we don't have a session ID yet
+    if (!sessionId) return;
+    
+    // Check if we have optimistic state in storage
+    const storedStateJson = sessionStorage.getItem(`session_state_${sessionId}`);
+    const isOptimisticUpdateActive = storedStateJson && 
+      Date.now() - JSON.parse(storedStateJson).timestamp < 30000;
+    
+    // Only update from props if there's no active optimistic update
+    // or if the status has changed to a terminal state
+    if (!isOptimisticUpdateActive || 
+        (status === "ended" || status === "cancelled")) {
+      // For significant status changes, always update
+      if (status !== displayStatus && 
+         (status === "started" || status === "ended" || status === "cancelled")) {
+        setDisplayStatus(status);
+      }
+    }
+  }, [status, sessionId, displayStatus]);
+
   // Subscribe to conversation for realtime updates - run in client only
   useEffect(() => {
     if (typeof window !== 'undefined' && conversationId) {
@@ -121,14 +213,59 @@ export function SessionRequestCard({
       // Find the session in the context without making API calls
       const contextSession = sessions.find(s => s.id === sessionId);
       if (contextSession) {
-        // Update local state with session data from context
-        if (contextSession.status !== status) {
-          // Status has changed, update it from context
-          // This relies on the realtime updates in SessionContext
+        // Check if we have optimistic state in storage
+        const storedStateJson = sessionStorage.getItem(`session_state_${sessionId}`);
+        let storedState = null;
+        let isOptimisticUpdateActive = false;
+        
+        if (storedStateJson) {
+          try {
+            storedState = JSON.parse(storedStateJson);
+            // Check if stored state is recent (within last 30 seconds)
+            isOptimisticUpdateActive = Date.now() - storedState.timestamp < 30000;
+          } catch (e) {
+            // Ignore parsing errors
+          }
+        }
+        
+        if (isOptimisticUpdateActive) {
+          // We have active optimistic updates, don't override with realtime data
+          // This prevents flickering when realtime updates arrive during optimistic updates
+          
+          // However, if the server state is "ended" or "cancelled", it should override
+          // optimistic states since these are terminal states
+          if (contextSession.status === "ended" || contextSession.status === "cancelled") {
+            // Terminal states from server should override optimistic updates
+            sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify({
+              status: contextSession.status,
+              tutorReady: contextSession.tutor_ready,
+              studentReady: contextSession.student_ready,
+              timestamp: Date.now() // Use current timestamp to make it the most recent update
+            }));
+            
+            // Update display state immediately
+            setDisplayStatus(contextSession.status);
+            setDisplayTutorReady(contextSession.tutor_ready);
+            setDisplayStudentReady(contextSession.student_ready);
+          }
+        } else {
+          // No active optimistic update, use the realtime data
+          // Store the latest valid state to prevent flashing
+          sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify({
+            status: contextSession.status,
+            tutorReady: contextSession.tutor_ready,
+            studentReady: contextSession.student_ready,
+            timestamp: Date.now()
+          }));
+          
+          // Update display state
+          setDisplayStatus(contextSession.status);
+          setDisplayTutorReady(contextSession.tutor_ready);
+          setDisplayStudentReady(contextSession.student_ready);
         }
       }
     }
-  }, [sessionId, sessions, status]);
+  }, [sessionId, sessions]);
 
   // Fetch message details to determine who created it and if it should be a session
   useEffect(() => {
@@ -340,6 +477,19 @@ export function SessionRequestCard({
     }
     
     setLoading(true);
+    
+    // Apply optimistic update if we have a session ID
+    if (sessionId) {
+      sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify({
+        status: "accepted",
+        tutorReady: false,
+        studentReady: false,
+        timestamp: Date.now()
+      }));
+      
+      // Update local display state
+      setDisplayStatus("accepted");
+    }
 
     // Use transitions for smoother UI updates
     startTransition(async () => {
@@ -352,6 +502,17 @@ export function SessionRequestCard({
           throw new Error("Failed to fetch CSRF token");
         }
       } catch (tokenError) {
+        // Revert optimistic update
+        if (sessionId) {
+          sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify({
+            status: "requested",
+            tutorReady: false,
+            studentReady: false,
+            timestamp: Date.now()
+          }));
+          setDisplayStatus("requested");
+        }
+        
         toast({
           title: "Security Error",
           description: "Unable to verify your security token. Please refresh the page and try again.",
@@ -362,6 +523,9 @@ export function SessionRequestCard({
       }
       
       try {
+        let updatedSessionId = sessionId;
+        let sessionData;
+        
         if (sessionId) {
           // Update existing session to accepted
           const response = await fetch("/api/tutoring-sessions", {
@@ -392,11 +556,30 @@ export function SessionRequestCard({
                 description: errorMessage,
                 variant: "destructive",
               });
+              
+              // Revert optimistic update
+              sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify({
+                status: "requested",
+                tutorReady: false,
+                studentReady: false,
+                timestamp: Date.now()
+              }));
+              setDisplayStatus("requested");
+              
               setLoading(false);
               return; // Early return to prevent showing the success toast
             }
             
             throw new Error(errorMessage);
+          }
+          
+          // Try to get session data from the response
+          try {
+            const data = await response.json();
+            sessionData = data.session;
+          } catch (e) {
+            // Response might not have JSON or session data
+            console.log("No session data in response for accept");
           }
         } else {
           // Need to fetch conversation first to get participants
@@ -471,6 +654,46 @@ export function SessionRequestCard({
             
             throw new Error(errorMessage);
           }
+          
+          // Get the new session ID from response if available
+          try {
+            const responseData = await sessionResponse.json();
+            if (responseData.session && responseData.session.id) {
+              updatedSessionId = responseData.session.id;
+              sessionData = responseData.session;
+              
+              // Store the optimistic state for the new session
+              sessionStorage.setItem(`session_state_${responseData.session.id}`, JSON.stringify({
+                status: "accepted",
+                tutorReady: false,
+                studentReady: false,
+                timestamp: Date.now()
+              }));
+            }
+          } catch (e) {
+            // Ignore JSON parsing errors
+          }
+        }
+        
+        // Broadcast the session update if we have the required data
+        if (typeof broadcastSessionUpdate === 'function' && updatedSessionId) {
+          // Find the most complete session data to broadcast
+          const sessionToUse = sessionData || sessions?.find(s => s.id === updatedSessionId);
+          
+          // Create a session object with the minimum required fields
+          const broadcastSession = {
+            id: updatedSessionId,
+            status: "accepted", // Always use accepted status here
+            conversation_id: conversationId,
+            tutor_ready: false,
+            student_ready: false,
+            tutor_id: sessionToUse?.tutor_id || '',
+            student_id: sessionToUse?.student_id || '',
+            created_at: sessionToUse?.created_at || new Date().toISOString()
+          };
+          
+          // Broadcast the session update to all clients
+          broadcastSessionUpdate(broadcastSession);
         }
         
         // Show success toast
@@ -479,6 +702,17 @@ export function SessionRequestCard({
           description: "The tutoring session has been accepted",
         });
       } catch (error) {
+        // Revert optimistic update if we have a session ID
+        if (sessionId) {
+          sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify({
+            status: "requested",
+            tutorReady: false,
+            studentReady: false,
+            timestamp: Date.now()
+          }));
+          setDisplayStatus("requested");
+        }
+        
         toast({
           title: "Error",
           description: error instanceof Error ? error.message : "Failed to accept the session",
@@ -490,11 +724,34 @@ export function SessionRequestCard({
     });
   };
 
-  // Handle ready toggle
+  // Handle ready toggle with optimistic updates
   const handleReadyToggle = async () => {
     if (!sessionId || !user) return;
     
     setUpdating(true);
+    
+    // Determine the current ready state based on user role
+    const isCurrentlyReady = user.role === "tutor" ? tutorReady : studentReady;
+    const newReadyState = !isCurrentlyReady;
+    
+    // Apply optimistic update
+    if (user.role === "tutor") {
+      // Store optimistic state
+      sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify({
+        status: status,
+        tutorReady: newReadyState,
+        studentReady: studentReady,
+        timestamp: Date.now()
+      }));
+    } else {
+      // Store optimistic state
+      sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify({
+        status: status,
+        tutorReady: tutorReady,
+        studentReady: newReadyState,
+        timestamp: Date.now()
+      }));
+    }
 
     startTransition(async () => {
       // Get CSRF token for API requests - force fetch a fresh token
@@ -516,10 +773,6 @@ export function SessionRequestCard({
       }
       
       try {
-        // Determine the current ready state based on user role
-        const isCurrentlyReady = user.role === "tutor" ? tutorReady : studentReady;
-        const newReadyState = !isCurrentlyReady;
-        
         // Update session ready status
         const response = await fetch("/api/tutoring-sessions", {
           method: "PATCH",
@@ -538,6 +791,37 @@ export function SessionRequestCard({
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.error || "Failed to update ready status");
+        }
+        
+        // Try to get session data from the response
+        let sessionData;
+        try {
+          const data = await response.json();
+          sessionData = data.session;
+        } catch (e) {
+          // Response might not have JSON or session data
+          console.log("No session data in response, using local data");
+        }
+        
+        // If we have the useRealtime hook, broadcast the session update
+        if (typeof broadcastSessionUpdate === 'function') {
+          // Find the most complete session data to broadcast
+          const sessionToUse = sessionData || sessions?.find(s => s.id === sessionId);
+          
+          // Create a session object with the minimum required fields
+          const broadcastSession = {
+            id: sessionId,
+            status: sessionToUse?.status || displayStatus,
+            conversation_id: conversationId,
+            tutor_ready: user.role === "tutor" ? newReadyState : displayTutorReady,
+            student_ready: user.role === "student" ? newReadyState : displayStudentReady,
+            tutor_id: sessionToUse?.tutor_id || '',
+            student_id: sessionToUse?.student_id || '',
+            created_at: sessionToUse?.created_at || new Date().toISOString()
+          };
+          
+          // Broadcast the session update to all clients
+          broadcastSessionUpdate(broadcastSession);
         }
         
         // Show success toast
@@ -564,7 +848,7 @@ export function SessionRequestCard({
     if (!sessionId || !user) return;
     
     // Validate that both users are ready
-    if (!(tutorReady && studentReady)) {
+    if (!(displayTutorReady && displayStudentReady)) {
       toast({
         title: "Cannot start session",
         description: "Both participants must be ready to start the meeting",
@@ -574,6 +858,17 @@ export function SessionRequestCard({
     }
     
     setLoading(true);
+    
+    // Apply optimistic update
+    sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify({
+      status: "started",
+      tutorReady: displayTutorReady,
+      studentReady: displayStudentReady,
+      timestamp: Date.now()
+    }));
+    
+    // Update local display state
+    setDisplayStatus("started");
 
     startTransition(async () => {
       // Get CSRF token for API requests - force fetch a fresh token
@@ -615,6 +910,37 @@ export function SessionRequestCard({
           throw new Error(errorData.error || "Failed to start session");
         }
         
+        // Try to get session data from the response
+        let sessionData;
+        try {
+          const data = await response.json();
+          sessionData = data.session;
+        } catch (e) {
+          // Response might not have JSON or session data
+          console.log("No session data in response for start session");
+        }
+        
+        // Broadcast the session update if we have the required data
+        if (typeof broadcastSessionUpdate === 'function') {
+          // Find the most complete session data to broadcast
+          const sessionToUse = sessionData || sessions?.find(s => s.id === sessionId);
+          
+          // Create a session object with the minimum required fields
+          const broadcastSession = {
+            id: sessionId,
+            status: "started", // Always use started status here
+            conversation_id: conversationId,
+            tutor_ready: displayTutorReady,
+            student_ready: displayStudentReady,
+            tutor_id: sessionToUse?.tutor_id || '',
+            student_id: sessionToUse?.student_id || '',
+            created_at: sessionToUse?.created_at || new Date().toISOString()
+          };
+          
+          // Broadcast the session update to all clients
+          broadcastSessionUpdate(broadcastSession);
+        }
+        
         // Show success toast
         toast({
           title: "Meeting started",
@@ -626,6 +952,15 @@ export function SessionRequestCard({
           window.location.href = `/meeting/${sessionId}`;
         }
       } catch (error) {
+        // Revert optimistic update on error
+        sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify({
+          status: "accepted",
+          tutorReady: displayTutorReady,
+          studentReady: displayStudentReady,
+          timestamp: Date.now()
+        }));
+        setDisplayStatus("accepted");
+        
         toast({
           title: "Error",
           description: error instanceof Error ? error.message : "Failed to start the session",
@@ -642,6 +977,17 @@ export function SessionRequestCard({
     if (!sessionId || !user) return;
     
     setLoading(true);
+    
+    // Apply optimistic update
+    sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify({
+      status: "ended",
+      tutorReady: false,
+      studentReady: false,
+      timestamp: Date.now()
+    }));
+    
+    // Update local display state
+    setDisplayStatus("ended");
 
     startTransition(async () => {
       // Get CSRF token for API requests - force fetch a fresh token
@@ -683,12 +1029,52 @@ export function SessionRequestCard({
           throw new Error(errorData.error || "Failed to end session");
         }
         
+        // Try to get session data from the response
+        let sessionData;
+        try {
+          const data = await response.json();
+          sessionData = data.session;
+        } catch (e) {
+          // Response might not have JSON or session data
+          console.log("No session data in response for end session");
+        }
+        
+        // Broadcast the session update if we have the required data
+        if (typeof broadcastSessionUpdate === 'function') {
+          // Find the most complete session data to broadcast
+          const sessionToUse = sessionData || sessions?.find(s => s.id === sessionId);
+          
+          // Create a session object with the minimum required fields
+          const broadcastSession = {
+            id: sessionId,
+            status: "ended", // Always use ended status here
+            conversation_id: conversationId,
+            tutor_ready: false,
+            student_ready: false,
+            tutor_id: sessionToUse?.tutor_id || '',
+            student_id: sessionToUse?.student_id || '',
+            created_at: sessionToUse?.created_at || new Date().toISOString()
+          };
+          
+          // Broadcast the session update to all clients
+          broadcastSessionUpdate(broadcastSession);
+        }
+        
         // Show success toast
         toast({
           title: "Session ended",
           description: "The tutoring session has ended",
         });
       } catch (error) {
+        // Revert optimistic update on error
+        sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify({
+          status: "started",
+          tutorReady: displayTutorReady,
+          studentReady: displayStudentReady,
+          timestamp: Date.now()
+        }));
+        setDisplayStatus("started");
+        
         toast({
           title: "Error",
           description: "Failed to end the session",
@@ -700,7 +1086,7 @@ export function SessionRequestCard({
     });
   };
 
-  // Handle cancelling a session
+  // Handle cancelling a session with optimistic updates
   const handleCancelSession = async () => {
     if (!conversationId || (!messageId && !sessionId) || !user) return;
     
@@ -717,6 +1103,20 @@ export function SessionRequestCard({
     
     setLoading(true);
     setShowCancelDialog(false);
+    
+    // Apply optimistic update
+    if (sessionId) {
+      // Store optimistic state
+      sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify({
+        status: "cancelled",
+        tutorReady: false,
+        studentReady: false,
+        timestamp: Date.now()
+      }));
+      
+      // Update local display state
+      setDisplayStatus("cancelled");
+    }
 
     // Use transitions for smoother UI updates
     startTransition(async () => {
@@ -739,6 +1139,9 @@ export function SessionRequestCard({
       }
       
       try {
+        let updatedSessionId = sessionId;
+        let sessionData;
+        
         if (sessionId) {
           // Update existing session to cancelled
           const response = await fetch("/api/tutoring-sessions", {
@@ -774,6 +1177,15 @@ export function SessionRequestCard({
             }
             
             throw new Error(errorMessage);
+          }
+          
+          // Try to get session data from the response
+          try {
+            const data = await response.json();
+            sessionData = data.session;
+          } catch (e) {
+            // Response might not have JSON or session data
+            console.log("No session data in response for cancel session");
           }
         } else {
           // Create a new session with cancelled status
@@ -830,24 +1242,40 @@ export function SessionRequestCard({
           
           if (!sessionResponse.ok) {
             const errorData = await sessionResponse.json();
-            
-            // Enhanced token-related error detection
-            const errorMessage = errorData.error || "Failed to cancel session";
-            if (errorMessage.toLowerCase().includes("token") || 
-                errorMessage.toLowerCase().includes("csrf") ||
-                errorMessage.toLowerCase().includes("insufficient") ||
-                errorMessage.toLowerCase().includes("enough")) {
-              toast({
-                title: errorMessage.toLowerCase().includes("token") ? "Security Token Error" : "Insufficient Tokens",
-                description: errorMessage,
-                variant: "destructive",
-              });
-              setLoading(false);
-              return; // Early return to prevent showing the success toast
-            }
-            
-            throw new Error(errorMessage);
+            throw new Error(errorData.error || "Failed to create cancelled session");
           }
+          
+          // Get the new session ID from response if available
+          try {
+            const responseData = await sessionResponse.json();
+            if (responseData.session && responseData.session.id) {
+              updatedSessionId = responseData.session.id;
+              sessionData = responseData.session;
+            }
+          } catch (e) {
+            // Ignore JSON parsing errors
+          }
+        }
+        
+        // Broadcast the session update if we have the required data
+        if (typeof broadcastSessionUpdate === 'function' && updatedSessionId) {
+          // Find the most complete session data to broadcast
+          const sessionToUse = sessionData || sessions?.find(s => s.id === updatedSessionId);
+          
+          // Create a session object with the minimum required fields
+          const broadcastSession = {
+            id: updatedSessionId,
+            status: "cancelled", // Always use cancelled status here
+            conversation_id: conversationId,
+            tutor_ready: false,
+            student_ready: false,
+            tutor_id: sessionToUse?.tutor_id || '',
+            student_id: sessionToUse?.student_id || '',
+            created_at: sessionToUse?.created_at || new Date().toISOString()
+          };
+          
+          // Broadcast the session update to all clients
+          broadcastSessionUpdate(broadcastSession);
         }
         
         // Show success toast
@@ -855,9 +1283,20 @@ export function SessionRequestCard({
           title: "Session cancelled",
           description: "The tutoring session has been cancelled",
         });
-        
-        setShowCancelDialog(false);
       } catch (error) {
+        // Revert optimistic update if we have a session ID
+        if (sessionId) {
+          // Reset to previous status
+          const previousStatus = status || "requested";
+          sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify({
+            status: previousStatus,
+            tutorReady: tutorReady,
+            studentReady: studentReady,
+            timestamp: Date.now()
+          }));
+          setDisplayStatus(previousStatus);
+        }
+        
         toast({
           title: "Error",
           description: error instanceof Error ? error.message : "Failed to cancel the session",
@@ -871,7 +1310,7 @@ export function SessionRequestCard({
 
   // Get status badge
   const getStatusBadge = () => {
-    switch (status) {
+    switch (displayStatus) {
       case "requested":
         return <Badge variant="outline" className="text-yellow-600 border-yellow-400 bg-amber-50 dark:bg-yellow-950/30 dark:text-yellow-300 rounded-full px-4 py-0.5 font-medium">Pending</Badge>;
       case "accepted":
@@ -889,18 +1328,18 @@ export function SessionRequestCard({
 
   // Show ready status indicators
   const renderReadyStatus = () => {
-    if (status !== "accepted") return null;
+    if (displayStatus !== "accepted") return null;
     
     return (
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-2 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
-          <Badge variant={tutorReady ? "default" : "outline"} className="text-xs">
-            Tutor {tutorReady ? "Ready ✓" : "Not Ready"}
+          <Badge variant={displayTutorReady ? "default" : "outline"} className="text-xs">
+            Tutor {displayTutorReady ? "Ready ✓" : "Not Ready"}
           </Badge>
         </span>
         <span className="flex items-center gap-1">
-          <Badge variant={studentReady ? "default" : "outline"} className="text-xs">
-            Student {studentReady ? "Ready ✓" : "Not Ready"}
+          <Badge variant={displayStudentReady ? "default" : "outline"} className="text-xs">
+            Student {displayStudentReady ? "Ready ✓" : "Not Ready"}
           </Badge>
         </span>
       </div>
@@ -913,7 +1352,7 @@ export function SessionRequestCard({
   // Update shouldShowAcceptButton to be more deterministic and avoid hydration mismatches
   const shouldShowAcceptButton = useCallback(() => {
     // Only show accept button for requested sessions
-    if (status !== "requested") return false;
+    if (displayStatus !== "requested") return false;
 
     // If we already know whether the creator is a tutor, use that info
     if (isCreatedByTutor !== null) {
@@ -930,7 +1369,222 @@ export function SessionRequestCard({
     // 1. If the current user is a tutor, they shouldn't see the accept button (they created it)
     // 2. If the current user is a student, they should see the accept button
     return !isTutor;
-  }, [status, isCreatedByTutor, isTutor]);
+  }, [displayStatus, isCreatedByTutor, isTutor]);
+
+  // Handle new sessions that might be created via realtime updates
+  useEffect(() => {
+    // Skip if we're in server-side rendering or if we already have a session ID
+    if (typeof window === 'undefined' || sessionId) {
+      return;
+    }
+    
+    // Only run this for messages that look like session requests
+    if (!messageId || !conversationId || !messageContent || 
+        !messageContent.trim().startsWith('Session Request:')) {
+      return;
+    }
+    
+    // Check if a new session was created for this message
+    const checkForNewSession = () => {
+      if (sessions && sessions.length > 0) {
+        // Look for a session that matches this message
+        const matchingSession = sessions.find(s => 
+          (s.message_id === messageId) || 
+          (s.conversation_id === conversationId && s.message_id)
+        );
+        
+        if (matchingSession) {
+          // Found a session for this message, store its state
+          sessionStorage.setItem(`session_state_${matchingSession.id}`, JSON.stringify({
+            status: matchingSession.status,
+            tutorReady: matchingSession.tutor_ready,
+            studentReady: matchingSession.student_ready,
+            timestamp: Date.now()
+          }));
+        }
+      }
+    };
+    
+    // Check when sessions change
+    checkForNewSession();
+    
+    // Set up a listener for realtime session changes
+    const sessionUpdateKey = 'session_update_notification';
+    
+    const handleStorageEvent = (event: StorageEvent) => {
+      if (event.key === sessionUpdateKey) {
+        checkForNewSession();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageEvent);
+    return () => {
+      window.removeEventListener('storage', handleStorageEvent);
+    };
+  }, [sessionId, messageId, conversationId, messageContent, sessions]);
+
+  // Listen for session update notifications from other components
+  useEffect(() => {
+    if (typeof window === 'undefined' || !sessionId) return;
+    
+    const handleStorageEvent = (event: StorageEvent) => {
+      if (event.key === 'session_update_notification' && event.newValue) {
+        try {
+          // Parse the notification data
+          const notificationData = JSON.parse(event.newValue);
+          
+          // Check if this notification is for our session
+          if (notificationData.sessionId === sessionId) {
+            console.log("Received session update notification:", notificationData);
+            
+            // First check if we have the session data in localStorage
+            const sessionDataKey = `session_data_${sessionId}`;
+            const sessionDataJson = localStorage.getItem(sessionDataKey);
+            
+            if (sessionDataJson) {
+              // We have direct session data, use it
+              const sessionData = JSON.parse(sessionDataJson);
+              
+              // Check if we need to update our display state
+              const storedStateJson = sessionStorage.getItem(`session_state_${sessionId}`);
+              let isOptimisticUpdateActive = false;
+              
+              if (storedStateJson) {
+                try {
+                  const storedState = JSON.parse(storedStateJson);
+                  isOptimisticUpdateActive = Date.now() - storedState.timestamp < 30000;
+                  
+                  // If our optimistic update is older than the session data, it's outdated
+                  if (storedState.timestamp < sessionData.timestamp) {
+                    isOptimisticUpdateActive = false;
+                  }
+                } catch (e) {
+                  // Ignore parsing errors
+                }
+              }
+              
+              // Only update if we don't have an active optimistic update
+              // or if the session status is a terminal state
+              // or if this is specifically a ready status change (for other users)
+              if (!isOptimisticUpdateActive || 
+                  sessionData.status === 'ended' || 
+                  sessionData.status === 'cancelled' ||
+                  notificationData.type === 'ready_status_change') {
+                
+                // For ready status changes, we want to update only the ready status
+                // without affecting other states if we have an optimistic update active
+                if (isOptimisticUpdateActive && notificationData.type === 'ready_status_change') {
+                  // Get current state - we already checked storedStateJson is not null above
+                  if (storedStateJson) {
+                    const currentState = JSON.parse(storedStateJson);
+                    
+                    // Only update the ready statuses
+                    const newState = {
+                      ...currentState,
+                      tutorReady: sessionData.tutor_ready,
+                      studentReady: sessionData.student_ready,
+                      timestamp: Date.now() // Use current timestamp to make it the most recent
+                    };
+                    
+                    // Save the updated state
+                    sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify(newState));
+                    
+                    // Update display state for ready status only
+                    setDisplayTutorReady(sessionData.tutor_ready);
+                    setDisplayStudentReady(sessionData.student_ready);
+                  }
+                } else {
+                  // For other updates or when no optimistic update is active,
+                  // update all state properties
+                  sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify({
+                    status: sessionData.status,
+                    tutorReady: sessionData.tutor_ready,
+                    studentReady: sessionData.student_ready,
+                    timestamp: Date.now() // Use current timestamp to make it the most recent
+                  }));
+                  
+                  // Update display state
+                  setDisplayStatus(sessionData.status);
+                  setDisplayTutorReady(sessionData.tutor_ready);
+                  setDisplayStudentReady(sessionData.student_ready);
+                }
+              }
+            } else if (sessions) {
+              // Fall back to checking the sessions context
+              const updatedSession = sessions.find(s => s.id === sessionId);
+              if (updatedSession) {
+                // Same logic as above, but using sessions context data
+                const storedStateJson = sessionStorage.getItem(`session_state_${sessionId}`);
+                let isOptimisticUpdateActive = false;
+                
+                if (storedStateJson) {
+                  try {
+                    const storedState = JSON.parse(storedStateJson);
+                    isOptimisticUpdateActive = Date.now() - storedState.timestamp < 30000;
+                  } catch (e) {
+                    // Ignore parsing errors
+                  }
+                }
+                
+                // Only update if we don't have an active optimistic update
+                // or if the session status is a terminal state
+                // or if this is specifically a ready status change (for other users)
+                if (!isOptimisticUpdateActive || 
+                    updatedSession.status === 'ended' || 
+                    updatedSession.status === 'cancelled' ||
+                    notificationData.type === 'ready_status_change') {
+                  
+                  // For ready status changes, we want to update only the ready status
+                  // without affecting other states if we have an optimistic update active
+                  if (isOptimisticUpdateActive && notificationData.type === 'ready_status_change') {
+                    // Get current state - we already checked storedStateJson is not null above
+                    if (storedStateJson) {
+                      const currentState = JSON.parse(storedStateJson);
+                      
+                      // Only update the ready statuses
+                      const newState = {
+                        ...currentState,
+                        tutorReady: updatedSession.tutor_ready,
+                        studentReady: updatedSession.student_ready,
+                        timestamp: Date.now() // Use current timestamp to make it the most recent
+                      };
+                      
+                      // Save the updated state
+                      sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify(newState));
+                      
+                      // Update display state for ready status only
+                      setDisplayTutorReady(updatedSession.tutor_ready);
+                      setDisplayStudentReady(updatedSession.student_ready);
+                    }
+                  } else {
+                    // For other updates or when no optimistic update is active,
+                    // update all state properties
+                    sessionStorage.setItem(`session_state_${sessionId}`, JSON.stringify({
+                      status: updatedSession.status,
+                      tutorReady: updatedSession.tutor_ready,
+                      studentReady: updatedSession.student_ready,
+                      timestamp: Date.now()
+                    }));
+                    
+                    setDisplayStatus(updatedSession.status);
+                    setDisplayTutorReady(updatedSession.tutor_ready);
+                    setDisplayStudentReady(updatedSession.student_ready);
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // Ignore JSON parsing errors
+        }
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageEvent);
+    return () => {
+      window.removeEventListener('storage', handleStorageEvent);
+    };
+  }, [sessionId, sessions]);
 
   // If we're in a loading state
   if (isLoading) {
@@ -956,7 +1610,7 @@ export function SessionRequestCard({
   }
 
   // If the session is cancelled, render the cancelled card
-  if (status === "cancelled") {
+  if (displayStatus === "cancelled") {
     return (
       <Card className="bg-red-50 border border-red-200 shadow-sm dark:bg-red-950/20 dark:border-red-800">
         <CardContent className="pt-4 pb-2">
@@ -1081,7 +1735,7 @@ export function SessionRequestCard({
         </div>
       </CardContent>
       <CardFooter className="flex flex-wrap gap-2 pt-2 pb-3">
-        {status === "requested" && (
+        {displayStatus === "requested" && (
           <>
             {shouldShowAcceptButton() ? (
               <>
@@ -1172,10 +1826,10 @@ export function SessionRequestCard({
           </>
         )}
         
-        {status === "accepted" && (
+        {displayStatus === "accepted" && (
           <>
             <Button 
-              variant={isTutor ? (tutorReady ? "outline" : "default") : (studentReady ? "outline" : "default")}
+              variant={isTutor ? (displayTutorReady ? "outline" : "default") : (displayStudentReady ? "outline" : "default")}
               size="sm"
               onClick={handleReadyToggle}
               disabled={updating}
@@ -1185,7 +1839,7 @@ export function SessionRequestCard({
               ) : (
                 <CheckCircle2 className="h-4 w-4 mr-2" />
               )}
-              {isTutor ? (tutorReady ? "Not Ready" : "Ready") : (studentReady ? "Not Ready" : "Ready")}
+              {isTutor ? (displayTutorReady ? "Not Ready" : "Ready") : (displayStudentReady ? "Not Ready" : "Ready")}
             </Button>
             
             <AlertDialog>
@@ -1224,9 +1878,9 @@ export function SessionRequestCard({
                 variant="default"
                 size="sm"
                 onClick={handleStartSession}
-                disabled={loading || !(tutorReady && studentReady)}
-                className={tutorReady && studentReady ? "bg-green-600 hover:bg-green-700" : ""}
-                title={tutorReady && studentReady ? "Start the meeting" : "Both participants must be ready to start"}
+                disabled={loading || !(displayTutorReady && displayStudentReady)}
+                className={displayTutorReady && displayStudentReady ? "bg-green-600 hover:bg-green-700" : ""}
+                title={displayTutorReady && displayStudentReady ? "Start the meeting" : "Both participants must be ready to start"}
               >
                 {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <PlayCircle className="h-4 w-4 mr-2" />}
                 Start Meeting
@@ -1235,7 +1889,7 @@ export function SessionRequestCard({
           </>
         )}
         
-        {status === "started" && (
+        {displayStatus === "started" && (
           <>
             <div className="w-full flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1288,7 +1942,7 @@ export function SessionRequestCard({
           </>
         )}
         
-        {status === "ended" && (
+        {displayStatus === "ended" && (
           <div className="w-full flex justify-between items-center">
             <p className="text-sm text-muted-foreground">This session has ended</p>
             {!isInMessagesPage && (
