@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useTransition, useRef } from "react";
+import { useState, useCallback, useEffect, useTransition } from "react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -84,7 +84,7 @@ export function SessionRequestCard({
   cost
 }: SessionRequestCardProps) {
   const { user } = useAuth();
-  const { sessions, refreshSessions, updateSession } = useSessions();
+  const { sessions, refreshSessions } = useSessions();
   const { subscribeToConversation } = useRealtime();
   const { toast } = useToast();
   const { fetchCsrfToken } = useCsrfToken();
@@ -94,16 +94,9 @@ export function SessionRequestCard({
   const [messageCreatorId, setMessageCreatorId] = useState<string | null>(null);
   const [isCreatedByTutor, setIsCreatedByTutor] = useState<boolean | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [pendingSession, setPendingSession] = useState<{title: string, scheduledFor: string} | null>(null);
   const [messageContent, setMessageContent] = useState<string | null>(null);
-  const [isButtonDisabled, setIsButtonDisabled] = useState(false);
-  
-  // Use refs to track fetching state between renders
-  const hasFetchedRef = useRef<boolean>(false);
-  const apiRequestInProgressRef = useRef<boolean>(false);
-  const messageCheckedRef = useRef<boolean>(false);
-  
   const isTutor = user?.role === "tutor";
   const pathname = usePathname();
   
@@ -128,23 +121,24 @@ export function SessionRequestCard({
       // Find the session in the context without making API calls
       const contextSession = sessions.find(s => s.id === sessionId);
       if (contextSession) {
-        // No need to update local state as the parent component will receive updated props
-        // This effect just ensures we don't make redundant API calls
+        // Update local state with session data from context
+        if (contextSession.status !== status) {
+          // Status has changed, update it from context
+          // This relies on the realtime updates in SessionContext
+        }
       }
     }
-  }, [sessionId, sessions]);
+  }, [sessionId, sessions, status]);
 
-  // Fetch message details to determine who created it
+  // Fetch message details to determine who created it and if it should be a session
   useEffect(() => {
     const fetchMessageDetails = async () => {
-      // Skip if we already checked this message or don't have necessary IDs
-      if (!messageId || !conversationId || messageCheckedRef.current) return;
+      if (!messageId || !conversationId) return;
       
-      // Skip in SSR context
-      if (typeof window === 'undefined') return;
-      
-      // Mark that we're checking this message to avoid duplicate fetches
-      messageCheckedRef.current = true;
+      if (typeof window === 'undefined') {
+        // Skip in SSR context
+        return;
+      }
       
       try {
         // Skip API calls for temporary conversations
@@ -161,71 +155,69 @@ export function SessionRequestCard({
           setIsCreatedByTutor(true);
         }
         
-        // Only fetch message details if we're in the browser and need more information
-        if (!isCreatedByTutor && !apiRequestInProgressRef.current) {
-          apiRequestInProgressRef.current = true;
-          
-          startTransition(async () => {
-            const response = await fetch(`/api/messages?conversation_id=${conversationId}`, {
-              credentials: 'include'
-            });
-            
-            if (!response.ok) {
-              throw new Error('Failed to fetch messages');
-            }
-            
-            const data = await response.json();
-            const message = data.messages?.find((msg: any) => msg.id === messageId);
-            
-            if (message) {
-              setMessageCreatorId(message.sender_id);
-              setMessageContent(message.content);
-              
-              // Check message content for session request indicators
-              if (message.content && message.content.trim().startsWith('Session Request:')) {
-                // Session requests are typically created by tutors
-                const messageCreator = message.sender;
-                setIsCreatedByTutor(messageCreator?.is_tutor || true);
-              } else {
-                // Otherwise use sender info to determine if created by tutor
-                const messageCreator = message.sender;
-                setIsCreatedByTutor(messageCreator?.is_tutor || false);
-              }
-            }
-            
-            setIsLoading(false);
-            apiRequestInProgressRef.current = false;
+        // Only fetch message details if we're in the browser
+        startTransition(async () => {
+          const response = await fetch(`/api/messages?conversation_id=${conversationId}`, {
+            credentials: 'include'
           });
-        } else {
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch messages');
+          }
+          
+          const data = await response.json();
+          const message = data.messages?.find((msg: any) => msg.id === messageId);
+          
+          if (message) {
+            setMessageCreatorId(message.sender_id);
+            setMessageContent(message.content);
+            
+            // Immediate check - if content starts with "Session Request:", it's likely from a tutor
+            if (message.content && message.content.trim().startsWith('Session Request:')) {
+              // Session requests are typically created by tutors
+              const messageCreator = message.sender;
+              setIsCreatedByTutor(messageCreator?.is_tutor || true);
+            } else {
+              // Otherwise use sender info to determine if created by tutor
+              const messageCreator = message.sender;
+              setIsCreatedByTutor(messageCreator?.is_tutor || false);
+            }
+          }
           setIsLoading(false);
-        }
+        });
       } catch (error) {
         console.error("Error fetching message details:", error);
         setIsLoading(false);
-        apiRequestInProgressRef.current = false;
       }
     };
     
     fetchMessageDetails();
+  }, [messageId, conversationId, user?.role, title]);
+
+  // Fetch session if it doesn't exist yet but should
+  useEffect(() => {
+    // Skip if we're in server-side rendering
+    if (typeof window === 'undefined') {
+      return;
+    }
     
-    // Clean up function
+    // Always set loading to false when unmounting to prevent UI getting stuck
     return () => {
-      apiRequestInProgressRef.current = false;
+      setIsLoading(false);
     };
-  }, [messageId, conversationId, user?.role, title, isCreatedByTutor]);
+  }, []);
 
   // Handle session fetch in a separate effect
   useEffect(() => {
     // Skip if we're in server-side rendering
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') {
+      return;
+    }
     
     // If we don't have a sessionId but we have messageId and conversationId,
     // we might be in a state where the session was just created
     // but not yet associated with the message in the UI
-    if (!sessionId && messageId && conversationId && !hasFetchedRef.current) {
-      // Mark that we've attempted to fetch
-      hasFetchedRef.current = true;
-      
+    if (!sessionId && messageId && conversationId) {
       // Skip API calls for temporary conversations
       if (conversationId.startsWith('temp-')) {
         setIsLoading(false);
@@ -286,24 +278,18 @@ export function SessionRequestCard({
         try {
           // Only make the API call if we couldn't find it in context
           // and it looks like a session request
-          if (!apiRequestInProgressRef.current) {
-            apiRequestInProgressRef.current = true;
-            
-            startTransition(async () => {
-              sessionStorage.setItem(requestKey, 'true');
-              const response = await fetch(`/api/tutoring-sessions?message_id=${messageId}`, {
-                credentials: 'include'
-              });
-              
-              // No need to process the response - realtime will update the UI
-              setIsLoading(false);
-              apiRequestInProgressRef.current = false;
+          startTransition(async () => {
+            sessionStorage.setItem(requestKey, 'true');
+            const response = await fetch(`/api/tutoring-sessions?message_id=${messageId}`, {
+              credentials: 'include'
             });
-          }
+            
+            // No need to process the response - realtime will update the UI
+            setIsLoading(false);
+          });
         } catch (error) {
           console.error("Error checking for session:", error);
           setIsLoading(false);
-          apiRequestInProgressRef.current = false;
         }
       };
       
@@ -312,18 +298,14 @@ export function SessionRequestCard({
       // We already have a session ID or don't need one
       setIsLoading(false);
     }
-    
-    // Cleanup function
-    return () => {
-      setIsLoading(false);
-      apiRequestInProgressRef.current = false;
-    };
   }, [messageId, conversationId, sessionId, messageContent, title, scheduledFor, pendingSession, sessions]);
 
   // Try to determine the creator based on the session request object directly
   useEffect(() => {
     // Skip if we're in server-side rendering
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') {
+      return;
+    }
     
     // If we already have a session request object from props, use it to determine creator
     if (messageContent?.trim().startsWith('Session Request:') && isCreatedByTutor === null) {
@@ -334,7 +316,7 @@ export function SessionRequestCard({
 
   // Handle accepting a session
   const handleAcceptSession = async () => {
-    if (!conversationId || !user || isButtonDisabled) return;
+    if (!conversationId || !user) return;
     
     // Either sessionId or messageId must be present
     if (!sessionId && !messageId) {
@@ -358,7 +340,6 @@ export function SessionRequestCard({
     }
     
     setLoading(true);
-    setIsButtonDisabled(true);
 
     // Use transitions for smoother UI updates
     startTransition(async () => {
@@ -377,7 +358,6 @@ export function SessionRequestCard({
           variant: "destructive",
         });
         setLoading(false);
-        setIsButtonDisabled(false);
         return;
       }
       
@@ -400,7 +380,23 @@ export function SessionRequestCard({
           
           if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || "Failed to accept session");
+            
+            // Enhanced token-related error detection
+            const errorMessage = errorData.error || "Failed to accept session";
+            if (errorMessage.toLowerCase().includes("token") || 
+                errorMessage.toLowerCase().includes("csrf") ||
+                errorMessage.toLowerCase().includes("insufficient") ||
+                errorMessage.toLowerCase().includes("enough")) {
+              toast({
+                title: errorMessage.toLowerCase().includes("token") ? "Security Token Error" : "Insufficient Tokens",
+                description: errorMessage,
+                variant: "destructive",
+              });
+              setLoading(false);
+              return; // Early return to prevent showing the success toast
+            }
+            
+            throw new Error(errorMessage);
           }
         } else {
           // Need to fetch conversation first to get participants
@@ -412,6 +408,7 @@ export function SessionRequestCard({
           });
           
           if (!conversationResponse.ok) {
+            const errorText = await conversationResponse.text();
             throw new Error("Failed to fetch conversation details");
           }
           
@@ -456,7 +453,23 @@ export function SessionRequestCard({
           
           if (!sessionResponse.ok) {
             const errorData = await sessionResponse.json();
-            throw new Error(errorData.error || "Failed to create session");
+            
+            // Enhanced token-related error detection
+            const errorMessage = errorData.error || "Failed to create session";
+            if (errorMessage.toLowerCase().includes("token") || 
+                errorMessage.toLowerCase().includes("csrf") ||
+                errorMessage.toLowerCase().includes("insufficient") ||
+                errorMessage.toLowerCase().includes("enough")) {
+              toast({
+                title: errorMessage.toLowerCase().includes("token") ? "Security Token Error" : "Insufficient Tokens",
+                description: errorMessage,
+                variant: "destructive",
+              });
+              setLoading(false);
+              return; // Early return to prevent showing the success toast
+            }
+            
+            throw new Error(errorMessage);
           }
         }
         
@@ -465,8 +478,6 @@ export function SessionRequestCard({
           title: "Session accepted",
           description: "The tutoring session has been accepted",
         });
-        
-        // No need to call refreshSessions - the realtime system will update the UI
       } catch (error) {
         toast({
           title: "Error",
@@ -475,17 +486,15 @@ export function SessionRequestCard({
         });
       } finally {
         setLoading(false);
-        setIsButtonDisabled(false);
       }
     });
   };
 
   // Handle ready toggle
   const handleReadyToggle = async () => {
-    if (!sessionId || !user || isButtonDisabled) return;
+    if (!sessionId || !user) return;
     
     setUpdating(true);
-    setIsButtonDisabled(true);
 
     startTransition(async () => {
       // Get CSRF token for API requests - force fetch a fresh token
@@ -503,7 +512,6 @@ export function SessionRequestCard({
           variant: "destructive",
         });
         setUpdating(false);
-        setIsButtonDisabled(false);
         return;
       }
       
@@ -539,8 +547,6 @@ export function SessionRequestCard({
             ? "You've marked yourself as ready for this session" 
             : "You've removed your ready status",
         });
-        
-        // No need to call refreshSessions - the realtime system will update the UI
       } catch (error) {
         toast({
           title: "Error",
@@ -549,14 +555,13 @@ export function SessionRequestCard({
         });
       } finally {
         setUpdating(false);
-        setIsButtonDisabled(false);
       }
     });
   };
 
   // Handle starting a session
   const handleStartSession = async () => {
-    if (!sessionId || !user || isButtonDisabled) return;
+    if (!sessionId || !user) return;
     
     // Validate that both users are ready
     if (!(tutorReady && studentReady)) {
@@ -569,7 +574,6 @@ export function SessionRequestCard({
     }
     
     setLoading(true);
-    setIsButtonDisabled(true);
 
     startTransition(async () => {
       // Get CSRF token for API requests - force fetch a fresh token
@@ -587,7 +591,6 @@ export function SessionRequestCard({
           variant: "destructive",
         });
         setLoading(false);
-        setIsButtonDisabled(false);
         return;
       }
       
@@ -622,26 +625,23 @@ export function SessionRequestCard({
         if (typeof window !== "undefined") {
           window.location.href = `/meeting/${sessionId}`;
         }
-        
-        // No need to call refreshSessions - the realtime system will update the UI
       } catch (error) {
         toast({
           title: "Error",
           description: error instanceof Error ? error.message : "Failed to start the session",
           variant: "destructive",
         });
+      } finally {
         setLoading(false);
-        setIsButtonDisabled(false);
       }
     });
   };
 
   // Handle ending a session
   const handleEndSession = async () => {
-    if (!sessionId || !user || isButtonDisabled) return;
+    if (!sessionId || !user) return;
     
     setLoading(true);
-    setIsButtonDisabled(true);
 
     startTransition(async () => {
       // Get CSRF token for API requests - force fetch a fresh token
@@ -659,7 +659,6 @@ export function SessionRequestCard({
           variant: "destructive",
         });
         setLoading(false);
-        setIsButtonDisabled(false);
         return;
       }
       
@@ -689,8 +688,6 @@ export function SessionRequestCard({
           title: "Session ended",
           description: "The tutoring session has ended",
         });
-        
-        // No need to call refreshSessions - the realtime system will update the UI
       } catch (error) {
         toast({
           title: "Error",
@@ -699,14 +696,13 @@ export function SessionRequestCard({
         });
       } finally {
         setLoading(false);
-        setIsButtonDisabled(false);
       }
     });
   };
 
   // Handle cancelling a session
   const handleCancelSession = async () => {
-    if (!conversationId || (!messageId && !sessionId) || !user || isButtonDisabled) return;
+    if (!conversationId || (!messageId && !sessionId) || !user) return;
     
     // Check if this is a temporary conversation ID first
     const isTempConversation = conversationId.startsWith('temp-');
@@ -721,7 +717,6 @@ export function SessionRequestCard({
     
     setLoading(true);
     setShowCancelDialog(false);
-    setIsButtonDisabled(true);
 
     // Use transitions for smoother UI updates
     startTransition(async () => {
@@ -740,7 +735,6 @@ export function SessionRequestCard({
           variant: "destructive",
         });
         setLoading(false);
-        setIsButtonDisabled(false);
         return;
       }
       
@@ -763,7 +757,23 @@ export function SessionRequestCard({
           
           if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || "Failed to cancel session");
+            
+            // Enhanced token-related error detection
+            const errorMessage = errorData.error || "Failed to cancel session";
+            if (errorMessage.toLowerCase().includes("token") || 
+                errorMessage.toLowerCase().includes("csrf") ||
+                errorMessage.toLowerCase().includes("insufficient") ||
+                errorMessage.toLowerCase().includes("enough")) {
+              toast({
+                title: errorMessage.toLowerCase().includes("token") ? "Security Token Error" : "Insufficient Tokens",
+                description: errorMessage,
+                variant: "destructive",
+              });
+              setLoading(false);
+              return; // Early return to prevent showing the success toast
+            }
+            
+            throw new Error(errorMessage);
           }
         } else {
           // Create a new session with cancelled status
@@ -775,6 +785,7 @@ export function SessionRequestCard({
           });
           
           if (!conversationResponse.ok) {
+            const errorText = await conversationResponse.text();
             throw new Error("Failed to fetch conversation details");
           }
           
@@ -819,7 +830,23 @@ export function SessionRequestCard({
           
           if (!sessionResponse.ok) {
             const errorData = await sessionResponse.json();
-            throw new Error(errorData.error || "Failed to cancel session");
+            
+            // Enhanced token-related error detection
+            const errorMessage = errorData.error || "Failed to cancel session";
+            if (errorMessage.toLowerCase().includes("token") || 
+                errorMessage.toLowerCase().includes("csrf") ||
+                errorMessage.toLowerCase().includes("insufficient") ||
+                errorMessage.toLowerCase().includes("enough")) {
+              toast({
+                title: errorMessage.toLowerCase().includes("token") ? "Security Token Error" : "Insufficient Tokens",
+                description: errorMessage,
+                variant: "destructive",
+              });
+              setLoading(false);
+              return; // Early return to prevent showing the success toast
+            }
+            
+            throw new Error(errorMessage);
           }
         }
         
@@ -829,7 +856,7 @@ export function SessionRequestCard({
           description: "The tutoring session has been cancelled",
         });
         
-        // No need to call refreshSessions - the realtime system will update the UI
+        setShowCancelDialog(false);
       } catch (error) {
         toast({
           title: "Error",
@@ -838,7 +865,6 @@ export function SessionRequestCard({
         });
       } finally {
         setLoading(false);
-        setIsButtonDisabled(false);
       }
     });
   };
