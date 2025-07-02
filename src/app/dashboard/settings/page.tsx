@@ -137,7 +137,7 @@ export default function SettingsPage() {
   
   // Service options for tutors
   const serviceOptions = [
-    "Extracurricular building",
+    "Extracurricular Building",
     "Interviews",
     "SAT",
     "Subject Tutoring",

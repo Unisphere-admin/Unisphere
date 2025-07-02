@@ -75,14 +75,18 @@ export default function HomePage() {
                 </span>
               </p>
               <div className="flex flex-col sm:flex-row gap-4 mt-8">
-                <Button size="lg" className="shadow-md bg-[#128ca0] hover:bg-[#126d94] transition-all hover:shadow-lg hover:translate-y-[-2px] group">
-                  <Link href="/tutors" className="flex items-center gap-2">
+              <Link href="/tutors" className="flex items-center gap-2">
+                <Button size="lg" className="shadow-md bg-[#128ca0] hover:bg-[#126d94] transition-all hover:shadow-lg hover:translate-y-[-2px] group w-full">
+                  
                     Explore Now <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
-                  </Link>
+                  
                 </Button>
-                <Button size="lg" variant="outline" className="border-[#c2d8d2]/60 hover:border-[#84b4cc]/60 hover:bg-[#c7e4e3]/10 transition-all">
-                  <Link href="/about">Learn More</Link>
+              </Link>
+              <Link href="/about">
+                <Button size="lg" variant="outline" className="border-[#c2d8d2]/60 hover:border-[#84b4cc]/60 hover:bg-[#c7e4e3]/10 transition-all w-full">
+                Learn More
                 </Button>
+                </Link>
               </div>
               
             </div>
