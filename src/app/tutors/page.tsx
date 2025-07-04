@@ -715,7 +715,7 @@ export default function TutorsPage() {
               .map((s: string) => {
                 const sLower = s.toLowerCase();
                 if (sLower.startsWith('uk admissions tests -')) {
-                  return 'UK Admissions tests';
+                  return 'UK Admissions Tests';
                 }
                 if (sLower.startsWith('subject tutoring -')) {
                   return 'Subject Tutoring';
@@ -730,7 +730,7 @@ export default function TutorsPage() {
               .map((s: string) => {
                 const sLower = s.toLowerCase();
                 if (sLower.startsWith('uk admissions tests -')) {
-                  return 'UK Admissions tests';
+                  return 'UK Admissions Tests';
                 }
                 if (sLower.startsWith('subject tutoring -')) {
                   return 'Subject Tutoring';
@@ -944,7 +944,7 @@ export default function TutorsPage() {
     const matchesSubjects = selectedSubjects.length === 0 || 
       selectedSubjects.every(subject => {
         // Special handling for grouped subjects
-        if (subject === 'UK Admissions tests') {
+        if (subject === 'UK Admissions Tests') {
           return tutorSubjects.some(tutorSubject => 
             tutorSubject.toLowerCase().startsWith('uk admissions tests -')
           );
@@ -1359,7 +1359,6 @@ export default function TutorsPage() {
               const tutorId = tutor.id;
               const tutorName = `${tutor.first_name || ''} ${tutor.last_name || ''}`;
               const tutorBio = tutor.description || '';
-              const tutorLocation = tutor.location || 'Online';
               const tutorImage = getAvatarUrl(tutor);
               
               // Get the avatar URL from our blurred avatar API if the user doesn't have premium access
@@ -1533,7 +1532,7 @@ export default function TutorsPage() {
                               const testNames = ukTests.map(test => 
                                 test.replace(ukTestsPattern, '').trim()
                               );
-                              const testDisplay = `UK Admissions tests - ${testNames.join(', ')}`;
+                              const testDisplay = `UK Admissions Tests - ${testNames.join(', ')}`;
                               processedSubjects.unshift(testDisplay);
                             }
                             
@@ -1554,7 +1553,7 @@ export default function TutorsPage() {
                             const getMainServiceName = (subject: string): string => {
                               // Check if it's a UK Admissions tests entry
                               if (subject.toLowerCase().startsWith('uk admissions tests')) {
-                                return 'UK Admissions tests';
+                                return 'UK Admissions Tests';
                               }
                               // Check if it's a Subject Tutoring entry
                               if (subject.toLowerCase().startsWith('subject tutoring')) {
@@ -1620,8 +1619,7 @@ export default function TutorsPage() {
                       <div className="mt-auto pt-2">
                         <div className="flex items-center gap-3 text-sm text-muted-foreground mb-3">
                           <div className="flex items-center">
-                            <MapPin className="h-3.5 w-3.5 mr-1 text-[#3e5461] shrink-0" strokeWidth={2} />
-                            <span className="truncate">{tutorLocation}</span>
+                            
                           </div>
                           {/* Comment out the reviews count
                           <Separator orientation="vertical" className="h-4 bg-[#c2d8d2]/50" />

@@ -184,7 +184,7 @@ const getMainServiceName = (subject: string): string => {
     normalizedSubject.startsWith('admissions tests') ||
     normalizedSubject.includes('uk test')
   ) {
-    return 'UK Admissions tests';
+    return 'UK Admissions Tests';
   }
   
   // Check for variations of Subject Tutoring
@@ -293,7 +293,7 @@ const extractServiceCosts = (tutor: any): Record<string, number> => {
           result['Subject Tutoring'] = cost;
         }
         if (hasUKTests) {
-          result['UK Admissions tests'] = cost;
+          result['UK Admissions Tests'] = cost;
         }
       }
     }
@@ -713,10 +713,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                   
                   <div className="flex items-center justify-between px-6 py-3">
                     <div className="flex items-center text-muted-foreground">
-                      <MapPin className="h-4 w-4 mr-2" />
-                      <span>Location</span>
                     </div>
-                    <span className="font-medium">Online</span>
                   </div>
                 </div>
                 

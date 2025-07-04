@@ -141,7 +141,7 @@ export default function SettingsPage() {
     "Interviews",
     "SAT",
     "Subject Tutoring",
-    "UK Admissions tests",
+    "UK Admissions Tests",
     "UK University Admissions",
     "US University Admissions"
   ];
