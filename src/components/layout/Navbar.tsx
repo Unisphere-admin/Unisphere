@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Menu, X, User, LogOut, MessageSquare, Home, Globe, Users, LayoutDashboard, Lock, Bell, Settings, ChevronDown, CalendarPlus, GraduationCap } from "lucide-react";
+import { Menu, X, User, LogOut, MessageSquare, Home, Globe, Users, LayoutDashboard, Lock, Bell, Settings, ChevronDown, CalendarPlus, GraduationCap, FileText } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { BadgeIndicator } from "@/components/ui/badge-indicator";
@@ -110,6 +110,15 @@ const Navbar = () => {
                   ) : null}
                 </Link>
               </Button>
+              
+              {hasAccess && (
+                <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground hover:bg-muted">
+                  <Link href="/resources" className="flex items-center gap-1.5 font-medium">
+                    <FileText className="h-4 w-4" strokeWidth={2} />
+                    Resources
+                  </Link>
+                </Button>
+              )}
             </div>
           )}
           
@@ -160,6 +169,16 @@ const Navbar = () => {
                   ) : null}
                   </Link>
                 </DropdownMenuItem>
+                
+                {hasAccess && (
+                  <DropdownMenuItem className="focus:bg-muted">
+                    <Link href="/resources" className="flex items-center w-full">
+                      <FileText className="mr-2 h-4 w-4 text-[#3e5461]" strokeWidth={2} />
+                      Resources
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+                
                 <DropdownMenuItem className="focus:bg-muted">
                   <Link href="/dashboard/settings" className="flex items-center w-full">
                     <Settings className="mr-2 h-4 w-4 text-[#3e5461]" strokeWidth={2} />
@@ -204,9 +223,10 @@ const Navbar = () => {
             </Button>
           )}
           
+          {/* Mobile menu button */}
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
             <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="md:hidden h-9 w-9 shadow-sm border-border/40">
+              <Button variant="outline" size="icon" className="md:hidden h-9 w-9 shadow-sm border-border/40 touch-manipulation">
                 <Menu className="h-5 w-5" strokeWidth={1.5} />
                 <span className="sr-only">Toggle menu</span>
               </Button>
@@ -221,7 +241,7 @@ const Navbar = () => {
                     variant="ghost"
                     size="icon"
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="h-8 w-8"
+                    className="h-9 w-9 touch-manipulation"
                   >
                     <X className="h-5 w-5" strokeWidth={1.5} />
                   </Button>
@@ -229,21 +249,21 @@ const Navbar = () => {
                 
                 <Link 
                   href="/" 
-                  className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center gap-3 p-3 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors touch-manipulation"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <Home className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Home
                 </Link>
                 <Link 
                   href="/about" 
-                  className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center gap-3 p-3 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors touch-manipulation"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <Globe className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> About Us
                 </Link>
                 <Link 
                   href="/tutors"
-                  className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center gap-3 p-3 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors touch-manipulation"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <Users className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Browse Tutors
@@ -253,7 +273,7 @@ const Navbar = () => {
                 {showConsultationButton && (
                   <Link 
                     href="/consultation"
-                    className="flex items-center gap-3 p-2.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-md"
+                    className="flex items-center gap-3 p-3 bg-primary/10 text-primary hover:bg-primary/20 rounded-md touch-manipulation"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
                     <CalendarPlus className="h-5 w-5" strokeWidth={1.5} /> Book Free Consultation
@@ -265,7 +285,7 @@ const Navbar = () => {
                     <div className="h-px bg-border/40 my-2"></div>
                     <Link 
                       href={hasAccess ? "/dashboard" : "/paywall"}
-                      className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                      className="flex items-center gap-3 p-3 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors touch-manipulation"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       <LayoutDashboard className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Dashboard
@@ -273,7 +293,7 @@ const Navbar = () => {
                     </Link>
                     <Link 
                       href={hasAccess ? "/dashboard/messages" : "/paywall"}
-                      className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors relative"
+                      className="flex items-center gap-3 p-3 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors relative touch-manipulation"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       <MessageSquare className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Messages
@@ -283,9 +303,20 @@ const Navbar = () => {
                         <BadgeIndicator count={unreadCount} size="sm" className="ml-2" />
                       ) : null}
                     </Link>
+                    
+                    {hasAccess && (
+                      <Link 
+                        href="/resources"
+                        className="flex items-center gap-3 p-3 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors touch-manipulation"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        <FileText className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Resources
+                      </Link>
+                    )}
+                    
                     <Link 
                       href="/dashboard/settings"
-                      className="flex items-center gap-3 p-2.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                      className="flex items-center gap-3 p-3 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors touch-manipulation"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       <Settings className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Settings
@@ -296,7 +327,7 @@ const Navbar = () => {
                 {user && !hasAccess && !isTutor && (
                   <Link 
                     href="/paywall"
-                    className="flex items-center gap-3 p-2.5 bg-[#3e5461]/10 text-[#128ca0] hover:bg-[#3e5461]/20 rounded-md mt-2"
+                    className="flex items-center gap-3 p-3 bg-[#3e5461]/10 text-[#128ca0] hover:bg-[#3e5461]/20 rounded-md mt-2 touch-manipulation"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
                     <Lock className="h-5 w-5" strokeWidth={1.5} /> Upgrade to Premium
@@ -306,7 +337,7 @@ const Navbar = () => {
                 {showLoginButton && (
                   <Button 
                     asChild
-                    className="mt-4 bg-[#128ca0] hover:bg-[#126d94] shadow-sm font-medium"
+                    className="mt-4 bg-[#128ca0] hover:bg-[#126d94] shadow-sm font-medium touch-manipulation"
                   >
                     <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2">
                       <User className="h-4 w-4" strokeWidth={2} />
@@ -317,7 +348,7 @@ const Navbar = () => {
                 
                 {user && (
                   <LogoutButton
-                    className="mt-4 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    className="mt-4 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive touch-manipulation"
                     onLogout={() => setIsMobileMenuOpen(false)}
                   />
                 )}

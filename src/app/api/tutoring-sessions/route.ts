@@ -194,7 +194,6 @@ async function getUserTokens(userId: string): Promise<number> {
       return data.tokens;
     }
     
-    console.warn(`No token data returned for user ${userId}:`, data);
     return 0;
   } catch (error) {
     return 0;

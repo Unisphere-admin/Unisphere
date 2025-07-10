@@ -94,7 +94,6 @@ export function useCachedData<T = any>(
         }
       }
     } catch (err) {
-      console.warn(`Error checking cache data for ${cacheKey}:`, err);
     }
   }, [cacheKey]); // Only run on cacheKey change
 
@@ -125,7 +124,6 @@ export function useCachedData<T = any>(
         }
       }
     } catch (err) {
-      console.warn(`Error checking cache age for ${cacheKey}:`, err);
     }
   }, [cacheKey, ttl, refresh, disableBackgroundRefresh]);
 

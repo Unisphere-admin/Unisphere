@@ -532,11 +532,9 @@ export default function SessionPage() {
           
           if (deleteResponse.ok) {
           } else {
-            console.warn("Could not delete session message:", await deleteResponse.text());
           }
         } catch (messageError) {
           // Don't fail the entire operation if message deletion fails
-          console.warn("Error deleting session message:", messageError);
         }
       }
       

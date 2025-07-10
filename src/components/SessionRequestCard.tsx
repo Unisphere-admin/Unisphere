@@ -200,7 +200,6 @@ export function SessionRequestCard({
           setIsLoading(false);
         }
       } catch (error) {
-        console.error("Error fetching message details:", error);
         setIsLoading(false);
         apiRequestInProgressRef.current = false;
       }
@@ -301,7 +300,6 @@ export function SessionRequestCard({
             });
           }
         } catch (error) {
-          console.error("Error checking for session:", error);
           setIsLoading(false);
           apiRequestInProgressRef.current = false;
         }

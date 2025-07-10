@@ -276,7 +276,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
           }
         }
       } catch (error) {
-        console.warn('Error reading cached premium access:', error);
       }
     }
     
@@ -309,7 +308,6 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
             timestamp: Date.now()
           }));
         } catch (error) {
-          console.warn('Error caching premium access:', error);
         }
       }
       

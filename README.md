@@ -13,6 +13,40 @@
 - Click on "New codespace" to launch a new Codespace environment.
 - Edit files directly within the Codespace and commit and push your changes once you're done.
 
+## Production Build Process
+
+This project includes a production build process that automatically removes console logging statements for better performance and security. There are two ways to build for production:
+
+### Using npm script
+
+```bash
+npm run build:production
+```
+
+This will:
+1. Remove all console.log, console.warn, console.error, and console.debug statements
+2. Build the application for production
+
+### Using the build script directly
+
+```bash
+./build-production.sh
+```
+
+### Removing console logs manually
+
+If you only want to remove console logs without building:
+
+```bash
+./remove_console_logs.sh
+```
+
+By default, all console statements are removed. If you want to keep console.error statements for production error reporting:
+
+```bash
+./remove_console_logs.sh --keep-errors
+```
+
 ## What technologies are used for this project?
 
 This project is built with:

@@ -27,7 +27,6 @@ async function executeQueryWithRetry(queryFn: () => Promise<any>, maxRetries = 3
             return result;
         } catch (error) {
             lastError = error;
-            console.warn(`Attempt ${attempt + 1}/${maxRetries} failed:`, error);
             
             // Exponential backoff with jitter
             if (attempt < maxRetries - 1) {

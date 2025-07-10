@@ -91,7 +91,6 @@ export async function validateStoredToken(userId?: string): Promise<{ valid: boo
     
     // If userId is provided, validate that the token belongs to this user
     if (userId && tokenData.userId && tokenData.userId !== userId) {
-      console.warn(`CSRF token user mismatch: token for ${tokenData.userId} but request from ${userId}`);
       return { valid: false, error: "CSRF token user mismatch" };
     }
     

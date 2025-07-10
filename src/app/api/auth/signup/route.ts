@@ -136,11 +136,7 @@ export async function POST(req: NextRequest) {
     } catch (error) {
         // Log the full error details
         if (error instanceof Error) {
-            console.error({
-                message: error.message,
-                stack: error.stack,
-                name: error.name
-            });
+            // Object was part of a removed console.error statement
         }
         return new NextResponse(
             JSON.stringify({ error: "An unexpected error occurred" }),

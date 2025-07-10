@@ -104,7 +104,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await supabase.auth.getSession();
       
       if (sessionError) {
-        console.warn('Session error while refreshing user:', sessionError);
         // Continue since we already have the authenticated user
       }
       
@@ -150,7 +149,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const { invalidateTutorsCache } = await import('@/lib/tutorsCaching');
           invalidateTutorsCache();
         } catch (e) {
-          console.warn('Failed to explicitly invalidate tutor cache:', e);
         }
         
         // Clear localStorage items related to user data
@@ -187,7 +185,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           });
         } catch (e) {
-          console.warn('Failed to clear localStorage items:', e);
         }
         
         // Clear sessionStorage items
@@ -195,7 +192,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Clear all sessionStorage for simplicity
           sessionStorage.clear();
       } catch (e) {
-          console.warn('Failed to clear sessionStorage:', e);
         }
         
       } catch (cacheError) {
@@ -225,7 +221,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // This helps to ensure client-side state is also cleared
         await supabase.auth.signOut();
       } catch (err) {
-        console.warn('Error clearing client-side auth state:', err);
         // Continue even if this fails since we've already logged out on the server
       }
       

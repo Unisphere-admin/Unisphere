@@ -171,7 +171,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         saveToCache(SESSION_CACHE_KEY, data.sessions);
       }
     } catch (error) {
-      console.error("Error fetching sessions:", error);
     } finally {
       setLoadingSessions(false);
       isRefreshingRef.current = false;
@@ -207,7 +206,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       
       return true;
     } catch (error) {
-      console.error("Error starting session:", error);
       return false;
     } finally {
       setLoading(false);
@@ -242,7 +240,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       
       return true;
     } catch (error) {
-      console.error("Error ending session:", error);
       return false;
     } finally {
       setLoading(false);
@@ -286,7 +283,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         },
       ]);
     } catch (error) {
-      console.error("Error submitting review:", error);
       throw error;
     }
   }, [user]);
@@ -320,7 +316,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       
       return [];
     } catch (error) {
-      console.error("Error fetching tutor reviews:", error);
       return [];
     }
   }, []);
@@ -355,7 +350,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       
       return null;
     } catch (error) {
-      console.error("Error fetching session by ID:", error);
       return null;
     }
   }, [sessions, updateSession]);
@@ -381,7 +375,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           updateSession(updatedSession);
         }
       } catch (error) {
-        console.error("Error processing realtime session update:", error);
       }
     };
     

@@ -56,7 +56,6 @@ export function logTokenExpiration(token: string, expiresAt?: number): void {
   try {
     const expiry = expiresAt || getTokenExpiry(token);
     if (!expiry) {
-      console.warn('[TokenRefresh] Could not determine token expiration');
       return;
     }
     
@@ -74,7 +73,7 @@ export function logTokenExpiration(token: string, expiresAt?: number): void {
       const expiredMinutes = Math.floor(expiredAgo / (1000 * 60)) % 60;
       const expiredHours = Math.floor(expiredAgo / (1000 * 60 * 60));
       
-      console.error(
+      logTokenDebug(
         `[TokenRefresh] Token has expired ${expiredHours}h ${expiredMinutes}m ${expiredSeconds}s ago`,
         {
           now: new Date(now).toISOString(),
@@ -83,7 +82,7 @@ export function logTokenExpiration(token: string, expiresAt?: number): void {
         }
       );
     } else {
-      console.info(
+      logTokenDebug(
         `[TokenRefresh] Token expires in ${hours}h ${minutes}m ${seconds}s`,
         {
           now: new Date(now).toISOString(),
@@ -93,7 +92,6 @@ export function logTokenExpiration(token: string, expiresAt?: number): void {
       );
     }
   } catch (err) {
-    console.warn('[TokenRefresh] Error logging token expiry:', err);
   }
 }
 
@@ -124,7 +122,6 @@ export function getTokenExpiry(token: string): number | null {
     // Get expiration timestamp in milliseconds
     return payload.exp ? payload.exp * 1000 : null;
   } catch (err) {
-    console.warn('Failed to parse JWT token:', err);
     return null;
   }
 }
@@ -202,7 +199,6 @@ export async function refreshTokenIfNeeded(client?: SupabaseClient): Promise<boo
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     
     if (sessionError) {
-      console.error('[TokenRefresh] Failed to get session:', sessionError);
       return false;
     }
     
@@ -229,7 +225,6 @@ export async function refreshTokenIfNeeded(client?: SupabaseClient): Promise<boo
       const { data, error } = await supabase.auth.refreshSession();
       
       if (error || !data.session) {
-        console.error('[TokenRefresh] Failed to refresh session:', error);
         return false;
       }
       
@@ -243,7 +238,6 @@ export async function refreshTokenIfNeeded(client?: SupabaseClient): Promise<boo
       const { data, error } = await supabase.auth.refreshSession();
       
       if (error || !data.session) {
-        console.error('[TokenRefresh] Failed to refresh session:', error);
         return false;
       }
       
@@ -261,7 +255,6 @@ export async function refreshTokenIfNeeded(client?: SupabaseClient): Promise<boo
     logTokenDebug('Token is still valid, no refresh needed');
     return true;
   } catch (err) {
-    console.error('[TokenRefresh] Error during token refresh:', err);
     return false;
   } finally {
     refreshInProgress = false;
@@ -301,7 +294,6 @@ export function startTokenRefreshTimer(): () => void {
       const interval = getRefreshInterval(expiryTime);
       refreshTimerId = setTimeout(checkAndRefresh, interval);
     } catch (err) {
-      console.error("Error in token refresh cycle:", err);
       // If error occurs, try again in default interval
       refreshTimerId = setTimeout(checkAndRefresh, DEFAULT_REFRESH_INTERVAL);
     }

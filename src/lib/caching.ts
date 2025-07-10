@@ -49,7 +49,6 @@ export function saveToCache<T>(key: string, data: T, ttl?: number): void {
     };
     localStorage.setItem(key, JSON.stringify(cacheItem));
   } catch (error) {
-    console.warn('Failed to save to cache:', error);
     // Silent fail - caching is a performance optimization, not critical
   }
 }
@@ -85,7 +84,6 @@ export function getFromCache<T>(key: string, ttl?: number, allowStale = true): T
     localStorage.removeItem(key);
     return null;
   } catch (error) {
-    console.warn('Failed to retrieve from cache:', error);
     // Remove potentially corrupted cache
     try {
       localStorage.removeItem(key);
@@ -117,7 +115,6 @@ export function markCacheAsLoading(key: string): void {
     cacheItem.isLoading = true;
     localStorage.setItem(key, JSON.stringify(cacheItem));
   } catch (error) {
-    console.warn('Failed to mark cache as loading:', error);
   }
 }
 
@@ -146,7 +143,6 @@ export function invalidateCache(key: string): void {
   try {
     localStorage.removeItem(key);
   } catch (error) {
-    console.warn('Failed to invalidate cache:', error);
   }
 }
 
@@ -174,7 +170,6 @@ export function clearAllCache(): void {
       }
     });
   } catch (error) {
-    console.warn('Failed to clear cache:', error);
   }
 }
 
@@ -207,7 +202,6 @@ export async function getAndCacheData<T>(
       return result;
     } catch (error) {
       // If the pending refresh fails, continue with our own attempt
-      console.warn(`Pending refresh for ${key} failed:`, error);
       delete pendingRefreshes[key];
     }
   }

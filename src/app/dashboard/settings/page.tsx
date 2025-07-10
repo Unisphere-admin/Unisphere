@@ -181,7 +181,6 @@ export default function SettingsPage() {
     // Fetch CSRF token on mount if not available
     if (!token) {
       fetchCsrfToken().catch(err => {
-        console.warn('Failed to fetch initial CSRF token:', err);
       });
     }
   }, [token, fetchCsrfToken]);

@@ -482,7 +482,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       if (csrfToken) {
         headers[CSRF_HEADER_NAME] = csrfToken;
       } else {
-        console.warn('CSRF token not found for markConversationAsRead. This request might fail due to CSRF protection.');
       }
       
       // Make API call to mark as read
@@ -679,7 +678,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       if (csrfToken) {
         headers[CSRF_HEADER_NAME] = csrfToken;
       } else {
-        console.warn('CSRF token not found for setUserTyping. This request might fail due to CSRF protection.');
       }
       
       // Using fetch to broadcast typing status without needing the Realtime context here
@@ -1407,7 +1405,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       try {
         await fetchCsrfToken();
       } catch (error) {
-        console.warn('Pre-fetch of CSRF token failed, will try again during conversation creation:', error);
       }
     }
     
@@ -1569,7 +1566,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
         if (csrfToken) {
           headers[CSRF_HEADER_NAME] = csrfToken;
         } else {
-          console.warn('CSRF token not found. This request might fail due to CSRF protection.');
         }
         
         const response = await fetch('/api/messages', {
@@ -1890,7 +1886,6 @@ export const MessageProvider = ({ children, pageVisibility: propPageVisibility }
       fetchCsrfToken().then(token => {
         if (token) {
         } else {
-          console.warn('Failed to fetch CSRF token, requests requiring CSRF might fail');
         }
         csrfFetchedRef.current = true;
       }).catch(error => {

@@ -150,7 +150,6 @@ export default function LoginPage() {
           localStorage.removeItem('tempConversations');
           localStorage.removeItem('tempToRealConversions');
         } catch (e) {
-          console.warn('Failed to clear temporary conversations:', e);
           // Continue login process even if this fails
         }
         

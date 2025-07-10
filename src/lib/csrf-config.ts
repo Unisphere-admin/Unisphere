@@ -25,7 +25,6 @@ export function getSecret(): string {
     } else {
       // Fall back to a generated secret (not recommended for production)
       secret = crypto.randomBytes(32).toString('base64');
-      console.warn('CSRF_SECRET environment variable not found. Using generated secret. This is not recommended for production.');
     }
   }
   

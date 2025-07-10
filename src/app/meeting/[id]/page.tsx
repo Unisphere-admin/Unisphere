@@ -650,7 +650,6 @@ export default function MeetingPage() {
               try {
                 audioTrack.close();
               } catch (audioErr) {
-                console.warn("Error closing audio track:", audioErr);
               }
               setLocalAudioTrack(null);
             }
@@ -659,7 +658,6 @@ export default function MeetingPage() {
               try {
                 videoTrack.close();
               } catch (videoErr) {
-                console.warn("Error closing video track:", videoErr);
               }
               setLocalVideoTrack(null);
             }
@@ -669,7 +667,6 @@ export default function MeetingPage() {
               try {
                 await agoraClient.leave();
               } catch (leaveErr) {
-                console.warn("Error leaving Agora channel:", leaveErr);
               }
               
               // Nullify the client reference to prevent further usage
@@ -800,7 +797,6 @@ export default function MeetingPage() {
               try {
                 await client.leave();
               } catch (leaveError) {
-                console.warn("Error leaving channel during reconnect:", leaveError);
                 // Continue with reconnection attempt even if leave fails
               }
               

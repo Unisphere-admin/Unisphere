@@ -60,7 +60,6 @@ export async function GET(req: NextRequest) {
             .single();
             
         if (userError) {
-            console.warn('Error fetching user premium status:', userError.message);
         }
         
         const hasPremiumAccess = isTutor || userData?.has_access === true;

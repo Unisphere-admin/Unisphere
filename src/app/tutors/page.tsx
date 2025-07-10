@@ -134,6 +134,42 @@ function fuzzySearch(text: string | null | undefined, query: string): boolean {
   // Exact match or substring match is ideal
   if (textLower.includes(queryLower)) return true;
   
+  // Split the query into words for multi-word searching
+  const queryWords = queryLower.split(/\s+/).filter(word => word.length > 0);
+  
+  // Special case for university searches
+  if (queryWords.length >= 2 && 
+     (queryLower.includes('university') || 
+      queryLower.includes('college') || 
+      queryLower.includes('institute'))) {
+    // Check if all significant words in the query are in the text
+    // This helps with searches like "Columbia University" matching "University of Columbia"
+    const significantWords = queryWords.filter(word => 
+      word.length > 2 && 
+      !['of', 'the', 'and', 'in', 'at', 'for'].includes(word)
+    );
+    
+    if (significantWords.length > 0) {
+      const allSignificantWordsMatch = significantWords.every(word => 
+        textLower.includes(word)
+      );
+      
+      if (allSignificantWordsMatch) {
+        return true;
+      }
+    }
+  }
+  
+  // If this is a multi-word query, try matching all words in any order
+  if (queryWords.length > 1) {
+    const allWordsMatch = queryWords.every(word => {
+      // Skip very short words (prepositions, articles, etc.)
+      if (word.length <= 2) return true;
+      return textLower.includes(word);
+    });
+    if (allWordsMatch) return true;
+  }
+  
   // Special handling for name searches - be more lenient with name matching
   // Names are typically shorter and may be searched partially
   if ((textLower.length < 20 && textLower.includes(" ")) || 
@@ -224,19 +260,6 @@ function fuzzySearch(text: string | null | undefined, query: string): boolean {
     return true;
   }
   
-  // Split the query into words for multi-word searching
-  const queryWords = queryLower.split(/\s+/).filter(word => word.length > 0);
-  
-  // If this is a multi-word query, try matching all words in any order
-  if (queryWords.length > 1) {
-    const allWordsMatch = queryWords.every(word => {
-      // Skip very short words (prepositions, articles, etc.)
-      if (word.length <= 2) return true;
-      return textLower.includes(word);
-    });
-    if (allWordsMatch) return true;
-  }
-  
   // For each word in the query, check if it matches
   for (const word of queryWords) {
     // Skip very short words (prepositions, articles, etc.) unless exact match found
@@ -315,6 +338,190 @@ function calculateSimilarity(s1: string, s2: string): number {
   return Math.min(1, baseSimilarity + prefixBonus);
 }
 
+// New function to score search relevance
+function scoreSearchRelevance(
+  tutor: TutorProfile, 
+  searchTerm: string,
+  tutorFields: {
+    fullName: string,
+    universities: string[],
+    subjects: string[],
+    major: string | null | undefined,
+    allSearchableText: string[]
+  }
+): number {
+  if (!searchTerm || searchTerm.length === 0) return 1; // Default score for no search
+  
+  const searchTermLower = searchTerm.toLowerCase();
+  const searchWords = searchTermLower.split(/\s+/).filter(word => word.length > 0);
+  
+  // Base score starts at 0
+  let score = 0;
+  
+  // 1. Exact match of full search term is highest priority
+  if (tutorFields.fullName.toLowerCase().includes(searchTermLower)) {
+    score += 100; // Very high score for exact name match
+  }
+  
+  // Check for exact match in university names
+  const hasExactUniversityMatch = tutorFields.universities.some(univ => 
+    univ.toLowerCase().includes(searchTermLower)
+  );
+  if (hasExactUniversityMatch) {
+    score += 80; // High score for university match
+  }
+  
+  // Handle university abbreviations and variations
+  if (searchTermLower.includes('university') || 
+      searchTermLower.includes('college') || 
+      searchTermLower.includes('institute')) {
+    
+    // Common abbreviations and alternative formats
+    const universityAbbreviations: Record<string, string[]> = {
+      'ucla': ['university of california los angeles', 'university of california, los angeles'],
+      'uc berkeley': ['university of california berkeley', 'university of california, berkeley'],
+      'uc davis': ['university of california davis', 'university of california, davis'],
+      'columbia': ['columbia university'],
+      'columbia university': ['columbia'],
+      'upenn': ['university of pennsylvania', 'penn'],
+      'university of pennsylvania': ['upenn', 'penn'],
+      'mit': ['massachusetts institute of technology'],
+      'caltech': ['california institute of technology'],
+      'nyu': ['new york university'],
+      'new york university': ['nyu']
+    };
+    
+    // Check if search term is a known abbreviation or has known variations
+    for (const [abbr, variations] of Object.entries(universityAbbreviations)) {
+      if (searchTermLower.includes(abbr)) {
+        // Check if any tutor university matches the variations
+        const matchesVariation = tutorFields.universities.some(univ => 
+          variations.some(variation => univ.toLowerCase().includes(variation))
+        );
+        
+        if (matchesVariation) {
+          score += 75; // Almost as good as an exact match
+        }
+      }
+      
+      // Check the reverse - if the tutor has an abbreviation but user searched for the full name
+      variations.forEach(variation => {
+        if (searchTermLower.includes(variation)) {
+          const matchesAbbr = tutorFields.universities.some(univ => 
+            univ.toLowerCase().includes(abbr)
+          );
+          
+          if (matchesAbbr) {
+            score += 75; // Almost as good as an exact match
+          }
+        }
+      });
+    }
+    
+    // Special case for multi-word university names
+    if (searchWords.length >= 2) {
+      // Check if all significant words in the search appear in any university name
+      const significantWords = searchWords.filter(word => 
+        word.length > 2 && 
+        !['of', 'the', 'and', 'in', 'at', 'for'].includes(word)
+      );
+      
+      if (significantWords.length > 0) {
+        tutorFields.universities.forEach(univ => {
+          const univLower = univ.toLowerCase();
+          let matchedWords = 0;
+          
+          significantWords.forEach(word => {
+            if (univLower.includes(word)) {
+              matchedWords++;
+            }
+          });
+          
+          // Add score based on percentage of significant words matched
+          const matchPercentage = matchedWords / significantWords.length;
+          if (matchPercentage > 0) {
+            score += Math.round(matchPercentage * 60); // Up to 60 points
+          }
+        });
+      }
+    }
+  }
+  
+  // Check for exact match in subjects
+  const hasExactSubjectMatch = tutorFields.subjects.some(subject => 
+    subject.toLowerCase().includes(searchTermLower)
+  );
+  if (hasExactSubjectMatch) {
+    score += 60; // Good score for subject match
+  }
+  
+  // Check for exact match in major
+  if (tutorFields.major && tutorFields.major.toLowerCase().includes(searchTermLower)) {
+    score += 50; // Decent score for major match
+  }
+  
+  // 2. For multi-word searches, prioritize tutors matching all words
+  if (searchWords.length > 1) {
+    // Count how many search words match any field
+    let matchedWordCount = 0;
+    
+    for (const word of searchWords) {
+      if (word.length <= 2) continue; // Skip very short words
+      
+      const wordMatches = tutorFields.allSearchableText.some(text => 
+        text.toLowerCase().includes(word)
+      );
+      
+      if (wordMatches) {
+        matchedWordCount++;
+      }
+    }
+    
+    // Calculate percentage of words matched
+    const matchPercentage = matchedWordCount / searchWords.length;
+    
+    // Add score based on percentage of words matched (up to 40 points)
+    score += Math.round(matchPercentage * 40);
+    
+    // Bonus for matching all words
+    if (matchPercentage === 1) {
+      score += 20;
+    }
+    
+    // Special bonus for university searches with multiple words (e.g., "Columbia University")
+    if (searchWords.length >= 2 && searchTermLower.includes('university')) {
+      const universityMatches = tutorFields.universities.some(univ => {
+        const univLower = univ.toLowerCase();
+        return searchWords.every(word => {
+          if (word.length <= 2) return true; // Skip short words
+          return univLower.includes(word);
+        });
+      });
+      
+      if (universityMatches) {
+        score += 30; // Bonus for matching all parts of a university name
+      }
+    }
+  }
+  
+  // 3. Prioritize name matches
+  const nameWords = tutorFields.fullName.toLowerCase().split(/\s+/);
+  for (const word of searchWords) {
+    if (word.length <= 2) continue; // Skip very short words
+    
+    // Check if any name part starts with this search word
+    const nameStartMatch = nameWords.some(nameWord => 
+      nameWord.startsWith(word)
+    );
+    
+    if (nameStartMatch) {
+      score += 15; // Bonus for matching start of name
+    }
+  }
+  
+  return score;
+}
+
 // List of available subjects (will be populated dynamically)
 const DEFAULT_SUBJECTS = [
   "Mathematics", 
@@ -390,6 +597,13 @@ const getUniversityLogo = (universityName: string | null | undefined): string | 
   // Normalize the university name for comparison
   const normalizedName = universityName.toLowerCase().trim();
   
+  // Direct check for UCLA
+  if (universityName.includes('UCLA') || 
+      normalizedName.includes('university of california, los angeles') ||
+      normalizedName.includes('university of california los angeles')) {
+    return '/Unilogos/UCLA Logo.png';
+  }
+  
   // Map of university name patterns to their logo files
   const universityLogoMap: Record<string, string> = {
     'oxford': '/Unilogos/Oxford Logo.png',
@@ -414,6 +628,24 @@ const getUniversityLogo = (universityName: string | null | undefined): string | 
     'uc davis': '/Unilogos/UCDavis Logo.png',
     'university of california, davis': '/Unilogos/UCDavis Logo.png',
     'university of california davis': '/Unilogos/UCDavis Logo.png',
+    'ucla': '/Unilogos/UCLA Logo.png',
+    'university of california, los angeles': '/Unilogos/UCLA Logo.png',
+    'university of california los angeles': '/Unilogos/UCLA Logo.png',
+    'University of California, Los Angeles': '/Unilogos/UCLA Logo.png',
+    'los angeles': '/Unilogos/UCLA Logo.png',
+    'duke': '/Unilogos/Duke Logo.png',
+    'duke university': '/Unilogos/Duke Logo.png',
+    'northwestern': '/Unilogos/Northwestern Logo.png',
+    'northwestern university': '/Unilogos/Northwestern Logo.png',
+    'michigan': '/Unilogos/Michigan Logo.png',
+    'university of michigan': '/Unilogos/Michigan Logo.png',
+    'umich': '/Unilogos/Michigan Logo.png',
+    'washington': '/Unilogos/UWashington Logo.png',
+    'university of washington': '/Unilogos/UWashington Logo.png',
+    'uw': '/Unilogos/UWashington Logo.png',
+    'usc': '/Unilogos/USC Logo.png',
+    'university of southern california': '/Unilogos/USC Logo.png',
+    'southern california': '/Unilogos/USC Logo.png',
     'mit': '/Unilogos/MIT Logo.png',
     'massachusetts institute of technology': '/Unilogos/MIT Logo.png',
     'nyu': '/Unilogos/NYU Logo.png',
@@ -446,6 +678,7 @@ const getUniversityLogo = (universityName: string | null | undefined): string | 
     const ucCampuses = [
       { name: 'berkeley', logo: '/Unilogos/UCBerkeley Logo.png' },
       { name: 'davis', logo: '/Unilogos/UCDavis Logo.png' },
+      { name: 'los angeles', logo: '/Unilogos/UCLA Logo.png' },
       // Add other UC campuses if logos are available
     ];
     
@@ -472,6 +705,9 @@ const getUniversityLogo = (universityName: string | null | undefined): string | 
     if (normalizedName.includes('dav')) {
       return '/Unilogos/UCDavis Logo.png';
     }
+    if (normalizedName.includes('los angel')) {
+      return '/Unilogos/UCLA Logo.png';
+    }
   }
   
   return null;
@@ -484,10 +720,18 @@ const extractUniversityName = (education: string | string[] | null | undefined):
   // If education is an array, use the first item
   const educationText = Array.isArray(education) ? education[0] : education;
   
+  // Direct check for UCLA
+  if (educationText.includes('UCLA') || 
+      educationText.toLowerCase().includes('university of california, los angeles') ||
+      educationText.toLowerCase().includes('university of california los angeles')) {
+    return 'University of California, Los Angeles';
+  }
+  
   // Special handling for specific patterns
   if (educationText.includes('University of California')) {
     // Return the full UC name including campus
-    const matches = educationText.match(/University of California,?\s+[A-Za-z]+/i);
+    // Updated regex to handle multi-word campus names like "Los Angeles"
+    const matches = educationText.match(/University of California,?\s+(?:[A-Za-z]+\s*)+/i);
     if (matches && matches[0]) {
       return matches[0];
     }
@@ -495,11 +739,13 @@ const extractUniversityName = (education: string | string[] | null | undefined):
   
   // Common patterns to extract university names
   if (educationText.includes(' at ')) {
-    return educationText.split(' at ')[1].trim();
+    const extracted = educationText.split(' at ')[1].trim();
+    return extracted;
   }
   
   if (educationText.includes(', ')) {
-    return educationText.split(', ')[0].trim();
+    const extracted = educationText.split(', ')[0].trim();
+    return extracted;
   }
   
   return educationText;
@@ -551,7 +797,6 @@ export default function TutorsPage() {
         return response;
       } catch (error) {
         lastError = error;
-        console.warn(`Fetch attempt ${attempt + 1}/${maxRetries + 1} failed:`, error);
       }
     }
     
@@ -607,7 +852,6 @@ export default function TutorsPage() {
             return;
           }
         } catch (err) {
-          console.warn('Error parsing cached ratings:', err);
         }
       }
       
@@ -653,7 +897,6 @@ export default function TutorsPage() {
             }));
           }
         } catch (err) {
-          console.warn('Error fetching ratings:', err);
         }
       }
       
@@ -969,11 +1212,46 @@ export default function TutorsPage() {
     const matchesSearch = searchTerm.length === 0 || 
       searchableKeywords.some(keyword => fuzzySearch(keyword, searchTerm));
     
+    // Store tutor fields for scoring
+    if (matchesSearch && matchesSubjects && matchesSchools && matchesUniversities) {
+      // Attach search fields to tutor for later scoring
+      (tutor as any)._searchFields = {
+        fullName,
+        universities: tutorUniversities,
+        subjects: tutorSubjects,
+        major: tutor.major,
+        allSearchableText: searchableKeywords
+      };
+      
+      // Pre-calculate search score
+      if (searchTerm.length > 0) {
+        (tutor as any)._searchScore = scoreSearchRelevance(
+          tutor, 
+          searchTerm, 
+          (tutor as any)._searchFields
+        );
+      }
+    }
+    
     return matchesSearch && matchesSubjects && matchesSchools && matchesUniversities;
   });
 
-  // Sort tutors based on selected sort order
+  // Sort tutors based on selected sort order or search relevance
   const sortedTutors = [...filteredTutors].sort((a: TutorProfile, b: TutorProfile) => {
+    // If there's a search term, prioritize by search relevance score
+    if (searchTerm.length > 0) {
+      const aScore = (a as any)._searchScore || 0;
+      const bScore = (b as any)._searchScore || 0;
+      
+      // If scores are different, sort by score
+      if (aScore !== bScore) {
+        return bScore - aScore; // Higher score first
+      }
+      
+      // If scores are equal, use the selected sort order as a tiebreaker
+    }
+    
+    // Fall back to the selected sort order
     if (sortOrder === "rating") {
       // Use API ratings data for sorting
       const aRating = tutorRatings[a.id]?.averageRating || 0;

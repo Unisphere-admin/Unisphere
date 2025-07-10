@@ -38,13 +38,9 @@ export default function ProtectedPageWrapper({ children }: ProtectedPageWrapperP
     } 
     // If settings page, allow access to any authenticated user
     else if (!hasAccess && !isSettingsPage) {
-      console.warn('User does not have premium access, redirecting to paywall', {
-        id: user.id,
-        role: user.role,
-        has_access: user.has_access,
-        path: pathname
-      });
-      router.replace('/paywall');
+      // Object was part of a removed console.warn statement
+      router.push('/paywall');
+      // Don't return null from useEffect
     }
   }, [user, loading, router, pathname, isSettingsPage]);
 

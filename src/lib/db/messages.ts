@@ -747,7 +747,6 @@ async function _markConversationAsRead(authUser: AuthUser, conversationId: strin
     }
     
     if (!updateData || updateData.length === 0) {
-      console.warn('Update succeeded but no rows were updated');
     } else {
     }
     

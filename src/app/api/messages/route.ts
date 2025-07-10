@@ -110,7 +110,6 @@ async function getMessagesHandler(
         const participantsMap: Record<string, any> = {};
         conversation.participants?.forEach(participant => {
           if (!participant.user_id) {
-            console.warn(`Participant without user_id found in conversation ${conversationId}`);
             return;
           }
           participantsMap[participant.user_id] = participant;

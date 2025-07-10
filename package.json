@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:production": "./build-production.sh",
     "start": "next start",
     "lint": "next lint"
   },

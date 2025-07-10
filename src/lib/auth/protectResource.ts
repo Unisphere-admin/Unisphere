@@ -34,12 +34,10 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     const { data: { user }, error } = await supabase.auth.getUser();
     
     if (error) {
-      console.warn('Authentication check failed:', error.message);
       return null;
     }
     
     if (!user) {
-      console.warn('No user found in authentication check');
       return null;
     }
     
@@ -51,7 +49,6 @@ export async function getAuthUser(): Promise<AuthUser | null> {
       .single();
     
     if (userError) {
-      console.warn('Error fetching user data:', userError.message);
     }
     
     return {
@@ -126,6 +123,7 @@ export const PREMIUM_PATHS = [
   '/tutors',
   '/tutors/',
   '/session',
+  '/resources', // Add resources page
   '/api/conversations',
   '/api/messages',
   '/api/tutoring-sessions',
@@ -179,6 +177,11 @@ export function requiresPremiumAccess(path: string): boolean {
     path !== '/dashboard/settings' && 
     !path.startsWith('/dashboard/settings/')
   ) {
+    return true;
+  }
+  
+  // Resources page requires premium
+  if (path === '/resources' || path.startsWith('/resources/')) {
     return true;
   }
   
