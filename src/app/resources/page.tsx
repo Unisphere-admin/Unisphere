@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,7 +20,6 @@ import {
   Folder,
   FolderOpen,
   ChevronRight,
-  Eye,
   Home
 } from "lucide-react";
 import { toast } from "sonner";
@@ -30,7 +29,6 @@ import {
   ResourceFolder,
   getResources, 
   downloadResource,
-  getFilePreviewUrl,
   searchResources, 
   formatFileSize 
 } from "@/lib/db/resources";
@@ -49,11 +47,6 @@ export default function ResourcesPage() {
   const [initialLoad, setInitialLoad] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
-  const [previewFile, setPreviewFile] = useState<ResourceFile | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [downloadingFile, setDownloadingFile] = useState<ResourceFile | null>(null);
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
@@ -202,24 +195,16 @@ export default function ResourcesPage() {
   useEffect(() => {
     return () => {
       // Clean up any open dialogs or pending downloads
-      if (isPreviewOpen) {
-        setIsPreviewOpen(false);
-      }
       if (showDisclaimer) {
         setShowDisclaimer(false);
       }
-      if (previewUrl) {
-        // Revoke any object URLs to prevent memory leaks
-        URL.revokeObjectURL(previewUrl);
-      }
     };
-  }, [isPreviewOpen, showDisclaimer, previewUrl]);
+  }, [showDisclaimer]);
 
   // Improved folder navigation with error handling
   const navigateToFolder = (folderPath: string) => {
     try {
       // Reset any open dialogs
-      setIsPreviewOpen(false);
       setShowDisclaimer(false);
       
       // Navigate to the new path
@@ -233,7 +218,6 @@ export default function ResourcesPage() {
   const navigateToBreadcrumb = (path: string) => {
     try {
       // Reset any open dialogs
-      setIsPreviewOpen(false);
       setShowDisclaimer(false);
       
       if (path === '') {
@@ -332,88 +316,6 @@ export default function ResourcesPage() {
     // Don't store acceptance state between downloads
   };
   
-  // Initiate download from preview dialog
-  const initiateDownloadFromPreview = (file: ResourceFile) => {
-    // Store the file for download before closing the preview
-    const fileToDownload = {...file};
-    
-    // First close the preview dialog to avoid UI conflicts
-    handleClosePreview();
-    
-    // Then after a short delay, show the disclaimer
-    setTimeout(() => {
-      initiateDownload(fileToDownload);
-    }, 350); // Slightly longer delay for better UX
-  };
-
-  // Preview file
-  const handlePreview = async (file: ResourceFile) => {
-    try {
-      // Set loading state first
-      setIsPreviewLoading(true);
-      setPreviewFile(file);
-      
-      // Then open the dialog
-      setIsPreviewOpen(true);
-      
-      // Fetch the URL
-      const url = await getFilePreviewUrl(file.path);
-      
-      if (!url) {
-        throw new Error("Failed to generate preview URL");
-      }
-      
-      // Only set the URL if the dialog is still open
-      // This prevents issues if the user closes the dialog during loading
-      if (isPreviewOpen) {
-        setPreviewUrl(url);
-      }
-    } catch (error) {
-      toast.error("Failed to preview file");
-      setIsPreviewOpen(false);
-      setPreviewFile(null);
-    } finally {
-      // Only update loading state if the dialog is still open
-      if (isPreviewOpen) {
-        setIsPreviewLoading(false);
-      }
-    }
-  };
-
-  // Handle iframe load event
-  const handleIframeLoad = () => {
-    setIsPreviewLoading(false);
-  };
-
-  // Close preview with proper cleanup
-  const handleClosePreview = () => {
-    // First close the dialog
-    setIsPreviewOpen(false);
-    
-    // Then clean up resources after a short delay
-    // This prevents visual glitches during the closing animation
-    setTimeout(() => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-      setPreviewFile(null);
-      setPreviewUrl(null);
-    }, 300);
-  };
-  
-  // Prevent event bubbling for card clicks
-  const handleCardClick = (e: React.MouseEvent, resource: ResourceFile) => {
-    e.preventDefault();
-    e.stopPropagation();
-    handlePreview(resource);
-  };
-  
-  // Prevent event bubbling for button clicks
-  const handleButtonClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
   // If user is not authorized, show loading or redirect
   if (authLoading || (!user || (user.role !== 'tutor' && !user.has_access))) {
     return (
@@ -587,7 +489,7 @@ export default function ResourcesPage() {
                 <Card 
                   key={resource.id} 
                   className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={(e) => handleCardClick(e, resource)}
+                  onClick={() => initiateDownload(resource)}
                 >
                   <CardContent className="p-0">
                     <div className="p-4 flex flex-col h-full">
@@ -596,7 +498,7 @@ export default function ResourcesPage() {
                           <FileText className="h-5 w-5 text-primary" />
                         </div>
                         <div className="overflow-hidden">
-                          <h3 className="font-medium text-sm line-clamp-1">{resource.displayName}</h3>
+                          <h3 className="font-medium text-sm break-words">{resource.displayName}</h3>
                           <p className="text-xs text-muted-foreground">
                             {formatFileSize(resource.size)}
                           </p>
@@ -620,19 +522,7 @@ export default function ResourcesPage() {
                           variant="outline" 
                           size="sm" 
                           className="flex-1 py-2 h-auto min-h-9 touch-manipulation"
-                          onClick={(e) => handleCardClick(e, resource)}
-                        >
-                          <Eye className="h-4 w-4 mr-1 sm:mr-2" />
-                          <span className="sm:inline">View</span>
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="flex-1 py-2 h-auto min-h-9 touch-manipulation"
-                          onClick={(e) => {
-                            handleButtonClick(e);
-                            initiateDownload(resource);
-                          }}
+                          onClick={() => initiateDownload(resource)}
                           disabled={downloading === resource.path}
                         >
                           {downloading === resource.path ? (
@@ -671,72 +561,6 @@ export default function ResourcesPage() {
           )} */}
         </div>
       )}
-
-      {/* PDF Preview Dialog */}
-      <Dialog 
-        open={isPreviewOpen} 
-        onOpenChange={(open) => {
-          if (!open) handleClosePreview();
-        }}
-      >
-        <DialogContent 
-          className="max-w-4xl w-[95vw] h-[80vh] max-h-[85vh] flex flex-col"
-          onInteractOutside={(e) => {
-            // Prevent closing when interacting with iframe
-            e.preventDefault();
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle className="flex items-center text-base sm:text-lg pr-6">
-              <FileText className="h-5 w-5 mr-2 flex-shrink-0" />
-              <span className="line-clamp-1">{previewFile?.displayName}</span>
-            </DialogTitle>
-          </DialogHeader>
-          
-          <div className="flex-1 relative mt-2 sm:mt-4 border rounded-md overflow-hidden">
-            {isPreviewLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            )}
-            
-            {previewUrl && (
-              <iframe
-                ref={iframeRef}
-                src={previewUrl}
-                className="w-full h-full"
-                onLoad={handleIframeLoad}
-                title={previewFile?.displayName || "PDF Preview"}
-              />
-            )}
-          </div>
-          
-          <div className="flex justify-between items-center mt-4">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleClosePreview}
-            >
-              Close
-            </Button>
-            
-            {previewFile && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={(e) => {
-                  handleButtonClick(e);
-                  initiateDownloadFromPreview(previewFile);
-                }}
-                className="flex items-center"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Download
-              </Button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Download Disclaimer Dialog */}
       <Dialog 

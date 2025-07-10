@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BookOpen, ArrowRight, Loader2, X, LockKeyhole, Mail, User, Shield, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -28,7 +27,6 @@ export default function LoginPage() {
   const router = useRouter();
   const { refreshUser, user } = useAuth();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
   const [isLoading, setIsLoading] = useState(false);
   
   // Extract redirectTo from URL if present
@@ -41,9 +39,6 @@ export default function LoginPage() {
   // Form states
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
   const [error, setError] = useState("");
   const [errorType, setErrorType] = useState<"general" | "auth" | "profile">("general");
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
@@ -74,19 +69,6 @@ export default function LoginPage() {
       const message = searchParams.get("message") || "Authentication failed";
       setError(message);
       setErrorType(errorParam === "profile" ? "profile" : "auth");
-    }
-    
-    // Check for successful signup
-    const signupSuccess = searchParams.get("signup") === "success";
-    if (signupSuccess) {
-      toast({
-        title: "Account created successfully",
-        description: "Please check your email for a verification link before logging in.",
-        variant: "default",
-      });
-      
-      // Set active tab to login
-      setActiveTab("login");
     }
   }, [searchParams, toast]);
 
@@ -327,117 +309,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setErrorType("general");
-    
-    // Sanitize inputs
-    const sanitizedEmail = sanitizeInput(email);
-    const sanitizedFirstName = sanitizeInput(firstName);
-    const sanitizedLastName = sanitizeInput(lastName);
-    
-    // Email validation
-    try {
-      emailSchema.parse(sanitizedEmail);
-    } catch (err: any) {
-      setError(err.errors?.[0]?.message || "Invalid email address");
-      return;
-    }
-    
-    // Name validation
-    try {
-      nameSchema.parse(sanitizedFirstName);
-      nameSchema.parse(sanitizedLastName);
-    } catch (err: any) {
-      setError(err.errors?.[0]?.message || "Invalid name format");
-      return;
-    }
-    
-    // Password validation
-    try {
-      passwordSchema.parse(password);
-    } catch (err: any) {
-      setError(err.errors?.[0]?.message || "Password does not meet requirements");
-      return;
-    }
-    
-    // Password match check
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-    
-    // Check for malicious content
-    if (
-      checkForMaliciousContent(sanitizedEmail) || 
-      checkForMaliciousContent(password) ||
-      checkForMaliciousContent(sanitizedFirstName) ||
-      checkForMaliciousContent(sanitizedLastName)
-    ) {
-      setError("Invalid input detected");
-      return;
-    }
-    
-    setIsLoading(true);
-    
-    try {
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      
-      // Only add CSRF token if it exists
-      if (token) {
-        headers['X-CSRF-Token'] = token;
-      }
-      
-      // Use the API route for signup with CSRF token
-      const response = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          email: sanitizedEmail, 
-        password,
-          confirmPassword,
-          first_name: sanitizedFirstName, 
-          last_name: sanitizedLastName,
-          userType: 'student'
-        }),
-        credentials: 'include',
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Signup failed');
-      }
-
-      const data = await response.json();
-      
-      // Show success message
-      toast({
-        title: "Account created successfully",
-        description: "Please check your email to verify your account.",
-      });
-      
-      // Switch to login tab
-      setActiveTab("login");
-      
-      // Clear the form
-      setEmail(sanitizedEmail); // Keep email for convenience
-      setPassword("");
-      setConfirmPassword("");
-      setFirstName("");
-      setLastName("");
-      
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to create account";
-      setError(errorMessage);
-      setErrorType("auth");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // Render error based on type
   const renderError = () => {
     if (!error) return null;
@@ -485,193 +356,78 @@ export default function LoginPage() {
       
       <div className="relative z-10 max-w-md w-full">
         <Card className="border-border/40 shadow-xl backdrop-blur-sm bg-card/95">
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "login" | "signup")} className="w-full">
-            <TabsList className="grid grid-cols-2 w-full mb-2 bg-muted/50">
-              <TabsTrigger value="login" className="rounded-md data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm">Login</TabsTrigger>
-              <TabsTrigger value="signup" className="rounded-md data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm">Sign Up</TabsTrigger>
-          </TabsList>
-          
-            <TabsContent value="login" className="mt-0 pt-4">
-              <CardHeader className="px-6 pb-2">
-                <CardTitle className="text-xl">Welcome back</CardTitle>
-                <CardDescription>Enter your credentials to access your account</CardDescription>
-              </CardHeader>
-              <form onSubmit={handleLogin}>
-                <CardContent className="px-6 space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email" className="text-sm font-medium">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      placeholder="name@example.com" 
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                        className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-                      required
-                    />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="password" className="text-sm font-medium">Password</Label>
-                      <button
-                        type="button" 
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setResetEmail(email);
-                          setShowResetPasswordForm(true);
-                        }}
-                        className="text-xs text-primary hover:underline"
-                      >
-                        Forgot password?
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <LockKeyhole className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      id="password" 
-                      type="password" 
-                      placeholder="••••••••" 
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                        className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-                      required
-                    />
-                    </div>
-                  </div>
-                  
-                  {renderError()}
-                </CardContent>
-                <CardFooter className="px-6 pt-2">
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow-md transition-all"
-                    disabled={isLoading}
+          <CardHeader className="px-6 pb-2">
+            <CardTitle className="text-xl">Welcome back</CardTitle>
+            <CardDescription>Enter your credentials to access your account</CardDescription>
+          </CardHeader>
+          <form onSubmit={handleLogin}>
+            <CardContent className="px-6 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="name@example.com" 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
+                  required
+                />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+                  <button
+                    type="button" 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setResetEmail(email);
+                      setShowResetPasswordForm(true);
+                    }}
+                    className="text-xs text-primary hover:underline"
                   >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Please wait
-                      </>
-                    ) : (
-                      <>
-                        Login
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </>
-                    )}
-                  </Button>
-                </CardFooter>
-              </form>
-          </TabsContent>
-          
-            <TabsContent value="signup" className="mt-0 pt-4">
-              <CardHeader className="px-6 pb-2">
-                <CardTitle className="text-xl">Create Student Account</CardTitle>
-                <CardDescription>Enter your details to create a new student account</CardDescription>
-              </CardHeader>
-              <form onSubmit={handleSignup}>
-                <CardContent className="px-6 space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="first-name" className="text-sm font-medium">First Name</Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        id="first-name" 
-                        type="text" 
-                        placeholder="John" 
-                        value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                          className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-                        required
-                      />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="last-name" className="text-sm font-medium">Last Name</Label>
-                      <Input 
-                        id="last-name" 
-                        type="text" 
-                        placeholder="Doe" 
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        className="border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email" className="text-sm font-medium">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      id="signup-email" 
-                      type="email" 
-                      placeholder="name@example.com" 
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                        className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-                      required
-                    />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password" className="text-sm font-medium">Password</Label>
-                    <div className="relative">
-                      <LockKeyhole className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      id="signup-password" 
-                      type="password" 
-                      placeholder="••••••••" 
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                        className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-                      required
-                    />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="confirm-password" className="text-sm font-medium">Confirm Password</Label>
-                    <div className="relative">
-                      <Shield className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      id="confirm-password" 
-                      type="password" 
-                      placeholder="••••••••" 
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-                      required
-                    />
-                    </div>
-                  </div>
-                  
-                  {renderError()}
-                </CardContent>
-                <CardFooter className="px-6 pt-2">
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow-md transition-all"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating account
-                      </>
-                    ) : (
-                      <>
-                        Create account
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </>
-                    )}
-                  </Button>
-                </CardFooter>
-              </form>
-          </TabsContent>
-        </Tabs>
+                    Forgot password?
+                  </button>
+                </div>
+                <div className="relative">
+                  <LockKeyhole className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  id="password" 
+                  type="password" 
+                  placeholder="••••••••" 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                    className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
+                  required
+                />
+                </div>
+              </div>
+              
+              {renderError()}
+            </CardContent>
+            <CardFooter className="px-6 pt-2">
+              <Button 
+                type="submit" 
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow-md transition-all"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Please wait
+                  </>
+                ) : (
+                  <>
+                    Login
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </CardFooter>
+          </form>
         </Card>
         
         <div className="mt-6 text-center text-sm text-muted-foreground">

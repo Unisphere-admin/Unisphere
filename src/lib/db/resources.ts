@@ -241,18 +241,32 @@ export async function getResources(
  */
 export async function getFilePreviewUrl(filePath: string): Promise<string | null> {
   try {
-    const supabase = createClient();
+    // For PDF files, we'll use Google's PDF viewer for better compatibility
+    const fileExtension = filePath.split('.').pop()?.toLowerCase();
     
-    const { data, error } = await supabase.storage
-      .from('resources')
-      .createSignedUrl(filePath, 60 * 5); // 5 minutes expiry
-    
-    if (error) {
-      throw error;
+    // Get the direct download URL first
+    const file = await downloadResource(filePath);
+    if (!file) {
+      return null;
     }
-
-    return data.signedUrl;
+    
+    // Create a blob URL
+    const blobUrl = URL.createObjectURL(file);
+    
+    // For PDFs, we can use Google's PDF viewer for better cross-platform compatibility
+    if (fileExtension === 'pdf') {
+      // For production/Vercel environments, use Google PDF Viewer
+      if (process.env.NODE_ENV === 'production' || typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+        // We need to create a temporary anchor with download attribute to get the file
+        // This is a workaround for Vercel's serverless environment
+        return `https://docs.google.com/viewer?url=${encodeURIComponent(window.location.origin + '/api/resources/view?path=' + encodeURIComponent(filePath))}&embedded=true`;
+      }
+    }
+    
+    // For local development or non-PDF files, use blob URL directly
+    return blobUrl;
   } catch (error) {
+    console.error('Error generating preview URL:', error);
     return null;
   }
 }
