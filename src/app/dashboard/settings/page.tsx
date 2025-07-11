@@ -1449,9 +1449,9 @@ export default function SettingsPage() {
                 {/* Services Selection */}
                 <div className="space-y-4">
                   <FormLabel className="text-base font-semibold">Services</FormLabel>
-                  <div className="text-sm text-muted-foreground mb-3">
-                    Select the services you offer and set their costs in tokens. Students will pay these tokens to access your services.
-                  </div>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Select the services you offer and set their costs in Credits. Students will pay these Credits to access your services.
+                  </p>
                   <div className="bg-muted/30 p-4 rounded-md border border-border/40">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {serviceOptions.map((service) => {
@@ -1519,7 +1519,7 @@ export default function SettingsPage() {
                             {isChecked && (
                               <div className="ml-6 flex items-center space-x-2">
                                 <Label htmlFor={`cost-${service}`} className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                                  Cost (tokens):
+                                  Cost (Credits):
                                 </Label>
                                 <div className="relative flex-grow">
                                   <Input

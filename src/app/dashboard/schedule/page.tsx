@@ -570,7 +570,7 @@ export default function SchedulePage() {
                             {loadingSessions ? (
                               "Cost: Loading..."
                             ) : (
-                              <>Cost: {session.cost ?? '...'} {session.cost ? (session.cost === 1 ? 'token' : 'tokens') : ''}</>
+                              <>Cost: {session.cost ?? '...'} {session.cost ? (session.cost === 1 ? 'Credit' : 'Credits') : ''}</>
                             )}
                           </span>
                         </div>

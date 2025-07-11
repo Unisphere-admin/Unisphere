@@ -667,7 +667,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         switch(updatedSession.status) {
           case 'accepted':
             if (user.id === updatedSession.student_id) {
-              const costDisplay = updatedSession.cost ? ` (${updatedSession.cost} tokens)` : '';
+              const costDisplay = updatedSession.cost ? ` (${updatedSession.cost} Credits)` : '';
               notificationContent = `Your session "${sessionName}"${costDisplay} has been accepted`;
             }
             break;

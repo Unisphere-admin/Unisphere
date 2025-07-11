@@ -945,7 +945,7 @@ export function SessionRequestCard({
               </div>
               <div className="flex items-center text-sm text-red-700/70 dark:text-red-400/70 mt-1">
                 <span className="font-medium">
-                  Cost: {cost ?? '...'} {cost ? (cost === 1 ? 'token' : 'tokens') : ''}
+                  Cost: {cost ?? '...'} {cost ? (cost === 1 ? 'Credit' : 'Credits') : ''}
                 </span>
               </div>
               <div className="mt-3 text-sm text-red-700 dark:text-red-400">
@@ -1001,7 +1001,7 @@ export function SessionRequestCard({
                   {isLoading ? (
                     "Cost: Loading..."
                   ) : (
-                    <>Cost: {cost ?? '...'} {cost ? (cost === 1 ? 'token' : 'tokens') : ''}</>
+                    <>Cost: {cost ?? '...'} {cost ? (cost === 1 ? 'Credit' : 'Credits') : ''}</>
                   )}
                 </span>
               </div>
@@ -1045,7 +1045,7 @@ export function SessionRequestCard({
             </div>
             <div className="flex items-center text-sm text-muted-foreground mt-1">
               <span className="font-medium">
-                <>Cost: {cost ?? '...'} {cost ? (cost === 1 ? 'token' : 'tokens') : ''}</>
+                <>Cost: {cost ?? '...'} {cost ? (cost === 1 ? 'Credit' : 'Credits') : ''}</>
               </span>
             </div>
             {renderReadyStatus()}

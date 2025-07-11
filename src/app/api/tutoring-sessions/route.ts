@@ -511,8 +511,8 @@ async function patchTutoringSessionsHandler(
           if (user.id === sessionData.student_id) {
             // Student is accepting - check own tokens
             if (user.tokens !== undefined && user.tokens < sessionCost) {
-              return NextResponse.json({ 
-                error: `You don't have enough tokens for this session. Required: ${sessionCost}, Available: ${user.tokens}` 
+              return NextResponse.json({
+                error: `You don't have enough Credits for this session. Required: ${sessionCost}, Available: ${user.tokens}`
               }, { status: 400 });
             }
             response = await updateSessionStatus(user, session_id, status);
@@ -520,8 +520,8 @@ async function patchTutoringSessionsHandler(
             // Tutor is accepting - check student tokens via edge function
             const studentTokens = await getUserTokens(sessionData.student_id);
             if (studentTokens < sessionCost) {
-              return NextResponse.json({ 
-                error: `Student does not have enough tokens for this session. Required: ${sessionCost}, Available: ${studentTokens}` 
+              return NextResponse.json({
+                error: `Student does not have enough Credits for this session. Required: ${sessionCost}, Available: ${studentTokens}`
               }, { status: 400 });
             }
             

@@ -315,8 +315,18 @@ export default function MessagesPage() {
       session
     })) as SessionItem[];
 
+    // Check if we have new sessions
+    const hasNewSessions = newSessionItems.length > sessionItems.length;
+
     setSessionItems(newSessionItems);
-  }, [sessions, selectedConversationId]);
+    
+    // If we have new sessions and user is at the bottom, scroll to bottom
+    if (hasNewSessions && shouldAutoScrollRef.current && messagesEndRef.current) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    }
+  }, [sessions, selectedConversationId, sessionItems.length]);
   
   // Update the effect that handles URL parameters
   useEffect(() => {
@@ -785,7 +795,15 @@ export default function MessagesPage() {
       });
       
       // Refresh data to show the new session - force refresh sessions
-      refreshSessions();
+      await refreshSessions();
+      
+      // Scroll to bottom after creating the session
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+          shouldAutoScrollRef.current = true;
+        }
+      }, 300); // Slightly longer delay to ensure sessions are loaded
     } catch (error) {
       toast({
         variant: "destructive",
@@ -800,7 +818,7 @@ export default function MessagesPage() {
   // This runs synchronously after DOM updates but before browser paint
   useLayoutEffect(() => {
     if (selectedConversationId && 
-        messages[selectedConversationId]?.length > 0 && 
+        ((messages[selectedConversationId]?.length > 0) || sessionItems.length > 0) && 
         !messageId && !sessionId && !isJumpingToSpecificMessage.current) {
       
       // Directly scroll to bottom without animation
@@ -811,7 +829,7 @@ export default function MessagesPage() {
         shouldAutoScrollRef.current = true;
       }
     }
-  }, [selectedConversationId, messages, messageId, sessionId]);
+  }, [selectedConversationId, messages, sessionItems, messageId, sessionId]);
 
   // Handle typing indicator
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1154,6 +1172,15 @@ export default function MessagesPage() {
     }
   }, [messages, selectedConversationId]);
 
+  // Auto-scroll when new sessions appear, if user was scrolled to bottom
+  useEffect(() => {
+    if (shouldAutoScrollRef.current && sessionItems.length > 0) {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  }, [sessionItems]);
+  
   // Automatically load messages when conversation changes, but with strict controls to prevent duplicate fetches
   useEffect(() => {
     if (!selectedConversationId) return;
@@ -1382,6 +1409,15 @@ export default function MessagesPage() {
       document.head.removeChild(style);
     };
   }, []);
+
+  // Auto-scroll when combinedItems change (either messages or sessions), if user was scrolled to bottom
+  useEffect(() => {
+    if (shouldAutoScrollRef.current && combinedItems.length > 0) {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  }, [combinedItems]);
 
   return (
     <div className="min-h-[calc(100vh-4rem)] w-full relative">
@@ -1653,7 +1689,7 @@ export default function MessagesPage() {
                       </div>
                       <div className="grid gap-2">
                         <label htmlFor="session-cost" className="text-sm font-medium">
-                          Cost (tokens)
+                          Cost (Credits)
                         </label>
                         <Input
                           id="session-cost"
@@ -1668,7 +1704,7 @@ export default function MessagesPage() {
                           className="border-border/40"
                         />
                         <p className="text-xs text-muted-foreground">
-                          Students will need this many tokens to accept the session
+                          Students will need this many Credits to accept the session
                         </p>
                       </div>
                     </div>

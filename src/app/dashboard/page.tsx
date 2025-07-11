@@ -327,7 +327,7 @@ export default function DashboardPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
               <Wallet className="h-5 w-5" strokeWidth={1.5} />
-              Available Tokens
+              Available Credits
             </CardTitle>
             <CardDescription className="text-primary-foreground/80">
               Your current balance
@@ -337,8 +337,8 @@ export default function DashboardPage() {
             <div className="text-4xl font-bold">{user?.tokens || 0}</div>
             <p className="text-sm mt-2 text-primary-foreground/80">
               {isStudent 
-                ? "Tokens are used to book tutoring sessions"
-                : "Earn tokens when students book your sessions"}
+                ? "Credits are used to book tutoring sessions"
+                : "Earn Credits when students book your sessions"}
             </p>
           </CardContent>
         </Card>

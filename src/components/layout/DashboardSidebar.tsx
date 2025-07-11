@@ -110,7 +110,7 @@ const DashboardSidebar = () => {
           <div className="flex justify-between items-center p-2 px-4 bg-muted/40">
             <div className="flex items-center gap-1.5 text-xs font-medium">
               <Wallet className="h-3.5 w-3.5 text-primary" />
-              <span>{user?.tokens || 0} tokens</span>
+              <span>{user?.tokens || 0} Credits</span>
             </div>
             
             <Badge variant="outline" className="text-xs bg-background/70 backdrop-blur-sm font-normal">
