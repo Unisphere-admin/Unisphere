@@ -4,14 +4,14 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, ControllerRenderProps, FieldPath, useFieldArray } from "react-hook-form";
+import { useForm, ControllerRenderProps, FieldPath, useFieldArray, Control } from "react-hook-form";
 import * as z from "zod";
 import { Loader2, Save, Mail, AlertCircle, Upload, X, Camera, User, Trash2, Plus, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -23,6 +23,8 @@ import { useCsrfToken } from "@/lib/csrf/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectTrigger, SelectValue, SelectItem, SelectContent } from "@/components/ui/select";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 
 // Define the base schema for profile fields
 const baseProfileSchema = z.object({
@@ -38,9 +40,95 @@ const baseProfileSchema = z.object({
 const studentProfileSchema = baseProfileSchema.extend({
   intended_universities: z.string().max(500, "Must be less than 500 characters").optional(),
   intended_major: z.string().max(100, "Must be less than 100 characters").optional(),
-  current_subjects: z.string().max(500, "Must be less than 500 characters")
-    .optional(),
+  current_subjects: z.string().max(500, "Must be less than 500 characters").optional(),
   bio: z.string().max(5000, "Bio must be less than 5000 characters").optional(),
+  
+  // Basic Information fields
+  age: z.string().max(3, "Invalid age").optional(),
+  year: z.string().max(50, "Must be less than 50 characters").optional(),
+  
+  // Educational background
+  school_name: z.string().max(200, "Must be less than 200 characters").optional(),
+  previous_schools: z.string().max(500, "Must be less than 500 characters").optional(),
+  
+  // University planning fields
+  application_cycle: z.string().max(50, "Must be less than 50 characters").optional(),
+  countries_to_apply: z.string().max(500, "Must be less than 500 characters").optional(),
+  universities_to_apply: z.string().max(1000, "Must be less than 1000 characters").optional(),
+  planned_admissions_tests: z.string().max(500, "Must be less than 500 characters").optional(),
+  completed_admissions_tests: z.string().max(500, "Must be less than 500 characters").optional(),
+  planned_admissions_support: z.string().max(500, "Must be less than 500 characters").optional(),
+  university_other_info: z.string().max(2000, "Must be less than 2000 characters").optional(),
+  
+  // Examination records
+  a_levels: z.array(
+    z.object({
+      subject: z.string(),
+      asGrade: z.string().optional(),
+      predictedGrade: z.string().optional(),
+      achievedGrade: z.string().optional(),
+    })
+  ).optional(),
+  
+  ib_diploma: z.array(
+    z.object({
+      subject: z.string(),
+      predictedGrade: z.string().optional(),
+      achievedGrade: z.string().optional(),
+    })
+  ).optional(),
+  
+  igcse: z.array(
+    z.object({
+      subject: z.string(),
+      achievedGrade: z.string().optional(),
+    })
+  ).optional(),
+  
+  spm: z.array(
+    z.object({
+      subject: z.string(),
+      achievedGrade: z.string().optional(),
+    })
+  ).optional(),
+  
+  // Activities and achievements
+  extracurricular_activities: z.array(
+    z.object({
+      activity: z.string(),
+      description: z.string().optional(),
+      yearParticipated: z.string().optional(),
+    })
+  ).optional(),
+  
+  awards: z.array(
+    z.object({
+      name: z.string(),
+      description: z.string().optional(),
+      yearAwarded: z.string().optional(),
+    })
+  ).optional(),
+  
+  // The following fields are kept but not shown in the form
+  date_of_birth: z.string().optional(),
+  gender: z.string().optional(),
+  nationality: z.string().max(100, "Must be less than 100 characters").optional(),
+  phone_number: z.string().max(20, "Must be less than 20 characters").optional(),
+  address: z.string().max(500, "Must be less than 500 characters").optional(),
+  postal_code: z.string().max(20, "Must be less than 20 characters").optional(),
+  city: z.string().max(100, "Must be less than 100 characters").optional(),
+  country: z.string().max(100, "Must be less than 100 characters").optional(),
+  parent_name: z.string().max(100, "Must be less than 100 characters").optional(),
+  parent_email: z.string().email("Please enter a valid email").optional().or(z.literal('')),
+  parent_phone: z.string().max(20, "Must be less than 20 characters").optional(),
+  education_level: z.string().max(100, "Must be less than 100 characters").optional(),
+  graduation_year: z.string().max(4, "Please enter a valid year").optional(),
+  academic_achievements: z.string().max(1000, "Must be less than 1000 characters").optional(),
+  standardized_tests: z.string().max(500, "Must be less than 500 characters").optional(),
+  learning_style: z.string().max(500, "Must be less than 500 characters").optional(),
+  study_habits: z.string().max(500, "Must be less than 500 characters").optional(),
+  learning_challenges: z.string().max(500, "Must be less than 500 characters").optional(),
+  career_goals: z.string().max(1000, "Must be less than 1000 characters").optional(),
 });
 
 // Schema for email updates specifically
@@ -77,6 +165,42 @@ type EmailFormValues = z.infer<typeof emailSchema>;
 type TutorProfileFormValues = z.infer<typeof tutorProfileSchema>;
 type PasswordFormValues = z.infer<typeof passwordSchema>;
 
+// Interface for A Level examination entries
+interface ALevelEntry {
+  subject: string;
+  asGrade?: string;
+  predictedGrade?: string;
+  achievedGrade?: string;
+}
+
+interface IbDiplomaEntry {
+  subject: string;
+  predictedGrade?: string;
+  achievedGrade?: string;
+}
+
+interface IgcseEntry {
+  subject: string;
+  achievedGrade?: string;
+}
+
+interface SpmEntry {
+  subject: string;
+  achievedGrade?: string;
+}
+
+interface ExtracurricularActivity {
+  activity: string;
+  description?: string;
+  yearParticipated?: string;
+}
+
+interface Award {
+  name: string;
+  description?: string;
+  yearAwarded?: string;
+}
+
 // Interface for the user profile data from API
 interface UserProfile {
   id: string;
@@ -89,6 +213,68 @@ interface UserProfile {
   subjects?: string[] | string | null;
   cost?: number | string; // Add cost property
   service_costs?: Record<string, number> | string; // Add service costs property
+  
+  // Student profile fields
+  intended_universities?: string;
+  intended_major?: string;
+  current_subjects?: string[] | string;
+  year?: string; // Year/Form
+  school_name?: string; // Current school
+  previous_schools?: string[] | string; // Previous schools
+  
+  // University planning fields
+  application_cycle?: string;
+  countries_to_apply?: string;
+  universities_to_apply?: string;
+  planned_admissions_tests?: string;
+  completed_admissions_tests?: string;
+  planned_admissions_support?: string;
+  university_other_info?: string;
+  
+  // Personal information
+  date_of_birth?: string;
+  gender?: string;
+  nationality?: string;
+  phone_number?: string;
+  
+  // Contact information
+  address?: string;
+  postal_code?: string;
+  city?: string;
+  country?: string;
+  
+  // Parent information
+  parents_info?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+  } | string;
+  
+  // Educational information
+  education_level?: string;
+  graduation_year?: string;
+  
+  // Academic details
+  academic_achievements?: string | any;
+  extracurricular_activities?: ExtracurricularActivity[];
+  standardized_tests?: string | any;
+  
+  // Learning preferences
+  learning_style?: string;
+  study_habits?: string;
+  learning_challenges?: string;
+  
+  // Goals
+  career_goals?: string;
+  
+  // Examination records
+  a_levels?: ALevelEntry[];
+  ib_diploma?: IbDiplomaEntry[];
+  igcse?: IgcseEntry[];
+  spm?: SpmEntry[];
+  
+  // Activities and achievements
+  awards?: Award[];
 }
 
 // Interface for service costs
@@ -111,6 +297,506 @@ const parseServiceCost = (formattedCost: string | number): number => {
   
   const parts = formattedCost.split(' - ');
   return parts.length > 1 ? parseInt(parts[1]) || 0 : 0;
+};
+
+// Generic table component that all our specialized tables will use
+const GenericTable = ({ 
+  title,
+  control,
+  name,
+  columns,
+  defaultValues,
+  renderRow,
+  showTitle = true,
+}: { 
+  title: string;  // Keep this for reference but don't display it
+  control: Control<any>;
+  name: string;
+  columns: { header: React.ReactNode; className?: string }[];
+  defaultValues: Record<string, string>;
+  renderRow: (item: any, index: number, remove: (index: number) => void) => React.ReactNode;
+  showTitle?: boolean;
+}) => {
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name,
+  });
+  
+  return (
+    <div className="space-y-2">
+      {showTitle && (
+        <h4 className="font-medium text-sm">{title}</h4>
+      )}
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {columns.map((column, i) => (
+                <TableHead key={i} className={column.className}>
+                  {column.header}
+                </TableHead>
+              ))}
+              <TableHead className="w-[50px]"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {fields.map((item, index) => renderRow(item, index, remove))}
+            <TableRow>
+              <TableCell colSpan={columns.length + 1}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => append(defaultValues)}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Entry
+                </Button>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+};
+
+const ALevelsTable = ({ 
+  control,
+  name = "a_levels",
+  showTitle = true,
+}: { 
+  control: Control<any>;
+  name?: string;
+  showTitle?: boolean;
+}) => {
+  return (
+    <GenericTable
+      title="A-Levels"
+      control={control}
+      name={name}
+      showTitle={showTitle}
+      columns={[
+        { header: "Subject", className: "w-[200px]" },
+        { header: "AS Grade" },
+        { header: "Predicted Grade" },
+        { header: "Achieved Grade" },
+      ]}
+      defaultValues={{ subject: '', asGrade: '', predictedGrade: '', achievedGrade: '' }}
+      renderRow={(item, index, remove) => (
+        <TableRow key={item.id}>
+          <TableCell>
+            <FormField
+              control={control}
+              name={`${name}.${index}.subject`}
+              render={({ field }) => (
+                <Input 
+                  {...field} 
+                  placeholder="Subject name" 
+                />
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <FormField
+              control={control}
+              name={`${name}.${index}.asGrade`}
+              render={({ field }) => (
+                <Input 
+                  {...field} 
+                  placeholder="AS grade" 
+                />
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <FormField
+              control={control}
+              name={`${name}.${index}.predictedGrade`}
+              render={({ field }) => (
+                <Input 
+                  {...field} 
+                  placeholder="Predicted grade" 
+                />
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <FormField
+              control={control}
+              name={`${name}.${index}.achievedGrade`}
+              render={({ field }) => (
+                <Input 
+                  {...field} 
+                  placeholder="Achieved grade" 
+                />
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => remove(index)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </TableCell>
+        </TableRow>
+      )}
+    />
+  );
+};
+
+const IbDiplomaTable = ({ 
+  control,
+  name = "ib_diploma",
+  showTitle = true,
+}: { 
+  control: Control<any>;
+  name?: string;
+  showTitle?: boolean;
+}) => {
+  return (
+    <GenericTable
+      title="IB Diploma"
+      control={control}
+      name={name}
+      showTitle={showTitle}
+      columns={[
+        { header: "Subject", className: "w-[200px]" },
+        { header: "Predicted Grade" },
+        { header: "Achieved Grade" },
+      ]}
+      defaultValues={{ subject: '', predictedGrade: '', achievedGrade: '' }}
+      renderRow={(item, index, remove) => (
+        <TableRow key={item.id}>
+          <TableCell>
+            <FormField
+              control={control}
+              name={`${name}.${index}.subject`}
+              render={({ field }) => (
+                <Input 
+                  {...field} 
+                  placeholder="Subject name" 
+                />
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <FormField
+              control={control}
+              name={`${name}.${index}.predictedGrade`}
+              render={({ field }) => (
+                <Input 
+                  {...field} 
+                  placeholder="Predicted grade" 
+                />
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <FormField
+              control={control}
+              name={`${name}.${index}.achievedGrade`}
+              render={({ field }) => (
+                <Input 
+                  {...field} 
+                  placeholder="Achieved grade" 
+                />
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => remove(index)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </TableCell>
+        </TableRow>
+      )}
+    />
+  );
+};
+
+const IgcseTable = ({ 
+  control,
+  name = "igcse",
+  showTitle = true,
+}: { 
+  control: Control<any>;
+  name?: string;
+  showTitle?: boolean;
+}) => {
+  return (
+    <GenericTable
+      title="IGCSE"
+      control={control}
+      name={name}
+      showTitle={showTitle}
+      columns={[
+        { header: "Subject", className: "w-[200px]" },
+        { header: "Achieved Grade" },
+      ]}
+      defaultValues={{ subject: '', achievedGrade: '' }}
+      renderRow={(item, index, remove) => (
+        <TableRow key={item.id}>
+          <TableCell>
+            <FormField
+              control={control}
+              name={`${name}.${index}.subject`}
+              render={({ field }) => (
+                <Input 
+                  {...field} 
+                  placeholder="Subject name" 
+                />
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <FormField
+              control={control}
+              name={`${name}.${index}.achievedGrade`}
+              render={({ field }) => (
+                <Input 
+                  {...field} 
+                  placeholder="Achieved grade" 
+                />
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => remove(index)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </TableCell>
+        </TableRow>
+      )}
+    />
+  );
+};
+
+const SpmTable = ({ 
+  control,
+  name = "spm",
+  showTitle = true,
+}: { 
+  control: Control<any>;
+  name?: string;
+  showTitle?: boolean;
+}) => {
+  return (
+    <GenericTable
+      title="SPM"
+      control={control}
+      name={name}
+      showTitle={showTitle}
+      columns={[
+        { header: "Subject", className: "w-[200px]" },
+        { header: "Achieved Grade" },
+      ]}
+      defaultValues={{ subject: '', achievedGrade: '' }}
+      renderRow={(item, index, remove) => (
+        <TableRow key={item.id}>
+          <TableCell>
+            <FormField
+              control={control}
+              name={`${name}.${index}.subject`}
+              render={({ field }) => (
+                <Input 
+                  {...field} 
+                  placeholder="Subject name" 
+                />
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <FormField
+              control={control}
+              name={`${name}.${index}.achievedGrade`}
+              render={({ field }) => (
+                <Input 
+                  {...field} 
+                  placeholder="Achieved grade" 
+                />
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => remove(index)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </TableCell>
+        </TableRow>
+      )}
+    />
+  );
+};
+
+const ExtracurricularActivitiesTable = ({ 
+  control,
+  name = "extracurricular_activities",
+  showTitle = true,
+}: { 
+  control: Control<any>;
+  name?: string;
+  showTitle?: boolean;
+}) => {
+  return (
+    <GenericTable
+      title="Extracurricular Activities"
+      control={control}
+      name={name}
+      showTitle={showTitle}
+      columns={[
+        { header: "Activity", className: "w-[200px]" },
+        { header: "Description (what is it, what were your roles/responsibilities, what did you achieve etc.)" },
+        { header: "Year(s)/Form(s) participated (e.g. Year 10-12)" },
+      ]}
+      defaultValues={{ activity: '', description: '', yearParticipated: '' }}
+      renderRow={(item, index, remove) => (
+        <TableRow key={item.id}>
+          <TableCell>
+            <FormField
+              control={control}
+              name={`${name}.${index}.activity`}
+              render={({ field }) => (
+                <Input 
+                  {...field} 
+                  placeholder="Activity name" 
+                />
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <FormField
+              control={control}
+              name={`${name}.${index}.description`}
+              render={({ field }) => (
+                <Input 
+                  {...field} 
+                  placeholder="Describe your roles and achievements" 
+                />
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <FormField
+              control={control}
+              name={`${name}.${index}.yearParticipated`}
+              render={({ field }) => (
+                <Input 
+                  {...field} 
+                  placeholder="Year 10-12" 
+                />
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => remove(index)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </TableCell>
+        </TableRow>
+      )}
+    />
+  );
+};
+
+const AwardsTable = ({ 
+  control,
+  name = "awards",
+  showTitle = true,
+}: { 
+  control: Control<any>;
+  name?: string;
+  showTitle?: boolean;
+}) => {
+  return (
+    <GenericTable
+      title="Honors and Awards"
+      control={control}
+      name={name}
+      showTitle={showTitle}
+      columns={[
+        { header: "Award", className: "w-[200px]" },
+        { header: "Description (what is it, what did you do to achieve the award etc.)" },
+        { header: "Year/Form when awarded (e.g. Year 11)" },
+      ]}
+      defaultValues={{ name: '', description: '', yearAwarded: '' }}
+      renderRow={(item, index, remove) => (
+        <TableRow key={item.id}>
+          <TableCell>
+            <FormField
+              control={control}
+              name={`${name}.${index}.name`}
+              render={({ field }) => (
+                <Input 
+                  {...field} 
+                  placeholder="Award name" 
+                />
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <FormField
+              control={control}
+              name={`${name}.${index}.description`}
+              render={({ field }) => (
+                <Input 
+                  {...field} 
+                  placeholder="Describe the achievement" 
+                />
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <FormField
+              control={control}
+              name={`${name}.${index}.yearAwarded`}
+              render={({ field }) => (
+                <Input 
+                  {...field} 
+                  placeholder="Year 11" 
+                />
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => remove(index)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </TableCell>
+        </TableRow>
+      )}
+    />
+  );
 };
 
 export default function SettingsPage() {
@@ -371,15 +1057,43 @@ export default function SettingsPage() {
         // Also update the local state
         setServiceCosts(extractedServiceCosts);
       } else {
+        // Reset student form with basic fields
         studentForm.reset({
           first_name: data.profile.first_name || "",
           last_name: data.profile.last_name || "",
+          age: data.profile.age?.toString() || "",
+          year: data.profile.year || "",
+          school_name: data.profile.school_name || "",
+          previous_schools: Array.isArray(data.profile.previous_schools)
+            ? data.profile.previous_schools.join(", ")
+            : data.profile.previous_schools?.toString() || "",
+          current_subjects: Array.isArray(data.profile.current_subjects)
+            ? data.profile.current_subjects.join(", ")
+            : data.profile.current_subjects?.toString() || "",
+          bio: data.profile.bio || "",
+          
+          // Examination records
+          a_levels: data.profile.a_levels || [],
+          ib_diploma: data.profile.ib_diploma || [],
+          igcse: data.profile.igcse || [],
+          spm: data.profile.spm || [],
+          
+          // Activities and achievements
+          extracurricular_activities: data.profile.extracurricular_activities || [],
+          awards: data.profile.awards || [],
+          
+          // University planning fields
+          application_cycle: data.profile.application_cycle || "",
+          countries_to_apply: data.profile.countries_to_apply || "",
+          universities_to_apply: data.profile.universities_to_apply || "",
+          planned_admissions_tests: data.profile.planned_admissions_tests || "",
+          completed_admissions_tests: data.profile.completed_admissions_tests || "",
+          planned_admissions_support: data.profile.planned_admissions_support || "",
+          university_other_info: data.profile.university_other_info || "",
+          
+          // Educational goals
           intended_universities: data.profile.intended_universities || "",
           intended_major: data.profile.intended_major || "",
-          current_subjects: Array.isArray(data.profile.current_subjects) 
-            ? data.profile.current_subjects.join(", ") 
-            : data.profile.current_subjects || "",
-          bio: data.profile.bio || "",
         });
         
         // Update email form separately
@@ -439,74 +1153,64 @@ export default function SettingsPage() {
     }
   }, [user, router, fetchProfileData]);
 
-  // Set form values once profile data is loaded
+  // Reset form with profile data
   useEffect(() => {
     if (user && profileData) {
-      const firstName = profileData.first_name || "";
-      const lastName = profileData.last_name || "";
-      
-      // Format subjects if they exist
-      let formattedSubjects: string[] = [];
-      if (profileData.subjects) {
-        if (typeof profileData.subjects === 'string') {
-          // Try to parse as JSON first
-          try {
-            formattedSubjects = JSON.parse(profileData.subjects);
-          } catch (e) {
-            // If not JSON, split by comma
-            formattedSubjects = profileData.subjects.split(',').map((s: string) => s.trim());
-          }
-        } else if (Array.isArray(profileData.subjects)) {
-          formattedSubjects = profileData.subjects;
-        }
-      }
-      
-      // Extract service costs if they exist
-      let extractedServiceCosts: Record<string, number> = {};
-      if (profileData.service_costs) {
-        try {
-          if (typeof profileData.service_costs === 'string') {
-            extractedServiceCosts = JSON.parse(profileData.service_costs);
-          } else if (typeof profileData.service_costs === 'object') {
-            extractedServiceCosts = profileData.service_costs;
-          }
-        } catch (e) {
-        }
-      }
-      
+      // Reset appropriate form based on user type
       if (isTutor) {
+        // Reset tutor form fields
         tutorForm.reset({
-          first_name: firstName,
-          last_name: lastName,
-          // Convert age to string explicitly to ensure it's properly displayed in the form field
+          first_name: profileData.first_name || "",
+          last_name: profileData.last_name || "",
+          bio: profileData.bio || profileData.description || "",
           age: profileData.age?.toString() || "",
-          bio: profileData.description || profileData.bio || "",
-          subjects: formattedSubjects || [],
-          serviceCosts: extractedServiceCosts,
+          subjects: [],
         });
-        
-        // Also update the local state
-        setServiceCosts(extractedServiceCosts);
       } else {
-        // Cast to include the new fields
-        const extendedProfile = profileData as any;
-        
+        // Reset student form with basic fields
         studentForm.reset({
-          first_name: firstName,
-          last_name: lastName,
-          intended_universities: extendedProfile.intended_universities || "",
-          intended_major: extendedProfile.intended_major || "",
-          current_subjects: Array.isArray(extendedProfile.current_subjects)
-            ? extendedProfile.current_subjects.join(', ')
-            : extendedProfile.current_subjects || "",
-          bio: extendedProfile.bio || "",
-        });
-        
-        // Update email form separately
-        emailForm.reset({
-          email: user.email || "",
+          first_name: profileData.first_name || "",
+          last_name: profileData.last_name || "",
+          age: profileData.age?.toString() || "",
+          year: profileData.year || "",
+          school_name: profileData.school_name || "",
+          previous_schools: Array.isArray(profileData.previous_schools)
+            ? profileData.previous_schools.join(", ")
+            : profileData.previous_schools?.toString() || "",
+          current_subjects: Array.isArray(profileData.current_subjects)
+            ? profileData.current_subjects.join(", ")
+            : profileData.current_subjects?.toString() || "",
+          bio: profileData.bio || "",
+          
+          // Examination records
+          a_levels: profileData.a_levels || [],
+          ib_diploma: profileData.ib_diploma || [],
+          igcse: profileData.igcse || [],
+          spm: profileData.spm || [],
+          
+          // Activities and achievements
+          extracurricular_activities: profileData.extracurricular_activities || [],
+          awards: profileData.awards || [],
+          
+          // University planning fields
+          application_cycle: profileData.application_cycle || "",
+          countries_to_apply: profileData.countries_to_apply || "",
+          universities_to_apply: profileData.universities_to_apply || "",
+          planned_admissions_tests: profileData.planned_admissions_tests || "",
+          completed_admissions_tests: profileData.completed_admissions_tests || "",
+          planned_admissions_support: profileData.planned_admissions_support || "",
+          university_other_info: profileData.university_other_info || "",
+          
+          // Educational goals
+          intended_universities: profileData.intended_universities || "",
+          intended_major: profileData.intended_major || "",
         });
       }
+
+      // Set email form
+      emailForm.reset({
+        email: user.email || "",
+      });
     }
   }, [user, profileData, isTutor, studentForm, tutorForm, emailForm]);
 
@@ -517,7 +1221,7 @@ export default function SettingsPage() {
     }
   }, [token, fetchCsrfToken]);
 
-  // Handle form submission for student profiles - name only
+  // Handle form submission for student profiles
   const onStudentSubmit = async (data: StudentProfileFormValues) => {
     if (!user) return;
     setProfileLoading(true);
@@ -531,20 +1235,59 @@ export default function SettingsPage() {
         return;
       }
       
+      console.log("Form data received:", data);
+      
       // Process current_subjects as an array
       const currentSubjects = data.current_subjects 
         ? data.current_subjects.split(',').map(s => s.trim()).filter(Boolean)
         : [];
       
-      // Update profile data
+      // Process previous_schools as an array if needed
+      const previousSchools = data.previous_schools
+        ? data.previous_schools.split(',').map(s => s.trim()).filter(Boolean)
+        : [];
+      
+      // Include all fields that exist in the student_profile table
       const profileData = {
         first_name: data.first_name,
         last_name: data.last_name,
-        intended_universities: data.intended_universities,
-        intended_major: data.intended_major,
-        current_subjects: currentSubjects,
         bio: data.bio,
+        age: data.age,
+        year: data.year,
+        school_name: data.school_name,
+        previous_schools: previousSchools && previousSchools.length > 0 ? previousSchools : null,
+        current_subjects: currentSubjects && currentSubjects.length > 0 ? currentSubjects : null,
+        
+        // Keep existing avatar URL unless we're explicitly uploading a new one
+        // Avatar URL updates are handled separately via handleAvatarUpload
+        
+        // Examination records
+        a_levels: data.a_levels && data.a_levels.length > 0 ? data.a_levels : null,
+        ib_diploma: data.ib_diploma && data.ib_diploma.length > 0 ? data.ib_diploma : null,
+        igcse: data.igcse && data.igcse.length > 0 ? data.igcse : null,
+        spm: data.spm && data.spm.length > 0 ? data.spm : null,
+        
+        // Activities and achievements
+        extracurricular_activities: data.extracurricular_activities && data.extracurricular_activities.length > 0 
+          ? data.extracurricular_activities 
+          : null,
+        awards: data.awards && data.awards.length > 0 ? data.awards : null,
+        
+        // University planning fields
+        application_cycle: data.application_cycle || null,
+        countries_to_apply: data.countries_to_apply || null,
+        universities_to_apply: data.universities_to_apply || null,
+        planned_admissions_tests: data.planned_admissions_tests || null,
+        completed_admissions_tests: data.completed_admissions_tests || null,
+        planned_admissions_support: data.planned_admissions_support || null,
+        university_other_info: data.university_other_info || null,
+        
+        // Educational goals
+        intended_universities: data.intended_universities || null,
+        intended_major: data.intended_major || null,
       };
+      
+      console.log("Sending profile data:", JSON.stringify(profileData, null, 2));
 
       const response = await fetch("/api/users/profile", {
         method: "PATCH",
@@ -565,14 +1308,19 @@ export default function SettingsPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to update profile: ${response.status}`);
+        console.error("Error response:", errorData);
+        throw new Error(errorData.error || errorData.details || `Failed to update profile: ${response.status}`);
       }
+
+      const responseData = await response.json();
+      console.log("Profile update success. Response data:", responseData);
 
       // Refresh user data silently
       await refreshUser(true);
       await fetchProfileData(true);
       toast.success("Profile updated successfully");
     } catch (error) {
+      console.error("Profile update failed:", error);
       toast.error(error instanceof Error ? error.message : "Failed to update profile");
     } finally {
       setProfileLoading(false);
@@ -1730,31 +2478,306 @@ export default function SettingsPage() {
               </form>
             </Form>
           ) : (
-            // Student profile form - With new educational fields
+            // Student profile form - With simplified basic information
             <Form {...studentForm}>
-              <form onSubmit={studentForm.handleSubmit(onStudentSubmit)} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <form onSubmit={studentForm.handleSubmit(onStudentSubmit)} className="space-y-8">
+                {/* Basic Information */}
+                <div>
+                  <h3 className="text-lg font-medium mb-4">Basic Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={studentForm.control}
+                      name="first_name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>First Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="John" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={studentForm.control}
+                      name="last_name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Last Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Doe" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <FormField
+                      control={studentForm.control}
+                      name="age"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Age</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder="18" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={studentForm.control}
+                      name="year"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Year/Form</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g. Year 12, Form 6" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* Educational Information */}
+                <div>
+                  <h3 className="text-lg font-medium mb-4">Educational Information</h3>
+                  <div className="space-y-4">
+                    <FormField
+                      control={studentForm.control}
+                      name="school_name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Current School</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Oxford High School" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={studentForm.control}
+                      name="previous_schools"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Previous School(s)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="London Grammar School, St. Mary's" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Enter multiple schools separated by commas
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* Current Subjects (keeping this as it's useful) */}
+                <div>
+                  <h3 className="text-lg font-medium mb-4">Current Subjects</h3>
                   <FormField
                     control={studentForm.control}
-                    name="first_name"
+                    name="current_subjects"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>First Name</FormLabel>
+                        <FormLabel>Subjects Studying</FormLabel>
                         <FormControl>
-                          <Input placeholder="John" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all" />
+                          <Input placeholder="Mathematics, Physics, Chemistry" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
                         </FormControl>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Enter subjects separated by commas
+                        </p>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+                </div>
+
+                {/* Qualifications */}
+                <div>
+                  <h3 className="text-lg font-medium mb-4">Qualifications</h3>
+                  <div className="space-y-6">
+                    <div className="pt-2">
+                      <h4 className="font-medium mb-2">A-Levels</h4>
+                      <ALevelsTable control={studentForm.control} showTitle={false} />
+                    </div>
+                    <div className="pt-2">
+                      <h4 className="font-medium mb-2">IB Diploma</h4>
+                      <IbDiplomaTable control={studentForm.control} showTitle={false} />
+                    </div>
+                    <div className="pt-2">
+                      <h4 className="font-medium mb-2">IGCSE</h4>
+                      <IgcseTable control={studentForm.control} showTitle={false} />
+                    </div>
+                    <div className="pt-2">
+                      <h4 className="font-medium mb-2">SPM</h4>
+                      <SpmTable control={studentForm.control} showTitle={false} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Extracurricular Activities */}
+                <div>
+                  <h3 className="text-lg font-medium mb-4">Extracurricular Activities</h3>
+                  <ExtracurricularActivitiesTable control={studentForm.control} showTitle={false} />
+                </div>
+
+                {/* Honors and Awards */}
+                <div>
+                  <h3 className="text-lg font-medium mb-4">Honors and Awards</h3>
+                  <AwardsTable control={studentForm.control} showTitle={false} />
+                </div>
+
+                {/* University Plans */}
+                <div>
+                  <h3 className="text-lg font-medium mb-4">University Plans</h3>
+                  <div className="space-y-4">
+                    <FormField
+                      control={studentForm.control}
+                      name="application_cycle"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Application Cycle (e.g. 2025-26)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="2025-26" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={studentForm.control}
+                      name="intended_major"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Intended major(s)/course</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g. Computer Science, Economics" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={studentForm.control}
+                      name="countries_to_apply"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Countries you're planning to apply to</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g. UK, US, Australia" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                          </FormControl>
+                          <FormDescription>
+                            Feel free to be specific here, e.g. "both the UK and US, but I would prefer to go to the UK" or "UK only"
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={studentForm.control}
+                      name="universities_to_apply"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Universities you're planning to apply to</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g. Oxford, Cambridge, Harvard" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={studentForm.control}
+                      name="planned_admissions_tests"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Admissions tests you're planning to take</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g. SAT, TMUA" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={studentForm.control}
+                      name="completed_admissions_tests"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Admissions tests and scores you've taken</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g. SAT - 1480 (720 EBRW, 760 Math)" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={studentForm.control}
+                      name="planned_admissions_support"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Admissions support you're planning to receive</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g. US Admissions Support, Extracurricular Building, SAT" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                          </FormControl>
+                          <FormDescription>
+                            Services you're planning to receive from UniSphere
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={studentForm.control}
+                      name="university_other_info"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Other Information</FormLabel>
+                          <FormControl>
+                            <textarea 
+                              className="flex min-h-[120px] w-full rounded-md border border-input bg-background/80 backdrop-blur-sm px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm focus-visible:border-primary/30 transition-all"
+                              placeholder="Any other information about your university plans..."
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* Bio (keeping this as a general description) */}
+                <div>
+                  <h3 className="text-lg font-medium mb-4">Bio</h3>
                   <FormField
                     control={studentForm.control}
-                    name="last_name"
+                    name="bio"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Last Name</FormLabel>
+                        <FormLabel>About Me</FormLabel>
                         <FormControl>
-                          <Input placeholder="Doe" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all" />
+                          <textarea 
+                            className="flex min-h-[120px] w-full rounded-md border border-input bg-background/80 backdrop-blur-sm px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm focus-visible:border-primary/30 transition-all"
+                            placeholder="Tell us about yourself, your interests, and what you hope to achieve with tutoring..."
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -1762,71 +2785,13 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                <FormField
-                  control={studentForm.control}
-                  name="intended_universities"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Intended Universities</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Oxford, Cambridge, Harvard..." {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={studentForm.control}
-                  name="intended_major"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Intended Major</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Computer Science, Medicine, Engineering..." {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={studentForm.control}
-                  name="current_subjects"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Current Subjects</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Mathematics, Physics, Chemistry, Biology..." {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all" />
-                      </FormControl>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Enter subjects separated by commas (e.g., Math, Physics, Chemistry)
-                      </p>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={studentForm.control}
-                  name="bio"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Bio</FormLabel>
-                      <FormControl>
-                        <textarea 
-                          className="flex min-h-[120px] w-full rounded-md border border-input bg-background/80 backdrop-blur-sm px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm focus-visible:border-primary/30 transition-all"
-                          placeholder="Tell students about yourself..."
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex justify-end">
-                  <Button type="submit" disabled={profileLoading} className="shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]">
+                {/* Submit Button */}
+                <div className="flex justify-end pt-4">
+                  <Button 
+                    type="submit" 
+                    disabled={profileLoading} 
+                    className="shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]"
+                  >
                     {profileLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />

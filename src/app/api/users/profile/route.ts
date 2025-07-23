@@ -34,11 +34,15 @@ async function updateUserProfileHandler(
       );
     }
     
+    console.log('Updating profile with data:', JSON.stringify(body, null, 2));
+    
     // Use the data layer function to update profile
     const { profile, error } = await updateUserProfile(userId, user, body);
     
     // Handle errors
     if (error) {
+      console.error('Error updating profile:', error);
+      
       // Map error messages to appropriate status codes
       if (error === 'Access denied') {
         return NextResponse.json({ error }, { status: 403 });
@@ -57,8 +61,10 @@ async function updateUserProfileHandler(
       profile
     });
   } catch (error) {
+    // Log the actual error for debugging
+    console.error('Exception in updateUserProfileHandler:', error);
     return NextResponse.json(
-      { error: 'Internal server error' }, 
+      { error: 'Internal server error', details: error instanceof Error ? error.message : String(error) }, 
       { status: 500 }
     );
   }

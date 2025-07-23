@@ -73,6 +73,7 @@
     "postcss": "^8.4.32",
     "react": "19.1.0",
     "react-avatar-editor": "^13.0.2",
+    "react-country-flag": "^3.1.0",
     "react-day-picker": "^9.7.0",
     "react-dom": "19.1.0",
     "react-hook-form": "^7.56.4",

@@ -55,6 +55,95 @@ import { Textarea } from "@/components/ui/textarea";
 import { useMemo, use, useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
+import ReactCountryFlag from "react-country-flag";
+
+// Helper function to get country code from location string
+const getCountryCode = (country: string | null | undefined): string | null => {
+  if (!country) return null;
+  
+  // Clean up the country string
+  const cleanCountry = country.trim().toLowerCase();
+  
+  // Map of common country names to ISO codes
+  const countryMap: Record<string, string> = {
+    'uk': 'GB',
+    'united kingdom': 'GB',
+    'england': 'GB',
+    'scotland': 'GB',
+    'wales': 'GB',
+    'northern ireland': 'GB',
+    'usa': 'US',
+    'united states': 'US',
+    'united states of america': 'US',
+    'canada': 'CA',
+    'australia': 'AU',
+    'new zealand': 'NZ',
+    'singapore': 'SG',
+    'malaysia': 'MY',
+    'hong kong': 'HK',
+    'china': 'CN',
+    'japan': 'JP',
+    'south korea': 'KR',
+    'korea': 'KR',
+    'india': 'IN',
+    'france': 'FR',
+    'germany': 'DE',
+    'italy': 'IT',
+    'spain': 'ES',
+    'netherlands': 'NL',
+    'belgium': 'BE',
+    'switzerland': 'CH',
+    'sweden': 'SE',
+    'norway': 'NO',
+    'denmark': 'DK',
+    'finland': 'FI',
+    'ireland': 'IE',
+    'portugal': 'PT',
+    'greece': 'GR',
+    'turkey': 'TR',
+    'russia': 'RU',
+    'brazil': 'BR',
+    'mexico': 'MX',
+    'argentina': 'AR',
+    'chile': 'CL',
+    'colombia': 'CO',
+    'peru': 'PE',
+    'south africa': 'ZA',
+    'nigeria': 'NG',
+    'egypt': 'EG',
+    'kenya': 'KE',
+    'ghana': 'GH',
+    'uae': 'AE',
+    'united arab emirates': 'AE',
+    'saudi arabia': 'SA',
+    'qatar': 'QA',
+    'kuwait': 'KW',
+    'bahrain': 'BH',
+    'oman': 'OM',
+    'indonesia': 'ID',
+    'thailand': 'TH',
+    'vietnam': 'VN',
+    'philippines': 'PH',
+    'pakistan': 'PK',
+    'bangladesh': 'BD',
+    'sri lanka': 'LK'
+  };
+  
+  // Check for exact matches
+  if (countryMap[cleanCountry]) {
+    return countryMap[cleanCountry];
+  }
+  
+  // Check if the country contains a country name
+  for (const [countryName, code] of Object.entries(countryMap)) {
+    if (cleanCountry.includes(countryName)) {
+      return code;
+    }
+  }
+  
+  // If no match found, return null
+  return null;
+};
 
 // Define types for reviews
 type Review = {
@@ -79,7 +168,7 @@ interface TutorProfile {
   description?: string;
   subjects?: string[] | string;
   avatar_url?: string;
-  location?: string;
+  country?: string;
   age?: number;
   major?: string;
   current_education?: string | string[];
@@ -716,6 +805,29 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                     </div>
                   </div>
                 </div>
+                
+                {/* Country with Flag */}
+                {tutor && typeof tutor === 'object' && 'country' in tutor && typeof tutor.country === 'string' && 
+                 tutor.country.trim() !== '' && getCountryCode(tutor.country) && (
+                  <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100">
+                    <div className="flex items-center text-muted-foreground">
+                      <MapPin className="h-4 w-4 mr-2" />
+                      <span>Country</span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="font-medium mr-2">{tutor.country}</span>
+                      <ReactCountryFlag
+                        countryCode={getCountryCode(tutor.country) || ""}
+                        svg
+                        style={{
+                          width: '20px',
+                          height: '20px',
+                        }}
+                        title={tutor.country}
+                      />
+                    </div>
+                  </div>
+                )}
                 
                 {/* Message Button - Only shown to students with premium access */}
                 <div className="p-6 pt-4">

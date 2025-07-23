@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSessions } from "@/context/SessionContext";
@@ -10,17 +10,20 @@ import {
   Search,
   Filter,
   Star,
+  StarHalf,
+  ChevronDown,
+  X,
+  CheckCircle2,
+  BookOpen,
+  Award,
+  Sparkles,
   MapPin,
-  CheckCircle,
   ArrowUpDown,
   Loader2,
-  Sparkles,
   ArrowRight,
   GraduationCap,
   School,
-  X,
   AlertCircle,
-  BookOpen
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,6 +60,13 @@ import { toast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { throttledFetch } from "@/utils/requestThrottler";
 import Image from "next/image";
+import ReactCountryFlag from "react-country-flag";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Define tutor profile type with more precise types
 interface TutorProfile {
@@ -66,7 +76,7 @@ interface TutorProfile {
   description?: string | null;
   subjects?: string | null | string[];
   avatar_url?: string | null;
-  location?: string | null;
+  country?: string | null;
   age?: number | null;
   major?: string | null;
   current_education?: string | null | string[];
@@ -751,6 +761,94 @@ const extractUniversityName = (education: string | string[] | null | undefined):
   return educationText;
 };
 
+// Function to map country names to ISO 3166-1 alpha-2 codes for flags
+const getCountryCode = (country: string | null | undefined): string | null => {
+  if (!country) return null;
+  
+  // Clean up the country string
+  const cleanCountry = country.trim().toLowerCase();
+  
+  // Map of common country names to ISO codes
+  const countryMap: Record<string, string> = {
+    'uk': 'GB',
+    'united kingdom': 'GB',
+    'england': 'GB',
+    'scotland': 'GB',
+    'wales': 'GB',
+    'northern ireland': 'GB',
+    'usa': 'US',
+    'united states': 'US',
+    'united states of america': 'US',
+    'canada': 'CA',
+    'australia': 'AU',
+    'new zealand': 'NZ',
+    'singapore': 'SG',
+    'malaysia': 'MY',
+    'hong kong': 'HK',
+    'china': 'CN',
+    'japan': 'JP',
+    'south korea': 'KR',
+    'korea': 'KR',
+    'india': 'IN',
+    'france': 'FR',
+    'germany': 'DE',
+    'italy': 'IT',
+    'spain': 'ES',
+    'netherlands': 'NL',
+    'belgium': 'BE',
+    'switzerland': 'CH',
+    'sweden': 'SE',
+    'norway': 'NO',
+    'denmark': 'DK',
+    'finland': 'FI',
+    'ireland': 'IE',
+    'portugal': 'PT',
+    'greece': 'GR',
+    'turkey': 'TR',
+    'russia': 'RU',
+    'brazil': 'BR',
+    'mexico': 'MX',
+    'argentina': 'AR',
+    'chile': 'CL',
+    'colombia': 'CO',
+    'peru': 'PE',
+    'south africa': 'ZA',
+    'nigeria': 'NG',
+    'egypt': 'EG',
+    'kenya': 'KE',
+    'ghana': 'GH',
+    'uae': 'AE',
+    'united arab emirates': 'AE',
+    'saudi arabia': 'SA',
+    'qatar': 'QA',
+    'kuwait': 'KW',
+    'bahrain': 'BH',
+    'oman': 'OM',
+    'indonesia': 'ID',
+    'thailand': 'TH',
+    'vietnam': 'VN',
+    'philippines': 'PH',
+    'pakistan': 'PK',
+    'bangladesh': 'BD',
+    'sri lanka': 'LK'
+  };
+  
+  // Check for exact matches
+  if (countryMap[cleanCountry]) {
+    return countryMap[cleanCountry];
+  }
+  
+  // Check if the country contains a country name
+  for (const [countryName, code] of Object.entries(countryMap)) {
+    if (cleanCountry.includes(countryName)) {
+      return code;
+    }
+  }
+  
+  // If no match found, return null
+  return null;
+};
+
 export default function TutorsPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
@@ -1161,7 +1259,7 @@ export default function TutorsPage() {
       ...tutorSubjects,
       ...tutorEducation,
       ...tutorExtracurriculars,
-      tutor.location || '',
+      tutor.country || '',
       tutor.description || ''
     ].filter(Boolean).filter(keyword => typeof keyword === 'string' && keyword.trim().length > 0);
     
@@ -1662,6 +1760,32 @@ export default function TutorsPage() {
                   <div className="h-24 relative overflow-hidden w-full">
                     <div className="absolute inset-0 bg-gradient-to-r from-[#c7e4e3] via-[#84b4cc] to-[#128ca1] group-hover:scale-105 transition-transform duration-500"></div>
                     <div className="absolute inset-0 bg-[url('/noise.png')] opacity-20"></div>
+                    
+                    {/* Country flag or location indicator */}
+                    {tutor.country && getCountryCode(tutor.country) && (
+                      <div className="absolute top-3 right-3 z-10">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="shadow-md rounded-md overflow-hidden">
+                                <ReactCountryFlag
+                                  countryCode={getCountryCode(tutor.country) || ""}
+                                  svg
+                                  style={{
+                                    width: '46px',
+                                    height: '34px',
+                                  }}
+                                  title={tutor.country}
+                                />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">
+                              <p className="text-xs font-medium">{tutor.country}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    )}
                   </div>
                   
                   {/* Card content */}
@@ -1770,7 +1894,7 @@ export default function TutorsPage() {
                       
                       {/* Verified Badge */}
                       <div className="flex items-center gap-1 text-[#3e5461] dark:text-[#84b4cc] text-sm mb-2">
-                        <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                         <span>Verified Tutor</span>
                       </div>
                       

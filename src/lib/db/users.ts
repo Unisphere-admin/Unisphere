@@ -21,9 +21,34 @@ export interface UserProfile {
   tokens?: number;
   subjects?: string;
   has_access?: boolean;
+  
+  // Student profile fields
   intended_universities?: string;
   intended_major?: string;
   current_subjects?: string[] | string;
+  year?: string;
+  school_name?: string;
+  previous_schools?: string[] | string;
+  age?: string;
+  
+  // Examination records
+  a_levels?: any[];
+  ib_diploma?: any[];
+  igcse?: any[];
+  spm?: any[];
+  
+  // Activities and achievements
+  extracurricular_activities?: any[];
+  awards?: any[];
+  
+  // University planning fields
+  application_cycle?: string;
+  countries_to_apply?: string;
+  universities_to_apply?: string;
+  planned_admissions_tests?: string;
+  completed_admissions_tests?: string;
+  planned_admissions_support?: string;
+  university_other_info?: string;
 }
 
 // Fields for basic user info
@@ -474,7 +499,12 @@ export async function updateUserProfile(
       .eq('id', userId)
       .single();
       
-    if (userError || !userData) {
+    if (userError) {
+      console.error('Error fetching user role:', userError);
+      return { profile: null, error: 'User not found' };
+    }
+    
+    if (!userData) {
       return { profile: null, error: 'User not found' };
     }
     
@@ -482,6 +512,9 @@ export async function updateUserProfile(
     const isTutor = userData.is_tutor;
     let profileTable = isTutor ? 'tutor_profile' : 'student_profile';
     let filteredUpdateData: Record<string, any> = {};
+    
+    // Detailed logging
+    console.log('Processing update for', isTutor ? 'tutor' : 'student', 'profile');
     
     // Filter fields based on role
     if (isTutor) {
@@ -491,16 +524,7 @@ export async function updateUserProfile(
       if (updateData.age !== undefined) filteredUpdateData.age = updateData.age;
       if (updateData.cost !== undefined) filteredUpdateData.cost = updateData.cost;
       if (updateData.service_costs !== undefined) {
-        // Ensure service_costs is stored as a proper JSONB object
-        if (typeof updateData.service_costs === 'string') {
-          try {
-            filteredUpdateData.service_costs = JSON.parse(updateData.service_costs);
-          } catch (e) {
-            filteredUpdateData.service_costs = updateData.service_costs;
-          }
-        } else {
-          filteredUpdateData.service_costs = updateData.service_costs;
-        }
+        filteredUpdateData.service_costs = safeJSONField(updateData.service_costs);
       }
       if (updateData.bio !== undefined) filteredUpdateData.description = updateData.bio;
       if (updateData.description !== undefined) filteredUpdateData.description = updateData.description;
@@ -508,14 +532,63 @@ export async function updateUserProfile(
       if (updateData.subjects !== undefined) filteredUpdateData.subjects = updateData.subjects;
     } else {
       // Student profile fields that can be updated
-      if (updateData.first_name !== undefined) filteredUpdateData.first_name = updateData.first_name;
-      if (updateData.last_name !== undefined) filteredUpdateData.last_name = updateData.last_name;
-      if (updateData.avatar_url !== undefined) filteredUpdateData.avatar_url = updateData.avatar_url;
-      if (updateData.intended_universities !== undefined) filteredUpdateData.intended_universities = updateData.intended_universities;
-      if (updateData.intended_major !== undefined) filteredUpdateData.intended_major = updateData.intended_major;
-      if (updateData.high_school_subjects !== undefined) filteredUpdateData.current_subjects = updateData.high_school_subjects;
-      if (updateData.current_subjects !== undefined) filteredUpdateData.current_subjects = updateData.current_subjects;
-      if (updateData.bio !== undefined) filteredUpdateData.bio = updateData.bio;
+      try {
+        // Basic fields
+        if (updateData.first_name !== undefined) filteredUpdateData.first_name = updateData.first_name;
+        if (updateData.last_name !== undefined) filteredUpdateData.last_name = updateData.last_name;
+        if (updateData.avatar_url !== undefined) filteredUpdateData.avatar_url = updateData.avatar_url;
+        if (updateData.intended_universities !== undefined) filteredUpdateData.intended_universities = updateData.intended_universities;
+        if (updateData.intended_major !== undefined) filteredUpdateData.intended_major = updateData.intended_major;
+        if (updateData.high_school_subjects !== undefined) filteredUpdateData.current_subjects = updateData.high_school_subjects;
+        if (updateData.current_subjects !== undefined) filteredUpdateData.current_subjects = updateData.current_subjects;
+        if (updateData.bio !== undefined) filteredUpdateData.bio = updateData.bio;
+        
+        // Process JSON fields with detailed logging
+        
+        // New examination record fields
+        if (updateData.a_levels !== undefined) {
+          filteredUpdateData.a_levels = safeJSONField(updateData.a_levels);
+        }
+        
+        if (updateData.ib_diploma !== undefined) {
+          filteredUpdateData.ib_diploma = safeJSONField(updateData.ib_diploma);
+        }
+        
+        if (updateData.igcse !== undefined) {
+          filteredUpdateData.igcse = safeJSONField(updateData.igcse);
+        }
+        
+        if (updateData.spm !== undefined) {
+          filteredUpdateData.spm = safeJSONField(updateData.spm);
+        }
+        
+        // Extracurricular activities and awards
+        if (updateData.extracurricular_activities !== undefined) {
+          filteredUpdateData.extracurricular_activities = safeJSONField(updateData.extracurricular_activities);
+        }
+        
+        if (updateData.awards !== undefined) {
+          filteredUpdateData.awards = safeJSONField(updateData.awards);
+        }
+        
+        // University planning fields
+        if (updateData.application_cycle !== undefined) filteredUpdateData.application_cycle = updateData.application_cycle;
+        if (updateData.countries_to_apply !== undefined) filteredUpdateData.countries_to_apply = updateData.countries_to_apply;
+        if (updateData.universities_to_apply !== undefined) filteredUpdateData.universities_to_apply = updateData.universities_to_apply;
+        if (updateData.planned_admissions_tests !== undefined) filteredUpdateData.planned_admissions_tests = updateData.planned_admissions_tests;
+        if (updateData.completed_admissions_tests !== undefined) filteredUpdateData.completed_admissions_tests = updateData.completed_admissions_tests;
+        if (updateData.planned_admissions_support !== undefined) filteredUpdateData.planned_admissions_support = updateData.planned_admissions_support;
+        if (updateData.university_other_info !== undefined) filteredUpdateData.university_other_info = updateData.university_other_info;
+        
+        // Other student fields
+        if (updateData.age !== undefined) filteredUpdateData.age = updateData.age;
+        if (updateData.year !== undefined) filteredUpdateData.year = updateData.year;
+        if (updateData.school_name !== undefined) filteredUpdateData.school_name = updateData.school_name;
+        if (updateData.previous_schools !== undefined) filteredUpdateData.previous_schools = updateData.previous_schools;
+      } catch (error) {
+        console.error('Error processing student profile fields:', error);
+        return { profile: null, error: `Error processing fields: ${error instanceof Error ? error.message : String(error)}` };
+      }
     }
     
     // Only proceed if there are fields to update
@@ -523,20 +596,51 @@ export async function updateUserProfile(
       return { profile: null, error: 'No valid fields to update' };
     }
     
+    // Log the final filtered data
+    console.log('Sending update to database:', JSON.stringify(filteredUpdateData, null, 2));
+    console.log('Table being updated:', profileTable);
+    
     // Update the profile
     const { data, error } = await supabase
       .from(profileTable)
       .update(filteredUpdateData)
       .eq('id', userId)
-      .select()
+      .select('*')
       .single();
     
     if (error) {
-      return { profile: null, error: 'Failed to update profile' };
+      console.error('Database error when updating profile:', error);
+      return { profile: null, error: `Database error: ${error.message}` };
     }
     
+    console.log('Database update successful. Updated profile:', data);
     return { profile: data, error: null };
   } catch (error) {
-    return { profile: null, error: 'Internal server error' };
+    console.error('Uncaught error in updateUserProfile:', error);
+    return { profile: null, error: `Internal server error: ${error instanceof Error ? error.message : String(error)}` };
   }
 } 
+
+// Safely handle JSONB field - returns null for empty/invalid data
+const safeJSONField = (data: any): any | null => {
+  if (data === null || data === undefined) return null;
+  
+  // If it's a string, try to parse it
+  if (typeof data === 'string') {
+    if (data.trim() === '') return null;
+    try {
+      const parsed = JSON.parse(data);
+      // Return null for empty arrays
+      if (Array.isArray(parsed) && parsed.length === 0) return null;
+      return parsed;
+    } catch (e) {
+      console.error('Error parsing JSON:', e);
+      return null;
+    }
+  }
+  
+  // If it's already an array, check if it's empty
+  if (Array.isArray(data) && data.length === 0) return null;
+  
+  return data;
+}; 

@@ -1180,7 +1180,7 @@ export default function MessagesPage() {
       }
     }
   }, [sessionItems]);
-  
+
   // Automatically load messages when conversation changes, but with strict controls to prevent duplicate fetches
   useEffect(() => {
     if (!selectedConversationId) return;
