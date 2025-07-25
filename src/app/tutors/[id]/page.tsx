@@ -168,7 +168,7 @@ interface TutorProfile {
   description?: string;
   subjects?: string[] | string;
   avatar_url?: string;
-  country?: string;
+  country?: string[] | null;
   age?: number;
   major?: string;
   current_education?: string | string[];
@@ -807,26 +807,33 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                 </div>
                 
                 {/* Country with Flag */}
-                {tutor && typeof tutor === 'object' && 'country' in tutor && typeof tutor.country === 'string' && 
-                 tutor.country.trim() !== '' && getCountryCode(tutor.country) && (
-                  <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100">
-                    <div className="flex items-center text-muted-foreground">
+                {tutor && typeof tutor === 'object' && 'country' in tutor && Array.isArray(tutor.country) && tutor.country.length > 0 ? (
+                  <div className="flex flex-col px-6 py-3 border-b border-gray-100">
+                    <div className="flex items-center text-muted-foreground mb-2">
                       <MapPin className="h-4 w-4 mr-2" />
-                      <span>Country</span>
+                      <span>Countries</span>
                     </div>
-                    <div className="flex items-center">
-                      <span className="font-medium mr-2">{tutor.country}</span>
-                      <ReactCountryFlag
-                        countryCode={getCountryCode(tutor.country) || ""}
-                        svg
-                        style={{
-                          width: '20px',
-                          height: '20px',
-                        }}
-                        title={tutor.country}
-                      />
+                    <div className="flex flex-wrap gap-2">
+                      {tutor.country.map((country, index) => (
+                        <div key={`country-${index}-${country}`} className="flex items-center bg-muted/40 px-2 py-1 rounded-md">
+                          <ReactCountryFlag
+                            countryCode={getCountryCode(country) || ""}
+                            svg
+                            style={{
+                              width: '20px',
+                              height: '20px',
+                              marginRight: '8px'
+                            }}
+                            title={country}
+                          />
+                          <span className="text-sm">{country}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
+                ) : (
+                  // Fallback case - no longer needed as country is always an array
+                  null
                 )}
                 
                 {/* Message Button - Only shown to students with premium access */}

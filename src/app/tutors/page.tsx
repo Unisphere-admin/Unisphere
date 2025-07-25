@@ -76,7 +76,7 @@ interface TutorProfile {
   description?: string | null;
   subjects?: string | null | string[];
   avatar_url?: string | null;
-  country?: string | null;
+  country?: string[] | null;
   age?: number | null;
   major?: string | null;
   current_education?: string | null | string[];
@@ -766,7 +766,9 @@ const getCountryCode = (country: string | null | undefined): string | null => {
   if (!country) return null;
   
   // Clean up the country string
-  const cleanCountry = country.trim().toLowerCase();
+  const cleanCountry = typeof country === 'string' ? country.trim().toLowerCase() : '';
+  
+  if (!cleanCountry) return null;
   
   // Map of common country names to ISO codes
   const countryMap: Record<string, string> = {
@@ -847,6 +849,15 @@ const getCountryCode = (country: string | null | undefined): string | null => {
   
   // If no match found, return null
   return null;
+};
+
+// New helper function to handle country code mapping for arrays
+const getCountryCodes = (countryArray: string[] | null | undefined): string[] => {
+  if (!countryArray || !Array.isArray(countryArray)) return [];
+  
+  return countryArray
+    .map(country => getCountryCode(country))
+    .filter(Boolean) as string[];
 };
 
 export default function TutorsPage() {
@@ -1259,7 +1270,8 @@ export default function TutorsPage() {
       ...tutorSubjects,
       ...tutorEducation,
       ...tutorExtracurriculars,
-      tutor.country || '',
+      // Handle country as an array
+      ...(Array.isArray(tutor.country) ? tutor.country : []),
       tutor.description || ''
     ].filter(Boolean).filter(keyword => typeof keyword === 'string' && keyword.trim().length > 0);
     
@@ -1762,30 +1774,38 @@ export default function TutorsPage() {
                     <div className="absolute inset-0 bg-[url('/noise.png')] opacity-20"></div>
                     
                     {/* Country flag or location indicator */}
-                    {tutor.country && getCountryCode(tutor.country) && (
-                      <div className="absolute top-3 right-3 z-10">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="shadow-md rounded-md overflow-hidden">
-                                <ReactCountryFlag
-                                  countryCode={getCountryCode(tutor.country) || ""}
-                                  svg
-                                  style={{
-                                    width: '46px',
-                                    height: '34px',
-                                  }}
-                                  title={tutor.country}
-                                />
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent side="left">
-                              <p className="text-xs font-medium">{tutor.country}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    )}
+                    <div className="absolute top-3 right-3 z-10 flex flex-row-reverse gap-1">
+                      {tutor.country && Array.isArray(tutor.country) && tutor.country.length > 0 ? (
+                        // Map through the array and display a flag for each valid country code
+                        tutor.country.map((countryName, index) => {
+                          const code = getCountryCode(countryName);
+                          if (!code) return null;
+                          
+                          return (
+                            <TooltipProvider key={`country-${index}-${code}`}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="shadow-md rounded-md overflow-hidden">
+                                    <ReactCountryFlag
+                                      countryCode={code}
+                                      svg
+                                      style={{
+                                        width: '46px',
+                                        height: '34px',
+                                      }}
+                                      title={countryName}
+                                    />
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="left">
+                                  <p className="text-xs font-medium">{countryName}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        })
+                      ) : null}
+                    </div>
                   </div>
                   
                   {/* Card content */}

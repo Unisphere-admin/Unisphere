@@ -38,7 +38,7 @@ export interface TutorProfile extends TutorBasic {
   ib?: string[] | null;
   service_costs?: Record<string, number> | null;
   cost?: number | null;
-  country?: string | null;
+  country?: string[] | null;
 }
 
 // Fields for basic listing
@@ -57,7 +57,7 @@ const TUTOR_DETAIL_FIELDS = `
 // Fields for non-premium users (limited information)
 const NON_PREMIUM_FIELDS = `
   id, search_id, description, avatar_url, subjects, major,
-  current_education, previous_education, service_costs
+  current_education, previous_education, service_costs, country
 `;
 
 // Function to generate a number from a string (for single tutor lookup)
@@ -95,19 +95,28 @@ export async function getAllTutors(hasPremiumAccess = false): Promise<{
     
     // Process data based on premium access
     if (data) {
+      // Process the raw data to handle arrays properly
+      const processedData = data.map((tutor: any) => {
+        const processedTutor = { ...tutor };
+        
+        // No need to process country as it's already a text[] array in PostgreSQL
+        
+        return processedTutor;
+      });
+      
       let processedTutors;
 
       if (hasPremiumAccess) {
         // Premium users get full access to tutor data
-        processedTutors = data as any as TutorBasic[];
+        processedTutors = processedData as any as TutorBasic[];
       } else {
         // Non-premium users get limited data with anonymized names
-        processedTutors = (data as any as TutorRawData[]).map((tutor, index) => ({
-        ...tutor,
+        processedTutors = (processedData as any as TutorRawData[]).map((tutor, index) => ({
+          ...tutor,
           first_name: "T", // First name is "T"
           last_name: (index + 1).toString(), // Last name is a sequential number
-        description: "Upgrade to premium to see full tutor details."
-      } as TutorBasic));
+          description: "Upgrade to premium to see full tutor details."
+        } as TutorBasic));
       }
       
       return { tutors: processedTutors, error: null };
@@ -150,14 +159,19 @@ export async function getTutorBySearchId(searchId: string, hasPremiumAccess = fa
       return { tutor: null, error: 'Tutor not found' };
     }
 
+    // Process the data to ensure proper type handling
+    let processedData = { ...data };
+    
+    // No need to process country as it's already a text[] array in PostgreSQL
+    
     // For non-premium users, anonymize the tutor's name
     if (!hasPremiumAccess) {
-      data.first_name = "T";
-      data.last_name = generateNumberFromString(data.id || searchId);
-      data.description = "Upgrade to premium to see full tutor details.";
+      processedData.first_name = "T";
+      processedData.last_name = generateNumberFromString(processedData.id || searchId);
+      processedData.description = "Upgrade to premium to see full tutor details.";
     }
     
-    return { tutor: data, error: null };
+    return { tutor: processedData as TutorProfile, error: null };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return { tutor: null, error: errorMessage };

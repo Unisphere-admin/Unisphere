@@ -8,6 +8,7 @@ export interface TutorProfile {
   description?: string | null;
   subjects?: string | null;
   avatar_url?: string | null;
+  country?: string[] | null; // Now properly typed as a string array
   age?: number | null;
   major?: string | null;
   current_education?: string | null;

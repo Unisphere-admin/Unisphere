@@ -60,6 +60,8 @@ export async function GET(
           );
         }
         
+        // No need to process country field - it's already a text[] array in PostgreSQL
+        
         // Process tutor data for non-premium users
         if (!hasPremiumAccess) {
           tutorById.first_name = "T";

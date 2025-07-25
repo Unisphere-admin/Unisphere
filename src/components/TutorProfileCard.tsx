@@ -1,4 +1,4 @@
-import { Star } from "lucide-react";
+import { Star, MapPin } from "lucide-react";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -6,12 +6,81 @@ import { Card, CardContent } from "@/components/ui/card";
 import { TutorProfile, Review } from "@/types/supabaseTypes";
 import { getFullName, getInitials, getAvatarUrl } from "@/utils/nameUtils";
 import { Skeleton } from "@/components/ui/skeleton";
+import ReactCountryFlag from "react-country-flag";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface TutorProfileCardProps {
   tutor: TutorProfile;
   reviews?: Review[];
   loading?: boolean;
 }
+
+// Helper function to get country code
+const getCountryCode = (country: string | null | undefined): string | null => {
+  if (!country) return null;
+  
+  // Clean up the country string
+  const cleanCountry = country.trim().toLowerCase();
+  
+  // Map of common country names to ISO codes
+  const countryMap: Record<string, string> = {
+    'uk': 'GB',
+    'united kingdom': 'GB',
+    'england': 'GB',
+    'scotland': 'GB',
+    'wales': 'GB',
+    'northern ireland': 'GB',
+    'usa': 'US',
+    'united states': 'US',
+    'united states of america': 'US',
+    'canada': 'CA',
+    'australia': 'AU',
+    'new zealand': 'NZ',
+    'singapore': 'SG',
+    'malaysia': 'MY',
+    'hong kong': 'HK',
+    'china': 'CN',
+    'japan': 'JP',
+    'south korea': 'KR',
+    'korea': 'KR',
+    'india': 'IN',
+    'france': 'FR',
+    'germany': 'DE',
+    'italy': 'IT',
+    'spain': 'ES',
+    'netherlands': 'NL',
+    'belgium': 'BE',
+    'switzerland': 'CH',
+    'sweden': 'SE',
+    'norway': 'NO',
+    'denmark': 'DK',
+    'finland': 'FI',
+    'ireland': 'IE',
+    'portugal': 'PT',
+    'greece': 'GR',
+    'turkey': 'TR',
+  };
+  
+  // Check for exact matches
+  if (countryMap[cleanCountry]) {
+    return countryMap[cleanCountry];
+  }
+  
+  // Check if the country contains a country name
+  for (const [countryName, code] of Object.entries(countryMap)) {
+    if (cleanCountry.includes(countryName)) {
+      return code;
+    }
+  }
+  
+  // If no match found, return null
+  return null;
+};
 
 const TutorProfileCard = ({ tutor, reviews = [], loading = false }: TutorProfileCardProps) => {
   if (loading) {
@@ -61,6 +130,10 @@ const TutorProfileCard = ({ tutor, reviews = [], loading = false }: TutorProfile
   } else if (Array.isArray(tutor.subjects)) {
     subjects = tutor.subjects;
   }
+  
+  // Get country codes for flags
+  const countryCodes = tutor.country && Array.isArray(tutor.country) ? 
+                       tutor.country.map(c => getCountryCode(c)).filter(Boolean) as string[] : [];
 
   return (
     <Card className="overflow-hidden hover:shadow-md transition-shadow">
@@ -71,8 +144,35 @@ const TutorProfileCard = ({ tutor, reviews = [], loading = false }: TutorProfile
               <AvatarImage src={avatarUrl || "/placeholder.svg"} />
               <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
-            <div>
-              <h3 className="font-semibold text-lg">{fullName}</h3>
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-lg">{fullName}</h3>
+                
+                {/* Country flags */}
+                {countryCodes.length > 0 && (
+                  <div className="flex gap-1">
+                    {countryCodes.map((code, index) => (
+                      <TooltipProvider key={`country-${index}-${code}`}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="rounded-sm overflow-hidden">
+                              <ReactCountryFlag
+                                countryCode={code}
+                                svg
+                                style={{ width: '16px', height: '16px' }}
+                                title={tutor.country && Array.isArray(tutor.country) ? tutor.country[index] : ""}
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs">
+                            {tutor.country && Array.isArray(tutor.country) ? tutor.country[index] : ""}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ))}
+                  </div>
+                )}
+              </div>
               <p className="text-muted-foreground text-sm">
                 {tutor.current_education || "Tutor"}
               </p>

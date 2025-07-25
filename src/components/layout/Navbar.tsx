@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Menu, X, User, LogOut, MessageSquare, Home, Globe, Users, LayoutDashboard, Lock, Bell, Settings, ChevronDown, CalendarPlus, GraduationCap, FileText } from "lucide-react";
+import { Menu, X, User, LogOut, MessageSquare, Home, Globe, Users, LayoutDashboard, Lock, Bell, Settings, ChevronDown, CalendarPlus, GraduationCap, FileText, CreditCard } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { BadgeIndicator } from "@/components/ui/badge-indicator";
@@ -84,6 +84,7 @@ const Navbar = () => {
             >
               Browse Tutors
             </Link>
+            
           </nav>
         </div>
         
@@ -185,6 +186,12 @@ const Navbar = () => {
                     Settings
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem className="focus:bg-muted">
+                  <Link href="/credits" className="flex items-center w-full">
+                    <CreditCard className="mr-2 h-4 w-4 text-[#3e5461]" strokeWidth={2} />
+                    Top Up
+                  </Link>
+                </DropdownMenuItem>
                 {!hasAccess && !isTutor && (
                   <>
                     <DropdownMenuSeparator className="bg-border/40" />
@@ -212,6 +219,13 @@ const Navbar = () => {
               </Link>
             </Button>
           ) : null}
+
+          <Button variant="outline" size="sm" asChild className="hidden md:flex items-center gap-1.5 border-primary/30 text-primary hover:bg-primary/5 shadow-sm">
+            <Link href="/credits">
+              <CreditCard className="h-4 w-4 mr-1" strokeWidth={2} />
+              Top Up
+            </Link>
+          </Button>
 
           {/* Only show consultation button for non-logged in users or non-premium students */}
           {showConsultationButton && (
@@ -267,6 +281,13 @@ const Navbar = () => {
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <Users className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Browse Tutors
+                </Link>
+                <Link 
+                  href="/credits" 
+                  className="flex items-center gap-3 p-3 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors touch-manipulation"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <CreditCard className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Top Up
                 </Link>
 
                 {/* Only show consultation button for non-logged in users or non-premium students in mobile menu */}

@@ -410,6 +410,7 @@ export async function getUserProfileById(
   authUser: AuthUser,
   options?: {
     profile_type?: 'student' | 'tutor';
+    complete?: boolean;
   }
 ): Promise<{
   profile: any;

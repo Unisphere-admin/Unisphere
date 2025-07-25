@@ -36,6 +36,7 @@ import {
   DialogTrigger,
   DialogClose,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -49,6 +50,8 @@ import { SessionRequestCard, parseSessionRequest } from "@/components/SessionReq
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { validateText, sanitizeInput, checkForMaliciousContent, messageSchema } from "@/lib/validation";
 import { getCsrfTokenFromStorage, CSRF_HEADER_NAME, useCsrfToken } from '@/lib/csrf/client';
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 
 // Define interface for messages returned from API
 interface Message {
@@ -99,15 +102,34 @@ interface ActiveSession {
   updated_at?: string;
 }
 
+// Update the StudentProfileData interface to include all fields from the database
 interface StudentProfileData {
   id: string;
   first_name?: string;
   last_name?: string;
+  avatar_url?: string;
   intended_universities?: string;
   intended_major?: string;
   current_subjects?: string[] | string;
-  avatar_url?: string;
   bio?: string;
+  // Add all additional fields from the student_profile table
+  a_levels?: any[];
+  ib_diploma?: any[];
+  igcse?: any[];
+  spm?: any[];
+  extracurricular_activities?: any[];
+  awards?: any[];
+  application_cycle?: string;
+  countries_to_apply?: string;
+  universities_to_apply?: string;
+  planned_admissions_tests?: string;
+  completed_admissions_tests?: string;
+  planned_admissions_support?: string;
+  university_other_info?: string;
+  age?: string;
+  year?: string;
+  previous_schools?: string[] | string;
+  school_name?: string;
 }
 
 // Add a custom type for session items that will be displayed in the messages list
@@ -1310,8 +1332,8 @@ export default function MessagesPage() {
       setLoadingProfile(true);
       
       // Use a direct API route that specifically fetches student profile data
-      // without checking if the user is a tutor
-      const response = await fetch(`/api/users/profile/${studentId}?profile_type=student`, {
+      // Fetch the complete profile with all fields
+      const response = await fetch(`/api/users/profile/${studentId}?profile_type=student&complete=true`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -1324,6 +1346,8 @@ export default function MessagesPage() {
       }
       
       const data = await response.json();
+      console.log("Fetched student profile data:", data.profile);
+      
       // The profile data is returned directly from the student_profile table
       setProfileData(data.profile);
       
@@ -1333,6 +1357,7 @@ export default function MessagesPage() {
         description: "Failed to load student profile",
         variant: "destructive"
       });
+      console.error("Error fetching student profile:", error);
     } finally {
       setLoadingProfile(false);
     }
@@ -1613,7 +1638,7 @@ export default function MessagesPage() {
                       {user?.role === 'tutor' && !currentConversation?.participant?.is_tutor && (
                         <div className="flex items-center ml-1 hidden sm:flex">
                           <Info className="h-3.5 w-3.5 text-primary/60 animate-pulse" />
-                          <span className="ml-1 text-xs text-primary/60">Click to view profile</span>
+                          <span className="ml-1 text-s text-primary/60">Click to view profile</span>
                         </div>
                       )}
                     </div>
@@ -1944,9 +1969,12 @@ export default function MessagesPage() {
 
       {/* Student Profile Dialog */}
       <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Student Profile</DialogTitle>
+            <DialogDescription>
+              Detailed information about this student
+            </DialogDescription>
           </DialogHeader>
           
           {loadingProfile && !profileData ? (
@@ -1955,7 +1983,8 @@ export default function MessagesPage() {
               <p className="text-sm text-muted-foreground">Fetching student information...</p>
             </div>
           ) : profileData ? (
-            <div className="space-y-4 py-2">
+            <div className="space-y-6 py-2">
+              {/* Basic Information Section */}
               <div className="flex items-center gap-4">
                 <Avatar className="h-16 w-16 border border-border/40 shadow-md">
                   <AvatarImage src={profileData.avatar_url || undefined} />
@@ -1966,80 +1995,336 @@ export default function MessagesPage() {
                 <div>
                   <h3 className="text-lg font-medium">{profileData.first_name} {profileData.last_name}</h3>
                   <p className="text-sm text-muted-foreground">Student</p>
+                  {profileData.age && (
+                    <p className="text-sm text-muted-foreground">Age: {profileData.age}</p>
+                  )}
                 </div>
               </div>
-              
-              <div className="space-y-3 pt-2">
-                {/* Bio/About */}
-                {profileData.bio && (
-                  <div className="space-y-1">
-                    <h4 className="text-sm font-medium text-primary">About</h4>
+
+              {/* Educational Background */}
+              <Card className="border border-border/40 shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Educational Background</CardTitle>
+                </CardHeader>
+                <CardContent className="pb-4 space-y-3">
+                  {/* Year/Form */}
+                  {profileData.year && (
+                    <div>
+                      <h4 className="text-sm font-medium">Year/Form</h4>
+                      <p className="text-sm">{profileData.year}</p>
+                    </div>
+                  )}
+                  
+                  {/* Current School */}
+                  {profileData.school_name && (
+                    <div>
+                      <h4 className="text-sm font-medium">Current School</h4>
+                      <p className="text-sm">{profileData.school_name}</p>
+                    </div>
+                  )}
+                  
+                  {/* Previous Schools */}
+                  {profileData.previous_schools && (
+                    <div>
+                      <h4 className="text-sm font-medium">Previous Schools</h4>
+                      {Array.isArray(profileData.previous_schools) ? (
+                        <p className="text-sm">{profileData.previous_schools.join(', ')}</p>
+                      ) : typeof profileData.previous_schools === 'string' ? (
+                        <p className="text-sm">{profileData.previous_schools}</p>
+                      ) : null}
+                    </div>
+                  )}
+                  
+                  {/* Current Subjects */}
+                  <div>
+                    <h4 className="text-sm font-medium">Current Subjects</h4>
                     <p className="text-sm">
-                      {profileData.bio}
+                      {(() => {
+                        // Handle array format
+                        if (Array.isArray(profileData.current_subjects) && 
+                            profileData.current_subjects.length > 0) {
+                          return profileData.current_subjects.join(', ');
+                        } 
+                        // Handle string format (comma-separated)
+                        else if (typeof profileData.current_subjects === 'string' && 
+                                profileData.current_subjects) {
+                          return profileData.current_subjects;
+                        }
+                        // Default case - no subjects
+                        else {
+                          return (
+                            <span className="text-muted-foreground">Not specified</span>
+                          );
+                        }
+                      })()}
                     </p>
                   </div>
-                )}
+                </CardContent>
+              </Card>
+              
+              {/* Bio/About Section */}
+              {profileData.bio && (
+                <Card className="border border-border/40 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">About</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm whitespace-pre-wrap">{profileData.bio}</p>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* University Plans Section */}
+              <Card className="border border-border/40 shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">University Plans</CardTitle>
+                </CardHeader>
+                <CardContent className="pb-4 space-y-3">
+                  {/* Application Cycle */}
+                  {profileData.application_cycle && (
+                    <div>
+                      <h4 className="text-sm font-medium">Application Cycle</h4>
+                      <p className="text-sm">{profileData.application_cycle}</p>
+                    </div>
+                  )}
                 
-                {/* Intended Universities */}
-                <div className="space-y-1">
-                  <h4 className="text-sm font-medium text-primary">Intended Universities</h4>
-                  <p className="text-sm">
-                    {profileData.intended_universities ? (
-                      profileData.intended_universities
-                    ) : (
-                      <span className="text-muted-foreground">Not specified</span>
-                    )}
-                  </p>
-                </div>
-                
-                {/* Intended Major */}
-                <div className="space-y-1">
-                  <h4 className="text-sm font-medium text-primary">Intended Major</h4>
-                  <p className="text-sm">
-                    {profileData.intended_major ? (
-                      profileData.intended_major
-                    ) : (
-                      <span className="text-muted-foreground">Not specified</span>
-                    )}
-                  </p>
-                </div>
-                
-                {/* Current High School Subjects */}
-                <div className="space-y-1">
-                  <h4 className="text-sm font-medium text-primary">Current High School Subjects</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {(() => {
-                      // First handle array format
-                      if (Array.isArray(profileData.current_subjects) && 
-                          profileData.current_subjects.length > 0) {
-                        return profileData.current_subjects.map((subject, index) => (
-                          <Badge key={index} variant="secondary" className="bg-muted">
-                            {subject}
-                          </Badge>
-                        ));
-                      } 
-                      // Then handle string format (comma-separated)
-                      else if (typeof profileData.current_subjects === 'string' && 
-                              profileData.current_subjects) {
-                        return profileData.current_subjects.split(',')
-                          .map(subject => subject.trim())
-                          .filter(subject => subject) // Filter out empty strings
-                          .map((subject, index) => (
-                            <Badge key={index} variant="secondary" className="bg-muted">
-                              {subject}
-                            </Badge>
-                          ));
-                      }
-                      // Default case - no subjects
-                      else {
-                        return (
-                          <span className="text-sm text-muted-foreground">Not specified</span>
-                        );
-                      }
-                    })()}
+                  {/* Intended Universities */}
+                  <div>
+                    <h4 className="text-sm font-medium">Intended Universities</h4>
+                    <p className="text-sm">
+                      {profileData.intended_universities || <span className="text-muted-foreground">Not specified</span>}
+                    </p>
                   </div>
-                </div>
-              </div>
+                  
+                  {/* Countries to Apply */}
+                  {profileData.countries_to_apply && (
+                    <div>
+                      <h4 className="text-sm font-medium">Countries Planning to Apply To</h4>
+                      <p className="text-sm">{profileData.countries_to_apply}</p>
+                    </div>
+                  )}
+                  
+                  {/* Universities to Apply */}
+                  {profileData.universities_to_apply && (
+                    <div>
+                      <h4 className="text-sm font-medium">Universities Planning to Apply To</h4>
+                      <p className="text-sm">{profileData.universities_to_apply}</p>
+                    </div>
+                  )}
+                  
+                  {/* Intended Major */}
+                  <div>
+                    <h4 className="text-sm font-medium">Intended Major</h4>
+                    <p className="text-sm">
+                      {profileData.intended_major || <span className="text-muted-foreground">Not specified</span>}
+                    </p>
+                  </div>
+                  
+                  {/* Planned Admissions Tests */}
+                  {profileData.planned_admissions_tests && (
+                    <div>
+                      <h4 className="text-sm font-medium">Planned Admissions Tests</h4>
+                      <p className="text-sm">{profileData.planned_admissions_tests}</p>
+                    </div>
+                  )}
+                  
+                  {/* Completed Admissions Tests */}
+                  {profileData.completed_admissions_tests && (
+                    <div>
+                      <h4 className="text-sm font-medium">Completed Admissions Tests</h4>
+                      <p className="text-sm">{profileData.completed_admissions_tests}</p>
+                    </div>
+                  )}
+                  
+                  {/* Planned Admissions Support */}
+                  {profileData.planned_admissions_support && (
+                    <div>
+                      <h4 className="text-sm font-medium">Planned Admissions Support</h4>
+                      <p className="text-sm">{profileData.planned_admissions_support}</p>
+                    </div>
+                  )}
+                  
+                  {/* Other University Information */}
+                  {profileData.university_other_info && (
+                    <div>
+                      <h4 className="text-sm font-medium">Other University Information</h4>
+                      <p className="text-sm">{profileData.university_other_info}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Examination Records */}
+              {((profileData.a_levels && profileData.a_levels.length > 0) || 
+                (profileData.ib_diploma && profileData.ib_diploma.length > 0) || 
+                (profileData.igcse && profileData.igcse.length > 0) || 
+                (profileData.spm && profileData.spm.length > 0)) && (
+                <Card className="border border-border/40 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Examination Records</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pb-4 space-y-4">
+                    {/* A-Levels */}
+                    {profileData.a_levels && profileData.a_levels.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">A-Levels</h4>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Subject</TableHead>
+                              <TableHead>AS Grade</TableHead>
+                              <TableHead>Predicted Grade</TableHead>
+                              <TableHead>Achieved Grade</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {profileData.a_levels?.map((entry, index) => (
+                              <TableRow key={index}>
+                                <TableCell>{entry.subject}</TableCell>
+                                <TableCell>{entry.asGrade || '-'}</TableCell>
+                                <TableCell>{entry.predictedGrade || '-'}</TableCell>
+                                <TableCell>{entry.achievedGrade || '-'}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                    
+                    {/* IB Diploma */}
+                    {profileData.ib_diploma && profileData.ib_diploma.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">IB Diploma</h4>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Subject</TableHead>
+                              <TableHead>Predicted Grade</TableHead>
+                              <TableHead>Achieved Grade</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {profileData.ib_diploma?.map((entry, index) => (
+                              <TableRow key={index}>
+                                <TableCell>{entry.subject}</TableCell>
+                                <TableCell>{entry.predictedGrade || '-'}</TableCell>
+                                <TableCell>{entry.achievedGrade || '-'}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                    
+                    {/* IGCSE */}
+                    {profileData.igcse && profileData.igcse.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">IGCSE</h4>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Subject</TableHead>
+                              <TableHead>Achieved Grade</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {profileData.igcse?.map((entry, index) => (
+                              <TableRow key={index}>
+                                <TableCell>{entry.subject}</TableCell>
+                                <TableCell>{entry.achievedGrade || '-'}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                    
+                    {/* SPM */}
+                    {profileData.spm && profileData.spm.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">SPM</h4>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Subject</TableHead>
+                              <TableHead>Achieved Grade</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {profileData.spm?.map((entry, index) => (
+                              <TableRow key={index}>
+                                <TableCell>{entry.subject}</TableCell>
+                                <TableCell>{entry.achievedGrade || '-'}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* Extracurricular Activities and Awards */}
+              {((profileData.extracurricular_activities && profileData.extracurricular_activities.length > 0) || 
+                (profileData.awards && profileData.awards.length > 0)) && (
+                <Card className="border border-border/40 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Activities & Achievements</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pb-4 space-y-4">
+                    {/* Extracurricular Activities */}
+                    {profileData.extracurricular_activities && profileData.extracurricular_activities.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Extracurricular Activities</h4>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Activity</TableHead>
+                              <TableHead>Description</TableHead>
+                              <TableHead>Year(s)</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {profileData.extracurricular_activities?.map((entry, index) => (
+                              <TableRow key={index}>
+                                <TableCell>{entry.activity}</TableCell>
+                                <TableCell>{entry.description || '-'}</TableCell>
+                                <TableCell>{entry.yearParticipated || '-'}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                    
+                    {/* Awards */}
+                    {profileData.awards && profileData.awards.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Honors & Awards</h4>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Award</TableHead>
+                              <TableHead>Description</TableHead>
+                              <TableHead>Year</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {profileData.awards?.map((entry, index) => (
+                              <TableRow key={index}>
+                                <TableCell>{entry.name}</TableCell>
+                                <TableCell>{entry.description || '-'}</TableCell>
+                                <TableCell>{entry.yearAwarded || '-'}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </div>
           ) : (
             <div className="py-4 text-center">

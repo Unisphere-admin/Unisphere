@@ -21,14 +21,16 @@ async function getUserProfileHandler(
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
     
-    // Get the profile_type from query parameters
+    // Get the profile_type and complete flag from query parameters
     const { searchParams } = new URL(req.url);
     const profileType = searchParams.get('profile_type') as 'student' | 'tutor' | null;
+    const complete = searchParams.get('complete') === 'true';
     
-    // Use the data layer function to get profile data
-    const { profile, error } = await getUserProfileById(userId, user, 
-      profileType ? { profile_type: profileType } : undefined
-    );
+    // Use the data layer function to get profile data with options
+    const { profile, error } = await getUserProfileById(userId, user, {
+      profile_type: profileType || undefined,
+      complete
+    });
     
     // Handle errors
     if (error) {
