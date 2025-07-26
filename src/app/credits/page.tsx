@@ -1,17 +1,106 @@
 "use client";
 
-import React from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Check, ArrowRight, CreditCard, Shield, Users, Star, Zap, Download, Clock } from 'lucide-react';
-import Link from 'next/link';
-import { useAuth } from '@/context/AuthContext';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useState, useEffect } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Check } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+
+// Define pricing structure by country
+interface PricingTier {
+  currency: string;
+  basic: {
+    price: number;
+    pricePerCredit: number;
+  };
+  standard: {
+    price: number;
+    pricePerCredit: number;
+  };
+  premium: {
+    price: number;
+    pricePerCredit: number;
+  };
+}
+
+const PRICING: Record<string, PricingTier> = {
+  US: {
+    currency: "$",
+    basic: { price: 150, pricePerCredit: 0.3 },
+    standard: { price: 275, pricePerCredit: 0.275 },
+    premium: { price: 500, pricePerCredit: 0.25 },
+  },
+  MY: {
+    currency: "RM",
+    basic: { price: 600, pricePerCredit: 1.2 },
+    standard: { price: 1050, pricePerCredit: 1.05 },
+    premium: { price: 2000, pricePerCredit: 1 },
+  },
+  HK: {
+    currency: "HKD",
+    basic: { price: 1200, pricePerCredit: 2.4 },
+    standard: { price: 2200, pricePerCredit: 2.2 },
+    premium: { price: 4000, pricePerCredit: 2 },
+  },
+  GB: {
+    currency: "£",
+    basic: { price: 110, pricePerCredit: 0.22 },
+    standard: { price: 200, pricePerCredit: 0.2 },
+    premium: { price: 375, pricePerCredit: 0.1875 },
+  },
+  SG: {
+    currency: "SGD",
+    basic: { price: 200, pricePerCredit: 0.4 },
+    standard: { price: 350, pricePerCredit: 0.35 },
+    premium: { price: 600, pricePerCredit: 0.3 },
+  },
+  // Default pricing in USD
+  DEFAULT: {
+    currency: "$",
+    basic: { price: 150, pricePerCredit: 0.3 },
+    standard: { price: 275, pricePerCredit: 0.275 },
+    premium: { price: 500, pricePerCredit: 0.25 },
+  }
+};
 
 export default function CreditsPage() {
   const { user } = useAuth();
+  const [countryCode, setCountryCode] = useState<string>("DEFAULT");
+  const [pricing, setPricing] = useState<PricingTier>(PRICING.DEFAULT);
+  
+  // Detect user's country
+  useEffect(() => {
+    async function detectCountry() {
+      try {
+        // Try to get country from browser's language settings
+        const language = navigator.language;
+        const regionMatch = language.match(/[-_]([A-Z]{2})$/i);
+        let detectedCountry = regionMatch ? regionMatch[1].toUpperCase() : null;
+        
+        // If not detected from language, try IP-based detection
+        if (!detectedCountry || !PRICING[detectedCountry]) {
+          try {
+            const response = await fetch('https://ipapi.co/json/');
+            const data = await response.json();
+            detectedCountry = data.country_code;
+          } catch (error) {
+            console.error("Failed to detect country from IP:", error);
+          }
+        }
+        
+        // Set country code if it's in our pricing list
+        if (detectedCountry && PRICING[detectedCountry]) {
+          setCountryCode(detectedCountry);
+          setPricing(PRICING[detectedCountry]);
+        }
+      } catch (error) {
+        console.error("Error detecting country:", error);
+      }
+    }
+    
+    detectCountry();
+  }, []);
   
   return (
     <div className="container max-w-7xl mx-auto py-16 px-4 relative min-h-screen">
@@ -39,32 +128,15 @@ export default function CreditsPage() {
               <span className="text-2xl font-bold"> Credits</span>
             </div>
             <div className="mt-1 mb-2">
-              <span className="text-xl font-medium">$25</span>
-              <span className="text-muted-foreground text-sm ml-1">($0.05/credit)</span>
+              <span className="text-xl font-medium">{pricing.currency}{pricing.basic.price}</span>
+              <span className="text-muted-foreground text-sm ml-1">({pricing.currency}{pricing.basic.pricePerCredit}/credit)</span>
             </div>
             <CardDescription>
-              Perfect for getting started and exploring our platform.
+              Get started with 3-5 mentor sessions. Perfect for targeted help with applications or interview prep from current students at elite universities.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex-1">
-            <ul className="space-y-2">
-              <li className="flex items-start">
-                <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                <span>Book up to 5 tutoring sessions</span>
-              </li>
-              <li className="flex items-start">
-                <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                <span>Access to community forum</span>
-              </li>
-              <li className="flex items-start">
-                <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                <span>Basic resource library</span>
-              </li>
-              <li className="flex items-start">
-                <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                <span>Text & audio sessions</span>
-              </li>
-            </ul>
+            {/* Content here */}
           </CardContent>
           <CardFooter>
             <Button variant="outline" className="w-full">
@@ -84,35 +156,16 @@ export default function CreditsPage() {
               <span className="text-2xl font-bold"> Credits</span>
             </div>
             <div className="mt-1 mb-2">
-              <span className="text-xl font-medium">$45</span>
-              <span className="text-muted-foreground text-sm ml-1">($0.045/credit)</span>
+              <span className="text-xl font-medium">{pricing.currency}{pricing.standard.price}</span>
+              <span className="text-muted-foreground text-sm ml-1">({pricing.currency}{pricing.standard.pricePerCredit}/credit)</span>
             </div>
             <CardDescription>
-              Our most popular package with the best value.
+              Popular option with 10-15 sessions. Comprehensive support for students applying to multiple universities with essay reviews and interview preparation.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex-1">
             <ul className="space-y-2">
-              <li className="flex items-start">
-                <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                <span className="font-medium">Book up to 12 tutoring sessions</span>
-              </li>
-              <li className="flex items-start">
-                <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                <span>Audio & video tutoring sessions</span>
-              </li>
-              <li className="flex items-start">
-                <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                <span>Full resource library access</span>
-              </li>
-              <li className="flex items-start">
-                <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                <span>Priority matching with top tutors</span>
-              </li>
-              <li className="flex items-start">
-                <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                <span>10% bonus credits</span>
-              </li>
+              {/* Content here */}
             </ul>
           </CardContent>
           <CardFooter>
@@ -131,35 +184,16 @@ export default function CreditsPage() {
               <span className="text-2xl font-bold"> Credits</span>
             </div>
             <div className="mt-1 mb-2">
-              <span className="text-xl font-medium">$80</span>
-              <span className="text-muted-foreground text-sm ml-1">($0.04/credit)</span>
+              <span className="text-xl font-medium">{pricing.currency}{pricing.premium.price}</span>
+              <span className="text-muted-foreground text-sm ml-1">({pricing.currency}{pricing.premium.pricePerCredit}/credit)</span>
             </div>
             <CardDescription>
-              Maximum value for serious students with long-term needs.
+              Best value for complete application support. Full access to all features with unlimited sessions for comprehensive application assistance and academic support.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex-1">
             <ul className="space-y-2">
-              <li className="flex items-start">
-                <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                <span>Book up to 25 tutoring sessions</span>
-              </li>
-              <li className="flex items-start">
-                <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                <span>All Standard features included</span>
-              </li>
-              <li className="flex items-start">
-                <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                <span>Personalized study plans</span>
-              </li>
-              <li className="flex items-start">
-                <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                <span>Access to recorded sessions</span>
-              </li>
-              <li className="flex items-start">
-                <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                <span>20% bonus credits</span>
-              </li>
+              {/* Content here */}
             </ul>
           </CardContent>
           <CardFooter>
