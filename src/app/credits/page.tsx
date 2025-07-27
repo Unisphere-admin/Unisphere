@@ -4,12 +4,13 @@ import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check } from "lucide-react";
+import { Check, MapPin } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 // Define pricing structure by country
 interface PricingTier {
   currency: string;
+  currencySymbol: string;
   basic: {
     price: number;
     pricePerCredit: number;
@@ -26,38 +27,44 @@ interface PricingTier {
 
 const PRICING: Record<string, PricingTier> = {
   US: {
-    currency: "$",
+    currency: "USD",
+    currencySymbol: "$",
     basic: { price: 150, pricePerCredit: 0.3 },
     standard: { price: 275, pricePerCredit: 0.275 },
     premium: { price: 500, pricePerCredit: 0.25 },
   },
   MY: {
-    currency: "RM",
+    currency: "MYR",
+    currencySymbol: "RM",
     basic: { price: 600, pricePerCredit: 1.2 },
     standard: { price: 1050, pricePerCredit: 1.05 },
     premium: { price: 2000, pricePerCredit: 1 },
   },
   HK: {
     currency: "HKD",
+    currencySymbol: "HKD",
     basic: { price: 1200, pricePerCredit: 2.4 },
     standard: { price: 2200, pricePerCredit: 2.2 },
     premium: { price: 4000, pricePerCredit: 2 },
   },
   GB: {
-    currency: "£",
+    currency: "GBP",
+    currencySymbol: "£",
     basic: { price: 110, pricePerCredit: 0.22 },
     standard: { price: 200, pricePerCredit: 0.2 },
     premium: { price: 375, pricePerCredit: 0.1875 },
   },
   SG: {
     currency: "SGD",
+    currencySymbol: "SGD",
     basic: { price: 200, pricePerCredit: 0.4 },
     standard: { price: 350, pricePerCredit: 0.35 },
     premium: { price: 600, pricePerCredit: 0.3 },
   },
   // Default pricing in USD
   DEFAULT: {
-    currency: "$",
+    currency: "USD",
+    currencySymbol: "$",
     basic: { price: 150, pricePerCredit: 0.3 },
     standard: { price: 275, pricePerCredit: 0.275 },
     premium: { price: 500, pricePerCredit: 0.25 },
@@ -68,24 +75,57 @@ export default function CreditsPage() {
   const { user } = useAuth();
   const [countryCode, setCountryCode] = useState<string>("DEFAULT");
   const [pricing, setPricing] = useState<PricingTier>(PRICING.DEFAULT);
+  const [locationDetectionMethod, setLocationDetectionMethod] = useState<string>("");
   
   // Detect user's country
   useEffect(() => {
     async function detectCountry() {
       try {
-        // Try to get country from browser's language settings
-        const language = navigator.language;
-        const regionMatch = language.match(/[-_]([A-Z]{2})$/i);
-        let detectedCountry = regionMatch ? regionMatch[1].toUpperCase() : null;
+        let detectedCountry: string | null = null;
         
-        // If not detected from language, try IP-based detection
+        // Try to get country from browser's Geolocation API
+        if (navigator.geolocation) {
+          try {
+            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, { 
+                timeout: 5000,
+                maximumAge: 24 * 60 * 60 * 1000 // Cache for 24 hours
+              });
+            });
+            
+            // Convert coordinates to country
+            const response = await fetch(
+              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${position.coords.latitude}&longitude=${position.coords.longitude}&localityLanguage=en`
+            );
+            const data = await response.json();
+            detectedCountry = data.countryCode;
+            setLocationDetectionMethod("Browser Geolocation API");
+          } catch (error) {
+            console.log("Geolocation detection failed:", error);
+          }
+        }
+        
+        // If geolocation fails, try browser language
+        if (!detectedCountry || !PRICING[detectedCountry]) {
+          try {
+            const language = navigator.language;
+            const regionMatch = language.match(/[-_]([A-Z]{2})$/i);
+            detectedCountry = regionMatch ? regionMatch[1].toUpperCase() : null;
+            setLocationDetectionMethod("Browser Language Settings");
+          } catch (error) {
+            console.log("Language-based detection failed:", error);
+          }
+        }
+        
+        // If both geolocation and language detection fail, try IP-based detection
         if (!detectedCountry || !PRICING[detectedCountry]) {
           try {
             const response = await fetch('https://ipapi.co/json/');
             const data = await response.json();
             detectedCountry = data.country_code;
+            setLocationDetectionMethod("IP-based Detection");
           } catch (error) {
-            console.error("Failed to detect country from IP:", error);
+            console.log("IP-based detection failed:", error);
           }
         }
         
@@ -115,6 +155,12 @@ export default function CreditsPage() {
         <p className="text-lg text-muted-foreground max-w-2xl">
           Purchase credits to book tutoring sessions, access premium resources, and unlock all platform features.
         </p>
+        {countryCode !== "DEFAULT" && (
+          <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+            <MapPin size={14} />
+            <span>Showing prices in {pricing.currency} based on your location ({countryCode})</span>
+          </div>
+        )}
       </div>
 
       {/* Credit Package Cards */}
@@ -128,8 +174,8 @@ export default function CreditsPage() {
               <span className="text-2xl font-bold"> Credits</span>
             </div>
             <div className="mt-1 mb-2">
-              <span className="text-xl font-medium">{pricing.currency}{pricing.basic.price}</span>
-              <span className="text-muted-foreground text-sm ml-1">({pricing.currency}{pricing.basic.pricePerCredit}/credit)</span>
+              <span className="text-xl font-medium">{pricing.currencySymbol}{pricing.basic.price}</span>
+              <span className="text-muted-foreground text-sm ml-1">({pricing.currencySymbol}{pricing.basic.pricePerCredit}/credit)</span>
             </div>
             <CardDescription>
               Get started with 3-5 mentor sessions. Perfect for targeted help with applications or interview prep from current students at elite universities.
@@ -139,9 +185,15 @@ export default function CreditsPage() {
             {/* Content here */}
           </CardContent>
           <CardFooter>
-            <Button variant="outline" className="w-full">
-              Buy 500 Credits
-            </Button>
+            {user?.role === 'tutor' ? (
+              <Button variant="outline" className="w-full" disabled>
+                Tutor Account
+              </Button>
+            ) : (
+              <Button variant="outline" className="w-full">
+                Buy 500 Credits
+              </Button>
+            )}
           </CardFooter>
         </Card>
 
@@ -156,8 +208,8 @@ export default function CreditsPage() {
               <span className="text-2xl font-bold"> Credits</span>
             </div>
             <div className="mt-1 mb-2">
-              <span className="text-xl font-medium">{pricing.currency}{pricing.standard.price}</span>
-              <span className="text-muted-foreground text-sm ml-1">({pricing.currency}{pricing.standard.pricePerCredit}/credit)</span>
+              <span className="text-xl font-medium">{pricing.currencySymbol}{pricing.standard.price}</span>
+              <span className="text-muted-foreground text-sm ml-1">({pricing.currencySymbol}{pricing.standard.pricePerCredit}/credit)</span>
             </div>
             <CardDescription>
               Popular option with 10-15 sessions. Comprehensive support for students applying to multiple universities with essay reviews and interview preparation.
@@ -169,9 +221,15 @@ export default function CreditsPage() {
             </ul>
           </CardContent>
           <CardFooter>
-            <Button className="w-full bg-primary hover:bg-primary/90">
-              Buy 1000 Credits
-            </Button>
+            {user?.role === 'tutor' ? (
+              <Button className="w-full bg-primary/60 hover:bg-primary/60" disabled>
+                Tutor Account
+              </Button>
+            ) : (
+              <Button className="w-full bg-primary hover:bg-primary/90">
+                Buy 1000 Credits
+              </Button>
+            )}
           </CardFooter>
         </Card>
 
@@ -184,8 +242,8 @@ export default function CreditsPage() {
               <span className="text-2xl font-bold"> Credits</span>
             </div>
             <div className="mt-1 mb-2">
-              <span className="text-xl font-medium">{pricing.currency}{pricing.premium.price}</span>
-              <span className="text-muted-foreground text-sm ml-1">({pricing.currency}{pricing.premium.pricePerCredit}/credit)</span>
+              <span className="text-xl font-medium">{pricing.currencySymbol}{pricing.premium.price}</span>
+              <span className="text-muted-foreground text-sm ml-1">({pricing.currencySymbol}{pricing.premium.pricePerCredit}/credit)</span>
             </div>
             <CardDescription>
               Best value for complete application support. Full access to all features with unlimited sessions for comprehensive application assistance and academic support.
@@ -197,9 +255,15 @@ export default function CreditsPage() {
             </ul>
           </CardContent>
           <CardFooter>
-            <Button variant="outline" className="w-full">
-              Buy 2000 Credits
-            </Button>
+            {user?.role === 'tutor' ? (
+              <Button variant="outline" className="w-full" disabled>
+                Tutor Account
+              </Button>
+            ) : (
+              <Button variant="outline" className="w-full">
+                Buy 2000 Credits
+              </Button>
+            )}
           </CardFooter>
         </Card>
       </div>
@@ -213,7 +277,7 @@ export default function CreditsPage() {
         <div className="space-y-4">
           <div className="bg-card/80 backdrop-blur-sm border border-border/40 rounded-lg p-6">
             <h3 className="font-bold text-lg mb-2">How do credits work?</h3>
-            <p className="text-muted-foreground">Credits are used for booking tutoring sessions and accessing premium resources. Different session types cost different amounts of credits. Text sessions cost fewer credits than audio or video sessions.</p>
+            <p className="text-muted-foreground">Credits are used for booking tutoring sessions and accessing premium resources. Different services can have different prices depending on the tutor. Text sessions cost fewer credits than audio or video sessions.</p>
           </div>
           <div className="bg-card/80 backdrop-blur-sm border border-border/40 rounded-lg p-6">
             <h3 className="font-bold text-lg mb-2">Do credits expire?</h3>
@@ -221,7 +285,7 @@ export default function CreditsPage() {
           </div>
           <div className="bg-card/80 backdrop-blur-sm border border-border/40 rounded-lg p-6">
             <h3 className="font-bold text-lg mb-2">Can I transfer credits to another account?</h3>
-            <p className="text-muted-foreground">Credits are non-transferable and tied to the account that purchased them. However, you can contact support for special circumstances.</p>
+            <p className="text-muted-foreground">Credits are non-transferable and tied to the account that purchased them. However, you can contact us for special circumstances.</p>
           </div>
         </div>
       </div>
