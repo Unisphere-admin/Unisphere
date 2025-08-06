@@ -75,67 +75,31 @@ export default function CreditsPage() {
   const { user } = useAuth();
   const [countryCode, setCountryCode] = useState<string>("DEFAULT");
   const [pricing, setPricing] = useState<PricingTier>(PRICING.DEFAULT);
-  const [locationDetectionMethod, setLocationDetectionMethod] = useState<string>("");
+  const [locationLoading, setLocationLoading] = useState<boolean>(true);
   
-  // Detect user's country
+  // Detect user's country using GeoJS
   useEffect(() => {
     async function detectCountry() {
       try {
-        let detectedCountry: string | null = null;
+        setLocationLoading(true);
         
-        // Try to get country from browser's Geolocation API
-        if (navigator.geolocation) {
-          try {
-            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(resolve, reject, { 
-                timeout: 5000,
-                maximumAge: 24 * 60 * 60 * 1000 // Cache for 24 hours
-              });
-            });
-            
-            // Convert coordinates to country
-            const response = await fetch(
-              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${position.coords.latitude}&longitude=${position.coords.longitude}&localityLanguage=en`
-            );
-            const data = await response.json();
-            detectedCountry = data.countryCode;
-            setLocationDetectionMethod("Browser Geolocation API");
-          } catch (error) {
-            console.log("Geolocation detection failed:", error);
+        // Use GeoJS to get country information
+        const response = await fetch('https://get.geojs.io/v1/ip/country.json');
+        const data = await response.json();
+        
+        if (data && data.country) {
+          const detectedCountry = data.country;
+          
+          // Set country code if it's in our pricing list
+          if (PRICING[detectedCountry]) {
+            setCountryCode(detectedCountry);
+            setPricing(PRICING[detectedCountry]);
           }
-        }
-        
-        // If geolocation fails, try browser language
-        if (!detectedCountry || !PRICING[detectedCountry]) {
-          try {
-            const language = navigator.language;
-            const regionMatch = language.match(/[-_]([A-Z]{2})$/i);
-            detectedCountry = regionMatch ? regionMatch[1].toUpperCase() : null;
-            setLocationDetectionMethod("Browser Language Settings");
-          } catch (error) {
-            console.log("Language-based detection failed:", error);
-          }
-        }
-        
-        // If both geolocation and language detection fail, try IP-based detection
-        if (!detectedCountry || !PRICING[detectedCountry]) {
-          try {
-            const response = await fetch('https://ipapi.co/json/');
-            const data = await response.json();
-            detectedCountry = data.country_code;
-            setLocationDetectionMethod("IP-based Detection");
-          } catch (error) {
-            console.log("IP-based detection failed:", error);
-          }
-        }
-        
-        // Set country code if it's in our pricing list
-        if (detectedCountry && PRICING[detectedCountry]) {
-          setCountryCode(detectedCountry);
-          setPricing(PRICING[detectedCountry]);
         }
       } catch (error) {
-        console.error("Error detecting country:", error);
+        console.error("Error detecting country with GeoJS:", error);
+      } finally {
+        setLocationLoading(false);
       }
     }
     
@@ -159,6 +123,11 @@ export default function CreditsPage() {
           <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
             <MapPin size={14} />
             <span>Showing prices in {pricing.currency} based on your location ({countryCode})</span>
+          </div>
+        )}
+        {locationLoading && (
+          <div className="mt-4 text-sm text-muted-foreground animate-pulse">
+            Detecting your location...
           </div>
         )}
       </div>
@@ -268,7 +237,11 @@ export default function CreditsPage() {
         </Card>
       </div>
 
-     
+      <div className="relative z-10 text-center mb-16">
+        <Button variant="link" asChild>
+          <a href="/marketplace">Visit our Marketplace to spend credits on courses and resources</a>
+        </Button>
+      </div>
 
       {/* FAQ Section */}
       <div className="relative z-10 mt-20 max-w-3xl mx-auto">

@@ -98,9 +98,9 @@ export default function AboutPage() {
           <div className="order-2 md:order-1">
             <div className="space-y-6">
               <div className="hover:translate-x-1 transition-transform duration-300">
-                <h3 className="text-2xl font-semibold mb-3">1. Join with a One-Time Fee</h3>
+                <h3 className="text-2xl font-semibold mb-3">1. Join Our Platform</h3>
                 <p className="text-muted-foreground">
-                Pay a one-time access fee, unlock everything you need to begin your journey, from finding tutors to using our exclusive guides, resources and communities
+                Sign up and top-up your balance unlock everything you need to begin your journey, from booking tutors to using our exclusive guides, resources and communities.
                 </p>
               </div>
               

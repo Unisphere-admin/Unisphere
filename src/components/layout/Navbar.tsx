@@ -62,7 +62,7 @@ const Navbar = () => {
   
   // Show consultation button only for non-logged in users or non-premium students
   const showConsultationButton = !loading && (!user || (!hasAccess && !isTutor));
-
+  const showTopUpButton = !loading && user && !isTutor;
   return (
     <header className="fixed top-0 left-0 right-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur-sm shadow-sm h-[var(--navbar-height)]">
       <div className="w-full h-full px-4 md:px-8 flex items-center justify-between max-w-screen-xl mx-auto">
@@ -186,12 +186,16 @@ const Navbar = () => {
                     Settings
                   </Link>
                 </DropdownMenuItem>
+                {!isTutor && (
+                  <>
                 <DropdownMenuItem className="focus:bg-muted">
                   <Link href="/credits" className="flex items-center w-full">
                     <CreditCard className="mr-2 h-4 w-4 text-[#3e5461]" strokeWidth={2} />
                     Top Up
                   </Link>
                 </DropdownMenuItem>
+                </>
+                )}
                 {!hasAccess && !isTutor && (
                   <>
                     <DropdownMenuSeparator className="bg-border/40" />
@@ -220,12 +224,16 @@ const Navbar = () => {
             </Button>
           ) : null}
 
+          {showTopUpButton && (
+            <>
           <Button variant="outline" size="sm" asChild className="hidden md:flex items-center gap-1.5 border-primary/30 text-primary hover:bg-primary/5 shadow-sm">
             <Link href="/credits">
               <CreditCard className="h-4 w-4 mr-1" strokeWidth={2} />
               Top Up
             </Link>
           </Button>
+          </>
+          )}
 
           {/* Only show consultation button for non-logged in users or non-premium students */}
           {showConsultationButton && (

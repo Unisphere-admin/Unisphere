@@ -83,9 +83,7 @@ export default function HomePage() {
                 </Button>
               </Link>
               <Link href="/about">
-                <Button size="lg" variant="outline" className="border-[#c2d8d2]/60 hover:border-[#84b4cc]/60 hover:bg-[#c7e4e3]/10 transition-all w-full">
-                Learn More
-                </Button>
+                
                 </Link>
               </div>
               
@@ -134,7 +132,7 @@ export default function HomePage() {
                 
                 <h3 className="text-xl font-semibold mb-3">Join Our Platform</h3>
                 <p className="text-muted-foreground">
-                For a one-time fee, gain full access to our exclusive platform, where you can connect with the best tutors for the cheapest rates on the market.
+Sign up and top-up your balance unlock everything you need to begin your journey, from booking tutors to using our exclusive guides, resources and communities
                 </p>
               </div>
               
