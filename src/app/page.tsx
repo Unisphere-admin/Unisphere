@@ -82,6 +82,11 @@ export default function HomePage() {
                   
                 </Button>
               </Link>
+              <Link href="/signup">
+                <Button size="lg" variant="secondary" className="border-[#c2d8d2]/60 hover:border-[#84b4cc]/60 hover:bg-[#c7e4e3]/10 transition-all w-full">
+                  Sign Up
+                </Button>
+              </Link>
               <Link href="/about">
                 
                 </Link>
