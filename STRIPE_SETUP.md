@@ -1,6 +1,6 @@
 # Stripe Integration Setup
 
-This document explains how to set up Stripe payment processing for the credits/top-up system using Stripe's hosted checkout and product catalog.
+This document explains how to set up Stripe payment processing for the credits/top-up system using Stripe's hosted checkout and product catalog with location-based pricing.
 
 ## Environment Variables
 
@@ -51,7 +51,21 @@ STRIPE_PREMIUM_PRODUCT_ID=prod_... # Premium credits package
    
    - Copy the Product IDs and add them to your environment variables
 
-4. **Set Up Webhooks**:
+4. **Set Up Location-Based Pricing** (Optional but Recommended):
+   - For each product, you can create multiple prices in different currencies
+   - Go to the product page and click "Add price"
+   - Create prices for the currencies you want to support:
+     - USD (US Dollar)
+     - GBP (British Pound)
+     - EUR (Euro)
+     - CAD (Canadian Dollar)
+     - AUD (Australian Dollar)
+     - SGD (Singapore Dollar)
+     - MYR (Malaysian Ringgit)
+     - And any other currencies you want to support
+   - The system will automatically select the best matching price based on the user's location
+
+5. **Set Up Webhooks**:
    - Go to Developers > Webhooks in your Stripe dashboard
    - Click "Add endpoint"
    - Set the endpoint URL to: `https://yourdomain.com/api/stripe/webhook`
@@ -61,11 +75,34 @@ STRIPE_PREMIUM_PRODUCT_ID=prod_... # Premium credits package
      - `payment_intent.payment_failed`
    - Copy the webhook signing secret
 
-5. **Configure Checkout Settings** (Optional):
+6. **Configure Checkout Settings** (Optional):
    - Go to Settings > Checkout in your Stripe dashboard
    - Customize the checkout page appearance
    - Set up tax collection if needed
    - Configure email receipts
+
+## Location-Based Pricing
+
+The system automatically detects the user's location and shows pricing in their local currency:
+
+### How It Works:
+1. **Location Detection**: Uses GeoJS API to detect the user's country based on IP address
+2. **Currency Mapping**: Maps country codes to appropriate currencies
+3. **Price Selection**: Fetches the best matching price from Stripe for the user's currency
+4. **Fallback**: If no matching price is found, falls back to the default price
+
+### Supported Countries and Currencies:
+The system supports a wide range of countries and currencies including:
+- US (USD), GB (GBP), CA (CAD), AU (AUD)
+- EU countries (EUR)
+- Asian countries: SG (SGD), MY (MYR), JP (JPY), etc.
+- And many more...
+
+### Setting Up Multi-Currency Pricing:
+1. In your Stripe dashboard, go to each product
+2. Click "Add price" to create additional prices in different currencies
+3. Set appropriate amounts for each currency (consider exchange rates and local pricing)
+4. The system will automatically use the correct price based on user location
 
 ## Testing Your Setup
 
@@ -78,13 +115,21 @@ Run the test script to verify your Stripe products are set up correctly:
 node scripts/test-stripe-products.js
 ```
 
-This will show you:
-- ✅ Product details and metadata
-- 💰 Current pricing
-- 🎫 Credit amounts
-- ❌ Any configuration issues
+### 2. Test Location-Based Pricing
 
-### 2. Test the Complete Flow
+Test the location-based pricing functionality:
+
+```bash
+# Test different locations and currencies
+node scripts/test-location-pricing.js
+```
+
+This will show you:
+- ✅ Available prices for each currency
+- 💰 Price amounts in different currencies
+- ⚠️ Missing prices for specific currencies
+
+### 3. Test the Complete Flow
 
 1. **Start your development server**:
    ```bash
@@ -93,37 +138,49 @@ This will show you:
 
 2. **Visit the credits page**: `http://localhost:3000/credits`
 
-3. **Check the browser console** for any errors
+3. **Check the browser console** for location detection logs
 
-4. **Test a purchase**:
+4. **Test with different locations**:
+   - Use a VPN to test different countries
+   - Check that the correct currency is displayed
+   - Verify the pricing matches your Stripe setup
+
+5. **Test a purchase**:
    - Select a package
    - Complete checkout with test card: `4242 4242 4242 4242`
    - Verify credits are added to user account
 
-### 3. Test API Endpoints
+### 4. Test API Endpoints
 
-Test the products API directly:
+Test the products API with different locations:
 ```bash
-curl http://localhost:3000/api/stripe/products
+# Test US pricing
+curl "http://localhost:3000/api/stripe/products?country=US&currency=USD"
+
+# Test UK pricing
+curl "http://localhost:3000/api/stripe/products?country=GB&currency=GBP"
+
+# Test Singapore pricing
+curl "http://localhost:3000/api/stripe/products?country=SG&currency=SGD"
 ```
 
 ## How It Works
 
-1. **User visits `/credits` page** - System fetches product information from Stripe
-2. **User selects a credit package** - Display shows current pricing from Stripe
-3. **System creates a Stripe checkout session** using the selected product
+1. **User visits `/credits` page** - System detects user location and fetches appropriate pricing from Stripe
+2. **User sees location-based pricing** - Display shows current pricing in their local currency
+3. **User selects a credit package** - System creates checkout session with the correct price for their currency
 4. **User is redirected to Stripe's hosted checkout page** for secure payment
 5. **After payment, Stripe sends webhook** to your server
 6. **Server verifies payment and adds credits** to user's account
 7. **User is redirected to success page** with payment confirmation
 
-## Benefits of Using Stripe Products
+## Benefits of Location-Based Pricing
 
-- **Centralized Pricing**: Manage all pricing in Stripe dashboard
-- **Real-time Updates**: Price changes reflect immediately
-- **Multi-currency Support**: Stripe handles currency conversion
-- **Product Management**: Easy to add/remove/modify products
-- **Analytics**: Track product performance in Stripe dashboard
+- **Local Currency Display**: Users see prices in their familiar currency
+- **Automatic Conversion**: Stripe handles currency conversion and exchange rates
+- **Better User Experience**: No confusion about pricing or conversion rates
+- **Global Reach**: Support customers from around the world
+- **Flexible Pricing**: Set different prices for different regions if needed
 
 ## Testing
 
@@ -134,7 +191,8 @@ curl http://localhost:3000/api/stripe/products
 
 2. **Test the Flow**:
    - Go to `/credits` page
-   - Verify products load from Stripe
+   - Verify location detection works
+   - Check that correct currency is displayed
    - Select a package
    - Complete checkout with test card
    - Verify credits are added to user account
@@ -152,16 +210,22 @@ curl http://localhost:3000/api/stripe/products
 1. **"No active price found" error**:
    - Make sure your products have active prices in Stripe
    - Check that prices are not archived
+   - Verify you have prices in the currencies you want to support
 
 2. **"Product is not active" error**:
    - Ensure products are set to active in Stripe dashboard
 
 3. **Wrong pricing displayed**:
    - Verify product IDs in environment variables
-   - Check that you're using the correct price ID
+   - Check that you have prices set up for the user's currency
    - Clear browser cache and reload
 
-4. **Credits not being added**:
+4. **Location detection not working**:
+   - Check browser console for GeoJS API errors
+   - Verify internet connection
+   - Check if GeoJS service is accessible
+
+5. **Credits not being added**:
    - Check webhook configuration
    - Verify webhook endpoint is accessible
    - Check server logs for webhook errors
@@ -174,9 +238,9 @@ curl http://localhost:3000/api/stripe/products
    echo $STRIPE_BASIC_PRODUCT_ID
    ```
 
-2. **Test products API**:
+2. **Test products API with location**:
    ```bash
-   curl http://localhost:3000/api/stripe/products
+   curl "http://localhost:3000/api/stripe/products?country=US&currency=USD"
    ```
 
 3. **Check server logs** for detailed error messages
@@ -185,6 +249,12 @@ curl http://localhost:3000/api/stripe/products
    - Products are active
    - Prices are active
    - Product IDs match environment variables
+   - Multiple currency prices are set up
+
+5. **Test location detection**:
+   - Check browser console for location detection logs
+   - Verify GeoJS API is working
+   - Test with different VPN locations
 
 ## Security Notes
 
@@ -199,6 +269,7 @@ curl http://localhost:3000/api/stripe/products
 
 - [ ] Switch to live Stripe keys
 - [ ] Create live products in Stripe dashboard
+- [ ] Set up multi-currency pricing for all supported regions
 - [ ] Update product IDs in environment variables
 - [ ] Update webhook endpoint URL
 - [ ] Test with real payment methods
@@ -208,4 +279,5 @@ curl http://localhost:3000/api/stripe/products
 - [ ] Set up customer support processes
 - [ ] Configure email receipts
 - [ ] Set up tax collection if required
-- [ ] Test webhook reliability and retry logic 
+- [ ] Test webhook reliability and retry logic
+- [ ] Verify location-based pricing works in all target regions 

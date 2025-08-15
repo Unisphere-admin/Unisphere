@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useAuth } from "@/context/AuthContext";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { MapPin, CreditCard, Loader2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 import { loadStripe } from '@stripe/stripe-js';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { CreditCard, Loader2 } from 'lucide-react';
 
 interface StripeProduct {
   packageId: string;
@@ -19,6 +19,18 @@ interface StripeProduct {
   currency: string;
   priceId: string;
   active: boolean;
+  userCountry?: string;
+  userCurrency?: string;
+  availablePrices?: Array<{
+    currency: string;
+    amount: number;
+    priceId: string;
+  }>;
+}
+
+interface UserLocation {
+  country: string;
+  currency: string;
 }
 
 export default function CreditsPage() {
@@ -27,19 +39,127 @@ export default function CreditsPage() {
   const [products, setProducts] = useState<StripeProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState<UserLocation>({ country: 'MY', currency: 'MYR' });
+  const [locationLoading, setLocationLoading] = useState(true);
 
-  // Fetch products from Stripe
+  // Detect user location
+  useEffect(() => {
+    async function detectLocation() {
+      try {
+        setLocationLoading(true);
+        
+        // Try to get location from GeoJS
+        const response = await fetch('https://get.geojs.io/v1/ip/country.json');
+        if (response.ok) {
+          const data = await response.json();
+          const country = data.country || 'MY';
+          
+          // Map country to currency (prioritizing MYR and current pricing currencies)
+          const currencyMap: { [key: string]: string } = {
+            // Default to MYR for most countries
+            'MY': 'MYR',
+            'US': 'USD',
+            'GB': 'GBP',
+            'HK': 'HKD',
+            'SG': 'SGD',
+            // Other countries default to MYR
+            'CA': 'MYR',
+            'AU': 'MYR',
+            'EU': 'MYR',
+            'JP': 'MYR',
+            'IN': 'MYR',
+            'CN': 'MYR',
+            'KR': 'MYR',
+            'TW': 'MYR',
+            'TH': 'MYR',
+            'ID': 'MYR',
+            'PH': 'MYR',
+            'VN': 'MYR',
+            'BR': 'MYR',
+            'MX': 'MYR',
+            'AR': 'MYR',
+            'CL': 'MYR',
+            'CO': 'MYR',
+            'PE': 'MYR',
+            'ZA': 'MYR',
+            'NG': 'MYR',
+            'EG': 'MYR',
+            'SA': 'MYR',
+            'AE': 'MYR',
+            'IL': 'MYR',
+            'TR': 'MYR',
+            'RU': 'MYR',
+            'PL': 'MYR',
+            'CZ': 'MYR',
+            'HU': 'MYR',
+            'RO': 'MYR',
+            'BG': 'MYR',
+            'HR': 'MYR',
+            'RS': 'MYR',
+            'SI': 'MYR',
+            'SK': 'MYR',
+            'LT': 'MYR',
+            'LV': 'MYR',
+            'EE': 'MYR',
+            'FI': 'MYR',
+            'SE': 'MYR',
+            'NO': 'MYR',
+            'DK': 'MYR',
+            'IS': 'MYR',
+            'CH': 'MYR',
+            'AT': 'MYR',
+            'BE': 'MYR',
+            'NL': 'MYR',
+            'LU': 'MYR',
+            'IE': 'MYR',
+            'PT': 'MYR',
+            'ES': 'MYR',
+            'IT': 'MYR',
+            'GR': 'MYR',
+            'CY': 'MYR',
+            'MT': 'MYR',
+            'DE': 'MYR',
+            'FR': 'MYR',
+          };
+          
+          const currency = currencyMap[country] || 'MYR';
+          
+          setUserLocation({ country, currency });
+          console.log(`Detected location: ${country}, currency: ${currency}`);
+        } else {
+          console.log('Failed to detect location, using defaults');
+          setUserLocation({ country: 'MY', currency: 'MYR' });
+        }
+      } catch (error) {
+        console.error('Error detecting location:', error);
+        setUserLocation({ country: 'MY', currency: 'MYR' });
+      } finally {
+        setLocationLoading(false);
+      }
+    }
+    
+    detectLocation();
+  }, []);
+
+  // Fetch products from Stripe with location
   useEffect(() => {
     async function fetchProducts() {
+      if (locationLoading) return; // Wait for location detection
+      
       try {
         setIsLoading(true);
-        const response = await fetch('/api/stripe/products');
+        const response = await fetch(`/api/stripe/products?country=${userLocation.country}&currency=${userLocation.currency}`);
         if (!response.ok) {
           throw new Error('Failed to fetch products');
         }
         
         const data = await response.json();
         setProducts(data.products || []);
+        
+        // Update user location if provided by API
+        if (data.userLocation) {
+          setUserLocation(data.userLocation);
+        }
       } catch (error) {
         console.error('Error fetching products:', error);
         toast({
@@ -53,7 +173,7 @@ export default function CreditsPage() {
     }
     
     fetchProducts();
-  }, [toast]);
+  }, [toast, locationLoading, userLocation.country, userLocation.currency]);
 
   const handlePurchase = async (packageId: string) => {
     if (!user) {
@@ -68,7 +188,7 @@ export default function CreditsPage() {
     setIsProcessing(packageId);
 
     try {
-      // Create checkout session
+      // Create checkout session with user's currency
       const response = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
         headers: {
@@ -76,6 +196,7 @@ export default function CreditsPage() {
         },
         body: JSON.stringify({
           packageId,
+          currency: userLocation.currency,
         }),
       });
 
@@ -118,12 +239,14 @@ export default function CreditsPage() {
     }).format(amount);
   };
 
-  if (isLoading) {
+  if (isLoading || locationLoading) {
     return (
       <div className="min-h-screen with-navbar flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-primary" />
-          <p className="text-muted-foreground">Loading pricing information...</p>
+          <p className="text-muted-foreground">
+            {locationLoading ? 'Detecting your location...' : 'Loading pricing information...'}
+          </p>
         </div>
       </div>
     );
@@ -142,6 +265,7 @@ export default function CreditsPage() {
         <p className="text-lg text-muted-foreground max-w-2xl">
           Purchase credits to book tutoring sessions, access premium resources, and unlock all platform features.
         </p>
+
       </div>
 
       {/* Credit Package Cards */}
@@ -156,16 +280,16 @@ export default function CreditsPage() {
               
               return (
                 <>
-                  <div className="mt-4 mb-2">
+            <div className="mt-4 mb-2">
                     <span className="text-4xl font-bold">{product.credits}</span>
-                    <span className="text-2xl font-bold"> Credits</span>
-                  </div>
-                  <div className="mt-1 mb-2">
+              <span className="text-2xl font-bold"> Credits</span>
+            </div>
+            <div className="mt-1 mb-2">
                     <span className="text-xl font-medium">{formatCurrency(product.price, product.currency)}</span>
-                  </div>
-                  <CardDescription>
+            </div>
+            <CardDescription>
                     {product.description || "Get started with 3-5 mentor sessions. Perfect for targeted help with applications or interview prep from current students at elite universities."}
-                  </CardDescription>
+            </CardDescription>
                 </>
               );
             })()}
@@ -213,16 +337,16 @@ export default function CreditsPage() {
               
               return (
                 <>
-                  <div className="mt-4 mb-2">
+            <div className="mt-4 mb-2">
                     <span className="text-4xl font-bold">{product.credits}</span>
-                    <span className="text-2xl font-bold"> Credits</span>
-                  </div>
-                  <div className="mt-1 mb-2">
+              <span className="text-2xl font-bold"> Credits</span>
+            </div>
+            <div className="mt-1 mb-2">
                     <span className="text-xl font-medium">{formatCurrency(product.price, product.currency)}</span>
-                  </div>
-                  <CardDescription>
+            </div>
+            <CardDescription>
                     {product.description || "Popular option with 10-15 sessions. Comprehensive support for students applying to multiple universities with essay reviews and interview preparation."}
-                  </CardDescription>
+            </CardDescription>
                 </>
               );
             })()}
@@ -269,16 +393,16 @@ export default function CreditsPage() {
               
               return (
                 <>
-                  <div className="mt-4 mb-2">
+            <div className="mt-4 mb-2">
                     <span className="text-4xl font-bold">{product.credits}</span>
-                    <span className="text-2xl font-bold"> Credits</span>
-                  </div>
-                  <div className="mt-1 mb-2">
+              <span className="text-2xl font-bold"> Credits</span>
+            </div>
+            <div className="mt-1 mb-2">
                     <span className="text-xl font-medium">{formatCurrency(product.price, product.currency)}</span>
-                  </div>
-                  <CardDescription>
+            </div>
+            <CardDescription>
                     {product.description || "Best value for complete application support. Full access to all features with unlimited sessions for comprehensive application assistance and academic support."}
-                  </CardDescription>
+            </CardDescription>
                 </>
               );
             })()}
@@ -325,30 +449,38 @@ export default function CreditsPage() {
 
       {/* FAQ Section */}
       <div className="relative z-10 mt-20 max-w-3xl mx-auto">
-        <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center">Frequently Asked Questions</h2>
+        <h2 className="text-3xl font-bold text-center mb-12">Frequently Asked Questions</h2>
         
-        <div className="space-y-4">
-          <div className="bg-card/80 backdrop-blur-sm border border-border/40 rounded-lg p-6">
-            <h3 className="font-bold text-lg mb-2">How do credits work?</h3>
-            <p className="text-muted-foreground">Credits are used for booking tutoring sessions and accessing premium resources. Different services can have different prices depending on the tutor. Text sessions cost fewer credits than audio or video sessions.</p>
+        <div className="space-y-8">
+          <div>
+            <h3 className="text-xl font-semibold mb-3">How do credits work?</h3>
+            <p className="text-muted-foreground">
+              Credits are used to book tutoring sessions and access premium resources. Each session typically costs 1-3 credits depending on the duration and tutor.
+            </p>
           </div>
-          <div className="bg-card/80 backdrop-blur-sm border border-border/40 rounded-lg p-6">
-            <h3 className="font-bold text-lg mb-2">Do credits expire?</h3>
-            <p className="text-muted-foreground">No, your credits never expire. Once purchased, you can use them whenever you need them.</p>
+          
+          <div>
+            <h3 className="text-xl font-semibold mb-3">Can I get a refund?</h3>
+            <p className="text-muted-foreground">
+              Credits are non-refundable once purchased. However, unused credits never expire and can be used for future sessions.
+            </p>
           </div>
-          <div className="bg-card/80 backdrop-blur-sm border border-border/40 rounded-lg p-6">
-            <h3 className="font-bold text-lg mb-2">Can I transfer credits to another account?</h3>
-            <p className="text-muted-foreground">Credits are non-transferable and tied to the account that purchased them. However, you can contact us for special circumstances.</p>
+          
+          <div>
+            <h3 className="text-xl font-semibold mb-3">How long do credits last?</h3>
+            <p className="text-muted-foreground">
+              Credits never expire and can be used at any time. You can also transfer credits to other users if needed.
+            </p>
           </div>
-          <div className="bg-card/80 backdrop-blur-sm border border-border/40 rounded-lg p-6">
-            <h3 className="font-bold text-lg mb-2">Is my payment secure?</h3>
-            <p className="text-muted-foreground">Yes, all payments are processed securely through Stripe, a trusted payment processor. We never store your credit card information.</p>
+          
+          <div>
+            <h3 className="text-xl font-semibold mb-3">What payment methods do you accept?</h3>
+            <p className="text-muted-foreground">
+              We accept all major credit cards, debit cards, and digital wallets through our secure Stripe payment system.
+            </p>
           </div>
         </div>
       </div>
-      
-      {/* CTA Section */}
-      
     </div>
   );
 } 

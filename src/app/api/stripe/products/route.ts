@@ -14,6 +14,12 @@ const STRIPE_PRODUCTS = {
 
 export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url);
+    const country = searchParams.get('country') || 'MY';
+    const currency = searchParams.get('currency') || 'MYR';
+    
+    console.log(`Fetching products for country: ${country}, currency: ${currency}`);
+    
     const products = [];
 
     // Fetch each product and its pricing
@@ -34,8 +40,20 @@ export async function GET(req: NextRequest) {
         });
 
         if (prices.data.length > 0) {
-          // Use the first active price (you can modify this logic if you have multiple prices)
-          const price = prices.data[0];
+          // Find the best matching price for the user's location/currency
+          let bestPrice = prices.data[0]; // Default to first price
+          
+          // Try to find a price that matches the user's currency
+          const matchingPrice = prices.data.find(price => 
+            price.currency?.toLowerCase() === currency.toLowerCase()
+          );
+          
+          if (matchingPrice) {
+            bestPrice = matchingPrice;
+            console.log(`Found matching price for ${currency}: ${bestPrice.unit_amount} ${bestPrice.currency}`);
+          } else {
+            console.log(`No matching price for ${currency}, using default: ${bestPrice.unit_amount} ${bestPrice.currency}`);
+          }
           
           // Extract credits from product metadata or description
           const credits = product.metadata?.credits || 
@@ -48,18 +66,26 @@ export async function GET(req: NextRequest) {
             name: product.name,
             description: product.description,
             credits,
-            price: price.unit_amount ? price.unit_amount / 100 : 0, // Convert from cents
-            currency: price.currency?.toUpperCase() || 'USD',
-            priceId: price.id,
+            price: bestPrice.unit_amount ? bestPrice.unit_amount / 100 : 0, // Convert from cents
+            currency: bestPrice.currency?.toUpperCase() || 'MYR',
+            priceId: bestPrice.id,
             active: product.active,
-            priceType: price.type,
-            recurring: price.recurring ? {
-              interval: price.recurring.interval,
-              intervalCount: price.recurring.interval_count,
+            priceType: bestPrice.type,
+            recurring: bestPrice.recurring ? {
+              interval: bestPrice.recurring.interval,
+              intervalCount: bestPrice.recurring.interval_count,
             } : null,
+            // Add location info
+            userCountry: country,
+            userCurrency: currency,
+            availablePrices: prices.data.map(price => ({
+              currency: price.currency?.toUpperCase(),
+              amount: price.unit_amount ? price.unit_amount / 100 : 0,
+              priceId: price.id
+            }))
           };
 
-          console.log(`Fetched product: ${product.name}, price: ${productData.price} ${productData.currency}, credits: ${credits}`);
+          console.log(`Fetched product: ${product.name}, price: ${productData.price} ${productData.currency}, credits: ${credits} (for ${country})`);
           products.push(productData);
         } else {
           console.log(`No active prices found for product ${productId}`);
@@ -70,8 +96,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    console.log(`Returning ${products.length} products`);
-    return NextResponse.json({ products });
+    console.log(`Returning ${products.length} products for ${country}`);
+    return NextResponse.json({ 
+      products,
+      userLocation: {
+        country,
+        currency
+      }
+    });
   } catch (error) {
     console.error('Error fetching products:', error);
     return NextResponse.json(
