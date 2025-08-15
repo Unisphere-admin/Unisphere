@@ -235,7 +235,7 @@ const Navbar = () => {
           </>
           )}
 
-          {/* Only show consultation button for non-logged in users or non-premium students */}
+          {/* Only show consultation button for non-logged in users or non-premium students
           {showConsultationButton && (
             <Button variant="outline" size="sm" asChild className="hidden md:flex items-center gap-1.5 border-primary/30 text-primary hover:bg-primary/5 shadow-sm">
               <Link href="/consultation">
@@ -243,7 +243,7 @@ const Navbar = () => {
                 Book A Free Consultation
               </Link>
             </Button>
-          )}
+          )} */}
           
           {/* Mobile menu button */}
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>

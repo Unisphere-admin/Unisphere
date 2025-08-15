@@ -1,111 +1,134 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, MapPin } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { Badge } from "@/components/ui/badge";
+import { MapPin, CreditCard, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { loadStripe } from '@stripe/stripe-js';
 
-// Define pricing structure by country
-interface PricingTier {
+interface StripeProduct {
+  packageId: string;
+  productId: string;
+  name: string;
+  description: string;
+  credits: number;
+  price: number;
   currency: string;
-  currencySymbol: string;
-  basic: {
-    price: number;
-    pricePerCredit: number;
-  };
-  standard: {
-    price: number;
-    pricePerCredit: number;
-  };
-  premium: {
-    price: number;
-    pricePerCredit: number;
-  };
+  priceId: string;
+  active: boolean;
 }
-
-const PRICING: Record<string, PricingTier> = {
-  US: {
-    currency: "USD",
-    currencySymbol: "$",
-    basic: { price: 150, pricePerCredit: 0.3 },
-    standard: { price: 275, pricePerCredit: 0.275 },
-    premium: { price: 500, pricePerCredit: 0.25 },
-  },
-  MY: {
-    currency: "MYR",
-    currencySymbol: "RM",
-    basic: { price: 600, pricePerCredit: 1.2 },
-    standard: { price: 1050, pricePerCredit: 1.05 },
-    premium: { price: 2000, pricePerCredit: 1 },
-  },
-  HK: {
-    currency: "HKD",
-    currencySymbol: "HKD",
-    basic: { price: 1200, pricePerCredit: 2.4 },
-    standard: { price: 2200, pricePerCredit: 2.2 },
-    premium: { price: 4000, pricePerCredit: 2 },
-  },
-  GB: {
-    currency: "GBP",
-    currencySymbol: "£",
-    basic: { price: 110, pricePerCredit: 0.22 },
-    standard: { price: 200, pricePerCredit: 0.2 },
-    premium: { price: 375, pricePerCredit: 0.1875 },
-  },
-  SG: {
-    currency: "SGD",
-    currencySymbol: "SGD",
-    basic: { price: 200, pricePerCredit: 0.4 },
-    standard: { price: 350, pricePerCredit: 0.35 },
-    premium: { price: 600, pricePerCredit: 0.3 },
-  },
-  // Default pricing in USD
-  DEFAULT: {
-    currency: "USD",
-    currencySymbol: "$",
-    basic: { price: 150, pricePerCredit: 0.3 },
-    standard: { price: 275, pricePerCredit: 0.275 },
-    premium: { price: 500, pricePerCredit: 0.25 },
-  }
-};
 
 export default function CreditsPage() {
   const { user } = useAuth();
-  const [countryCode, setCountryCode] = useState<string>("DEFAULT");
-  const [pricing, setPricing] = useState<PricingTier>(PRICING.DEFAULT);
-  const [locationLoading, setLocationLoading] = useState<boolean>(true);
-  
-  // Detect user's country using GeoJS
+  const { toast } = useToast();
+  const [products, setProducts] = useState<StripeProduct[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState<string | null>(null);
+
+  // Fetch products from Stripe
   useEffect(() => {
-    async function detectCountry() {
+    async function fetchProducts() {
       try {
-        setLocationLoading(true);
-        
-        // Use GeoJS to get country information
-        const response = await fetch('https://get.geojs.io/v1/ip/country.json');
-        const data = await response.json();
-        
-        if (data && data.country) {
-          const detectedCountry = data.country;
-          
-          // Set country code if it's in our pricing list
-          if (PRICING[detectedCountry]) {
-            setCountryCode(detectedCountry);
-            setPricing(PRICING[detectedCountry]);
-          }
+        setIsLoading(true);
+        const response = await fetch('/api/stripe/products');
+        if (!response.ok) {
+          throw new Error('Failed to fetch products');
         }
+        
+        const data = await response.json();
+        setProducts(data.products || []);
       } catch (error) {
-        console.error("Error detecting country with GeoJS:", error);
+        console.error('Error fetching products:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load pricing information",
+          variant: "destructive",
+        });
       } finally {
-        setLocationLoading(false);
+        setIsLoading(false);
       }
     }
     
-    detectCountry();
-  }, []);
-  
+    fetchProducts();
+  }, [toast]);
+
+  const handlePurchase = async (packageId: string) => {
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to purchase credits",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessing(packageId);
+
+    try {
+      // Create checkout session
+      const response = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          packageId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create checkout session');
+      }
+
+      const { sessionId } = await response.json();
+
+      // Redirect to Stripe's hosted checkout page
+      const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+      if (stripe) {
+        const { error } = await stripe.redirectToCheckout({ sessionId });
+        if (error) {
+          throw error;
+        }
+      } else {
+        throw new Error('Failed to load Stripe');
+      }
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      toast({
+        title: "Payment error",
+        description: "Failed to process payment. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(null);
+    }
+  };
+
+  const getProductByPackageId = (packageId: string) => {
+    return products.find(product => product.packageId === packageId);
+  };
+
+  const formatCurrency = (amount: number, currency: string) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+    }).format(amount);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen with-navbar flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Loading pricing information...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container max-w-7xl mx-auto py-16 px-4 relative min-h-screen">
       <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background pointer-events-none"></div>
@@ -119,17 +142,6 @@ export default function CreditsPage() {
         <p className="text-lg text-muted-foreground max-w-2xl">
           Purchase credits to book tutoring sessions, access premium resources, and unlock all platform features.
         </p>
-        {countryCode !== "DEFAULT" && (
-          <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-            <MapPin size={14} />
-            <span>Showing prices in {pricing.currency} based on your location ({countryCode})</span>
-          </div>
-        )}
-        {locationLoading && (
-          <div className="mt-4 text-sm text-muted-foreground animate-pulse">
-            Detecting your location...
-          </div>
-        )}
       </div>
 
       {/* Credit Package Cards */}
@@ -138,17 +150,25 @@ export default function CreditsPage() {
         <Card className="border border-border/40 bg-card/80 backdrop-blur-sm relative overflow-hidden hover:shadow-md transition-all flex flex-col">
           <CardHeader>
             <CardTitle className="text-2xl">Basic</CardTitle>
-            <div className="mt-4 mb-2">
-              <span className="text-4xl font-bold">500</span>
-              <span className="text-2xl font-bold"> Credits</span>
-            </div>
-            <div className="mt-1 mb-2">
-              <span className="text-xl font-medium">{pricing.currencySymbol}{pricing.basic.price}</span>
-              <span className="text-muted-foreground text-sm ml-1">({pricing.currencySymbol}{pricing.basic.pricePerCredit}/credit)</span>
-            </div>
-            <CardDescription>
-              Get started with 3-5 mentor sessions. Perfect for targeted help with applications or interview prep from current students at elite universities.
-            </CardDescription>
+            {(() => {
+              const product = getProductByPackageId('basic');
+              if (!product) return <div>Loading...</div>;
+              
+              return (
+                <>
+                  <div className="mt-4 mb-2">
+                    <span className="text-4xl font-bold">{product.credits}</span>
+                    <span className="text-2xl font-bold"> Credits</span>
+                  </div>
+                  <div className="mt-1 mb-2">
+                    <span className="text-xl font-medium">{formatCurrency(product.price, product.currency)}</span>
+                  </div>
+                  <CardDescription>
+                    {product.description || "Get started with 3-5 mentor sessions. Perfect for targeted help with applications or interview prep from current students at elite universities."}
+                  </CardDescription>
+                </>
+              );
+            })()}
           </CardHeader>
           <CardContent className="flex-1">
             {/* Content here */}
@@ -159,8 +179,23 @@ export default function CreditsPage() {
                 Tutor Account
               </Button>
             ) : (
-              <Button variant="outline" className="w-full">
-                Buy 500 Credits
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => handlePurchase('basic')}
+                disabled={isProcessing === 'basic'}
+              >
+                {isProcessing === 'basic' ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    Buy Basic Package
+                  </>
+                )}
               </Button>
             )}
           </CardFooter>
@@ -172,17 +207,25 @@ export default function CreditsPage() {
           <Badge className="absolute top-4 right-4 bg-primary text-white">Popular</Badge>
           <CardHeader>
             <CardTitle className="text-2xl">Standard</CardTitle>
-            <div className="mt-4 mb-2">
-              <span className="text-4xl font-bold">1000</span>
-              <span className="text-2xl font-bold"> Credits</span>
-            </div>
-            <div className="mt-1 mb-2">
-              <span className="text-xl font-medium">{pricing.currencySymbol}{pricing.standard.price}</span>
-              <span className="text-muted-foreground text-sm ml-1">({pricing.currencySymbol}{pricing.standard.pricePerCredit}/credit)</span>
-            </div>
-            <CardDescription>
-              Popular option with 10-15 sessions. Comprehensive support for students applying to multiple universities with essay reviews and interview preparation.
-            </CardDescription>
+            {(() => {
+              const product = getProductByPackageId('standard');
+              if (!product) return <div>Loading...</div>;
+              
+              return (
+                <>
+                  <div className="mt-4 mb-2">
+                    <span className="text-4xl font-bold">{product.credits}</span>
+                    <span className="text-2xl font-bold"> Credits</span>
+                  </div>
+                  <div className="mt-1 mb-2">
+                    <span className="text-xl font-medium">{formatCurrency(product.price, product.currency)}</span>
+                  </div>
+                  <CardDescription>
+                    {product.description || "Popular option with 10-15 sessions. Comprehensive support for students applying to multiple universities with essay reviews and interview preparation."}
+                  </CardDescription>
+                </>
+              );
+            })()}
           </CardHeader>
           <CardContent className="flex-1">
             <ul className="space-y-2">
@@ -195,8 +238,22 @@ export default function CreditsPage() {
                 Tutor Account
               </Button>
             ) : (
-              <Button className="w-full bg-primary hover:bg-primary/90">
-                Buy 1000 Credits
+              <Button 
+                className="w-full bg-primary hover:bg-primary/90"
+                onClick={() => handlePurchase('standard')}
+                disabled={isProcessing === 'standard'}
+              >
+                {isProcessing === 'standard' ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    Buy Standard Package
+                  </>
+                )}
               </Button>
             )}
           </CardFooter>
@@ -206,17 +263,25 @@ export default function CreditsPage() {
         <Card className="border border-border/40 bg-card/80 backdrop-blur-sm relative overflow-hidden hover:shadow-md transition-all flex flex-col">
           <CardHeader>
             <CardTitle className="text-2xl">Premium</CardTitle>
-            <div className="mt-4 mb-2">
-              <span className="text-4xl font-bold">2000</span>
-              <span className="text-2xl font-bold"> Credits</span>
-            </div>
-            <div className="mt-1 mb-2">
-              <span className="text-xl font-medium">{pricing.currencySymbol}{pricing.premium.price}</span>
-              <span className="text-muted-foreground text-sm ml-1">({pricing.currencySymbol}{pricing.premium.pricePerCredit}/credit)</span>
-            </div>
-            <CardDescription>
-              Best value for complete application support. Full access to all features with unlimited sessions for comprehensive application assistance and academic support.
-            </CardDescription>
+            {(() => {
+              const product = getProductByPackageId('premium');
+              if (!product) return <div>Loading...</div>;
+              
+              return (
+                <>
+                  <div className="mt-4 mb-2">
+                    <span className="text-4xl font-bold">{product.credits}</span>
+                    <span className="text-2xl font-bold"> Credits</span>
+                  </div>
+                  <div className="mt-1 mb-2">
+                    <span className="text-xl font-medium">{formatCurrency(product.price, product.currency)}</span>
+                  </div>
+                  <CardDescription>
+                    {product.description || "Best value for complete application support. Full access to all features with unlimited sessions for comprehensive application assistance and academic support."}
+                  </CardDescription>
+                </>
+              );
+            })()}
           </CardHeader>
           <CardContent className="flex-1">
             <ul className="space-y-2">
@@ -229,8 +294,23 @@ export default function CreditsPage() {
                 Tutor Account
               </Button>
             ) : (
-              <Button variant="outline" className="w-full">
-                Buy 2000 Credits
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => handlePurchase('premium')}
+                disabled={isProcessing === 'premium'}
+              >
+                {isProcessing === 'premium' ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    Buy Premium Package
+                  </>
+                )}
               </Button>
             )}
           </CardFooter>
@@ -259,6 +339,10 @@ export default function CreditsPage() {
           <div className="bg-card/80 backdrop-blur-sm border border-border/40 rounded-lg p-6">
             <h3 className="font-bold text-lg mb-2">Can I transfer credits to another account?</h3>
             <p className="text-muted-foreground">Credits are non-transferable and tied to the account that purchased them. However, you can contact us for special circumstances.</p>
+          </div>
+          <div className="bg-card/80 backdrop-blur-sm border border-border/40 rounded-lg p-6">
+            <h3 className="font-bold text-lg mb-2">Is my payment secure?</h3>
+            <p className="text-muted-foreground">Yes, all payments are processed securely through Stripe, a trusted payment processor. We never store your credit card information.</p>
           </div>
         </div>
       </div>
