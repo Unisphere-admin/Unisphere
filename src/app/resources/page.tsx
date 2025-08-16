@@ -75,7 +75,7 @@ export default function ResourcesPage() {
   // Check if user has access
   useEffect(() => {
     if (!authLoading && (!user || (user.role !== 'tutor' && !user.has_access))) {
-      router.push("/paywall");
+      router.push("/credits");
     }
   }, [user, authLoading, router]);
 

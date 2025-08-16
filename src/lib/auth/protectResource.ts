@@ -95,6 +95,7 @@ export const PUBLIC_PATHS = [
   '/api/auth',
   '/api/tutors',
   '/api/reviews',
+  '/api/stripe', // Allow access to Stripe API endpoints for purchasing
   // Allow individual tutor profiles without authentication
   '/api/tutors/',
   // Public pages
@@ -106,7 +107,8 @@ export const PUBLIC_PATHS = [
   '/reset-password',
   '/paywall',
   '/consultation',
-  '/become-a-tutor'
+  '/become-a-tutor',
+  '/credits' // Allow access to credits page for purchasing
 ];
 
 /**
@@ -196,7 +198,8 @@ export function requiresPremiumAccess(path: string): boolean {
     !path.startsWith('/api/auth/') &&
     !path.startsWith('/api/users/profile/') && 
     path !== '/api/users/profile' &&
-    path !== '/api/users/update-email'
+    !path.startsWith('/api/stripe/') && // Allow access to Stripe API endpoints for purchasing
+    !path.startsWith('/api/tutors/') // Allow access to tutors API
   ) {
     return true;
   }
@@ -265,6 +268,6 @@ export function redirectToPaywall(req: NextRequest): NextResponse {
   if (isApiRequest) {
     return NextResponse.json({ error: 'Premium access required' }, { status: 403 });
   } else {
-    return NextResponse.redirect(new URL('/paywall', req.url));
+    return NextResponse.redirect(new URL('/credits', req.url));
   }
 } 

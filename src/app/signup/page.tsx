@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ArrowRight, Mail, LockKeyhole, User } from "lucide-react";
+import { Loader2, ArrowRight, Mail, LockKeyhole, User, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { emailSchema, passwordSchema, nameSchema, sanitizeInput, checkForMaliciousContent } from "@/lib/validation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -22,6 +23,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [country, setCountry] = useState("MY"); // Default to Malaysia
   const [error, setError] = useState("");
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -69,6 +71,7 @@ export default function SignupPage() {
           userType: "student",
           firstName: sanitizedFirstName,
           lastName: sanitizedLastName,
+          country,
         }),
       });
       const data = await response.json();
@@ -175,6 +178,24 @@ export default function SignupPage() {
                     className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
                     required
                   />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="country" className="text-sm font-medium">Country</Label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Select value={country} onValueChange={setCountry}>
+                    <SelectTrigger className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all">
+                      <SelectValue placeholder="Select your country" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MY">Malaysia (Ringgit)</SelectItem>
+                      <SelectItem value="GB">United Kingdom (GBP)</SelectItem>
+                      <SelectItem value="HK">Hong Kong (HKD)</SelectItem>
+                      <SelectItem value="SG">Singapore (SGD)</SelectItem>
+                      <SelectItem value="US">United States (USD)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               {error && (

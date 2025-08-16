@@ -2061,12 +2061,12 @@ export default function TutorsPage() {
                         </Button>
                         ) : (
                           <Button
-                            onClick={() => router.push('/paywall')}
+                            onClick={() => router.push('/credits')}
                             className="w-full shadow-md hover:shadow-lg bg-gradient-to-r from-[#3e5461] to-[#126d94] hover:from-[#128ca0] hover:to-[#126d94] transition-all group-hover:translate-y-[-1px]"
                           >
                             <div className="flex items-center justify-center gap-1">
                               <Sparkles className="h-3.5 w-3.5 mr-1" />
-                              Unlock Access
+                              Top Up Credits to View Profiles
                             </div>
                           </Button>
                         )}

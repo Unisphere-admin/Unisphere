@@ -516,6 +516,8 @@ export async function updateUserProfile(
     
     // Detailed logging
     console.log('Processing update for', isTutor ? 'tutor' : 'student', 'profile');
+    console.log('Update data received:', JSON.stringify(updateData, null, 2));
+    console.log('Country field in updateData:', updateData.country);
     
     // Filter fields based on role
     if (isTutor) {
@@ -586,6 +588,22 @@ export async function updateUserProfile(
         if (updateData.year !== undefined) filteredUpdateData.year = updateData.year;
         if (updateData.school_name !== undefined) filteredUpdateData.school_name = updateData.school_name;
         if (updateData.previous_schools !== undefined) filteredUpdateData.previous_schools = updateData.previous_schools;
+        if (updateData.country !== undefined) filteredUpdateData.country = updateData.country;
+        if (updateData.gender !== undefined) filteredUpdateData.gender = updateData.gender;
+        if (updateData.nationality !== undefined) filteredUpdateData.nationality = updateData.nationality;
+        if (updateData.phone_number !== undefined) filteredUpdateData.phone_number = updateData.phone_number;
+        if (updateData.address !== undefined) filteredUpdateData.address = updateData.address;
+        if (updateData.postal_code !== undefined) filteredUpdateData.postal_code = updateData.postal_code;
+        if (updateData.city !== undefined) filteredUpdateData.city = updateData.city;
+        if (updateData.parent_name !== undefined) filteredUpdateData.parent_name = updateData.parent_name;
+        if (updateData.parent_email !== undefined) filteredUpdateData.parent_email = updateData.parent_email;
+        if (updateData.education_level !== undefined) filteredUpdateData.education_level = updateData.education_level;
+        if (updateData.graduation_year !== undefined) filteredUpdateData.graduation_year = updateData.graduation_year;
+        if (updateData.academic_achievements !== undefined) filteredUpdateData.academic_achievements = updateData.academic_achievements;
+        if (updateData.learning_style !== undefined) filteredUpdateData.learning_style = updateData.learning_style;
+        if (updateData.study_habits !== undefined) filteredUpdateData.study_habits = updateData.study_habits;
+        if (updateData.learning_challenges !== undefined) filteredUpdateData.learning_challenges = updateData.learning_challenges;
+        if (updateData.career_goals !== undefined) filteredUpdateData.career_goals = updateData.career_goals;
       } catch (error) {
         console.error('Error processing student profile fields:', error);
         return { profile: null, error: `Error processing fields: ${error instanceof Error ? error.message : String(error)}` };
@@ -599,6 +617,7 @@ export async function updateUserProfile(
     
     // Log the final filtered data
     console.log('Sending update to database:', JSON.stringify(filteredUpdateData, null, 2));
+    console.log('Country field in filteredUpdateData:', filteredUpdateData.country);
     console.log('Table being updated:', profileTable);
     
     // Update the profile

@@ -92,14 +92,14 @@ const Navbar = () => {
           {user && (
             <div className="hidden md:flex items-center gap-3 mr-1">
               <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground hover:bg-muted">
-                <Link href={hasAccess ? "/dashboard" : "/paywall"} className="flex items-center gap-1.5 font-medium">
+                <Link href={hasAccess ? "/dashboard" : "/credits"} className="flex items-center gap-1.5 font-medium">
                   <LayoutDashboard className="h-4 w-4" strokeWidth={2} />
                   Dashboard
                   {!hasAccess && <Lock className="h-3 w-3 ml-0.5 text-muted-foreground" strokeWidth={2.5} />}
                 </Link>
               </Button>
               <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground hover:bg-muted relative">
-                <Link href={hasAccess ? "/dashboard/messages" : "/paywall"} className="flex items-center gap-1.5 font-medium">
+                <Link href={hasAccess ? "/dashboard/messages" : "/credits"} className="flex items-center gap-1.5 font-medium">
                   <MessageSquare className="h-4 w-4" strokeWidth={2} />
                   Messages
                   {!hasAccess ? (
@@ -144,23 +144,19 @@ const Navbar = () => {
                   <div className="flex flex-col">
                     <p className="font-medium">{user.name || 'User'}</p>
                     <p className="text-xs text-muted-foreground">{user.email}</p>
-                    {!hasAccess && !isTutor && (
-                      <div className="mt-1.5 text-xs px-1.5 py-0.5 bg-[#c7e4e3] text-[#126d94] dark:bg-[#3e5461]/20 dark:text-[#84b7bd] rounded-md inline-flex items-center w-fit">
-                        <Lock className="h-3 w-3 mr-1" strokeWidth={2} /> Free account
-                      </div>
-                    )}
+                    
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-border/40" />
                 <DropdownMenuItem className="focus:bg-muted">
-                  <Link href={hasAccess ? "/dashboard" : "/paywall"} className="flex items-center w-full">
+                  <Link href={hasAccess ? "/dashboard" : "/credits"} className="flex items-center w-full">
                     <LayoutDashboard className="mr-2 h-4 w-4 text-[#3e5461]" strokeWidth={2} />
                     Dashboard
                     {!hasAccess && <Lock className="ml-auto h-3 w-3 text-muted-foreground" strokeWidth={2} />}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem className="focus:bg-muted">
-                  <Link href={hasAccess ? "/dashboard/messages" : "/paywall"} className="flex items-center w-full">
+                  <Link href={hasAccess ? "/dashboard/messages" : "/credits"} className="flex items-center w-full">
                     <MessageSquare className="mr-2 h-4 w-4 text-[#3e5461]" strokeWidth={2} />
                     Messages
                   {!hasAccess ? (
@@ -196,17 +192,7 @@ const Navbar = () => {
                 </DropdownMenuItem>
                 </>
                 )}
-                {!hasAccess && !isTutor && (
-                  <>
-                    <DropdownMenuSeparator className="bg-border/40" />
-                    <DropdownMenuItem className="focus:bg-[#3e5461]/10 text-[#128ca0]">
-                      <Link href="/paywall" className="flex items-center w-full">
-                        <Lock className="mr-2 h-4 w-4" strokeWidth={2} />
-                        Upgrade to Premium
-                      </Link>
-                    </DropdownMenuItem>
-                  </>
-                )}
+                
                 <DropdownMenuSeparator className="bg-border/40" />
                 <DropdownMenuItem asChild className="focus:bg-destructive/10 text-destructive">
                   <div className="w-full">
@@ -313,7 +299,7 @@ const Navbar = () => {
                   <>
                     <div className="h-px bg-border/40 my-2"></div>
                     <Link 
-                      href={hasAccess ? "/dashboard" : "/paywall"}
+                      href={hasAccess ? "/dashboard" : "/credits"}
                       className="flex items-center gap-3 p-3 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors touch-manipulation"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
@@ -321,7 +307,7 @@ const Navbar = () => {
                       {!hasAccess && <Lock className="h-3.5 w-3.5 ml-1.5 text-muted-foreground" strokeWidth={2} />}
                     </Link>
                     <Link 
-                      href={hasAccess ? "/dashboard/messages" : "/paywall"}
+                      href={hasAccess ? "/dashboard/messages" : "/credits"}
                       className="flex items-center gap-3 p-3 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors relative touch-manipulation"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
@@ -355,7 +341,7 @@ const Navbar = () => {
                 
                 {user && !hasAccess && !isTutor && (
                   <Link 
-                    href="/paywall"
+                    href="/credits"
                     className="flex items-center gap-3 p-3 bg-[#3e5461]/10 text-[#128ca0] hover:bg-[#3e5461]/20 rounded-md mt-2 touch-manipulation"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >

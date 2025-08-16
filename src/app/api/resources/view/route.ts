@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     // Check if user has access to resources
     if (!user.is_tutor && !user.has_access) {
       // For users without access, redirect to paywall
-      return NextResponse.redirect(new URL('/paywall', req.url));
+      return NextResponse.redirect(new URL('/credits', req.url));
     }
     
     // Get the file from Supabase storage

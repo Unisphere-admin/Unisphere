@@ -51,6 +51,9 @@ const studentProfileSchema = baseProfileSchema.extend({
   school_name: z.string().max(200, "Must be less than 200 characters").optional(),
   previous_schools: z.string().max(500, "Must be less than 500 characters").optional(),
   
+  // Country field for currency selection
+  country: z.string().min(1, "Country is required").optional(),
+  
   // University planning fields
   application_cycle: z.string().max(50, "Must be less than 50 characters").optional(),
   countries_to_apply: z.string().max(500, "Must be less than 500 characters").optional(),
@@ -117,7 +120,6 @@ const studentProfileSchema = baseProfileSchema.extend({
   address: z.string().max(500, "Must be less than 500 characters").optional(),
   postal_code: z.string().max(20, "Must be less than 20 characters").optional(),
   city: z.string().max(100, "Must be less than 100 characters").optional(),
-  country: z.string().max(100, "Must be less than 100 characters").optional(),
   parent_name: z.string().max(100, "Must be less than 100 characters").optional(),
   parent_email: z.string().email("Please enter a valid email").optional().or(z.literal('')),
   parent_phone: z.string().max(20, "Must be less than 20 characters").optional(),
@@ -1071,6 +1073,7 @@ export default function SettingsPage() {
             ? data.profile.current_subjects.join(", ")
             : data.profile.current_subjects?.toString() || "",
           bio: data.profile.bio || "",
+          country: data.profile.country || "MY", // Default to Malaysia if not set
           
           // Examination records
           a_levels: data.profile.a_levels || [],
@@ -1181,6 +1184,7 @@ export default function SettingsPage() {
             ? profileData.current_subjects.join(", ")
             : profileData.current_subjects?.toString() || "",
           bio: profileData.bio || "",
+          country: profileData.country || "MY", // Default to Malaysia if not set
           
           // Examination records
           a_levels: profileData.a_levels || [],
@@ -1236,6 +1240,7 @@ export default function SettingsPage() {
       }
       
       console.log("Form data received:", data);
+      console.log("Country value from form:", data.country);
       
       // Process current_subjects as an array
       const currentSubjects = data.current_subjects 
@@ -1257,6 +1262,7 @@ export default function SettingsPage() {
         school_name: data.school_name,
         previous_schools: previousSchools && previousSchools.length > 0 ? previousSchools : null,
         current_subjects: currentSubjects && currentSubjects.length > 0 ? currentSubjects : null,
+        country: data.country || "MY", // Include country field
         
         // Keep existing avatar URL unless we're explicitly uploading a new one
         // Avatar URL updates are handled separately via handleAvatarUpload
@@ -1288,6 +1294,7 @@ export default function SettingsPage() {
       };
       
       console.log("Sending profile data:", JSON.stringify(profileData, null, 2));
+      console.log("Country field in profileData:", profileData.country);
 
       const response = await fetch("/api/users/profile", {
         method: "PATCH",
@@ -2536,6 +2543,36 @@ export default function SettingsPage() {
                           <FormControl>
                             <Input placeholder="e.g. Year 12, Form 6" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
                           </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <FormField
+                      control={studentForm.control}
+                      name="country"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Country</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm">
+                                <SelectValue placeholder="Select your country" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="MY">Malaysia (Ringgit)</SelectItem>
+                              <SelectItem value="GB">United Kingdom (GBP)</SelectItem>
+                              <SelectItem value="HK">Hong Kong (HKD)</SelectItem>
+                              <SelectItem value="SG">Singapore (SGD)</SelectItem>
+                              <SelectItem value="US">United States (USD)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            This will be used to display prices in your local currency
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}

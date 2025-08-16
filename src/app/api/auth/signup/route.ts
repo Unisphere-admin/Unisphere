@@ -21,12 +21,13 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const { email, password, confirmPassword, userType, firstName, lastName, first_name, last_name } = body;
+        const { email, password, confirmPassword, userType, firstName, lastName, first_name, last_name, country } = body;
         
         // Handle both naming conventions for fields
         const actualFirstName = firstName || first_name;
         const actualLastName = lastName || last_name;
         const isTutor = userType === 'tutor';
+        const userCountry = country || 'MY'; // Default to Malaysia if not provided
 
         // Reject tutor registrations - only students can register
         if (isTutor) {
@@ -87,7 +88,8 @@ export async function POST(req: NextRequest) {
                 data: {
                     is_tutor: isTutor,
                     first_name: actualFirstName,
-                    last_name: actualLastName
+                    last_name: actualLastName,
+                    country: userCountry
                 }
             }
         });
@@ -114,6 +116,27 @@ export async function POST(req: NextRequest) {
                     }
                 }
             );
+        }
+
+        // Create student profile with country
+        try {
+            const { error: profileError } = await supabase
+                .from('student_profile')
+                .insert({
+                    id: data.user.id,
+                    first_name: actualFirstName,
+                    last_name: actualLastName,
+                    country: userCountry
+                });
+
+            if (profileError) {
+                console.error('Error creating student profile:', profileError);
+                // Don't fail the signup if profile creation fails
+                // The profile can be created later when the user first signs in
+            }
+        } catch (profileError) {
+            console.error('Error creating student profile:', profileError);
+            // Don't fail the signup if profile creation fails
         }
 
         // Profile creation is now handled by session API on sign-in

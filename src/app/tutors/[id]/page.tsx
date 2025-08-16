@@ -717,7 +717,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
       {!hasPremiumAccess && (
         <div className="text-center mb-8">
           <p className="text-md text-[#126d94] font-medium">
-            Unlock access to our website to view tutors' full profiles and book sessions
+            Top up credits to view tutors' full profiles and book sessions. All prices listed are in Malaysian Ringgit per hour. The minimum session length is 30 minutes."
           </p>
         </div>
       )}
@@ -847,10 +847,10 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                     ) : (
                       <Button 
                         className="w-full bg-gradient-to-r from-[#3e5461] to-[#126d94]" 
-                        onClick={() => router.push('/paywall')}
+                        onClick={() => router.push('/credits')}
                       >
                         <Sparkles className="h-4 w-4 mr-2" />
-                        Unlock Access
+                        Top Up Credits to View Full Profiles
                       </Button>
                     )
                   ) : (
@@ -876,7 +876,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                       Upgrade to premium to view full tutor profiles, message tutors, and book sessions.
                     </p>
                     <Button 
-                      onClick={() => router.push('/paywall')}
+                      onClick={() => router.push('/credits')}
                       className="bg-gradient-to-r from-[#3e5461] to-[#126d94] hover:from-[#128ca0] hover:to-[#126d94]"
                       size="lg"
                     >

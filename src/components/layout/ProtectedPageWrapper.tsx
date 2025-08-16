@@ -39,7 +39,7 @@ export default function ProtectedPageWrapper({ children }: ProtectedPageWrapperP
     // If settings page, allow access to any authenticated user
     else if (!hasAccess && !isSettingsPage) {
       // Object was part of a removed console.warn statement
-      router.push('/paywall');
+      router.push('/credits');
       // Don't return null from useEffect
     }
   }, [user, loading, router, pathname, isSettingsPage]);
