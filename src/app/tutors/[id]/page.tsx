@@ -1125,16 +1125,16 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                       */}
                       
                       {/* Replace review display with simple message */}
-                      <div className="text-center py-10">
+                      {/* <div className="text-center py-10">
                         <div className="text-5xl mb-4 opacity-20">★</div>
                         <h3 className="text-xl font-medium mb-2">Reviews Coming Soon</h3>
                         <p className="text-muted-foreground">
                           We're currently collecting reviews from students. Check back later for ratings and reviews.
                         </p>
-                      </div>
+                      </div> */}
                       
                       {/* Review listing section commented out due to insufficient data */}
-                      {/*
+                      
                     {tutorReviews.length > 0 ? (
                       <div className="space-y-6">
                         {tutorReviews.map((review, index) => {
@@ -1189,7 +1189,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                         <Button className="mt-6">Book a Session</Button>
                       </div>
                     )}
-                      */}
+                     
                   </CardContent>
                 </Card>
               </TabsContent>

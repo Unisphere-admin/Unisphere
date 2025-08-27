@@ -52,7 +52,7 @@ export default function AboutPage() {
             <div className="absolute -z-10 top-1/4 left-1/4 w-1/2 h-1/2 bg-[#84b4cc]/10 rounded-full blur-3xl" />
             <div className="absolute inset-0 bg-gradient-to-r from-[#84b4cc]/10 via-transparent to-[#84b7bd]/10 rounded-xl blur-xl transform -translate-y-4 translate-x-4 opacity-60"></div>
             <img 
-              src="/team.jpeg" 
+              src="/UKEntranceTests.svg"
               alt="Students Learning"
               className="rounded-lg shadow-xl relative z-10"
             />
