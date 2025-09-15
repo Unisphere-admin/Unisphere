@@ -219,7 +219,7 @@ function extractFileRefFromUrl(url: string): string | null {
   }
 }
 
-// Enhance Avatar component in the profile page to ensure it always has a fallback
+// Enhanced Avatar component in the profile page to ensure it always has a fallback
 // Create a more robust function to handle tutor avatar
 const getTutorAvatarUrl = (tutor: any, hasPremiumAccess: boolean = false) => {
   if (!tutor) return null;
@@ -228,16 +228,7 @@ const getTutorAvatarUrl = (tutor: any, hasPremiumAccess: boolean = false) => {
   if (tutor.avatar_url && typeof tutor.avatar_url === 'string' && tutor.avatar_url.trim() !== '') {
     const avatarUrl = tutor.avatar_url;
     
-    // If user doesn't have premium access, use the blurred avatar API
-    if (!hasPremiumAccess) {
-      // Extract the file reference from the avatar URL
-      const avatarRef = extractFileRefFromUrl(avatarUrl);
-      
-      // If we can extract a reference, use the blurred avatar API with catch-all route
-      if (avatarRef) {
-        return `/api/avatars/${avatarRef}`;
-      }
-    }
+    // All users get full access to tutor images - no blurring
     
     // If it's a relative path (no protocol), ensure it's properly formed
     if (!avatarUrl.startsWith('http') && !avatarUrl.startsWith('/')) {
@@ -405,12 +396,8 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
   // Check for premium access
   const hasPremiumAccess = user?.role === 'tutor' || user?.has_access === true;
 
-  // If user is not logged in, redirect to login
-  useEffect(() => {
-    if (!loading && !user) {
-        router.replace('/login');
-    }
-  }, [user, loading, router]);
+  // Allow unlogged-in users to view tutor profiles
+  // No authentication redirect needed
 
   // Dialog state
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -714,13 +701,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
 
   return (
     <div className="page-content">
-      {!hasPremiumAccess && (
-        <div className="text-center mb-8">
-          <p className="text-md text-[#126d94] font-medium">
-            Top up credits to view tutors' full profiles and book sessions. All prices listed are in Malaysian Ringgit per hour. The minimum session length is 30 minutes."
-          </p>
-        </div>
-      )}
+    
 
       <div className="content-section">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -836,27 +817,33 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                   null
                 )}
                 
-                {/* Message Button - Only shown to students with premium access */}
+                {/* Message Button - Show appropriate action based on user status */}
                 <div className="p-6 pt-4">
-                  {user && user.role !== 'tutor' ? (
-                    hasPremiumAccess ? (
-                    <Button className="w-full" onClick={handleMessageTutor}>
-                          <MessageSquare className="h-4 w-4 mr-2" />
-                          Message Tutor
-                        </Button>
-                    ) : (
-                      <Button 
-                        className="w-full bg-gradient-to-r from-[#3e5461] to-[#126d94]" 
-                        onClick={() => router.push('/credits')}
-                      >
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Top Up Credits to View Full Profiles
-                      </Button>
-                    )
-                  ) : (
+                  {!user ? (
+                    <Button 
+                      className="w-full bg-gradient-to-r from-[#3e5461] to-[#126d94]" 
+                      onClick={() => router.push('/login')}
+                    >
+                      <User className="h-4 w-4 mr-2" />
+                      Login to Message Tutor
+                    </Button>
+                  ) : user.role === 'tutor' ? (
                     <Button className="w-full" disabled={true}>
                       <User className="h-4 w-4 mr-2" />
-                      {user?.role === 'tutor' ? 'You are a tutor' : 'Login to message'}
+                      You are a tutor
+                    </Button>
+                  ) : hasPremiumAccess ? (
+                    <Button className="w-full" onClick={handleMessageTutor}>
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      Message Tutor
+                    </Button>
+                  ) : (
+                    <Button 
+                      className="w-full bg-gradient-to-r from-[#3e5461] to-[#126d94]" 
+                      onClick={() => router.push('/credits')}
+                    >
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Top Up Credits to Message Tutor
                     </Button>
                   )}
                 </div>
@@ -864,30 +851,8 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
             </div>
           </div>
           
-          {/* Main Content - Show blurred version for non-premium users */}
+          {/* Main Content - Full access for all users */}
           <div className="md:col-span-2">
-            {!hasPremiumAccess && (
-              <div className="relative">
-                <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
-                  <div className="text-center max-w-md p-6">
-                    <Sparkles className="h-12 w-12 mx-auto mb-4 text-[#3e5461]" />
-                    <h3 className="text-2xl font-bold mb-2">Premium Content</h3>
-                    <p className="text-muted-foreground mb-6">
-                      Upgrade to premium to view full tutor profiles, message tutors, and book sessions.
-                    </p>
-                    <Button 
-                      onClick={() => router.push('/credits')}
-                      className="bg-gradient-to-r from-[#3e5461] to-[#126d94] hover:from-[#128ca0] hover:to-[#126d94]"
-                      size="lg"
-                    >
-                      Upgrade Now
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            <div className={!hasPremiumAccess ? "filter blur-sm" : ""}>
             {/* Tabs */}
             <Tabs defaultValue="about" className="w-full">
               <div className="border-b mb-6">
@@ -1194,7 +1159,6 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                 </Card>
               </TabsContent>
             </Tabs>
-            </div>
           </div>
         </div>
       </div>

@@ -903,6 +903,7 @@ export default function SettingsPage() {
       subjects: [],
       serviceCosts: {},
     },
+    mode: "onChange", // Enable real-time validation
   });
 
   // Add password form
@@ -914,6 +915,19 @@ export default function SettingsPage() {
       confirmPassword: ""
     },
   });
+
+  // Watch for changes in the tutor form's serviceCosts and sync with local state
+  useEffect(() => {
+    if (isTutor) {
+      const subscription = tutorForm.watch((value, { name }) => {
+        if (name?.startsWith('serviceCosts') || name === 'serviceCosts') {
+          const currentServiceCosts = tutorForm.getValues('serviceCosts') || {};
+          setServiceCosts(currentServiceCosts);
+        }
+      });
+      return () => subscription.unsubscribe();
+    }
+  }, [isTutor, tutorForm]);
 
   // Helper function to ensure a valid authentication session
   const ensureAuthSession = useCallback(async () => {
@@ -1047,17 +1061,26 @@ export default function SettingsPage() {
       
       // Populate the appropriate form based on user role
       if (user.role === 'tutor') {
-        tutorForm.reset({
+        // Ensure we have the correct data structure for the form
+        const tutorFormData = {
           first_name: data.profile.first_name || "",
           last_name: data.profile.last_name || "",
           age: data.profile.age?.toString() || "",
           bio: data.profile.description || data.profile.bio || "",
           subjects: formattedSubjects || [],
-          serviceCosts: extractedServiceCosts,
-        });
+          serviceCosts: extractedServiceCosts || {},
+        };
         
-        // Also update the local state
-        setServiceCosts(extractedServiceCosts);
+        // Reset the form with the profile data
+        tutorForm.reset(tutorFormData);
+        
+        // Update the local state to match the form
+        setServiceCosts(extractedServiceCosts || {});
+        
+        // Log the data being set for debugging
+        console.log("Setting tutor form data:", tutorFormData);
+        console.log("Formatted subjects:", formattedSubjects);
+        console.log("Extracted service costs:", extractedServiceCosts);
       } else {
         // Reset student form with basic fields
         studentForm.reset({
@@ -1161,14 +1184,63 @@ export default function SettingsPage() {
     if (user && profileData) {
       // Reset appropriate form based on user type
       if (isTutor) {
-        // Reset tutor form fields
-        tutorForm.reset({
+        // Format subjects if they exist
+        let formattedSubjects: string[] = [];
+        if (profileData.subjects) {
+          if (typeof profileData.subjects === 'string') {
+            try {
+              formattedSubjects = JSON.parse(profileData.subjects);
+            } catch (e) {
+              formattedSubjects = profileData.subjects.split(',').map((s: string) => s.trim());
+            }
+          } else if (Array.isArray(profileData.subjects)) {
+            formattedSubjects = profileData.subjects;
+          }
+        }
+        
+        // Extract service costs if they exist
+        let extractedServiceCosts: Record<string, number> = {};
+        if (profileData.service_costs) {
+          try {
+            if (typeof profileData.service_costs === 'string') {
+              const parsedCosts = JSON.parse(profileData.service_costs);
+              if (typeof parsedCosts === 'object') {
+                Object.entries(parsedCosts).forEach(([key, value]) => {
+                  if (typeof value === 'number') {
+                    extractedServiceCosts[key] = value as number;
+                  } else if (typeof value === 'string') {
+                    extractedServiceCosts[key] = parseServiceCost(value as string);
+                  }
+                });
+              }
+            } else if (typeof profileData.service_costs === 'object') {
+              Object.entries(profileData.service_costs).forEach(([key, value]) => {
+                if (typeof value === 'number') {
+                  extractedServiceCosts[key] = value as number;
+                } else if (typeof value === 'string') {
+                  extractedServiceCosts[key] = parseServiceCost(value as string);
+                }
+              });
+            }
+          } catch (e) {
+            console.error("Error parsing service costs:", e);
+          }
+        }
+        
+        // Reset tutor form fields with complete data
+        const tutorFormData = {
           first_name: profileData.first_name || "",
           last_name: profileData.last_name || "",
           bio: profileData.bio || profileData.description || "",
           age: profileData.age?.toString() || "",
-          subjects: [],
-        });
+          subjects: formattedSubjects,
+          serviceCosts: extractedServiceCosts,
+        };
+        
+        tutorForm.reset(tutorFormData);
+        setServiceCosts(extractedServiceCosts);
+        
+        console.log("Resetting tutor form with profile data:", tutorFormData);
       } else {
         // Reset student form with basic fields
         studentForm.reset({
@@ -1422,6 +1494,9 @@ export default function SettingsPage() {
           }
         });
       }
+      
+      console.log("Form data received:", data);
+      console.log("Formatted service costs:", formattedServiceCosts);
 
 
       const payload = {
@@ -1781,23 +1856,30 @@ export default function SettingsPage() {
     return "";
   };
 
-  // Debug effect to log subjects data changes
+  // Debug effect to log form data changes
   useEffect(() => {
-    const subjects = tutorForm.watch("subjects");
-    
-    if (Array.isArray(subjects) && subjects.length > 0) {
-      // Log each subject and which service it belongs to
-      subjects.forEach(subject => {
-        for (const service of serviceOptions) {
-          if (subjectBelongsToService(subject, service)) {
-            if (subject !== service) {
+    if (isTutor) {
+      const subjects = tutorForm.watch("subjects");
+      const serviceCosts = tutorForm.watch("serviceCosts");
+      
+      console.log("Form subjects:", subjects);
+      console.log("Form service costs:", serviceCosts);
+      
+      if (Array.isArray(subjects) && subjects.length > 0) {
+        // Log each subject and which service it belongs to
+        subjects.forEach(subject => {
+          for (const service of serviceOptions) {
+            if (subjectBelongsToService(subject, service)) {
+              if (subject !== service) {
+                console.log(`Subject ${subject} belongs to service ${service}`);
+              }
+              break;
             }
-            break;
           }
-        }
-      });
+        });
+      }
     }
-  }, [tutorForm.watch("subjects")]);
+  }, [isTutor, tutorForm.watch("subjects"), tutorForm.watch("serviceCosts")]);
 
   // Create a skeleton loading component
   const SettingsSkeleton = () => (
@@ -2210,8 +2292,9 @@ export default function SettingsPage() {
                   <div className="bg-muted/30 p-4 rounded-md border border-border/40">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {serviceOptions.map((service) => {
-                        const isChecked = (tutorForm.watch("subjects") || []).includes(service) || 
-                          (tutorForm.watch("subjects") || []).some(subject => 
+                        const currentSubjects = tutorForm.watch("subjects") || [];
+                        const isChecked = currentSubjects.includes(service) || 
+                          currentSubjects.some(subject => 
                             subjectBelongsToService(subject, service)
                           );
                         
@@ -2235,7 +2318,7 @@ export default function SettingsPage() {
                                       if (currentServiceCosts[service] === undefined) {
                                         const updatedCosts = { ...currentServiceCosts, [service]: 0 };
                                         tutorForm.setValue("serviceCosts", updatedCosts);
-                                        setServiceCosts(updatedCosts);
+                                        console.log("Initializing cost for service:", service, "with value:", 0);
                                       }
                                     }
                                   } else {
@@ -2248,7 +2331,6 @@ export default function SettingsPage() {
                                     // Remove cost for this service
                                     const { [service]: _, ...restCosts } = currentServiceCosts;
                                     tutorForm.setValue("serviceCosts", restCosts);
-                                    setServiceCosts(restCosts);
                                     
                                     // Also remove costs for any subcategories
                                     const subjectCostsToKeep = { ...subjectCosts };
@@ -2272,30 +2354,33 @@ export default function SettingsPage() {
                             </div>
                             
                             {isChecked && (
-                              <div className="ml-6 flex items-center space-x-2">
+                                                              <div className="ml-6 flex items-center space-x-2">
                                 <Label htmlFor={`cost-${service}`} className="text-xs font-medium text-muted-foreground whitespace-nowrap">
                                   Cost (Credits):
                                 </Label>
                                 <div className="relative flex-grow">
-                                  <Input
-                                    id={`cost-${service}`}
-                                    type="text"
-                                    inputMode="numeric"
-                                    min="0"
-                                    placeholder="0"
-                                    value={serviceCosts[service] === undefined || serviceCosts[service] === 0 ? "" : serviceCosts[service]}
-                                    onChange={(e) => {
-                                      // Allow empty string in the input field
-                                      const inputValue = e.target.value;
-                                      // Only update if it's a valid number or empty
-                                      if (inputValue === "" || /^\d+$/.test(inputValue)) {
-                                        const value = inputValue === "" ? 0 : parseInt(inputValue);
-                                        const updatedCosts = { ...serviceCosts, [service]: value };
-                                        setServiceCosts(updatedCosts);
-                                        tutorForm.setValue("serviceCosts", updatedCosts);
-                                      }
-                                    }}
-                                    className="h-7 text-xs bg-background/80 font-bold text-primary placeholder:font-normal placeholder:text-muted-foreground/60"
+                                  <FormField
+                                    control={tutorForm.control}
+                                    name={`serviceCosts.${service}`}
+                                    render={({ field }) => (
+                                      <Input
+                                        id={`cost-${service}`}
+                                        type="text"
+                                        inputMode="numeric"
+                                        min="0"
+                                        placeholder="0"
+                                        value={field.value === 0 ? "" : field.value || ""}
+                                        onChange={(e) => {
+                                          const inputValue = e.target.value;
+                                          if (inputValue === "" || /^\d+$/.test(inputValue)) {
+                                            const value = inputValue === "" ? 0 : parseInt(inputValue);
+                                            field.onChange(value);
+                                          }
+                                        }}
+                                        onBlur={field.onBlur}
+                                        className="h-7 text-xs bg-background/80 font-bold text-primary placeholder:font-normal placeholder:text-muted-foreground/60"
+                                      />
+                                    )}
                                   />
                                 </div>
                               </div>

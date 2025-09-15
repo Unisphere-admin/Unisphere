@@ -1476,17 +1476,9 @@ export default function TutorsPage() {
               Find Your Perfect <span className="text-[#128ca0]">Tutor</span>
             </h1>
       
-          {hasPremiumAccess && (
-            <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-               Browse our network of expert tutors and find the right match for your learning needs.
-            </p>
-          )}
-
-          {!hasPremiumAccess && (
-            <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-               Browse our network of expert tutors and find the right match for your learning needs. Unlock access to our website to view tutors' full profiles and book sessions.
+          <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
+             Browse our network of expert tutors and find the right match for your learning needs. {!hasPremiumAccess && "Upgrade to premium to message tutors and book sessions."}
           </p>
-          )}
           
             {/* Search Bar with improved styling */}
           <div className="relative max-w-xl mx-auto">
@@ -1749,17 +1741,8 @@ export default function TutorsPage() {
               const tutorBio = tutor.description || '';
               const tutorImage = getAvatarUrl(tutor);
               
-              // Get the avatar URL from our blurred avatar API if the user doesn't have premium access
-              // Extract the file reference from the avatar URL if it exists
-              const avatarRef = tutorImage && typeof tutorImage === 'string' 
-                ? extractFileRefFromUrl(tutorImage)
-                : null;
-              
-              // Create the blurred avatar URL for non-premium users
-              // For the catch-all route, we can pass the entire path
-              const avatarUrl = avatarRef 
-                ? `/api/avatars/${avatarRef}` 
-                : tutorImage;
+              // All users get full access to tutor images - no blurring
+              const avatarUrl = tutorImage;
               
               // Get rating from API data
               const tutorRating = tutorRatings[tutorId];
@@ -1813,7 +1796,7 @@ export default function TutorsPage() {
                     {/* Avatar */}
                     <Avatar className="h-24 w-24 border-4 border-background absolute -top-10 left-6 shadow-md group-hover:shadow-lg transition-all z-20">
                         <AvatarImage 
-                          src={user?.has_access || user?.role === 'tutor' ? tutorImage ?? undefined : avatarUrl ?? undefined} 
+                          src={tutorImage ?? undefined} 
                           alt={tutorName}
                         />
                         <AvatarFallback className="bg-gradient-to-br from-[#84b4cc] to-[#128ca1] text-white font-semibold">
@@ -2052,24 +2035,12 @@ export default function TutorsPage() {
                           */}
                         </div>
                         
-                        {hasPremiumAccess ? (
                         <Button asChild className="w-full shadow-md hover:shadow-lg bg-[#128ca0] hover:bg-[#126d94] transition-all group-hover:translate-y-[-1px]">
                           <Link href={`/tutors/${tutorId}`} className="flex items-center justify-center gap-1">
                             View Profile
                             <ArrowRight className="h-3.5 w-3.5 ml-1 group-hover:translate-x-0.5 transition-transform" />
                           </Link>
                         </Button>
-                        ) : (
-                          <Button
-                            onClick={() => router.push('/credits')}
-                            className="w-full shadow-md hover:shadow-lg bg-gradient-to-r from-[#3e5461] to-[#126d94] hover:from-[#128ca0] hover:to-[#126d94] transition-all group-hover:translate-y-[-1px]"
-                          >
-                            <div className="flex items-center justify-center gap-1">
-                              <Sparkles className="h-3.5 w-3.5 mr-1" />
-                              Top Up Credits to View Profiles
-                            </div>
-                          </Button>
-                        )}
                       </div>
                     </div>
                   </div>

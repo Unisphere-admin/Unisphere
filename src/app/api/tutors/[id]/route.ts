@@ -62,12 +62,7 @@ export async function GET(
         
         // No need to process country field - it's already a text[] array in PostgreSQL
         
-        // Process tutor data for non-premium users
-        if (!hasPremiumAccess) {
-          tutorById.first_name = "T";
-          tutorById.last_name = generateNumberFromString(tutorById.id);
-          tutorById.description = "Upgrade to premium to see full tutor details.";
-        }
+        // All users get full access to tutor data - no anonymization
         
         // Create response with no-cache headers
         const response = NextResponse.json({ tutor: tutorById });

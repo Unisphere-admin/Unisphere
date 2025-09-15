@@ -122,8 +122,6 @@ export const PREMIUM_PATHS = [
   '/dashboard/schedule',
   '/dashboard/reviews',
   // Other paths
-  '/tutors',
-  '/tutors/',
   '/session',
   '/resources', // Add resources page
   '/api/conversations',
@@ -159,6 +157,7 @@ export function requiresPremiumAccess(path: string): boolean {
     path === '/consultation' ||
     path === '/become-a-tutor' ||
     path.startsWith('/api/auth/') ||
+    path.startsWith('/tutors/') ||
     path.startsWith('/api/tutors/') || // Allow access to individual tutor API endpoints
     path.match(/^\/tutors\/[^\/]+$/) // Allow access to individual tutor profile pages
   ) {

@@ -81,8 +81,8 @@ export async function getAllTutors(hasPremiumAccess = false): Promise<{
     // Create a server client for this request
     const client = await createServerClientWithCookies();
     
-    // Use different fields based on premium access
-    const fields = hasPremiumAccess ? TUTOR_LIST_FIELDS : NON_PREMIUM_FIELDS;
+    // Always use full fields - no restrictions on data access
+    const fields = TUTOR_LIST_FIELDS;
     
     const { data, error } = await client
       .from('tutor_profile')
@@ -93,7 +93,7 @@ export async function getAllTutors(hasPremiumAccess = false): Promise<{
       return { tutors: [], error: error.message };
     }
     
-    // Process data based on premium access
+    // Process data - all users get full access to tutor data
     if (data) {
       // Process the raw data to handle arrays properly
       const processedData = data.map((tutor: any) => {
@@ -104,20 +104,8 @@ export async function getAllTutors(hasPremiumAccess = false): Promise<{
         return processedTutor;
       });
       
-      let processedTutors;
-
-      if (hasPremiumAccess) {
-        // Premium users get full access to tutor data
-        processedTutors = processedData as any as TutorBasic[];
-      } else {
-        // Non-premium users get limited data with anonymized names
-        processedTutors = (processedData as any as TutorRawData[]).map((tutor, index) => ({
-          ...tutor,
-          first_name: "T", // First name is "T"
-          last_name: (index + 1).toString(), // Last name is a sequential number
-          description: "Upgrade to premium to see full tutor details."
-        } as TutorBasic));
-      }
+      // All users get full access to tutor data
+      const processedTutors = processedData as any as TutorBasic[];
       
       return { tutors: processedTutors, error: null };
     }
@@ -164,13 +152,7 @@ export async function getTutorBySearchId(searchId: string, hasPremiumAccess = fa
     
     // No need to process country as it's already a text[] array in PostgreSQL
     
-    // For non-premium users, anonymize the tutor's name
-    if (!hasPremiumAccess) {
-      processedData.first_name = "T";
-      processedData.last_name = generateNumberFromString(processedData.id || searchId);
-      processedData.description = "Upgrade to premium to see full tutor details.";
-    }
-    
+    // All users get full access to tutor data - no anonymization
     return { tutor: processedData as TutorProfile, error: null };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
