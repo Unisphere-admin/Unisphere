@@ -281,4 +281,13 @@
   .chat-drawer.open {
     right: 0;
   }
-} 
+}
+
+.fade-in {
+  opacity: 1;
+  transition: opacity 250ms;
+}
+.fade-out {
+  opacity: 0;
+  transition: opacity 250ms;
+}

@@ -157,7 +157,9 @@ export default function LoginPage() {
           credentials: 'include'
         });
         
+        
         let hasPremiumAccess = false;
+        let surveyCompleted = false;
         
         if (sessionResponse.ok) {
           const sessionData = await sessionResponse.json();
@@ -168,6 +170,9 @@ export default function LoginPage() {
           hasPremiumAccess = 
             userData?.role === 'tutor' || 
             userData?.has_access === true;
+          
+          // Check if the user has completed the survey
+          surveyCompleted = userData?.survey_completed === true;
             
         } else {
         }
@@ -176,6 +181,10 @@ export default function LoginPage() {
         if (redirectPath) {
           // If there's a specific redirect path, use it
           router.push(redirectPath);
+        } else if (!surveyCompleted) {
+          // First-time users who haven't completed the survey
+          router.push('/survey');
+
         } else if (hasPremiumAccess) {
           // Premium users go to dashboard
           router.push('/dashboard');

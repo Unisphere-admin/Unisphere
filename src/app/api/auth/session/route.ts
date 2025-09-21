@@ -113,6 +113,7 @@ export async function GET(request: NextRequest) {
                     email: user.email || '',
                     role: isTutor ? 'tutor' : 'student',
                     tokens: 0,
+                    survey_completed: false,
                     hasProfile: false
                 }
             }, { headers });
@@ -129,6 +130,7 @@ export async function GET(request: NextRequest) {
             tokens: profileUser.tokens || 0,
             bio: profileUser.bio || undefined,
             has_access: profileUser.has_access || false,
+            survey_completed: profileUser.survey_completed || false,
             hasProfile: true
         };
         

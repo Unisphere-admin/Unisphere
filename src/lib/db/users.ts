@@ -21,6 +21,7 @@ export interface UserProfile {
   tokens?: number;
   subjects?: string;
   has_access?: boolean;
+  survey_completed?: boolean;
   
   // Student profile fields
   intended_universities?: string;
@@ -193,12 +194,13 @@ export async function getUserProfile(
         .single();
       
       if (tutorData) {
-        // User is a tutor
+        // User is a tutor - get survey_completed from tutor_profile
         return { 
           user: { 
             ...tutorData,
             tokens: userData?.tokens || 0,
             has_access: userData?.has_access || false,
+            survey_completed: tutorData?.survey_completed || false,
             is_tutor: true 
           }, 
           error: null 
@@ -213,23 +215,25 @@ export async function getUserProfile(
         .single();
       
       if (studentData) {
-        // User is a student
+        // User is a student - get survey_completed from student_profile
         return { 
           user: { 
             ...studentData,
             tokens: userData?.tokens || 0,
             has_access: userData?.has_access || false,
+            survey_completed: studentData?.survey_completed || false,
             is_tutor: false 
           }, 
           error: null 
         };
       }
       
-      // If not found in either table, user profile doesn't exist
+      // If not found in either table, user profile doesn't exist but return basic user data
       return { 
         user: userData ? { 
           ...userData,
           has_access: userData.has_access || false,
+          survey_completed: false, // Default to false if no profile exists
           is_tutor: userData.is_tutor || false 
         } : null, 
         error: userData ? null : 'User profile not found' 
@@ -664,3 +668,129 @@ const safeJSONField = (data: any): any | null => {
   
   return data;
 }; 
+
+
+// Update survey completion in the profile table (instead of users table to avoid RLS issues)
+export async function updateSurveyCompletionInProfile(userId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createRouteHandlerClientWithCookies();
+    if (!supabase) {
+      return { success: false, error: 'Failed to create Supabase client' };
+    }
+
+    // First, get the user to check if they're a tutor or student
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('is_tutor')
+      .eq('id', userId)
+      .single();
+
+    if (userError) {
+      console.error('Error fetching user:', userError);
+      return { success: false, error: userError.message };
+    }
+
+    // Determine which profile table to update
+    const profileTable = user.is_tutor ? 'tutor_profile' : 'student_profile';
+    console.log(`Updating survey_completed in ${profileTable} for user ${userId}`);
+
+    // Update the survey_completed field in the appropriate profile table
+    const { error: updateError } = await supabase
+      .from(profileTable)
+      .update({ survey_completed: true })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error(`Error updating ${profileTable}:`, updateError);
+      return { success: false, error: updateError.message };
+    }
+
+    console.log(`✅ Successfully updated survey_completed in ${profileTable} for user ${userId}`);
+    return { success: true };
+
+  } catch (error) {
+    console.error('Error updating survey completion in profile:', error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+// Save survey responses to the survey_responses table
+export async function saveSurveyResponses(userId: string, surveyData: {
+  region: string;
+  applicationCycle: string;
+  universities: string[];
+  services: string[];
+  school: string;
+  course: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createRouteHandlerClientWithCookies();
+    if (!supabase) {
+      return { success: false, error: 'Failed to create Supabase client' };
+    }
+
+    console.log('Saving survey responses for user:', userId, surveyData);
+
+    // Prepare the data for insertion
+    const surveyResponse = {
+      user_id: userId,
+      region: surveyData.region,
+      application_cycle: surveyData.applicationCycle,
+      universities: surveyData.universities, // Array will be stored as JSON
+      services: surveyData.services, // Array will be stored as JSON
+      school: surveyData.school,
+      course: surveyData.course,
+    };
+
+    // Insert the survey response
+    const { error: insertError } = await supabase
+      .from('survey_responses')
+      .insert(surveyResponse);
+
+    if (insertError) {
+      console.error('Error saving survey responses:', insertError);
+      return { success: false, error: insertError.message };
+    }
+
+    console.log('✅ Successfully saved survey responses for user:', userId);
+    return { success: true };
+
+  } catch (error) {
+    console.error('Error saving survey responses:', error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+// Get survey responses for a user
+export async function getSurveyResponses(userId: string): Promise<{ 
+  responses: any | null; 
+  error?: string 
+}> {
+  try {
+    const supabase = await createRouteHandlerClientWithCookies();
+    if (!supabase) {
+      return { responses: null, error: 'Failed to create Supabase client' };
+    }
+
+    const { data, error } = await supabase
+      .from('survey_responses')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No rows found
+        return { responses: null, error: 'No survey responses found' };
+      }
+      console.error('Error fetching survey responses:', error);
+      return { responses: null, error: error.message };
+    }
+
+    return { responses: data, error: undefined };
+
+  } catch (error) {
+    console.error('Error fetching survey responses:', error);
+    return { responses: null, error: error instanceof Error ? error.message : String(error) };
+  }
+}
