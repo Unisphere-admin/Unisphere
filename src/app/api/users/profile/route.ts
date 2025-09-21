@@ -6,7 +6,7 @@ import { updateUserProfile } from '@/lib/db/users';
 // Set edge runtime for better performance
 
 export const dynamic = 'force-dynamic';
-
+//test
 // PATCH handler to update user profile
 async function updateUserProfileHandler(
   req: NextRequest,
