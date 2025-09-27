@@ -585,6 +585,21 @@ export default function Survey() {
     return <AuthLoadingScreen />;
   }
   return (
-    <div className={fade === "in" ? "fade-in" : "fade-out"}>{renderStep()}</div>
+    <div
+      className={`survey-container ${fade === "in" ? "fade-in" : "fade-out"}`}
+    >
+      <style jsx>{`
+        .survey-container {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          overflow: hidden;
+          z-index: 9999;
+        }
+      `}</style>
+      {renderStep()}
+    </div>
   );
 }
