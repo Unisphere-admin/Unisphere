@@ -590,13 +590,9 @@ export default function Survey() {
     >
       <style jsx>{`
         .survey-container {
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100vw;
-          height: 100vh;
-          overflow: hidden;
-          z-index: 9999;
+          min-height: 100vh;
+          width: 100%;
+          background: hsl(var(--background));
         }
       `}</style>
       {renderStep()}
