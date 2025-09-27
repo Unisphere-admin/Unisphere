@@ -197,6 +197,7 @@ export function requiresPremiumAccess(path: string): boolean {
     !path.startsWith('/api/auth/') &&
     !path.startsWith('/api/users/profile/') && 
     path !== '/api/users/profile' &&
+    path !== '/api/users/survey' && // Allow survey completion for all authenticated users
     !path.startsWith('/api/stripe/') && // Allow access to Stripe API endpoints for purchasing
     !path.startsWith('/api/tutors/') // Allow access to tutors API
   ) {
