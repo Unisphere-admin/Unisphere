@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
         // Check if user is a tutor
         const isTutor = session.user.user_metadata?.is_tutor === true;
         
-        // Check if the user has premium access
+        // Check if the user has premium access and survey completion
         const { data: userData, error: userError } = await supabase
             .from('users')
             .select('has_access')
@@ -63,6 +63,24 @@ export async function GET(req: NextRequest) {
         }
         
         const hasPremiumAccess = isTutor || userData?.has_access === true;
+        
+        // Check survey completion status from profile tables
+        let surveyCompleted = false;
+        if (isTutor) {
+            const { data: tutorProfile } = await supabase
+                .from('tutor_profile')
+                .select('survey_completed')
+                .eq('id', session.user.id)
+                .single();
+            surveyCompleted = tutorProfile?.survey_completed === true;
+        } else {
+            const { data: studentProfile } = await supabase
+                .from('student_profile')
+                .select('survey_completed')
+                .eq('id', session.user.id)
+                .single();
+            surveyCompleted = studentProfile?.survey_completed === true;
+        }
         
         // For new signups or regular logins
         if (isTutor) {
@@ -78,9 +96,19 @@ export async function GET(req: NextRequest) {
             return NextResponse.redirect(`${url.origin}/profile/create/tutor`);
             }
             
-            // Tutor has profile, redirect to dashboard
+            // Check survey completion for tutors
+            if (!surveyCompleted) {
+                return NextResponse.redirect(`${url.origin}/survey`);
+            }
+            
+            // Tutor has profile and completed survey, redirect to dashboard
             return NextResponse.redirect(`${url.origin}/dashboard`);
         } else {
+            // For students, check survey completion first
+            if (!surveyCompleted) {
+                return NextResponse.redirect(`${url.origin}/survey`);
+            }
+            
             // For students, check if they have premium access
             if (hasPremiumAccess) {
                 // Premium students go to dashboard
