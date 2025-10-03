@@ -119,6 +119,23 @@ type Answers = {
   course: string;
 };
 
+function shuffleArray(array: Array<{ value: string; label: string }>) {
+  let currentIndex = array.length;
+  let randomIndex;
+
+  while (currentIndex != 0) {
+    randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex--;
+
+    [array[currentIndex], array[randomIndex]] = [
+      array[randomIndex],
+      array[currentIndex],
+    ];
+  }
+
+  return array;
+}
+
 export default function Survey() {
   const router = useRouter();
   const [step, setStep] = useState(0);
@@ -270,7 +287,8 @@ export default function Survey() {
         } else if (answers.region === "UK") {
           uniOptions = ukUniOptions;
         } else if (answers.region === "BOTH" || answers.region === "UNSURE") {
-          uniOptions = [...usUniOptions, ...ukUniOptions];
+          let uniOptions1 = [...usUniOptions, ...ukUniOptions];
+          uniOptions = shuffleArray(uniOptions1);
         }
 
         // Multi-select logic
