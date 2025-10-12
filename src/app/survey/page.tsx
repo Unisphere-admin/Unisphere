@@ -106,6 +106,7 @@ const steps = [
   "University",
   "applicationCycle",
   "services",
+  "country",
   "school",
   "course",
 ];
@@ -115,6 +116,7 @@ type Answers = {
   applicationCycle: string;
   universities: string[];
   services: string[];
+  country: string;
   school: string;
   course: string;
 };
@@ -144,6 +146,7 @@ export default function Survey() {
     applicationCycle: "",
     universities: [],
     services: [],
+    country: "",
     school: "",
     course: "",
   });
@@ -588,6 +591,45 @@ export default function Survey() {
               </CardContent>
               <CardFooter className="flex justify-end">
                 <Button onClick={handleNext} disabled={!answers.region}>
+                  Next <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+        );
+      case "country":
+        return (
+          <div className="flex flex-col items-center justify-center min-h-screen bg-background p-5">
+            <Card className="w-full max-w-md shadow-xl">
+              <CardHeader>
+                <CardTitle>What country do you currently live in?</CardTitle>
+                <CardDescription>
+                  Please enter your current country of residence
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex flex-col gap-4 mt-4">
+                  <Label htmlFor="country">Current Country</Label>
+                  <Input
+                    id="country"
+                    type="text"
+                    placeholder="e.g. Malaysia"
+                    value={answers.country}
+                    onChange={(e) =>
+                      setAnswers((a) => ({ ...a, country: e.target.value }))
+                    }
+                    autoFocus
+                  />
+                </div>
+              </CardContent>
+              <CardFooter className="flex justify-between">
+                <Button variant="ghost" onClick={handleBack}>
+                  Back
+                </Button>
+                <Button
+                  onClick={handleNext}
+                  disabled={answers.country.trim() === ""}
+                >
                   Next <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </CardFooter>

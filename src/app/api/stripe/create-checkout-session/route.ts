@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
         productId: productId,
         priceId: price.id,
         productName: product.name,
+        has_access: 'true',
       },
       customer_email: authUser.email,
       billing_address_collection: 'auto',
@@ -89,6 +90,7 @@ export async function POST(req: NextRequest) {
           packageId,
           credits: credits.toString(),
           productId: productId,
+          has_access: 'true',
         },
       },
       custom_text: {

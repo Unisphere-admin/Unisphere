@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     console.log('Survey data received:', surveyData);
 
     // Validate survey data structure
-    if (!surveyData.region || !surveyData.applicationCycle || !surveyData.school || !surveyData.course) {
+    if (!surveyData.region || !surveyData.applicationCycle || !surveyData.country || !surveyData.school || !surveyData.course) {
       return NextResponse.json(
         { error: 'Missing required survey fields' },
         { status: 400 }

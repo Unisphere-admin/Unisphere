@@ -720,6 +720,7 @@ export async function saveSurveyResponses(userId: string, surveyData: {
   applicationCycle: string;
   universities: string[];
   services: string[];
+  country: string;
   school: string;
   course: string;
 }): Promise<{ success: boolean; error?: string }> {
@@ -731,13 +732,59 @@ export async function saveSurveyResponses(userId: string, surveyData: {
 
     console.log('Saving survey responses for user:', userId, surveyData);
 
+    // Get user's name from the appropriate profile table
+    let userName = 'Unknown User';
+    try {
+      // First get user type
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('is_tutor')
+        .eq('id', userId)
+        .single();
+
+      if (userData && !userError) {
+        if (userData.is_tutor) {
+          // Get name from tutor_profile
+          const { data: tutorProfile, error: tutorError } = await supabase
+            .from('tutor_profile')
+            .select('first_name, last_name')
+            .eq('id', userId)
+            .single();
+
+          if (tutorProfile && !tutorError) {
+            const firstName = tutorProfile.first_name || '';
+            const lastName = tutorProfile.last_name || '';
+            userName = `${firstName} ${lastName}`.trim() || 'Unknown User';
+          }
+        } else {
+          // Get name from student_profile
+          const { data: studentProfile, error: studentError } = await supabase
+            .from('student_profile')
+            .select('first_name, last_name')
+            .eq('id', userId)
+            .single();
+
+          if (studentProfile && !studentError) {
+            const firstName = studentProfile.first_name || '';
+            const lastName = studentProfile.last_name || '';
+            userName = `${firstName} ${lastName}`.trim() || 'Unknown User';
+          }
+        }
+      }
+    } catch (nameError) {
+      console.warn('Could not fetch user name for survey response:', nameError);
+      // userName remains 'Unknown User'
+    }
+
     // Prepare the data for insertion
     const surveyResponse = {
       user_id: userId,
+      name: userName,
       region: surveyData.region,
       application_cycle: surveyData.applicationCycle,
       universities: surveyData.universities, // Array will be stored as JSON
       services: surveyData.services, // Array will be stored as JSON
+      country: surveyData.country,
       school: surveyData.school,
       course: surveyData.course,
     };
@@ -752,7 +799,7 @@ export async function saveSurveyResponses(userId: string, surveyData: {
       return { success: false, error: insertError.message };
     }
 
-    console.log('✅ Successfully saved survey responses for user:', userId);
+    console.log('✅ Successfully saved survey responses for user:', userId, 'with name:', userName);
     return { success: true };
 
   } catch (error) {
