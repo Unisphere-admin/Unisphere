@@ -247,7 +247,7 @@ async function postMessagesHandler(
   try {
     // Parse request body
     const body = await req.json();
-    const { conversation_id, conversationId, content, options } = body;
+  const { conversation_id, conversationId, content, options, attachments } = body;
 
     // Normalize conversation ID parameter (handle both conversation_id and conversationId)
     const normalizedConversationId = conversation_id || conversationId;
@@ -302,10 +302,10 @@ async function postMessagesHandler(
     let error = null;
     
     // Retry loop for better resilience
-    while (retryCount <= maxRetries) {
+  while (retryCount <= maxRetries) {
       try {
         // Send the message
-        const result = await sendMessage(user, normalizedConversationId, senderId, sanitizedContent);
+  const result = await sendMessage(user, normalizedConversationId, senderId, sanitizedContent, attachments || []);
         message = result.message;
         error = result.error;
         

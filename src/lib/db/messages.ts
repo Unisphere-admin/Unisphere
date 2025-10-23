@@ -546,7 +546,7 @@ export const getConversationById = withAuth(_getConversationById);
 /**
  * Send a new message in a conversation
  */
-async function _sendMessage(authUser: AuthUser, conversationId: string, senderId: string, content: string): Promise<{
+async function _sendMessage(authUser: AuthUser, conversationId: string, senderId: string, content: string, attachments: Array<any> = []): Promise<{
   message: Message | null;
   error: string | null;
 }> {
@@ -579,14 +579,20 @@ async function _sendMessage(authUser: AuthUser, conversationId: string, senderId
     // Create a server client for this request
     const client = await createRouteHandlerClientWithCookies();
     
-    // Create the message
+    // Create the message, include attachments if provided
+    const insertPayload: any = {
+      conversation_id: conversationId,
+      sender_id: senderId,
+      content
+    };
+
+    if (attachments && Array.isArray(attachments) && attachments.length > 0) {
+      insertPayload.attachments = attachments;
+    }
+
     const { data: message, error: messageError } = await client
       .from('message')
-      .insert({
-        conversation_id: conversationId,
-        sender_id: senderId,
-        content
-      })
+      .insert(insertPayload)
       .select()
       .single();
       

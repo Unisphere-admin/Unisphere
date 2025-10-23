@@ -39,6 +39,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -619,12 +620,16 @@ export default function MessagesPage() {
   // Local state for the UI
   const [searchQuery, setSearchQuery] = useState("");
   const [messageText, setMessageText] = useState("");
+  // Pending attachments selected but not yet uploaded
+  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+  const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Session scheduling state
   const [sessionTitle, setSessionTitle] = useState("");
   const [sessionDate, setSessionDate] = useState("");
   const [sessionTime, setSessionTime] = useState("");
-  const [sessionCost, setSessionCost] = useState<number>(1);
+  const [sessionCost, setSessionCost] = useState<number>(0);
   const [isSchedulingSession, setIsSchedulingSession] = useState(false);
   const [showSessionDialog, setShowSessionDialog] = useState(false);
 
@@ -797,8 +802,55 @@ export default function MessagesPage() {
       const sanitizedMessage = validationResult.value;
 
       // Continue with sending the message
-      setMessageText("");
       const content = sanitizedMessage;
+
+      // If there are pending attachments, upload them first
+      let attachmentPayload: Array<any> = [];
+      if (pendingAttachments && pendingAttachments.length > 0) {
+        setIsUploadingAttachments(true);
+        try {
+          const uploads = await Promise.all(
+            pendingAttachments.map(async (file) => {
+              const form = new FormData();
+              form.append("file", file);
+              const res = await fetch("/api/uploads", {
+                method: "POST",
+                body: form,
+                credentials: "include",
+              });
+              if (!res.ok) {
+                const err = await res
+                  .json()
+                  .catch(() => ({ error: "Upload failed" }));
+                throw new Error(err.error || "Upload failed");
+              }
+              const data = await res.json();
+              return data;
+            })
+          );
+
+          attachmentPayload = uploads.map((u) => ({
+            name: u.name,
+            path: u.path,
+            url: u.url,
+            size: u.size,
+            mime: u.mime,
+          }));
+        } catch (err: any) {
+          toast({
+            variant: "destructive",
+            title: "Upload failed",
+            description: err?.message || "One or more files failed to upload",
+          });
+          setIsUploadingAttachments(false);
+          return;
+        } finally {
+          setIsUploadingAttachments(false);
+        }
+      }
+
+      // Clear the input immediately for a snappy UI
+      setMessageText("");
 
       // Clear typing indicator
       setIsTyping(false);
@@ -809,13 +861,21 @@ export default function MessagesPage() {
 
       // Send the message
       try {
-        const sentMessage = await sendMessage(selectedConversationId, content);
+        const sentMessage = await sendMessage(
+          selectedConversationId,
+          content,
+          undefined,
+          attachmentPayload
+        );
 
         // Ensure the messages array exists for this conversation
         // This is important for new conversations that might not have messages yet
         if (!messages[selectedConversationId]) {
           refreshMessages(selectedConversationId);
         }
+
+        // Clear pending attachments on success
+        setPendingAttachments([]);
 
         // Scroll to bottom after sending
         setTimeout(() => {
@@ -1980,7 +2040,9 @@ export default function MessagesPage() {
                           </div>
                         </div>
                         <span className="text-xs text-muted-foreground">
-                          {`localized to your current time (${Intl.DateTimeFormat().resolvedOptions().timeZone}, GMT${offsetHours >= 0 ? '+' : ''}${offsetHours})`}
+                          {`localized to your current time (${
+                            Intl.DateTimeFormat().resolvedOptions().timeZone
+                          }, GMT${offsetHours >= 0 ? "+" : ""}${offsetHours})`}
                         </span>
                         <div className="grid gap-2">
                           <label
@@ -2183,7 +2245,65 @@ export default function MessagesPage() {
                                           : "bg-card dark:bg-card/80 border border-border/40 shadow-sm hover:shadow-md hover:bg-card/90 dark:hover:bg-card/90 transition-all"
                                       }`}
                                     >
-                                      {message.content}
+                                      <div className="flex flex-col gap-2">
+                                        {message.content && (
+                                          <div className="whitespace-pre-wrap break-words break-all max-w-full">
+                                            {message.content}
+                                          </div>
+                                        )}
+
+                                        {message.attachments?.length > 0 && (
+                                          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            {message.attachments.map(
+                                              (att: any, i: number) => {
+                                                const isImage =
+                                                  att?.mime?.startsWith?.(
+                                                    "image/"
+                                                  );
+                                                const url =
+                                                  att?.url || att?.path || "";
+                                                return (
+                                                  <div
+                                                    key={i}
+                                                    className="flex items-center gap-2 p-2 bg-background/50 rounded"
+                                                  >
+                                                    {isImage ? (
+                                                      <img
+                                                        src={url}
+                                                        alt={att?.name}
+                                                        className="h-24 w-24 object-cover rounded"
+                                                      />
+                                                    ) : (
+                                                      <a
+                                                        href={url}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="flex items-center gap-2 text-sm text-primary underline"
+                                                      >
+                                                        <svg
+                                                          xmlns="http://www.w3.org/2000/svg"
+                                                          className="h-5 w-5"
+                                                          viewBox="0 0 20 20"
+                                                          fill="currentColor"
+                                                        >
+                                                          <path
+                                                            fillRule="evenodd"
+                                                            d="M8 2a2 2 0 00-2 2v12a2 2 0 002 2h6a2 2 0 002-2V7.414A2 2 0 0014.414 6L11 2.586A2 2 0 009.586 2H8zM11 3.414L13.586 6H11V3.414z"
+                                                            clipRule="evenodd"
+                                                          />
+                                                        </svg>
+                                                        <span className="truncate max-w-[160px]">
+                                                          {att?.name}
+                                                        </span>
+                                                      </a>
+                                                    )}
+                                                  </div>
+                                                );
+                                              }
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                     <div
                                       className={`flex items-center text-xs text-muted-foreground mt-1 ${
@@ -2277,31 +2397,159 @@ export default function MessagesPage() {
 
               {/* Message input */}
               <div className="p-2 sm:p-3 border-t border-border/40 bg-card/40 backdrop-blur-sm rounded-br-2xl">
-                <div className="flex items-center gap-2">
-                  <Input
-                    placeholder="Type a message..."
-                    value={messageText}
-                    onChange={handleInputChange}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                    className="border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 bg-background/80 backdrop-blur-sm transition-all rounded-full h-10 py-2 px-4 touch-improved"
-                  />
+                <div className="flex items-center gap-3 pl-1">
+                  {/* Attach button + hidden file input */}
+                  <div className="flex items-center">
+                    <input
+                      ref={fileInputRef}
+                      id="message-attachments"
+                      type="file"
+                      multiple
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const files = e.target.files;
+                        if (!files) return;
+                        const arr = Array.from(files || []);
+                        setPendingAttachments((prev) => [...prev, ...arr]);
+                        // reset input so same file can be added again if needed
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 rounded-md flex items-center justify-center"
+                      title="Attach files"
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        className="h-5 w-5 text-muted-foreground"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21.44 11.05l-9.19 9.19a5 5 0 01-7.07-7.07l9.19-9.19a3 3 0 014.24 4.24L9.88 17.66a1 1 0 01-1.42-1.42l8.9-8.9"
+                        />
+                      </svg>
+                    </Button>
+                  </div>
+
+                  <div className="flex-1">
+                    <Textarea
+                      placeholder="Type a message..."
+                      value={messageText}
+                      onChange={(e) => {
+                        // support both input and textarea change shapes
+                        const value = (e.target as HTMLTextAreaElement).value;
+                        setMessageText(value);
+
+                        // typing indicator logic
+                        if (!isTyping && value.length > 0) {
+                          setIsTyping(true);
+                          if (selectedConversationId) {
+                            broadcastTypingIndicator(
+                              selectedConversationId,
+                              true
+                            );
+                            setUserTyping(selectedConversationId, true);
+                          }
+                        } else if (value.length === 0 && isTyping) {
+                          setIsTyping(false);
+                          if (selectedConversationId) {
+                            broadcastTypingIndicator(
+                              selectedConversationId,
+                              false
+                            );
+                            setUserTyping(selectedConversationId, false);
+                          }
+                        }
+
+                        if (typingTimeoutRef.current) {
+                          clearTimeout(
+                            typingTimeoutRef.current as NodeJS.Timeout
+                          );
+                        }
+                        typingTimeoutRef.current = setTimeout(() => {
+                          if (isTyping && selectedConversationId) {
+                            setIsTyping(false);
+                            broadcastTypingIndicator(
+                              selectedConversationId,
+                              false
+                            );
+                            setUserTyping(selectedConversationId, false);
+                          }
+                        }, 2000);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage();
+                        }
+                      }}
+                      className="min-h-[44px] border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 bg-background/80 backdrop-blur-sm transition-all rounded-sm py-2 px-3 touch-improved"
+                    />
+
+                    {/* Preview pending attachments count */}
+                    {pendingAttachments.length > 0 && (
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        <div className="mb-1">
+                          {pendingAttachments.length} attachment
+                          {pendingAttachments.length > 1 ? "s" : ""} selected
+                        </div>
+                        <div className="flex gap-2 flex-wrap">
+                          {pendingAttachments.map((f, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center gap-2 bg-background/60 px-2 py-1 rounded text-xs"
+                            >
+                              <span className="truncate max-w-[160px]">
+                                {f.name}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPendingAttachments((prev) =>
+                                    prev.filter((_, i) => i !== idx)
+                                  )
+                                }
+                                className="text-muted-foreground hover:text-destructive ml-1"
+                                aria-label={`Remove ${f.name}`}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <Button
                     onClick={handleSendMessage}
                     disabled={
+                      isUploadingAttachments ||
+                      pendingAttachments.length > 0 ||
                       !messageText.trim() ||
                       (isCurrentConversationTemp &&
                         messageText.trim().length < 2)
                     }
-                    className="bg-primary hover:bg-primary/90 shadow-sm hover:shadow-md transition-all rounded-full h-10 w-10 sm:h-10 sm:w-10 touch-manipulation"
+                    className="bg-primary hover:bg-primary/90 shadow-sm hover:shadow-md transition-all rounded-md h-10 w-10 touch-manipulation flex items-center justify-center"
                     size="icon"
                   >
-                    <Send className="h-4 w-4" />
+                    <Send className="h-5 w-5" />
                   </Button>
+                  {isUploadingAttachments && (
+                    <div className="text-xs text-muted-foreground ml-2">
+                      Uploading...
+                    </div>
+                  )}
                 </div>
               </div>
             </>

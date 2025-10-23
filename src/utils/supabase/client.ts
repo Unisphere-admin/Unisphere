@@ -21,9 +21,15 @@ export const createAnonymousClient = () => {
 
 /**
  * Creates a generic Supabase client with custom URL and key
+ * Typically used for service-role operations on the server
  */
 export function createGenericClient(supabaseUrl: string, supabaseKey: string) {
-  return createSupabaseClient(supabaseUrl, supabaseKey);
+  return createSupabaseClient(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    }
+  });
 }
 
 /**

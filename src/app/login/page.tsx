@@ -7,20 +7,45 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, ArrowRight, Loader2, X, LockKeyhole, Mail, User, Shield, Globe } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  BookOpen,
+  ArrowRight,
+  Loader2,
+  X,
+  LockKeyhole,
+  Mail,
+  User,
+  Shield,
+  Globe,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/ui/alert";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { AlertCircle } from "lucide-react";
 
 import { handleApiRedirect } from "@/lib/auth/apiRedirect";
 import { Separator } from "@/components/ui/separator";
-import { emailSchema, passwordSchema, nameSchema, sanitizeInput, checkForMaliciousContent } from "@/lib/validation";
+import {
+  emailSchema,
+  passwordSchema,
+  nameSchema,
+  sanitizeInput,
+  checkForMaliciousContent,
+} from "@/lib/validation";
 import { useCsrfToken, addCsrfToken } from "@/lib/csrf/client";
 
 export default function LoginPage() {
@@ -28,19 +53,21 @@ export default function LoginPage() {
   const { refreshUser, user } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // Extract redirectTo from URL if present
   const searchParams = useSearchParams();
-  const redirectTo = searchParams?.get('redirectTo') || null;
-  
+  const redirectTo = searchParams?.get("redirectTo") || null;
+
   // Update to use the new hook correctly
   const { token, fetchCsrfToken } = useCsrfToken();
-  
+
   // Form states
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [errorType, setErrorType] = useState<"general" | "auth" | "profile">("general");
+  const [errorType, setErrorType] = useState<"general" | "auth" | "profile">(
+    "general"
+  );
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
   const [resetEmail, setResetEmail] = useState("");
   const [showResetPasswordForm, setShowResetPasswordForm] = useState(false);
@@ -52,17 +79,18 @@ export default function LoginPage() {
     if (redirect) {
       setRedirectPath(redirect);
     }
-    
+
     // Check for success messages
     const success = searchParams.get("success");
     if (success === "password-updated") {
       toast({
         title: "Password updated",
-        description: "Your password has been reset successfully. You can now log in with your new password.",
+        description:
+          "Your password has been reset successfully. You can now log in with your new password.",
         variant: "default",
       });
     }
-    
+
     // Check for errors
     const errorParam = searchParams.get("error");
     if (errorParam) {
@@ -80,7 +108,7 @@ export default function LoginPage() {
         if (!token) {
           // On the login page, CSRF token fetch is expected to fail when not logged in
           // This is normal and shouldn't be treated as an error
-          
+
           // Try to fetch but don't show errors if it fails due to auth
           await fetchCsrfToken().catch((err: any) => {
             // This is expected behavior - just log it quietly
@@ -90,112 +118,121 @@ export default function LoginPage() {
         // Silently handle errors - don't affect login page functionality
       }
     };
-    
+
     getCsrfTokenSafely();
   }, [token, fetchCsrfToken]);
 
   // Handle login function that uses the Auth API
-  const signIn = async (email: string, password: string, redirectPath?: string) => {
+  const signIn = async (
+    email: string,
+    password: string,
+    redirectPath?: string
+  ) => {
     try {
       const headers: HeadersInit = {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       };
-      
+
       // Only add CSRF token if it exists
       if (token) {
-        headers['X-CSRF-Token'] = token;
+        headers["X-CSRF-Token"] = token;
       }
-      
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
+
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
         headers,
         body: JSON.stringify({ email, password }),
-        credentials: 'include', // Important for cookies
+        credentials: "include", // Important for cookies
       });
 
       if (!response.ok) {
-        const contentType = response.headers.get('content-type');
-        
-        if (contentType && contentType.includes('application/json')) {
-        const errorData = await response.json();
-          throw new Error(errorData.error || `Login failed with status ${response.status}`);
+        const contentType = response.headers.get("content-type");
+
+        if (contentType && contentType.includes("application/json")) {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.error || `Login failed with status ${response.status}`
+          );
         } else {
           throw new Error(`Login failed with status ${response.status}`);
         }
       }
 
       const data = await response.json();
-      
+
       if (data.user) {
         // Clear any temporary conversations and mappings from previous sessions
         try {
-          localStorage.removeItem('tempConversations');
-          localStorage.removeItem('tempToRealConversions');
+          localStorage.removeItem("tempConversations");
+          localStorage.removeItem("tempToRealConversions");
         } catch (e) {
           // Continue login process even if this fails
         }
-        
+
         // Once logged in, try to fetch a CSRF token for subsequent operations
         try {
           await fetchCsrfToken();
         } catch (csrfError) {
           // Don't fail the login process if CSRF token fetch fails
         }
-        
+
         // Refresh user data in the context
         await refreshUser(true);
-        
+
         // Fetch the user data directly from the session API to get the most up-to-date information
         // This is important because the login API doesn't include the has_access field
-        const sessionResponse = await fetch('/api/auth/session', {
-          method: 'GET',
+        const sessionResponse = await fetch("/api/auth/session", {
+          method: "GET",
           headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            Pragma: "no-cache",
+            Expires: "0",
           },
-          credentials: 'include'
+          credentials: "include",
         });
-        
-        
+
         let hasPremiumAccess = false;
         let surveyCompleted = false;
-        
+        let userData: any = null;
+
         if (sessionResponse.ok) {
           const sessionData = await sessionResponse.json();
-          const userData = sessionData.user;
-          
-          
+          userData = sessionData.user;
+
           // Check if the user has premium access
-          hasPremiumAccess = 
-            userData?.role === 'tutor' || 
-            userData?.has_access === true;
-          
+          hasPremiumAccess =
+            userData?.role === "tutor" || userData?.has_access === true;
+
           // Check if the user has completed the survey
           surveyCompleted = userData?.survey_completed === true;
-            
         } else {
         }
-        
+
         // Navigate based on user status
         if (redirectPath) {
           // If there's a specific redirect path, use it
           router.push(redirectPath);
+        } else if (userData?.role === "tutor") {
+          // Tutors should skip the survey and go straight to dashboard (or home if no premium access)
+          if (hasPremiumAccess) {
+            router.push("/dashboard");
+          } else {
+            router.push("/");
+          }
         } else if (!surveyCompleted) {
-          // First-time users who haven't completed the survey
-          router.push('/survey');
-
+          // First-time non-tutor users who haven't completed the survey
+          router.push("/survey");
         } else if (hasPremiumAccess) {
           // Premium users go to dashboard
-          router.push('/dashboard');
+          router.push("/dashboard");
         } else {
           // Non-premium users go to home page
-          router.push('/');
+          router.push("/");
         }
-        
+
         return true;
       }
-      
+
       return false;
     } catch (error) {
       throw error;
@@ -208,47 +245,43 @@ export default function LoginPage() {
       setError("Please enter your email");
       return;
     }
-    
+
     setIsLoading(true);
     setError("");
-    
+
     try {
-      
       // Use Supabase client directly
-      const { createClient } = await import('@/utils/supabase/client');
+      const { createClient } = await import("@/utils/supabase/client");
       const supabase = createClient();
-      
+
       // Send password reset email using magic link approach
-      
+
       // First try the resetPasswordForEmail method
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
-      
+
       // If that fails, fall back to the signInWithOtp method which is more reliable
       if (error) {
-        
         const { error: otpError } = await supabase.auth.signInWithOtp({
           email,
           options: {
             emailRedirectTo: `${window.location.origin}/reset-password`,
-          }
-      });
-      
+          },
+        });
+
         if (otpError) {
-          throw new Error(otpError.message || 'Failed to send reset email');
+          throw new Error(otpError.message || "Failed to send reset email");
+        }
       }
-      }
-      
-      
+
       toast({
         title: "Password reset email sent",
         description: "Check your inbox for a link to reset your password",
       });
-      
+
       // Close the dialog
       setShowResetPasswordForm(false);
-      
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to reset password");
     } finally {
@@ -259,11 +292,11 @@ export default function LoginPage() {
   // Handle API redirect check on mount
   useEffect(() => {
     // Check if this is a redirect from an API call that needs authentication
-    if (searchParams?.get('apiRedirect') === 'true') {
+    if (searchParams?.get("apiRedirect") === "true") {
       toast({
         title: "Authentication Required",
         description: "Please log in to access this resource",
-        variant: "default"
+        variant: "default",
       });
     }
   }, [searchParams, toast]);
@@ -272,10 +305,10 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setErrorType("general");
-    
+
     // Sanitize inputs
     const sanitizedEmail = sanitizeInput(email);
-    
+
     // Email validation
     try {
       emailSchema.parse(sanitizedEmail);
@@ -283,25 +316,32 @@ export default function LoginPage() {
       setError(err.errors?.[0]?.message || "Invalid email address");
       return;
     }
-    
+
     // Password validation - basic check only for login
     if (!password) {
       setError("Please enter your password");
       return;
     }
-    
+
     // Check for malicious content
-    if (checkForMaliciousContent(sanitizedEmail) || checkForMaliciousContent(password)) {
+    if (
+      checkForMaliciousContent(sanitizedEmail) ||
+      checkForMaliciousContent(password)
+    ) {
       setError("Invalid input detected");
       return;
     }
-    
+
     setIsLoading(true);
-    
+
     try {
       // Use sanitized email
-      const success = await signIn(sanitizedEmail, password, redirectTo || undefined);
-      
+      const success = await signIn(
+        sanitizedEmail,
+        password,
+        redirectTo || undefined
+      );
+
       if (success) {
         // Toast is shown in AuthContext after successful login
         // Redirect is handled in the login function
@@ -310,7 +350,8 @@ export default function LoginPage() {
         setErrorType("auth");
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to login";
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to login";
       setError(errorMessage);
       setErrorType("auth");
     } finally {
@@ -321,7 +362,7 @@ export default function LoginPage() {
   // Render error based on type
   const renderError = () => {
     if (!error) return null;
-    
+
     switch (errorType) {
       case "profile":
         return (
@@ -359,102 +400,123 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen with-navbar flex flex-col items-center justify-center bg-gradient-to-b from-background via-background/95 to-muted/20 p-4">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 right-[20%] w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl opacity-70 animate-pulse" style={{animationDuration: '8s'}}></div>
-        <div className="absolute -bottom-20 left-[10%] w-[600px] h-[600px] bg-secondary/5 rounded-full blur-3xl opacity-60" style={{animationDuration: '12s'}}></div>
+        <div
+          className="absolute top-20 right-[20%] w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl opacity-70 animate-pulse"
+          style={{ animationDuration: "8s" }}
+        ></div>
+        <div
+          className="absolute -bottom-20 left-[10%] w-[600px] h-[600px] bg-secondary/5 rounded-full blur-3xl opacity-60"
+          style={{ animationDuration: "12s" }}
+        ></div>
       </div>
-      
+
       <div className="relative z-10 max-w-md w-full">
         <Card className="border-border/40 shadow-xl backdrop-blur-sm bg-card/95">
-              <CardHeader className="px-6 pb-2">
-                <CardTitle className="text-xl">Welcome back</CardTitle>
-                <CardDescription>Enter your credentials to access your account</CardDescription>
-              </CardHeader>
-              <form onSubmit={handleLogin}>
-                <CardContent className="px-6 space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email" className="text-sm font-medium">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      placeholder="name@example.com" 
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                        className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-                      required
-                    />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="password" className="text-sm font-medium">Password</Label>
-                      <button
-                        type="button" 
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setResetEmail(email);
-                          setShowResetPasswordForm(true);
-                        }}
-                        className="text-xs text-primary hover:underline"
-                      >
-                        Forgot password?
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <LockKeyhole className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      id="password" 
-                      type="password" 
-                      placeholder="••••••••" 
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                        className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-                      required
-                    />
-                    </div>
-                  </div>
-                  
-                  {renderError()}
-                </CardContent>
-                <CardFooter className="px-6 pt-2">
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow-md transition-all"
-                    disabled={isLoading}
+          <CardHeader className="px-6 pb-2">
+            <CardTitle className="text-xl">Welcome back</CardTitle>
+            <CardDescription>
+              Enter your credentials to access your account
+            </CardDescription>
+          </CardHeader>
+          <form onSubmit={handleLogin}>
+            <CardContent className="px-6 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm font-medium">
+                  Email
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="name@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-sm font-medium">
+                    Password
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setResetEmail(email);
+                      setShowResetPasswordForm(true);
+                    }}
+                    className="text-xs text-primary hover:underline"
                   >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Please wait
-                      </>
-                    ) : (
-                      <>
-                        Login
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </>
-                    )}
-                  </Button>
-                </CardFooter>
-              </form>
+                    Forgot password?
+                  </button>
+                </div>
+                <div className="relative">
+                  <LockKeyhole className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
+                    required
+                  />
+                </div>
+              </div>
+
+              {renderError()}
+            </CardContent>
+            <CardFooter className="px-6 pt-2">
+              <Button
+                type="submit"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow-md transition-all"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Please wait
+                  </>
+                ) : (
+                  <>
+                    Login
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </CardFooter>
+          </form>
         </Card>
-        
+
         <div className="mt-6 text-center text-sm text-muted-foreground">
           <p className="backdrop-blur-sm bg-background/40 p-3 rounded-lg shadow-sm border border-border/20">
-          By continuing, you agree to our
-            <Link href="#" className="mx-1 text-primary hover:underline font-medium">
-            Terms of Service
-          </Link>
-          and
-            <Link href="#" className="ml-1 text-primary hover:underline font-medium">
-            Privacy Policy
-          </Link>
+            By continuing, you agree to our
+            <Link
+              href="#"
+              className="mx-1 text-primary hover:underline font-medium"
+            >
+              Terms of Service
+            </Link>
+            and
+            <Link
+              href="#"
+              className="ml-1 text-primary hover:underline font-medium"
+            >
+              Privacy Policy
+            </Link>
           </p>
         </div>
       </div>
-      
+
       {/* Reset Password Dialog */}
-      <Dialog open={showResetPasswordForm} onOpenChange={setShowResetPasswordForm}>
+      <Dialog
+        open={showResetPasswordForm}
+        onOpenChange={setShowResetPasswordForm}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Reset your password</DialogTitle>
@@ -464,14 +526,14 @@ export default function LoginPage() {
               <Label htmlFor="reset-email">Email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                id="reset-email" 
-                type="email" 
-                placeholder="name@example.com" 
-                value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value)}
+                <Input
+                  id="reset-email"
+                  type="email"
+                  placeholder="name@example.com"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
                   className="pl-10 border-border/40 focus-visible:border-primary/30 focus-visible:ring-1 focus-visible:ring-primary/20 transition-all"
-              />
+                />
               </div>
             </div>
             {error && <div className="text-red-500 text-sm">{error}</div>}
@@ -506,4 +568,4 @@ export default function LoginPage() {
       </Dialog>
     </div>
   );
-} 
+}
