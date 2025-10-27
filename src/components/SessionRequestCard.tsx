@@ -435,7 +435,54 @@ export function SessionRequestCard({
       }
 
       try {
-        if (sessionId) {
+        // If this message is a credit request, handle it differently
+        if (
+          messageContent &&
+          messageContent.trim().startsWith("Credit Request:")
+        ) {
+          // Parse credit amount from message content
+          const creditMatch = messageContent.match(/Credits:\s*(\d+)/i);
+          const amount = creditMatch ? parseInt(creditMatch[1], 10) : 0;
+
+          if (!amount || amount <= 0) {
+            throw new Error("Invalid credit amount");
+          }
+
+          // The message creator is the tutor
+          const tutorId = messageCreatorId;
+          const studentId = user.id;
+
+          if (!tutorId) {
+            throw new Error("Unable to identify tutor for this request");
+          }
+
+          const transferResponse = await fetch("/api/credits/transfer", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              [CSRF_HEADER_NAME]: csrfToken,
+            },
+            body: JSON.stringify({
+              conversation_id: conversationId,
+              message_id: messageId,
+              tutor_id: tutorId,
+              amount,
+            }),
+            credentials: "include",
+          });
+
+          if (!transferResponse.ok) {
+            const err = await transferResponse.json().catch(() => ({}));
+            throw new Error(err.error || "Failed to transfer credits");
+          }
+
+          toast({
+            title: "Credits transferred",
+            description: `Transferred ${amount} credit${
+              amount > 1 ? "s" : ""
+            } to the tutor.`,
+          });
+        } else if (sessionId) {
           // Update existing session to accepted
           const response = await fetch("/api/tutoring-sessions", {
             method: "PATCH",
@@ -688,7 +735,7 @@ export function SessionRequestCard({
 
         // Navigate to the meeting page after starting
         if (typeof window !== "undefined") {
-          window.location.href = `/meeting/${sessionId}`;
+          window.open(`/meeting/${sessionId}`, "_blank");
         }
 
         // No need to call refreshSessions - the realtime system will update the UI
@@ -1437,7 +1484,11 @@ export function SessionRequestCard({
                 </p>
               </div>
               <div className="flex gap-2">
-                <Link href={`/meeting/${sessionId}`}>
+                <Link
+                  href={`/meeting/${sessionId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   <Button
                     variant="default"
                     className="bg-primary hover:bg-primary/90 flex items-center gap-2"

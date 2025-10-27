@@ -64,6 +64,7 @@ import {
   SessionRequestCard,
   parseSessionRequest,
 } from "@/components/SessionRequestCard";
+import { CreditRequestCard } from "@/components/CreditRequestCard";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import {
   validateText,
@@ -632,6 +633,10 @@ export default function MessagesPage() {
   const [sessionCost, setSessionCost] = useState<number>(0);
   const [isSchedulingSession, setIsSchedulingSession] = useState(false);
   const [showSessionDialog, setShowSessionDialog] = useState(false);
+  // Credit request dialog (tutors can request credits without creating a session/call)
+  const [showCreditDialog, setShowCreditDialog] = useState(false);
+  const [creditTitle, setCreditTitle] = useState("");
+  const [creditAmount, setCreditAmount] = useState<number>(0);
 
   // Typing indicator state
   const [isTyping, setIsTyping] = useState(false);
@@ -2194,6 +2199,41 @@ export default function MessagesPage() {
                           const message = item.message;
                           const isFromMe = message.sender_id === user.id;
 
+                          // Detect credit request messages and render CreditRequestCard
+                          const isCreditRequestMessage =
+                            message.content &&
+                            message.content.trim().startsWith("Credit Request:");
+
+                          if (isCreditRequestMessage) {
+                            // Parse title and amount from message content
+                            const titleMatch = message.content?.match(/Credit Request:\s*(.+?)(?:\n|$)/);
+                            const creditMatch = message.content?.match(/Credits:\s*(\d+)/i);
+                            
+                            const requestTitle = titleMatch?.[1]?.trim() || "Credit Request";
+                            const requestAmount = creditMatch ? parseInt(creditMatch[1], 10) : 0;
+
+                            return (
+                              <div key={`credit-request-${message.id}`}>
+                                {showDateHeader && (
+                                  <div className="flex justify-center my-3 sm:my-4">
+                                    <div className="bg-muted/70 backdrop-blur-sm px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs text-muted-foreground shadow-sm border border-border/20">
+                                      {formatFullDate(currentDate)}
+                                    </div>
+                                  </div>
+                                )}
+                                <div className="w-full flex flex-col p-2">
+                                  <CreditRequestCard
+                                    messageId={message.id}
+                                    conversationId={selectedConversationId || message.conversation_id || ""}
+                                    tutorId={message.sender_id}
+                                    title={requestTitle}
+                                    amount={requestAmount}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          }
+
                           // Store a reference to the message element
                           const setMessageRef = (el: HTMLDivElement | null) => {
                             if (el) {
@@ -2439,6 +2479,108 @@ export default function MessagesPage() {
                         />
                       </svg>
                     </Button>
+                    {/* Tutors: quick credit request dialog trigger */}
+                    {user?.role === "tutor" && (
+                      <div className="ml-2">
+                        <Dialog
+                          open={showCreditDialog}
+                          onOpenChange={setShowCreditDialog}
+                        >
+                          <DialogTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-9">
+                              Request
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Request Credits</DialogTitle>
+                              <DialogDescription>
+                                Request credits from the student via message.
+                                This will send a session request message without
+                                creating a call.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="grid gap-4 py-4">
+                              <div className="grid gap-2">
+                                <label className="text-sm font-medium">
+                                  Title
+                                </label>
+                                <Input
+                                  value={creditTitle}
+                                  onChange={(e) =>
+                                    setCreditTitle(e.target.value)
+                                  }
+                                  placeholder="e.g., 1-hour tutoring"
+                                />
+                              </div>
+                              <div className="grid gap-2">
+                                <label className="text-sm font-medium">
+                                  Credits
+                                </label>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={creditAmount || ""}
+                                  onChange={(e) =>
+                                    setCreditAmount(
+                                      parseInt(e.target.value || "0") || 0
+                                    )
+                                  }
+                                />
+                              </div>
+                            </div>
+                            <DialogFooter>
+                              <Button
+                                variant="outline"
+                                onClick={() => setShowCreditDialog(false)}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                className="bg-primary"
+                                onClick={async () => {
+                                  // Validate
+                                  if (!creditTitle || creditAmount <= 0) {
+                                    toast({
+                                      variant: "destructive",
+                                      title: "Invalid request",
+                                      description:
+                                        "Please enter a title and a positive credit amount.",
+                                    });
+                                    return;
+                                  }
+                                  try {
+                                    const content = `Credit Request: ${creditTitle}\nCredits: ${creditAmount}`;
+                                    await sendMessage(
+                                      selectedConversationId || "",
+                                      content
+                                    );
+                                    toast({
+                                      title: "Request sent",
+                                      description:
+                                        "Credit request message sent.",
+                                    });
+                                    setCreditTitle("");
+                                    setCreditAmount(0);
+                                    setShowCreditDialog(false);
+                                  } catch (err: any) {
+                                    toast({
+                                      variant: "destructive",
+                                      title: "Failed",
+                                      description:
+                                        err?.message ||
+                                        "Failed to send request",
+                                    });
+                                  }
+                                }}
+                              >
+                                Send Request
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex-1">

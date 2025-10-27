@@ -105,8 +105,7 @@ export default function HomePage() {
                   <img
                     src="/uniandlogo.png"
                     alt="Online Learning"
-                    className="w-full rounded-t-xl object-cover group-hover:scale-105 transition-transform duration-700"
-                    style={{height: '31rem'}}
+                    className="w-full max-w-full rounded-t-xl object-contain group-hover:scale-105 transition-transform duration-700 h-90 lg:h-[31rem]"
                   />
         
                 </div>
