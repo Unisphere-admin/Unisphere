@@ -571,7 +571,13 @@ export function SessionRequestCard({
           description: "The tutoring session has been accepted",
         });
 
-        // No need to call refreshSessions - the realtime system will update the UI
+        // Force immediate refresh of the sessions to update UI
+        // This ensures the UI updates even if realtime is delayed/fails
+        if (typeof refreshSessions === 'function') {
+          await refreshSessions();
+        }
+
+        // Realtime will also update, but manual refresh ensures immediate feedback
       } catch (error) {
         toast({
           title: "Error",

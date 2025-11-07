@@ -53,118 +53,58 @@ async function transferCreditsHandler(req: NextRequest, user: any) {
       }
     }
 
-    // Fetch current token balances
-    const { data: studentData, error: studentErr } = await supabaseAdmin
-      .from("users")
-      .select("tokens")
-      .eq("id", studentId)
-      .single();
+    // ============================================================================
+    // CRITICAL: Use atomic transfer function to prevent race conditions
+    // This ensures both debit and credit happen atomically with proper locking
+    // ============================================================================
 
-    if (studentErr || !studentData) {
-      console.error('Student lookup error:', { studentId, error: studentErr });
-      return NextResponse.json({ error: "Student user not found" }, { status: 404 });
-    }
+    console.log(`💸 Initiating atomic transfer: ${transferAmount} credits from ${studentId} to ${tutor_id}`);
 
-    const studentTokens = Number(studentData.tokens || 0);
-    if (studentTokens < transferAmount) {
-      return NextResponse.json({ error: "Insufficient credits" }, { status: 400 });
-    }
-
-    // Fetch tutor tokens - try with admin client to bypass RLS
-    const { data: tutorData, error: tutorErr } = await supabaseAdmin
-      .from("users")
-      .select("tokens, id")
-      .eq("id", tutor_id)
-      .maybeSingle();
-
-    // Debug: check all rows for this tutor_id
-    const { data: allTutorRows, error: allErr } = await supabaseAdmin
-      .from("users")
-      .select("*")
-      .eq("id", tutor_id);
-
-    // Also check if tutor exists in tutor_profile
-    const { data: tutorProfile, error: tutorProfileErr } = await supabaseAdmin
-      .from("users")
-      .select("id, first_name, last_name")
-      .eq("id", tutor_id)
-      .maybeSingle();
-
-    console.log('Tutor lookup result:', { 
-      tutorData, 
-      tutorErr, 
-      tutor_id, 
-      hasData: !!tutorData, 
-      allRowsCount: allTutorRows?.length, 
-      allRows: allTutorRows,
-      tutorProfile,
-      tutorProfileExists: !!tutorProfile
-    });
-
-    if (tutorErr || !tutorData) {
-      console.error('Tutor not found in users table:', { 
-        tutor_id, 
-        error: tutorErr,
-        tutorProfileExists: !!tutorProfile,
-        tutorProfileData: tutorProfile 
+    const { data: transferResult, error: transferError } = await supabaseAdmin
+      .rpc('atomic_transfer_credits', {
+        p_from_user_id: studentId,
+        p_to_user_id: tutor_id,
+        p_credits: transferAmount
       });
-      return NextResponse.json({ 
-        error: "Tutor user not found in users table", 
-        details: tutorErr?.message || "No tutor data",
-        tutor_id,
-        tutorProfileExists: !!tutorProfile,
-        hint: tutorProfile ? "Tutor exists in tutor_profile but not in users table - database inconsistency" : "Tutor doesn't exist in any table"
-      }, { status: 404 });
+
+    if (transferError) {
+      console.error('❌ Atomic transfer failed:', transferError);
+      return NextResponse.json({
+        error: "Credit transfer failed",
+        details: transferError.message
+      }, { status: 500 });
     }
 
-    const tutorTokens = Number(tutorData.tokens || 0);
+    const result = transferResult[0];
 
-    // Fetch snapshot names from profile tables (best-effort)
+    // Check if transfer was successful
+    if (!result.success) {
+      console.error('❌ Transfer validation failed:', result.error_message);
+      return NextResponse.json({
+        error: result.error_message || "Transfer failed"
+      }, { status: 400 });
+    }
+
+    console.log(`✅ Atomic transfer completed successfully!`);
+    console.log(`   Student: ${result.from_old_balance} → ${result.from_new_balance} credits`);
+    console.log(`   Tutor: ${result.to_old_balance} → ${result.to_new_balance} credits`);
+
+    // Fetch profile names for audit trail (non-critical)
     const { data: studentProf } = await supabaseAdmin
       .from("users")
       .select("first_name,last_name")
       .eq("id", studentId)
-      .single();
+      .maybeSingle();
     const { data: tutorProf } = await supabaseAdmin
       .from("users")
       .select("first_name,last_name")
       .eq("id", tutor_id)
-      .single();
+      .maybeSingle();
 
     const studentFirst = studentProf?.first_name || null;
     const studentLast = studentProf?.last_name || null;
     const tutorFirst = tutorProf?.first_name || null;
     const tutorLast = tutorProf?.last_name || null;
-
-    // Perform updates - debit student
-    const newStudentTokens = studentTokens - transferAmount;
-    const { data: updatedStudent, error: updateStudentErr } = await supabaseAdmin
-      .from("users")
-      .update({ tokens: newStudentTokens })
-      .eq("id", studentId)
-      .select()
-      .single();
-
-    if (updateStudentErr) {
-      console.error('Failed to debit student:', { studentId, error: updateStudentErr });
-      return NextResponse.json({ error: "Failed to debit student account" }, { status: 500 });
-    }
-
-    // Credit tutor
-    const newTutorTokens = tutorTokens + transferAmount;
-    const { data: updatedTutor, error: updateTutorErr } = await supabaseAdmin
-      .from("users")
-      .update({ tokens: newTutorTokens })
-      .eq("id", tutor_id)
-      .select()
-      .single();
-
-    if (updateTutorErr) {
-      // Attempt to rollback student update (best-effort)
-      await supabaseAdmin.from("users").update({ tokens: studentTokens }).eq("id", studentId);
-      console.error('Failed to credit tutor:', { tutor_id, error: updateTutorErr });
-      return NextResponse.json({ error: "Failed to credit tutor account" }, { status: 500 });
-    }
 
     // Record that this message has been processed (for status tracking)
     if (message_id) {
@@ -184,18 +124,28 @@ async function transferCreditsHandler(req: NextRequest, user: any) {
       }
     }
 
-    console.log('=== TRANSFER COMPLETE ===', { 
-      success: true, 
-      message_id, 
-      newStudentBalance: newStudentTokens,
-      newTutorBalance: newTutorTokens
+    console.log('=== TRANSFER COMPLETE ===', {
+      success: true,
+      message_id,
+      newStudentBalance: result.from_new_balance,
+      newTutorBalance: result.to_new_balance
     });
 
-    return NextResponse.json({ 
-      success: true, 
-      student: updatedStudent, 
-      tutor: updatedTutor,
-      newBalance: newStudentTokens
+    return NextResponse.json({
+      success: true,
+      student: {
+        id: studentId,
+        tokens: result.from_new_balance,
+        first_name: studentFirst,
+        last_name: studentLast
+      },
+      tutor: {
+        id: tutor_id,
+        tokens: result.to_new_balance,
+        first_name: tutorFirst,
+        last_name: tutorLast
+      },
+      newBalance: result.from_new_balance
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);

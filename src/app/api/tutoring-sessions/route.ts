@@ -507,28 +507,76 @@ async function patchTutoringSessionsHandler(
         if (status === 'accepted') {
           // We already have session data from above
           const sessionCost = sessionData.cost || 1;
-            
-          if (user.id === sessionData.student_id) {
-            // Student is accepting - check own tokens
-            if (user.tokens !== undefined && user.tokens < sessionCost) {
-              return NextResponse.json({ 
-                error: `You don't have enough Credits for this session. Required: ${sessionCost}, Available: ${user.tokens}`
-              }, { status: 400 });
-            }
-            response = await updateSessionStatus(user, session_id, status);
-          } else if (user.id === sessionData.tutor_id) {
-            // Tutor is accepting - check student tokens via edge function
-            const studentTokens = await getUserTokens(sessionData.student_id);
-            if (studentTokens < sessionCost) {
-              return NextResponse.json({ 
-                error: `Student does not have enough Credits for this session. Required: ${sessionCost}, Available: ${studentTokens}`
-              }, { status: 400 });
-            }
-            
-            // Pass the tokens to the updateSessionStatus function
-            response = await updateSessionStatus(user, session_id, status, studentTokens);
+          const studentId = sessionData.student_id;
+
+          // ============================================================================
+          // CRITICAL: Atomically deduct credits BEFORE accepting the session
+          // This prevents race conditions and ensures credits are always deducted
+          // ============================================================================
+
+          console.log(`💳 Session acceptance requested - Cost: ${sessionCost} credit(s)`);
+          console.log(`👤 Student: ${studentId}, Accepting user: ${user.id}`);
+
+          // Create admin client for atomic credit deduction
+          const supabaseAdmin = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+          );
+
+          // Use atomic database function to deduct credits
+          const { data: deductResult, error: deductError } = await supabaseAdmin
+            .rpc('atomic_deduct_credits', {
+              p_user_id: studentId,
+              p_credits_to_deduct: sessionCost,
+              p_allow_negative: false
+            });
+
+          if (deductError) {
+            console.error('❌ Error deducting credits:', deductError);
+            return NextResponse.json({
+              error: `Failed to deduct credits: ${deductError.message}`
+            }, { status: 500 });
+          }
+
+          // Check if deduction was successful
+          const result = deductResult[0];
+          if (!result.success) {
+            console.log(`❌ Credit deduction failed: ${result.error_message}`);
+            return NextResponse.json({
+              error: result.error_message || 'Insufficient credits'
+            }, { status: 400 });
+          }
+
+          console.log(`✅ Credits deducted successfully!`);
+          console.log(`   Old balance: ${result.old_balance}`);
+          console.log(`   New balance: ${result.new_balance}`);
+          console.log(`   Credits deducted: ${result.credits_deducted}`);
+
+          // Now that credits are deducted, update the session status
+          // If this fails, credits will be refunded by the Edge Function when status changes to cancelled
+          console.log(`🔄 Updating session status to: ${status}`);
+          response = await updateSessionStatus(user, session_id, status);
+
+          // Check if session update succeeded
+          if ('error' in response && response.error) {
+            console.error(`❌ Session status update failed after credit deduction!`);
+            console.error(`   Error: ${response.error}`);
+            console.error(`   This is a critical error - credits were deducted but session not accepted`);
+            console.error(`   User should cancel the session to get refund`);
+            // Return error to client so they know something went wrong
+            return NextResponse.json({
+              error: `Session update failed: ${response.error}. Credits were deducted. Please contact support or try cancelling the session.`,
+              creditsDeducted: true
+            }, { status: 500 });
+          } else if (!response.session) {
+            console.error(`❌ Session update returned no session data!`);
+            return NextResponse.json({
+              error: 'Session update failed - no session data returned',
+              creditsDeducted: true
+            }, { status: 500 });
           } else {
-            return NextResponse.json({ error: 'Not authorized to update this session' }, { status: 403 });
+            console.log(`✅ Session ${session_id} status updated successfully to: ${response.session.status}`);
+            console.log(`   Session ID: ${response.session.id}`);
           }
         } else {
           response = await updateSessionStatus(user, session_id, status);
