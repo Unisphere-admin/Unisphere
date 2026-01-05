@@ -263,7 +263,7 @@ export default function AboutPage() {
           </p>
         </div>
         
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 relative z-10">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-8 relative z-10 [&>*:nth-child(3)]:col-span-2 [&>*:nth-child(3)]:justify-self-center md:[&>*:nth-child(3)]:col-span-1">
           {[
             {
               name: "Joshua Ooi",
@@ -279,11 +279,6 @@ export default function AboutPage() {
               name: "Gha Yuan Ng",
               role: "Yale University",
               image: "/headshots/GhaYuanNg.jpg"
-            },
-            {
-              name: "Matthew Tang",
-              role: "Yale University",
-              image: "/headshots/MatthewTang.jpg"
             }
           ].map((member) => (
             <div key={member.name} className="flex flex-col items-center text-center group">
