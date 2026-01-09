@@ -18,7 +18,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Unisphere - Global Knowledge Exchange',
+  title: 'Unisphere - Your All-In-One Uni Admissions Platform',
   description: 'Connect with experts worldwide for personalized learning experiences',
   icons: {
     icon: [
