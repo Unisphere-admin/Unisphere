@@ -33,8 +33,13 @@ const PreCallScreen: React.FC<PreCallScreenProps> = ({
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
-  
+
   const videoRef = useRef<HTMLVideoElement>(null);
+  const joinedCallRef = useRef<boolean>(false);
+  const tracksRef = useRef<{ audio: IMicrophoneAudioTrack | null; video: ICameraVideoTrack | null }>({
+    audio: null,
+    video: null,
+  });
 
   // Initialize media devices
   useEffect(() => {
@@ -82,6 +87,8 @@ const PreCallScreen: React.FC<PreCallScreenProps> = ({
 
           setLocalAudioTrack(audioTrack);
           setLocalVideoTrack(videoTrack);
+          // Store in ref for cleanup
+          tracksRef.current = { audio: audioTrack, video: videoTrack };
 
           // Play video in the preview
           if (videoRef.current && videoTrack) {
@@ -106,20 +113,23 @@ const PreCallScreen: React.FC<PreCallScreenProps> = ({
 
     initializeMedia();
 
-    // Cleanup function
+    // Cleanup only if user didn't join the call (e.g., navigated away)
     return () => {
-      if (localAudioTrack) {
-        try {
-          localAudioTrack.close();
-        } catch (err) {
-          console.error('Error closing audio track:', err);
+      if (!joinedCallRef.current) {
+        // User left without joining, clean up tracks
+        if (tracksRef.current.audio) {
+          try {
+            tracksRef.current.audio.close();
+          } catch (err) {
+            console.error('Error closing audio track:', err);
+          }
         }
-      }
-      if (localVideoTrack) {
-        try {
-          localVideoTrack.close();
-        } catch (err) {
-          console.error('Error closing video track:', err);
+        if (tracksRef.current.video) {
+          try {
+            tracksRef.current.video.close();
+          } catch (err) {
+            console.error('Error closing video track:', err);
+          }
         }
       }
     };
@@ -378,6 +388,8 @@ const PreCallScreen: React.FC<PreCallScreenProps> = ({
               <button
                 onClick={() => {
                   if (localAudioTrack && localVideoTrack) {
+                    // Mark that user is joining the call - don't cleanup tracks
+                    joinedCallRef.current = true;
                     onJoinCall({
                       audioTrack: localAudioTrack,
                       videoTrack: localVideoTrack,

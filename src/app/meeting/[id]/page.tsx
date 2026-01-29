@@ -374,6 +374,7 @@ export default function MeetingPage() {
 
       if (!audioTrack || !videoTrack) {
         // Fallback: create new tracks if not provided from pre-call
+        console.log("Creating new audio/video tracks...");
         const [newAudioTrack, newVideoTrack] =
           await AgoraRTC.createMicrophoneAndCameraTracks();
         audioTrack = newAudioTrack;
@@ -382,14 +383,83 @@ export default function MeetingPage() {
         setLocalVideoTrack(videoTrack);
       }
 
-      await agoraClient.publish([audioTrack, videoTrack]);
-
-      // Apply the mute states from pre-call screen
+      // IMPORTANT: Enable tracks BEFORE publishing so they're active when published
       if (audioTrack) {
-        audioTrack.setEnabled(!isAudioMuted);
+        await audioTrack.setEnabled(!isAudioMuted);
+        console.log("Audio track enabled:", !isAudioMuted);
       }
       if (videoTrack) {
-        videoTrack.setEnabled(!isVideoMuted);
+        await videoTrack.setEnabled(!isVideoMuted);
+        console.log("Video track enabled:", !isVideoMuted);
+      }
+
+      // Publish tracks to the channel
+      console.log("Publishing audio and video tracks...");
+      await agoraClient.publish([audioTrack, videoTrack]);
+      console.log("Tracks published successfully");
+
+      // Verify tracks are published
+      const publishedTracks = agoraClient.localTracks;
+      const hasAudioPublished = publishedTracks.some(
+        (t) => t.trackMediaType === "audio"
+      );
+      const hasVideoPublished = publishedTracks.some(
+        (t) => t.trackMediaType === "video"
+      );
+      console.log("Published tracks verification:", {
+        hasAudioPublished,
+        hasVideoPublished,
+        totalTracks: publishedTracks.length,
+      });
+
+      if (!hasAudioPublished && audioTrack) {
+        console.warn("Audio track not detected, attempting republish...");
+        try {
+          await agoraClient.publish(audioTrack);
+          console.log("Audio track republished successfully");
+        } catch (republishErr) {
+          console.error("Failed to republish audio:", republishErr);
+        }
+      }
+
+      // Monitor local audio track for issues
+      if (audioTrack) {
+        // Listen for track ended event (microphone disconnected, etc.)
+        audioTrack.on("track-ended", () => {
+          console.error("Local audio track ended unexpectedly");
+          toast({
+            title: "Microphone Disconnected",
+            description:
+              "Your microphone was disconnected. Please check your device.",
+            variant: "destructive",
+          });
+        });
+
+        // Check audio track state periodically
+        const audioMonitor = setInterval(async () => {
+          if (!audioTrack || !agoraClient) {
+            clearInterval(audioMonitor);
+            return;
+          }
+
+          try {
+            const currentTracks = agoraClient.localTracks;
+            const isAudioStillPublished = currentTracks.some(
+              (t) => t.trackMediaType === "audio"
+            );
+
+            if (!isAudioStillPublished && !isAudioMuted) {
+              console.warn("Audio track no longer published, republishing...");
+              await agoraClient.publish(audioTrack);
+              console.log("Audio track recovered");
+            }
+          } catch (err) {
+            console.error("Audio monitor error:", err);
+          }
+        }, 10000); // Check every 10 seconds
+
+        // Store interval for cleanup
+        (window as any).__audioMonitorInterval = audioMonitor;
       }
 
       setIsConnected(true);
@@ -399,6 +469,12 @@ export default function MeetingPage() {
       const cleanup = async () => {
         try {
           if (cleanupRef.current === null) return;
+
+          // Clear audio monitor interval
+          if ((window as any).__audioMonitorInterval) {
+            clearInterval((window as any).__audioMonitorInterval);
+            (window as any).__audioMonitorInterval = null;
+          }
 
           if (screenTrack) {
             screenTrack.close();
@@ -573,11 +649,36 @@ export default function MeetingPage() {
     isLoadingMessages,
     user,
     sessionId: sessionId as string,
-    onToggleAudio: () => {
-      if (!localAudioTrack) return;
+    onToggleAudio: async () => {
+      if (!localAudioTrack) {
+        console.error("No local audio track available");
+        return;
+      }
       const newMuteState = !isAudioMuted;
-      localAudioTrack.setEnabled(!newMuteState);
-      setIsAudioMuted(newMuteState);
+      console.log(`Toggling audio: ${isAudioMuted ? "unmuting" : "muting"}`);
+
+      try {
+        await localAudioTrack.setEnabled(!newMuteState);
+
+        // If unmuting, verify the track is still published
+        if (!newMuteState && client) {
+          const publishedTracks = client.localTracks;
+          const isAudioPublished = publishedTracks.some(
+            (t) => t.trackMediaType === "audio"
+          );
+
+          if (!isAudioPublished) {
+            console.warn("Audio track not published, republishing...");
+            await client.publish(localAudioTrack);
+            console.log("Audio track republished after unmute");
+          }
+        }
+
+        setIsAudioMuted(newMuteState);
+        console.log(`Audio is now ${newMuteState ? "muted" : "unmuted"}`);
+      } catch (err) {
+        console.error("Error toggling audio:", err);
+      }
     },
     onToggleVideo: () => {
       if (!localVideoTrack) return;
