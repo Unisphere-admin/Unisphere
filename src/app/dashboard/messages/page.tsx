@@ -2287,7 +2287,7 @@ export default function MessagesPage() {
                                     >
                                       <div className="flex flex-col gap-2">
                                         {message.content && (
-                                          <div className="whitespace-pre-wrap break-words break-all max-w-full">
+                                          <div className="whitespace-pre-wrap break-words max-w-full" style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}>
                                             {message.content}
                                           </div>
                                         )}

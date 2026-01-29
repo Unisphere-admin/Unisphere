@@ -1,9 +1,21 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { VideoCallState } from './types';
 import AgoraRTC, { ILocalVideoTrack } from 'agora-rtc-sdk-ng';
 import { toast } from '@/components/ui/use-toast';
+import { createClient } from '@/utils/supabase/client';
+
+// In-call message type (ephemeral, not persisted)
+interface InCallMessage {
+  id: string;
+  content: string;
+  sender_id: string;
+  created_at: string;
+  sender?: {
+    display_name: string;
+  };
+}
 
 const VideoCallContext = createContext<VideoCallState | undefined>(undefined);
 
@@ -23,6 +35,47 @@ interface VideoCallProviderProps {
 const VideoCallProvider: React.FC<VideoCallProviderProps> = ({ value, children }) => {
   const [isScreenSharing, setIsScreenSharing] = useState(value.isScreenSharing);
   const [screenTrack, setScreenTrack] = useState(value.screenTrack);
+  const [inCallMessages, setInCallMessages] = useState<InCallMessage[]>([]);
+
+  // Supabase real-time channel for in-call chat
+  const supabaseRef = useRef<any>(null);
+  const channelRef = useRef<any>(null);
+
+  // Initialize Supabase and subscribe to in-call chat channel
+  useEffect(() => {
+    if (!value.sessionId || !value.user) return;
+
+    const supabase = createClient();
+    supabaseRef.current = supabase;
+
+    // Create a unique channel for this call's chat (separate from DM)
+    const channelName = `incall_chat:${value.sessionId}`;
+    const channel = supabase.channel(channelName);
+
+    channel
+      .on('broadcast', { event: 'chat_message' }, (payload: { payload: InCallMessage }) => {
+        const message = payload.payload;
+        // Don't add duplicate messages
+        setInCallMessages((prev) => {
+          if (prev.some((m) => m.id === message.id)) return prev;
+          return [...prev, message];
+        });
+      })
+      .subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Subscribed to in-call chat channel:', channelName);
+        }
+      });
+
+    channelRef.current = channel;
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [value.sessionId, value.user]);
 
   // Cleanup effect when provider unmounts
   useEffect(() => {
@@ -191,56 +244,47 @@ const VideoCallProvider: React.FC<VideoCallProviderProps> = ({ value, children }
     }
   };
 
-  // Enhanced message sending functionality
-  const handleSendMessage = async (content: string) => {
-    if (!content.trim() || !value.conversationId || !value.user) return;
-    
+  // In-call chat message sending (ephemeral, uses real-time broadcast)
+  const handleSendMessage = useCallback(async (content: string) => {
+    if (!content.trim() || !value.user || !channelRef.current) return;
+
+    const message: InCallMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      content: content.trim(),
+      sender_id: value.user.id,
+      created_at: new Date().toISOString(),
+      sender: {
+        display_name: value.user.email?.split('@')[0] || 'You',
+      },
+    };
+
     try {
-      const response = await fetch('/api/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          conversation_id: value.conversationId,
-          content: content
-        })
+      // Add message to local state immediately (optimistic update)
+      setInCallMessages((prev) => [...prev, message]);
+
+      // Broadcast to other participants
+      await channelRef.current.send({
+        type: 'broadcast',
+        event: 'chat_message',
+        payload: message,
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to send message');
-      }
-      
-      // Store in localStorage to trigger the RealtimeContext notification system
-      if (typeof window !== 'undefined') {
-        const serverMessage = await response.json();
-        const notificationMessage = {
-          ...serverMessage,
-          _notificationTimestamp: Date.now(),
-          sender: {
-            id: value.user.id,
-            display_name: value.user.email?.split('@')[0] || 'You',
-            avatar_url: value.user.avatar_url || null,
-            is_tutor: value.user.role === 'tutor'
-          }
-        };
-        
-        localStorage.setItem('latest_message', JSON.stringify(notificationMessage));
-      }
     } catch (error) {
+      console.error('Error sending in-call message:', error);
       toast({
         title: "Error",
         description: "Could not send message",
         variant: "destructive",
       });
     }
-  };
+  }, [value.user]);
 
   // Create enhanced context value
   const enhancedValue: VideoCallState = {
     ...value,
     isScreenSharing,
     screenTrack,
+    messages: inCallMessages, // Use in-call messages instead of DM messages
+    isLoadingMessages: false, // In-call messages are always ready
     onToggleScreenSharing: handleToggleScreenSharing,
     onSendMessage: handleSendMessage,
   };

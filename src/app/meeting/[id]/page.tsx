@@ -164,6 +164,33 @@ export default function MeetingPage() {
       setChannelName(sessionId as string);
 
       // Set up event listeners
+      // Helper function to play audio with retry logic
+      const playRemoteAudioWithRetry = async (
+        audioTrack: any,
+        uid: number | string,
+        retries = 3
+      ) => {
+        for (let i = 0; i < retries; i++) {
+          try {
+            if (audioTrack && typeof audioTrack.play === "function") {
+              await audioTrack.play();
+              console.log(`Successfully playing remote audio for user ${uid}`);
+              return true;
+            }
+          } catch (error) {
+            console.warn(
+              `Attempt ${i + 1} failed to play audio for user ${uid}:`,
+              error
+            );
+            if (i < retries - 1) {
+              await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+          }
+        }
+        console.error(`Failed to play audio for user ${uid} after ${retries} attempts`);
+        return false;
+      };
+
       agoraClient.on("user-published", async (remoteUser, mediaType) => {
         try {
           console.log("Remote user published:", remoteUser.uid, mediaType);
@@ -219,7 +246,10 @@ export default function MeetingPage() {
 
             if (remoteUser.audioTrack) {
               console.log("Playing remote audio for:", remoteUser.uid);
-              remoteUser.audioTrack.play();
+              await playRemoteAudioWithRetry(
+                remoteUser.audioTrack,
+                remoteUser.uid
+              );
             }
           }
         } catch (error) {
@@ -250,11 +280,83 @@ export default function MeetingPage() {
         );
       });
 
-      agoraClient.on("connection-state-change", (state) => {
+      agoraClient.on("connection-state-change", (state, prevState, reason) => {
+        console.log(
+          `Connection state changed: ${prevState} -> ${state}, reason: ${reason}`
+        );
         if (state === "CONNECTED") {
           setIsConnected(true);
+          // Re-play all remote audio tracks after reconnection
+          setRemoteUsers((prev) => {
+            prev.forEach((user) => {
+              if (user.audioTrack && user.hasAudio) {
+                console.log(
+                  `Re-playing audio for user ${user.uid} after reconnection`
+                );
+                playRemoteAudioWithRetry(user.audioTrack, user.uid);
+              }
+            });
+            return prev;
+          });
         } else if (state === "DISCONNECTED") {
           setIsConnected(false);
+        } else if (state === "RECONNECTING") {
+          console.log("Attempting to reconnect...");
+          toast({
+            title: "Connection Issue",
+            description: "Reconnecting to the call...",
+            duration: 3000,
+          });
+        }
+      });
+
+      // Handle network quality changes to detect potential audio issues
+      agoraClient.on("network-quality", (stats) => {
+        // Log significant network quality issues
+        if (stats.downlinkNetworkQuality >= 4) {
+          console.warn(
+            "Poor downlink quality detected:",
+            stats.downlinkNetworkQuality
+          );
+        }
+        if (stats.uplinkNetworkQuality >= 4) {
+          console.warn(
+            "Poor uplink quality detected:",
+            stats.uplinkNetworkQuality
+          );
+        }
+      });
+
+      // Handle exceptions from the Agora SDK
+      agoraClient.on("exception", (event) => {
+        console.error("Agora exception:", event.code, event.msg);
+        // Audio-related error codes
+        if (
+          event.code === 1001 ||
+          event.code === 1002 ||
+          event.code === 1003
+        ) {
+          console.warn("Audio-related exception detected, may cause audio issues");
+        }
+      });
+
+      // Handle user info updates (mute/unmute events)
+      agoraClient.on("user-info-updated", (uid, msg) => {
+        console.log(`User ${uid} info updated:`, msg);
+        if (msg === "mute-audio" || msg === "unmute-audio") {
+          setRemoteUsers((prev) =>
+            prev.map((user) => {
+              if (user.uid === uid) {
+                const hasAudio = msg === "unmute-audio";
+                // Re-play audio if unmuted
+                if (hasAudio && user.audioTrack) {
+                  playRemoteAudioWithRetry(user.audioTrack, uid);
+                }
+                return { ...user, hasAudio };
+              }
+              return user;
+            })
+          );
         }
       });
 
@@ -366,6 +468,38 @@ export default function MeetingPage() {
       }
     };
   }, []);
+
+  // Periodic audio health check - monitors and recovers audio playback
+  useEffect(() => {
+    if (!isConnected || remoteUsers.length === 0) return;
+
+    const audioHealthCheck = setInterval(() => {
+      remoteUsers.forEach((user) => {
+        if (user.audioTrack && user.hasAudio) {
+          // Check if the audio track is still in a playable state
+          const track = user.audioTrack as any;
+          const isPlaying = track._player?.isPlaying || track.isPlaying;
+
+          // If audio should be playing but isn't, try to restart it
+          if (!isPlaying && track.play) {
+            console.log(
+              `Audio health check: restarting audio for user ${user.uid}`
+            );
+            try {
+              track.play();
+            } catch (err) {
+              console.warn(
+                `Failed to restart audio for user ${user.uid}:`,
+                err
+              );
+            }
+          }
+        }
+      });
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(audioHealthCheck);
+  }, [isConnected, remoteUsers]);
 
   // Handle pre-call actions
   const handleJoinCall = (settings: {

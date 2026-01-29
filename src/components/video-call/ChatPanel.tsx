@@ -77,17 +77,17 @@ const ChatPanel: React.FC<SidePanelProps> = ({ isOpen, onClose, title }) => {
               key={message.id} 
               className={`flex ${message.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
             >
-              <div 
+              <div
                 className={`max-w-[80%] rounded-lg p-3 ${
-                  message.sender_id === user?.id 
-                    ? 'bg-[#00AEFC] text-white' 
+                  message.sender_id === user?.id
+                    ? 'bg-[#00AEFC] text-white'
                     : 'bg-[#222222] text-white'
                 }`}
               >
                 <p className="text-sm font-medium mb-1">
                   {message.sender_id === user?.id ? 'You' : message.sender?.display_name || 'Other'}
                 </p>
-                <p className="text-sm">{message.content}</p>
+                <p className="text-sm whitespace-pre-wrap break-words" style={{ overflowWrap: 'anywhere' }}>{message.content}</p>
                 <p className="text-xs opacity-70 text-right mt-1">
                   {new Date(message.created_at).toLocaleTimeString([], { 
                     hour: '2-digit', 
