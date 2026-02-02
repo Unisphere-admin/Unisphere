@@ -5,12 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
-import { 
-  LayoutDashboard, 
-  Calendar, 
-  BookOpen, 
-  MessageSquare, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Calendar,
+  BookOpen,
+  MessageSquare,
+  Settings,
   HomeIcon,
   Menu,
   X,
@@ -19,7 +19,8 @@ import {
   Wallet,
   ChevronRight,
   Home,
-  Globe
+  Globe,
+  Mail
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -37,7 +38,8 @@ const DashboardSidebar = () => {
   const unreadCount = useUnreadCount();
   
   const isStudent = user?.role === "student";
-  
+  const isAdmin = user?.email && ["justin@unisphere.my", "admin@unisphere.my", "23torch03@gmail.com"].includes(user.email);
+
   const navItems = [
     {
       title: "Dashboard",
@@ -75,7 +77,13 @@ const DashboardSidebar = () => {
       icon: <Settings className="h-5 w-5" />,
       href: "/dashboard/settings",
       active: pathname === "/dashboard/settings",
-    }
+    },
+    ...(isAdmin ? [{
+      title: "Email Marketing",
+      icon: <Mail className="h-5 w-5" />,
+      href: "/dashboard/admin/email",
+      active: pathname === "/dashboard/admin/email" || pathname?.startsWith("/dashboard/admin"),
+    }] : []),
   ];
 
   // Desktop sidebar
