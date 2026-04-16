@@ -108,7 +108,9 @@ export const PUBLIC_PATHS = [
   '/paywall',
   '/consultation',
   '/become-a-tutor',
-  '/credits' // Allow access to credits page for purchasing
+  '/credits', // Allow access to credits page for purchasing
+  '/summer-studio', // Public marketing page
+  '/testimonials', // Public page
 ];
 
 /**
@@ -172,38 +174,38 @@ export function requiresPremiumAccess(path: string): boolean {
   }
   */
   
-  // Premium required for dashboard and APIs
+  // Only these specific dashboard pages require payment
   if (
-    path.startsWith('/dashboard') && 
-    path !== '/dashboard/settings' && 
-    !path.startsWith('/dashboard/settings/')
+    path === '/dashboard/messages' ||
+    path.startsWith('/dashboard/messages/') ||
+    path === '/dashboard/schedule' ||
+    path.startsWith('/dashboard/schedule/') ||
+    path === '/dashboard/history' ||
+    path.startsWith('/dashboard/history/') ||
+    path === '/dashboard/reviews' ||
+    path.startsWith('/dashboard/reviews/') ||
+    path.startsWith('/dashboard/leave-review/')
   ) {
     return true;
   }
-  
-  // Resources page requires premium
-  if (path === '/resources' || path.startsWith('/resources/')) {
-    return true;
-  }
-  
-  // Session pages require premium
+
+  // Live session pages require payment
   if (path.startsWith('/session')) {
     return true;
   }
-  
-  // API endpoints require premium except for auth and specific profile endpoints
+
+  // Messaging and booking APIs require payment
   if (
-    path.startsWith('/api/') && 
-    !path.startsWith('/api/auth/') &&
-    !path.startsWith('/api/users/profile/') && 
-    path !== '/api/users/profile' &&
-    path !== '/api/users/survey' && // Allow survey completion for all authenticated users
-    !path.startsWith('/api/stripe/') && // Allow access to Stripe API endpoints for purchasing
-    !path.startsWith('/api/tutors/') // Allow access to tutors API
+    path === '/api/messages' ||
+    path.startsWith('/api/messages/') ||
+    path === '/api/conversations' ||
+    path.startsWith('/api/conversations/') ||
+    path === '/api/tutoring-sessions' ||
+    path.startsWith('/api/tutoring-sessions/')
   ) {
     return true;
   }
-  
+
   return false;
 }
 

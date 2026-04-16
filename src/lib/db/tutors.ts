@@ -93,20 +93,16 @@ export async function getAllTutors(hasPremiumAccess = false): Promise<{
       return { tutors: [], error: error.message };
     }
     
-    // Process data - all users get full access to tutor data
     if (data) {
-      // Process the raw data to handle arrays properly
-      const processedData = data.map((tutor: any) => {
-        const processedTutor = { ...tutor };
-        
-        // No need to process country as it's already a text[] array in PostgreSQL
-        
-        return processedTutor;
-      });
-      
-      // All users get full access to tutor data
-      const processedTutors = processedData as any as TutorBasic[];
-      
+      const processedTutors = data.map((tutor: any) => {
+        const processed = { ...tutor };
+        // Free/unauthenticated users see only the first initial of each tutor's last name
+        if (!hasPremiumAccess && processed.last_name) {
+          processed.last_name = processed.last_name.charAt(0) + '.';
+        }
+        return processed;
+      }) as any as TutorBasic[];
+
       return { tutors: processedTutors, error: null };
     }
     
@@ -147,12 +143,13 @@ export async function getTutorBySearchId(searchId: string, hasPremiumAccess = fa
       return { tutor: null, error: 'Tutor not found' };
     }
 
-    // Process the data to ensure proper type handling
     let processedData = { ...data };
-    
-    // No need to process country as it's already a text[] array in PostgreSQL
-    
-    // All users get full access to tutor data - no anonymization
+
+    // Free/unauthenticated users see only the first initial of the tutor's last name
+    if (!hasPremiumAccess && processedData.last_name) {
+      processedData.last_name = processedData.last_name.charAt(0) + '.';
+    }
+
     return { tutor: processedData as TutorProfile, error: null };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

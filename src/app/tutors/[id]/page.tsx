@@ -516,7 +516,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
             table: 'conversations',
             filter: `created_by=eq.${user.id}`
           },
-          (payload) => {
+          (payload: { new: { id: string; [key: string]: any } }) => {
             const conversationId = payload.new.id;
             
             // Subscribe to the new conversation's realtime channel using tutor's search_id
@@ -666,7 +666,8 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
   }
 
   // Get tutor data with fallbacks
-  const tutorName = tutor ? `${tutor.first_name} ${tutor.last_name}`.trim() : 'Tutor Profile';
+  // Last name truncation for free students is handled server-side in /api/tutors/[id]
+  const tutorName = tutor ? `${tutor.first_name || ''} ${tutor.last_name || ''}`.trim() : 'Tutor Profile';
   
   // Debug the tutor subjects data
   

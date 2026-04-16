@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -16,555 +14,661 @@ import {
   Download,
   X,
   Loader2,
-  RefreshCw,
-  Folder,
-  FolderOpen,
   ChevronRight,
-  Home
+  ChevronLeft,
+  BookOpen,
+  GraduationCap,
+  Globe2,
+  Sparkles,
+  Calendar,
+  Clock,
+  ArrowRight,
+  Trophy,
+  Award,
+  Users,
+  Dumbbell,
+  Plus,
+  CheckCircle2,
+  ExternalLink,
+  Microscope,
+  Calculator,
+  Music,
+  Landmark,
+  FlaskConical,
+  Pen,
 } from "lucide-react";
 import { toast } from "sonner";
-import { 
+import {
   ResourceItem,
   ResourceFile,
   ResourceFolder,
-  getResources, 
+  getResources,
   downloadResource,
-  searchResources, 
-  formatFileSize 
+  searchResources,
+  formatFileSize,
 } from "@/lib/db/resources";
 import React from "react";
+import {
+  Opportunity,
+  OpportunityType,
+  OPPORTUNITY_TYPE_LABELS,
+  getAccentClasses,
+} from "@/components/dashboard/opportunityData";
+import ReactCountryFlag from "react-country-flag";
 
-export default function ResourcesPage() {
+/* ── Category chip definitions ── */
+const CATEGORIES = [
+  { id: "all",            label: "All",             icon: Sparkles },
+  { id: "uk",             label: "UK",              icon: Globe2 },
+  { id: "us",             label: "US",              icon: Globe2 },
+  { id: "competitions",   label: "Competitions",    icon: Trophy },
+  { id: "scholarships",   label: "Scholarships",    icon: Award },
+  { id: "extracurriculars", label: "Extracurriculars", icon: Dumbbell },
+  { id: "essays",         label: "Essays",          icon: Pen },
+  { id: "oxbridge",       label: "Oxbridge",        icon: GraduationCap },
+  { id: "ivy-league",     label: "Ivy League",      icon: GraduationCap },
+  { id: "interviews",     label: "Interviews",      icon: BookOpen },
+] as const;
+
+/* ── Helper: match a resource file/folder to a category ── */
+function matchesCategory(resource: ResourceItem, category: string): boolean {
+  if (category === "all" || category === "competitions" || category === "scholarships" || category === "extracurriculars") return true;
+  const searchStr = `${resource.name} ${resource.path || ""} ${"displayName" in resource ? resource.displayName : ""}`.toLowerCase();
+  switch (category) {
+    case "uk":
+      return searchStr.includes("uk") || searchStr.includes("ucas") || searchStr.includes("a-level") || searchStr.includes("alevel") || searchStr.includes("gcse");
+    case "us":
+      return searchStr.includes("us") || searchStr.includes("sat") || searchStr.includes("act") || searchStr.includes("common app") || searchStr.includes("commonapp");
+    case "oxbridge": {
+      const isEssay = searchStr.includes("essay") || searchStr.includes("personal statement");
+      const isUK = searchStr.includes("uk") || searchStr.includes("ucas") || searchStr.includes("a-level");
+      return searchStr.includes("oxbridge") || searchStr.includes("oxford") || searchStr.includes("cambridge") || (isEssay && isUK);
+    }
+    case "ivy-league":
+    case "ivy league": {
+      const isEssay = searchStr.includes("essay") || searchStr.includes("personal statement");
+      const isUS = searchStr.includes("us") || searchStr.includes("common app") || searchStr.includes("sat");
+      return searchStr.includes("ivy") || searchStr.includes("harvard") || searchStr.includes("yale") || searchStr.includes("princeton") || (isEssay && isUS);
+    }
+    case "essays":
+      return searchStr.includes("essay") || searchStr.includes("personal statement");
+    case "interviews":
+      return searchStr.includes("interview") || searchStr.includes("mock");
+    default:
+      return true;
+  }
+}
+
+/* ── Helper: match an opportunity to a category ── */
+function opportunityMatchesCategory(opp: Opportunity, category: string, query: string): boolean {
+  const q = query.toLowerCase();
+  const matchesSearch = !query || opp.name.toLowerCase().includes(q) || opp.description.toLowerCase().includes(q) || opp.organizer.toLowerCase().includes(q) || opp.tags.some(t => t.includes(q));
+  if (!matchesSearch) return false;
+
+  switch (category) {
+    case "all": return true;
+    case "uk": return opp.track === "uk" || opp.track === "both";
+    case "us": return opp.track === "us" || opp.track === "both";
+    case "competitions": return opp.type === "essay-competition" || opp.type === "olympiad";
+    case "scholarships": return opp.type === "scholarship";
+    case "extracurriculars": return opp.type === "extracurricular" || opp.type === "program";
+    case "essays": return opp.type === "essay-competition";
+    case "oxbridge": return (opp.track === "uk" || opp.track === "both") && (opp.tags.includes("oxford") || opp.tags.includes("cambridge") || opp.tags.includes("oxbridge"));
+    case "ivy-league": return (opp.track === "us" || opp.track === "both") && opp.tags.some(t => ["ivy league", "harvard", "yale", "princeton"].includes(t));
+    case "interviews": return false; // interviews are file resources only
+    default: return true;
+  }
+}
+
+/* ── Icon for a folder based on its display name ── */
+function getFolderIcon(name: string): React.ReactNode {
+  const n = name.toLowerCase();
+  if (n.includes("essay") || n.includes("personal statement") || n.includes("writing")) return <Pen className="h-5 w-5" />;
+  if (n.includes("interview")) return <Users className="h-5 w-5" />;
+  if (n.includes("math") || n.includes("maths")) return <Calculator className="h-5 w-5" />;
+  if (n.includes("science") || n.includes("biology") || n.includes("chemistry") || n.includes("physics")) return <Microscope className="h-5 w-5" />;
+  if (n.includes("music") || n.includes("art")) return <Music className="h-5 w-5" />;
+  if (n.includes("history") || n.includes("humanities")) return <Landmark className="h-5 w-5" />;
+  if (n.includes("chemistry") || n.includes("lab")) return <FlaskConical className="h-5 w-5" />;
+  if (n.includes("uk") || n.includes("ucas") || n.includes("a-level")) return <BookOpen className="h-5 w-5" />;
+  if (n.includes("us") || n.includes("sat") || n.includes("act") || n.includes("common app")) return <GraduationCap className="h-5 w-5" />;
+  return <BookOpen className="h-5 w-5" />;
+}
+
+/* ── Opportunity card ── */
+function OpportunityCard({
+  opp,
+  added,
+  onAdd,
+}: {
+  opp: Opportunity;
+  added: boolean;
+  onAdd: (opp: Opportunity) => void;
+}) {
+  const ac = getAccentClasses(opp.accent);
+  const [expanded, setExpanded] = useState(false);
+  const typeLabel = OPPORTUNITY_TYPE_LABELS[opp.type];
+
+  const formattedDate = opp.deadline
+    ? new Date(opp.deadline + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+    : null;
+
+  return (
+    <div className={`relative rounded-2xl border ${ac.border} bg-white dark:bg-card overflow-hidden flex flex-col transition-shadow hover:shadow-md`}>
+      {/* Accent strip */}
+      <div className={`h-1 w-full ${ac.strip}`} />
+
+      <div className="p-5 flex flex-col flex-1">
+        {/* Badges row */}
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${ac.badge}`}>
+            {typeLabel}
+          </span>
+          {opp.track === "uk" && (
+            <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+              <ReactCountryFlag countryCode="GB" svg style={{ width: "1em", height: "0.8em" }} /> UK
+            </span>
+          )}
+          {opp.track === "us" && (
+            <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+              <ReactCountryFlag countryCode="US" svg style={{ width: "1em", height: "0.8em" }} /> US
+            </span>
+          )}
+          {opp.track === "both" && (
+            <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+              <Globe2 className="h-3 w-3" /> UK &amp; US
+            </span>
+          )}
+        </div>
+
+        {/* Title + organizer */}
+        <h3 className="font-semibold text-sm leading-snug mb-0.5">{opp.name}</h3>
+        <p className="text-xs text-muted-foreground mb-3">{opp.organizer}</p>
+
+        {/* Description */}
+        <p className="text-xs text-foreground/80 leading-relaxed mb-3">{opp.description}</p>
+
+        {/* Expanded details */}
+        {expanded && opp.details && (
+          <p className="text-xs text-muted-foreground leading-relaxed mb-3 bg-muted/40 rounded-lg px-3 py-2">
+            {opp.details}
+          </p>
+        )}
+
+        {/* Deadline */}
+        {formattedDate && (
+          <div className={`flex items-center gap-1.5 text-xs ${ac.text} font-medium mb-4`}>
+            <Calendar className="h-3.5 w-3.5" />
+            {formattedDate}
+            {opp.deadlineNote && <span className="text-muted-foreground font-normal">({opp.deadlineNote})</span>}
+          </div>
+        )}
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Action row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => onAdd(opp)}
+            disabled={added}
+            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all ${
+              added
+                ? "bg-green-100 text-green-700"
+                : `${ac.bg} ${ac.text} hover:opacity-80`
+            }`}
+          >
+            {added ? (
+              <><CheckCircle2 className="h-3.5 w-3.5" /> Added to Timeline</>
+            ) : (
+              <><Plus className="h-3.5 w-3.5" /> Add to Timeline</>
+            )}
+          </button>
+
+          {opp.details && (
+            <button
+              onClick={() => setExpanded(e => !e)}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
+            >
+              {expanded ? "Less" : "More info"}
+            </button>
+          )}
+
+          {opp.externalUrl && (
+            <a
+              href={opp.externalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PAGE
+   ══════════════════════════════════════════════════════════════ */
+function ResourcesContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [currentPath, setCurrentPath] = useState<string>('');
-  const [pathHistory, setPathHistory] = useState<{name: string, path: string}[]>([{ name: 'Home', path: '' }]);
+
+  const [currentPath, setCurrentPath] = useState("");
+  const [pathHistory, setPathHistory] = useState<{ name: string; path: string }[]>([{ name: "Home", path: "" }]);
   const [resources, setResources] = useState<ResourceItem[]>([]);
-  const [filteredResources, setFilteredResources] = useState<ResourceItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState("all");
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [downloadingFile, setDownloadingFile] = useState<ResourceFile | null>(null);
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(false);
+  const [addedOpportunities, setAddedOpportunities] = useState<Set<string>>(new Set());
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
 
-  // Add CSS for hiding scrollbars
+  /* ── Auth guard — require login only, all paid/free students can access ── */
   useEffect(() => {
-    // Add a style tag to hide scrollbars on elements with the scrollbar-hide class
-    const style = document.createElement('style');
-    style.textContent = `
-      .scrollbar-hide::-webkit-scrollbar {
-        display: none;
-      }
-      .scrollbar-hide {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-      }
-    `;
-    document.head.appendChild(style);
-    
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, []);
-
-  // Check if user has access
-  useEffect(() => {
-    if (!authLoading && (!user || (user.role !== 'tutor' && !user.has_access))) {
-      router.push("/credits");
+    if (!authLoading && !user) {
+      router.push("/login");
     }
   }, [user, authLoading, router]);
 
-  // Get path from URL query params and update current path
+  /* ── URL path sync ── */
   useEffect(() => {
-    const encodedPath = searchParams.get('path') || '';
+    const encodedPath = searchParams.get("path") || "";
     const path = decodeURIComponent(encodedPath);
-    
     if (path !== currentPath) {
       setCurrentPath(path);
-      
-      // Build path history
-      if (path === '') {
-        setPathHistory([{ name: 'Home', path: '' }]);
+      if (path === "") {
+        setPathHistory([{ name: "Home", path: "" }]);
       } else {
-        const segments = path.split('/');
-        const history = [{ name: 'Home', path: '' }];
-        
-        let currentSegmentPath = '';
-        for (let i = 0; i < segments.length; i++) {
-          if (segments[i]) {
-            currentSegmentPath = currentSegmentPath 
-              ? `${currentSegmentPath}/${segments[i]}`
-              : segments[i];
-            
+        const segments = path.split("/");
+        const history = [{ name: "Home", path: "" }];
+        let currentSegmentPath = "";
+        for (const seg of segments) {
+          if (seg) {
+            currentSegmentPath = currentSegmentPath ? `${currentSegmentPath}/${seg}` : seg;
             history.push({
-              name: segments[i].replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-              path: currentSegmentPath
+              name: seg.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+              path: currentSegmentPath,
             });
           }
         }
-        
         setPathHistory(history);
       }
-      
-      // Reset resources when path changes to trigger a new fetch
       setResources([]);
-      setFilteredResources([]);
       setInitialLoad(true);
     }
   }, [searchParams, currentPath]);
 
-  // Fetch resources from Supabase when path or user changes
+  /* ── Fetch resources ── */
   useEffect(() => {
+    let cancelled = false;
     const fetchResources = async () => {
-      if (user && (user.role === 'tutor' || user.has_access)) {
-        try {
-          setError(null);
-          
-          // Show loading state if this is the initial load or we're changing paths
-          if (initialLoad) {
-            setLoading(true);
-          }
-          
-          const { items: fetchedResources, error } = await getResources(currentPath, false, { 
-            onLoadingChange: (isLoading) => {
-              // Only update loading state on initial load
-              if (initialLoad) {
-                setLoading(isLoading);
-                if (!isLoading) {
-                  setInitialLoad(false);
-                }
-              }
-            } 
-          });
-          
-          if (error) {
-            throw error;
-          }
-          
-          setResources(fetchedResources);
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          setError(`Failed to load resources: ${errorMessage}`);
-          toast.error(`Failed to load resources: ${errorMessage}`);
-        } finally {
-          // Ensure loading state is reset even if there's an error
-          setLoading(false);
-        }
+      try {
+        setError(null);
+        setLoading(true);
+        const { items, error: fetchError } = await getResources(currentPath);
+        if (cancelled) return;
+        if (fetchError) throw fetchError;
+        setResources(items);
+        setInitialLoad(false);
+      } catch (err) {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        setError(`Failed to load resources: ${msg}`);
+        toast.error(`Failed to load resources: ${msg}`);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     };
-
     fetchResources();
-  }, [user, initialLoad, currentPath]);
+    return () => { cancelled = true; };
+  }, [currentPath]);
 
-  // Handle manual refresh
-  const handleRefresh = async () => {
-    if (refreshing) return;
-    
-    try {
-      setRefreshing(true);
-      setError(null);
-      
-      const { items: freshResources, error } = await getResources(currentPath, true);
-      
-      if (error) {
-        throw error;
-      }
-      
-      setResources(freshResources);
-      toast.success("Resources refreshed");
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setError(`Failed to refresh resources: ${errorMessage}`);
-      toast.error(`Failed to refresh resources: ${errorMessage}`);
-    } finally {
-      setRefreshing(false);
-    }
-  };
+  /* ── Derived: filtered file resources ── */
+  const filteredResources = useMemo(() => {
+    let list = resources;
+    if (searchQuery) list = searchResources(list, searchQuery);
+    if (activeCategory !== "all") list = list.filter((r) => matchesCategory(r, activeCategory));
+    return list;
+  }, [resources, searchQuery, activeCategory]);
 
-  // Filter resources based on search query
+  /* ── Fetch opportunities from Supabase ── */
   useEffect(() => {
-    setFilteredResources(searchResources(resources, searchQuery));
-  }, [searchQuery, resources]);
+    fetch("/api/opportunities")
+      .then(r => r.json())
+      .then(data => setOpportunities(data.opportunities || []))
+      .catch(() => {});
+  }, []);
 
-  // Clean up when component unmounts
-  useEffect(() => {
-    return () => {
-      // Clean up any open dialogs or pending downloads
-      if (showDisclaimer) {
-        setShowDisclaimer(false);
-      }
-    };
-  }, [showDisclaimer]);
+  /* ── Derived: filtered opportunities ── */
+  const filteredOpportunities = useMemo(() => {
+    return opportunities.filter(opp => opportunityMatchesCategory(opp, activeCategory, searchQuery));
+  }, [opportunities, searchQuery, activeCategory]);
 
-  // Improved folder navigation with error handling
+  /* ── Navigation helpers ── */
   const navigateToFolder = (folderPath: string) => {
-    try {
-      // Reset any open dialogs
-      setShowDisclaimer(false);
-      
-      // Navigate to the new path
-      router.push(`/resources?path=${encodeURIComponent(folderPath)}`);
-    } catch (error) {
-      toast.error("Failed to navigate to folder");
-    }
+    setShowDisclaimer(false);
+    router.push(`/resources?path=${encodeURIComponent(folderPath)}`);
   };
-
-  // Navigate to breadcrumb path with error handling
   const navigateToBreadcrumb = (path: string) => {
-    try {
-      // Reset any open dialogs
-      setShowDisclaimer(false);
-      
-      if (path === '') {
-        router.push('/resources');
-      } else {
-        router.push(`/resources?path=${encodeURIComponent(path)}`);
-      }
-    } catch (error) {
-      toast.error("Failed to navigate to path");
-    }
+    setShowDisclaimer(false);
+    router.push(path ? `/resources?path=${encodeURIComponent(path)}` : "/resources");
   };
 
-  // Download file
+  /* ── Download helpers ── */
   const handleDownload = async (filePath: string, fileName: string) => {
     try {
       setDownloading(filePath);
-      
       const data = await downloadResource(filePath);
-      
-      if (!data) {
-        throw new Error("Failed to download file");
-      }
-
-      // Create a URL for the file
+      if (!data) throw new Error("Failed to download file");
       const url = URL.createObjectURL(data);
-      
-      // Create an anchor element and trigger download
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
       link.download = fileName;
       document.body.appendChild(link);
       link.click();
-      
-      // Clean up
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       toast.success(`Downloaded ${fileName}`);
-    } catch (error) {
+    } catch {
       toast.error("Failed to download file");
     } finally {
       setDownloading(null);
     }
   };
 
-  // Show disclaimer before download
   const initiateDownload = (file: ResourceFile) => {
     setDownloadingFile(file);
-    setDisclaimerAccepted(false); // Reset acceptance state for each download
+    setDisclaimerAccepted(false);
     setShowDisclaimer(true);
   };
 
-  // Track resource downloads for analytics
-  const trackResourceDownload = async (resource: ResourceFile) => {
-    try {
-      // Simple analytics tracking
-      const analyticsData = {
-        resourceId: resource.id,
-        resourceName: resource.displayName,
-        resourcePath: resource.path,
-        userId: user?.id,
-        timestamp: new Date().toISOString(),
-        category: resource.category || 'uncategorized',
-        subject: resource.subject || 'general'
-      };
-      
-      // In a real implementation, you would send this to your analytics endpoint
-      // For now, we'll just log it to localStorage for demonstration
-      const existingLogs = JSON.parse(localStorage.getItem('resource_downloads') || '[]');
-      existingLogs.push(analyticsData);
-      localStorage.setItem('resource_downloads', JSON.stringify(existingLogs));
-      
-      // In production, you would send this to your server
-      // await fetch('/api/analytics/resource-download', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(analyticsData)
-      // });
-    } catch (error) {
-      // Silently fail - analytics should not block user experience
-    }
-  };
-
-  // Handle disclaimer acceptance
   const handleDisclaimerAccept = () => {
     if (!disclaimerAccepted || !downloadingFile) return;
-    
     setShowDisclaimer(false);
-    
-    // Track the download
-    if (downloadingFile) {
-      trackResourceDownload(downloadingFile);
-    }
-    
     handleDownload(downloadingFile.path, downloadingFile.displayName);
     setDownloadingFile(null);
-    // Don't store acceptance state between downloads
   };
-  
-  // If user is not authorized, show loading or redirect
-  if (authLoading || (!user || (user.role !== 'tutor' && !user.has_access))) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
 
+  /* ── Add opportunity to timeline ── */
+  const handleAddToTimeline = (opp: Opportunity) => {
+    const item = {
+      title: opp.name,
+      date: opp.deadline,
+      description: `${opp.organizer} - ${opp.description}`,
+      category: "deadline" as const,
+      track: opp.track === "both" ? "uk" : opp.track as "uk" | "us",
+      group: "Opportunities & Projects",
+    };
+    try {
+      localStorage.setItem("unisphere_pending_timeline_item", JSON.stringify(item));
+    } catch {}
+    setAddedOpportunities(prev => { const next = new Set(prev); next.add(opp.id); return next; });
+    toast.success("Opening your timeline to add this opportunity...");
+    setTimeout(() => router.push("/dashboard/timeline"), 800);
+  };
+
+  /* ══════════════════════════════════════════════════════════════
+     RENDER
+     ══════════════════════════════════════════════════════════════ */
   return (
-    <div className="container px-4 sm:px-6 py-4 sm:py-8">
-      <div className="mb-4 sm:mb-8 space-y-3 sm:space-y-4">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl sm:text-3xl font-bold">Resources</h1>
-          {currentPath && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => {
-                // Navigate up one level by removing the last segment from the path
-                const pathParts = currentPath.split('/');
-                pathParts.pop();
-                const parentPath = pathParts.join('/');
-                navigateToBreadcrumb(parentPath);
-              }}
-              className="flex gap-2 items-center"
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+
+      {/* ── Search bar ── */}
+      <div className="relative max-w-md mb-6">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search resources and opportunities..."
+          className="pl-10 pr-9 h-11 rounded-full border-muted-foreground/20 bg-muted/30 focus-visible:bg-background transition-colors"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        {searchQuery && (
+          <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+            <X size={16} />
+          </button>
+        )}
+      </div>
+
+      {/* ── Category chips ── */}
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-8 scrollbar-hide">
+        {CATEGORIES.map((cat) => {
+          const Icon = cat.icon;
+          const isActive = activeCategory === cat.id;
+          return (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                isActive
+                  ? "bg-foreground text-background shadow-sm"
+                  : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
             >
-              <ChevronRight className="h-4 w-4 rotate-180" />
-              Back
-            </Button>
+              <Icon className="h-3.5 w-3.5" />
+              {cat.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ════════════════════════════════════════
+          HOME PAGE CONTENT (no folder selected)
+          ════════════════════════════════════════ */}
+      {currentPath === "" && (
+        <>
+          {/* ── Opportunities section ── */}
+          {filteredOpportunities.length > 0 && (
+            <section className="mb-12">
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="text-xl font-bold">Opportunities &amp; Projects</h2>
+                <span className="text-xs text-muted-foreground">{filteredOpportunities.length} available</span>
+              </div>
+              <p className="text-sm text-muted-foreground mb-5">
+                Real competitions, programmes, and extracurriculars you can join - add any to your timeline to track the deadline.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredOpportunities.map(opp => (
+                  <OpportunityCard
+                    key={opp.id}
+                    opp={opp}
+                    added={addedOpportunities.has(opp.id)}
+                    onAdd={handleAddToTimeline}
+                  />
+                ))}
+              </div>
+            </section>
           )}
-        </div>
-        
-        {/* Breadcrumb navigation */}
-        <Breadcrumb className="mb-2 sm:mb-4">
-          <BreadcrumbList className="overflow-x-auto flex-nowrap pb-1 max-w-full scrollbar-hide">
-            {pathHistory.map((item, index) => (
-              <React.Fragment key={item.path}>
-                <BreadcrumbItem className="flex-shrink-0">
-                  <BreadcrumbLink 
-                    onClick={() => navigateToBreadcrumb(item.path)}
-                    className="flex items-center whitespace-nowrap py-1 px-1 hover:bg-muted/50 rounded-md transition-colors"
+
+          {/* ── Timeline promo ── */}
+          <div className="mb-10 rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 dark:border-amber-800/40 p-6 sm:p-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+              <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 shadow-lg shadow-amber-500/20 flex-shrink-0">
+                <Calendar className="h-7 w-7 text-white" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-lg font-bold text-foreground">Application Timeline</h3>
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 text-[10px] uppercase tracking-wider font-semibold">Beta</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  A personalised, month-by-month roadmap keeping your applications on track. Add opportunities above and they appear automatically as deadlines.
+                </p>
+                <div className="flex flex-wrap items-center gap-4 mt-3">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>Personalised deadlines</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>Smart reminders</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <GraduationCap className="h-3.5 w-3.5" />
+                    <span>UK &amp; US applications</span>
+                  </div>
+                  <button
+                    onClick={() => router.push("/dashboard/timeline")}
+                    className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-amber-700 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 transition-colors"
                   >
-                    {index === 0 && <Home className="h-4 w-4 mr-1" />}
-                    <span className="truncate max-w-[80px] xs:max-w-[120px] sm:max-w-none">{item.name}</span>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                {index < pathHistory.length - 1 && (
-                  <BreadcrumbSeparator className="flex-shrink-0">
-                    <ChevronRight className="h-4 w-4" />
-                  </BreadcrumbSeparator>
-                )}
+                    Go to Timeline
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Study Materials heading ── */}
+          {(activeCategory === "all" || activeCategory === "essays" || activeCategory === "interviews" || activeCategory === "uk" || activeCategory === "us" || activeCategory === "oxbridge" || activeCategory === "ivy-league") && (
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-xl font-bold">Study Materials</h2>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ════════════════════════════════════════
+          INSIDE A FOLDER - breadcrumb + back
+          ════════════════════════════════════════ */}
+      {currentPath && (
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-1 text-sm text-muted-foreground overflow-x-auto pb-1">
+            {pathHistory.map((item, idx) => (
+              <React.Fragment key={item.path}>
+                <button
+                  onClick={() => navigateToBreadcrumb(item.path)}
+                  className={`whitespace-nowrap hover:text-foreground transition-colors ${idx === pathHistory.length - 1 ? "text-foreground font-medium" : ""}`}
+                >
+                  {item.name}
+                </button>
+                {idx < pathHistory.length - 1 && <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />}
               </React.Fragment>
             ))}
-          </BreadcrumbList>
-        </Breadcrumb>
-        
-        <p className="text-muted-foreground">
-          Browse and download learning resources
-        </p>
-      </div>
-
-      {/* Search section */}
-      <div className="mb-6">
-        <div className="relative w-full max-w-md mx-auto md:mx-0">
-          <Search className="absolute left-2.5 top-3 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search resources..."
-            className="pl-9 pr-9 py-2 h-10"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button 
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-3 h-4 w-4 text-muted-foreground hover:text-foreground"
-            >
-              <X size={16} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Error message */}
-      {error && (
-        <div className="bg-destructive/15 border border-destructive text-destructive px-3 py-2 sm:px-4 sm:py-3 rounded-md mb-4 sm:mb-6 text-sm sm:text-base">
-          <p className="flex items-center">
-            <X className="h-4 w-4 mr-2 flex-shrink-0" />
-            <span>{error}</span>
-          </p>
-          <p className="text-xs sm:text-sm mt-1 pl-6">
-            Try refreshing the page or navigating to a different folder.
-          </p>
-          {/* <div className="mt-2 pl-6">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleRefresh} 
-              disabled={refreshing}
-              className="text-xs h-8"
-            >
-              {refreshing ? (
-                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3 w-3 mr-1" />
-              )}
-              Retry
-            </Button>
-          </div> */}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const parts = currentPath.split("/");
+              parts.pop();
+              navigateToBreadcrumb(parts.join("/"));
+            }}
+            className="text-muted-foreground flex-shrink-0"
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
         </div>
       )}
 
-      {/* Resources grid */}
+      {/* ── Error ── */}
+      {error && (
+        <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-xl mb-6 text-sm">
+          <p>{error}</p>
+        </div>
+      )}
+
+      {/* ── File/Folder grid ── */}
       {loading ? (
-        <div className="flex flex-col justify-center items-center py-8 sm:py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
-          <p className="text-sm text-muted-foreground">Loading resources...</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="rounded-2xl border bg-card p-5 space-y-3 animate-pulse">
+              <div className="h-10 w-10 rounded-xl bg-muted" />
+              <div className="h-4 w-3/4 rounded bg-muted" />
+              <div className="h-3 w-1/2 rounded bg-muted" />
+            </div>
+          ))}
         </div>
-      ) : filteredResources.length === 0 ? (
-        <div className="text-center py-8 sm:py-12 px-4">
-          <FileText className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mx-auto mb-3 sm:mb-4" />
-          <h3 className="text-lg sm:text-xl font-semibold">
-            {error ? "Error loading resources" : "No resources found"}
-          </h3>
-          <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-            {error 
-              ? "Check the console for more details" 
-              : currentPath 
-                ? "This folder is empty or you don't have permission to view its contents" 
-                : "Try adjusting your search or navigating to a different folder"
-            }
+      ) : filteredResources.length === 0 && currentPath !== "" ? (
+        <div className="text-center py-16">
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
+            <FileText className="h-7 w-7 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-semibold mb-1">Nothing here yet</h3>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            {searchQuery ? "Try a different search term" : "This folder is empty"}
           </p>
-          {currentPath && (
-            <Button 
-              variant="outline" 
-              className="mt-4"
-              onClick={() => navigateToBreadcrumb('')}
-            >
-              <Home className="h-4 w-4 mr-2" />
-              Return to Home
-            </Button>
-          )}
+          <Button variant="outline" className="mt-4" onClick={() => navigateToBreadcrumb("")}>
+            Back to Home
+          </Button>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-          {/* Folders first */}
-          {filteredResources.map(resource => {
-            if ('isFolder' in resource) {
-              // Folder card
+      ) : filteredResources.length > 0 ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+          {filteredResources.map((resource) => {
+            if ("isFolder" in resource) {
               return (
-                <Card 
-                  key={resource.id} 
-                  className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer active:bg-muted/50 touch-manipulation"
+                <button
+                  key={resource.id}
                   onClick={() => navigateToFolder(resource.path)}
+                  className="group text-left rounded-2xl border bg-card p-5 hover:shadow-lg hover:border-primary/20 transition-all duration-200 hover:-translate-y-0.5"
                 >
-                  <CardContent className="p-0">
-                    <div className="p-3 sm:p-4 flex flex-col h-full">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center">
-                          <FolderOpen className="h-5 w-5 text-amber-500 mr-2 flex-shrink-0" />
-                          <h3 className="font-medium line-clamp-2">{resource.displayName}</h3>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                  <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-3 group-hover:bg-primary/15 transition-colors">
+                    {getFolderIcon(resource.displayName)}
+                  </div>
+                  <h3 className="font-medium text-sm line-clamp-2 group-hover:text-primary transition-colors">
+                    {resource.displayName}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                    Browse <ChevronRight className="h-3 w-3" />
+                  </p>
+                </button>
               );
             } else {
-              // For files
               return (
-                <Card 
-                  key={resource.id} 
-                  className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
+                <button
+                  key={resource.id}
                   onClick={() => initiateDownload(resource)}
+                  className="group text-left rounded-2xl border bg-card p-5 hover:shadow-lg hover:border-primary/20 transition-all duration-200 hover:-translate-y-0.5"
                 >
-                  <CardContent className="p-0">
-                    <div className="p-4 flex flex-col h-full">
-                      <div className="flex items-center mb-3">
-                        <div className="p-1.5 bg-primary/10 rounded mr-3">
-                          <FileText className="h-5 w-5 text-primary" />
-                        </div>
-                        <div className="overflow-hidden">
-                          <h3 className="font-medium text-sm break-words">{resource.displayName}</h3>
-                          <p className="text-xs text-muted-foreground">
-                            {formatFileSize(resource.size)}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      {resource.category && (
-                        <Badge variant="outline" className="self-start mb-1 text-xs">
-                          {resource.category}
-                        </Badge>
-                      )}
-                      
-                      {resource.subject && (
-                        <p className="text-xs text-muted-foreground mb-3">
-                          Subject: {resource.subject}
-                        </p>
-                      )}
-                      
-                      <div className="mt-auto flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="flex-1 py-2 h-auto min-h-9 touch-manipulation"
-                          onClick={() => initiateDownload(resource)}
-                          disabled={downloading === resource.path}
-                        >
-                          {downloading === resource.path ? (
-                            <Loader2 className="h-4 w-4 mr-1 sm:mr-2 animate-spin" />
-                          ) : (
-                            <Download className="h-4 w-4 mr-1 sm:mr-2" />
-                          )}
-                          <span className="sm:inline">Download</span>
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                  <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
+                    <FileText className="h-5 w-5 text-primary" />
+                  </div>
+                  <h3 className="font-medium text-sm line-clamp-2 mb-1.5 group-hover:text-primary transition-colors">
+                    {resource.displayName}
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{formatFileSize(resource.size)}</span>
+                    {resource.category && (
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                        {resource.category}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="mt-3 flex items-center gap-1 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Download className="h-3 w-3" />
+                    Download
+                  </div>
+                </button>
               );
             }
           })}
-          
-          {/* Add refresh button at the bottom for mobile users
-          {filteredResources.length > 0 && (
-            <div className="col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-4 flex justify-center mt-6 mb-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="text-xs sm:text-sm"
-              >
-                {refreshing ? (
-                  <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-2 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                )}
-                {refreshing ? "Refreshing..." : "Refresh Resources"}
-              </Button>
-            </div>
-          )} */}
+        </div>
+      ) : null}
+
+      {/* ── Empty state when on home with no files and no opps ── */}
+      {!loading && currentPath === "" && filteredResources.length === 0 && filteredOpportunities.length === 0 && (
+        <div className="text-center py-16">
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
+            <Search className="h-7 w-7 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-semibold mb-1">No results found</h3>
+          <p className="text-sm text-muted-foreground">Try a different search term or category</p>
         </div>
       )}
 
-      {/* Download Disclaimer Dialog */}
-      <Dialog 
-        open={showDisclaimer} 
+      {/* ── Download Disclaimer Dialog ── */}
+      <Dialog
+        open={showDisclaimer}
         onOpenChange={(open) => {
           if (!open) {
             setShowDisclaimer(false);
@@ -579,19 +683,21 @@ export default function ResourcesPage() {
               Please read and accept the following terms before downloading this resource.
             </DialogDescription>
           </DialogHeader>
-          
+
           {downloadingFile && (
-            <div className="bg-primary/5 border border-primary/20 rounded-md p-3 flex items-center gap-3 mb-3">
-              <FileText className="h-8 w-8 text-primary flex-shrink-0" />
+            <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <FileText className="h-5 w-5 text-primary" />
+              </div>
               <div className="overflow-hidden">
                 <p className="font-medium text-sm line-clamp-1">{downloadingFile.displayName}</p>
                 <p className="text-xs text-muted-foreground">{formatFileSize(downloadingFile.size)}</p>
               </div>
             </div>
           )}
-          
+
           <div className="py-3 sm:py-4">
-            <div className="bg-muted/50 p-3 sm:p-4 rounded-md text-sm mb-4">
+            <div className="bg-muted/50 p-3 sm:p-4 rounded-xl text-sm mb-4">
               <p className="font-medium mb-2">By downloading this resource, you agree to:</p>
               <ul className="list-disc pl-4 sm:pl-5 space-y-1">
                 <li>Use this material for personal educational purposes only</li>
@@ -600,41 +706,47 @@ export default function ResourcesPage() {
                 <li>Not use this content for commercial purposes</li>
               </ul>
             </div>
-            
+
             <div className="flex items-start space-x-2 sm:space-x-3">
-              <Checkbox 
-                id="disclaimer-checkbox" 
+              <Checkbox
+                id="disclaimer-checkbox"
                 checked={disclaimerAccepted}
                 onCheckedChange={(checked) => setDisclaimerAccepted(checked === true)}
                 className="mt-0.5"
               />
-              <label 
-                htmlFor="disclaimer-checkbox" 
-                className="text-sm font-medium leading-tight peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+              <label
+                htmlFor="disclaimer-checkbox"
+                className="text-sm font-medium leading-tight cursor-pointer"
               >
                 I agree not to distribute or share this content with others
               </label>
             </div>
           </div>
-          
+
           <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-between gap-2 sm:gap-0">
-            <Button 
-              variant="outline" 
-              onClick={() => setShowDisclaimer(false)}
-              className="w-full sm:w-auto"
-            >
+            <Button variant="outline" onClick={() => setShowDisclaimer(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
-            <Button 
-              onClick={handleDisclaimerAccept}
-              disabled={!disclaimerAccepted}
-              className="w-full sm:w-auto"
-            >
+            <Button onClick={handleDisclaimerAccept} disabled={!disclaimerAccepted} className="w-full sm:w-auto">
               Download
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <style jsx global>{`
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </div>
   );
-} 
+}
+
+export default function ResourcesPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResourcesContent />
+    </Suspense>
+  );
+}
+

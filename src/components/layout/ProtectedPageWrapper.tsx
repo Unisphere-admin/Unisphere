@@ -8,43 +8,39 @@ interface ProtectedPageWrapperProps {
   children: React.ReactNode;
 }
 
+// Pages that require payment — free authenticated users get redirected to /credits
+function isPaywallPath(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return (
+    pathname === '/dashboard/messages' ||
+    pathname.startsWith('/dashboard/messages/') ||
+    pathname === '/dashboard/schedule' ||
+    pathname.startsWith('/dashboard/schedule/') ||
+    pathname === '/dashboard/history' ||
+    pathname.startsWith('/dashboard/history/') ||
+    pathname === '/dashboard/reviews' ||
+    pathname.startsWith('/dashboard/reviews/') ||
+    pathname.startsWith('/dashboard/leave-review/')
+  );
+}
+
 export default function ProtectedPageWrapper({ children }: ProtectedPageWrapperProps) {
   const { user, loading, refreshUser } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  
-  // Check if the current path is the settings page
-  const isSettingsPage = pathname === '/dashboard/settings' || pathname?.startsWith('/dashboard/settings/');
 
   useEffect(() => {
-    // Wait until auth is loaded
     if (loading) return;
-
-    // Refresh user on component mount to ensure latest data
-  }, [refreshUser]);
-
-  useEffect(() => {
-    // Wait until auth is loaded
-    if (loading) return;
-
-    // Check if user has premium access
-    const hasAccess = user?.role === 'tutor' || user?.has_access === true;
-    
-    // Add debug logging
-    
-    // If not authenticated, redirect to login
     if (!user) {
       router.replace('/login');
-    } 
-    // If settings page, allow access to any authenticated user
-    else if (!hasAccess && !isSettingsPage) {
-      // Object was part of a removed console.warn statement
-      router.push('/credits');
-      // Don't return null from useEffect
+      return;
     }
-  }, [user, loading, router, pathname, isSettingsPage]);
+    const hasAccess = user.role === 'tutor' || user.has_access === true;
+    if (!hasAccess && isPaywallPath(pathname)) {
+      router.push('/credits');
+    }
+  }, [user, loading, router, pathname]);
 
-  // If loading, show loading spinner
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -53,24 +49,13 @@ export default function ProtectedPageWrapper({ children }: ProtectedPageWrapperP
     );
   }
 
-  // If no user, don't render content (will redirect)
-  if (!user) {
-    return null;
-  }
+  // Not logged in — don't flash content while redirecting
+  if (!user) return null;
 
-  // For settings page, don't check premium access
-  if (isSettingsPage) {
-    return <>{children}</>;
-  }
-
-  // For other pages, check access explicitly - using both tutor role and has_access flag
   const hasAccess = user.role === 'tutor' || user.has_access === true;
-  
-  // If no access, don't render content (will redirect)
-  if (!hasAccess) {
-    return null;
-  }
 
-  // User has access, render the children
+  // Block paywalled pages for free users
+  if (!hasAccess && isPaywallPath(pathname)) return null;
+
   return <>{children}</>;
-} 
+}

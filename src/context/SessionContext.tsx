@@ -66,7 +66,7 @@ interface SessionContextType {
 // Create the context with a default value of null
 const SessionContext = createContext<SessionContextType | null>(null);
 
-const SESSION_CACHE_KEY = "user_sessions_cache";
+const SESSION_CACHE_KEY_PREFIX = "user_sessions_cache";
 const REFRESH_COOLDOWN_MS = 10000; // 10 seconds cooldown between refreshes
 
 // Create a provider component
@@ -89,27 +89,28 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     setSessions((prevSessions) => {
       // Check if the session already exists in the array
       const existingIndex = prevSessions.findIndex((s) => s.id === updatedSession.id);
-      
+      const cacheKey = user ? `${SESSION_CACHE_KEY_PREFIX}_${user.id}` : SESSION_CACHE_KEY_PREFIX;
+
       if (existingIndex >= 0) {
         // Replace the existing session with the updated one
         const newSessions = [...prevSessions];
         newSessions[existingIndex] = updatedSession;
-        
+
         // Save to cache
-        saveToCache(SESSION_CACHE_KEY, newSessions);
-        
+        saveToCache(cacheKey, newSessions);
+
         return newSessions;
       } else {
         // Add the new session to the array
         const newSessions = [...prevSessions, updatedSession];
-        
+
         // Save to cache
-        saveToCache(SESSION_CACHE_KEY, newSessions);
-        
+        saveToCache(cacheKey, newSessions);
+
         return newSessions;
       }
     });
-  }, []);
+  }, [user]);
 
   // Fetch all sessions for the current user
   const refreshSessions = useCallback(async (forceRefresh = false) => {
@@ -140,13 +141,17 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       isRefreshingRef.current = true;
       setLoadingSessions(true);
       
-      // Try to get data from cache first if not forcing refresh
+      const cacheKey = `${SESSION_CACHE_KEY_PREFIX}_${userId}`;
+
+      // Return cached data immediately if available and not forcing refresh
       if (!forceRefresh) {
-        const cachedSessions = getFromCache<ActiveSession[]>(SESSION_CACHE_KEY);
+        const cachedSessions = getFromCache<ActiveSession[]>(cacheKey);
         if (cachedSessions) {
           setSessions(cachedSessions);
           setLoadingSessions(false);
-          // We still continue with the fetch to update in background
+          isRefreshingRef.current = false;
+          lastRefreshTimeRef.current = Date.now();
+          return; // Skip API call -- cache is fresh enough
         }
       }
       
@@ -167,10 +172,11 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         // Update state with fresh data
         setSessions(data.sessions);
         
-        // Cache the result
-        saveToCache(SESSION_CACHE_KEY, data.sessions);
+        // Cache the result (user-scoped key already computed above)
+        saveToCache(cacheKey, data.sessions);
       }
     } catch (error) {
+      console.error("SessionContext: failed to fetch sessions:", error);
     } finally {
       setLoadingSessions(false);
       isRefreshingRef.current = false;
@@ -316,6 +322,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       
       return [];
     } catch (error) {
+      console.error("SessionContext: failed to fetch reviews for tutor:", error);
       return [];
     }
   }, []);
@@ -350,6 +357,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       
       return null;
     } catch (error) {
+      console.error("SessionContext: failed to fetch session by ID:", error);
       return null;
     }
   }, [sessions, updateSession]);
@@ -413,12 +421,28 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
+// Safe no-op defaults returned when the hook is called outside a SessionProvider
+// (e.g. public pages like /tutors that are accessible without authentication).
+const SESSION_DEFAULTS: SessionContextType = {
+  activeSession: null,
+  reviewHistory: [],
+  startSession: async () => false,
+  endSession: async () => false,
+  submitReview: async () => {},
+  getReviewsForTutor: async () => [],
+  getSessionById: async () => null,
+  loading: false,
+  sessions: [],
+  loadingSessions: false,
+  refreshSessions: async () => {},
+  updateSession: () => {},
+  isInitialized: false,
+};
+
 // Custom hook to use the session context
-export const useSessions = () => {
+export const useSessions = (): SessionContextType => {
   const context = useContext(SessionContext);
-  if (!context) {
-    throw new Error("useSessions must be used within a SessionProvider");
-  }
-  
-  return context;
-}; 
+  // Return safe defaults for unauthenticated / non-provider contexts so that
+  // public pages (e.g. /tutors) don't crash when SessionProvider is not mounted.
+  return context ?? SESSION_DEFAULTS;
+};
