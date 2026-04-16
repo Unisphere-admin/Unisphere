@@ -255,76 +255,27 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
   }, [hasRecentlyShown, messageContext, router, user]);
   
   // Check if user has premium access
-  const checkPremiumAccess = useCallback(async () => {
+  // Uses the user object from AuthContext instead of making a separate /api/auth/session call
+  const checkPremiumAccess = useCallback(() => {
     if (!user) {
       setHasPremiumAccess(false);
       return false;
     }
-    
-    // Check if we have a recent cached result to avoid unnecessary API calls
-    if (hasPremiumAccess !== null) {
-      const accessCacheKey = `premium_access_${user.id}`;
-      try {
-        const cachedAccess = localStorage.getItem(accessCacheKey);
-        if (cachedAccess) {
-          const { hasAccess, timestamp } = JSON.parse(cachedAccess);
-          const now = Date.now();
-          // Use cached result if less than 5 minutes old
-          if (now - timestamp < 5 * 60 * 1000) {
-            setHasPremiumAccess(hasAccess);
-            return hasAccess;
-          }
-        }
-      } catch (error) {
-      }
-    }
-    
-    try {
-      // Use the API route instead of direct database access
-      const response = await fetch('/api/auth/session', {
-        credentials: 'include',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        }
-      });
-      
-      if (!response.ok) {
-        setHasPremiumAccess(false);
-        return false;
-      }
-      
-      const data = await response.json();
-      
-      // User has access if they are a tutor OR have premium access
-      const hasAccess = data.user?.role === 'tutor' || data.user?.has_access === true;
-      setHasPremiumAccess(hasAccess);
-      
-      // Cache the result
-      if (user.id) {
-        try {
-          localStorage.setItem(`premium_access_${user.id}`, JSON.stringify({
-            hasAccess,
-            timestamp: Date.now()
-          }));
-        } catch (error) {
-        }
-      }
-      
-      return hasAccess;
-    } catch (error) {
-      setHasPremiumAccess(false);
-      return false;
-    }
+
+    // Derive access directly from the AuthContext user object (already fetched)
+    const hasAccess = user.role === 'tutor' || user.has_access === true;
+    setHasPremiumAccess(hasAccess);
+
+    return hasAccess;
   }, [user]);
 
   // Initialize Supabase client once
   useEffect(() => {
     if (!user) return;
     
-    // Check premium access first
-    const checkAccess = async () => {
-      const hasAccess = await checkPremiumAccess();
+    // Check premium access first (synchronous - uses AuthContext user data)
+    const checkAccess = () => {
+      const hasAccess = checkPremiumAccess();
       
       // Only initialize Supabase realtime client if user has premium access
       if (hasAccess) {
@@ -756,7 +707,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     
     // If hasPremiumAccess is null (not yet checked), check it now
     if (hasPremiumAccess === null) {
-      const hasAccess = await checkPremiumAccess();
+      const hasAccess = checkPremiumAccess();
       if (!hasAccess) {
         return null;
       }
@@ -856,7 +807,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     
     // If hasPremiumAccess is null (not yet checked), check it now
     if (hasPremiumAccess === null) {
-      const hasAccess = await checkPremiumAccess();
+      const hasAccess = checkPremiumAccess();
       if (!hasAccess) {
         return;
       }
@@ -1154,11 +1105,20 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
+// Safe no-op defaults so public pages can call useRealtime() without crashing
+const REALTIME_DEFAULTS: RealtimeContextType = {
+  subscribeToConversation: () => null,
+  unsubscribeFromConversation: () => {},
+  broadcastMessage: () => {},
+  broadcastSessionUpdate: () => {},
+  broadcastTypingIndicator: () => {},
+  showNotification: () => {},
+  connected: false,
+  subscribedChannels: [],
+};
+
 // Hook for using the realtime context
-export const useRealtime = () => {
+export const useRealtime = (): RealtimeContextType => {
   const context = useContext(RealtimeContext);
-  if (context === undefined) {
-    throw new Error("useRealtime must be used within a RealtimeProvider");
-  }
-  return context;
+  return context ?? REALTIME_DEFAULTS;
 }; 

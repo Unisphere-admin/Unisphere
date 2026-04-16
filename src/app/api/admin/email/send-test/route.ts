@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClientWithCookies } from "@/lib/db/client";
 
 // Admin emails that can access this endpoint
-const ADMIN_EMAILS = ["justin@unisphere.my", "admin@unisphere.my", "23torch03@gmail.com"];
+const ADMIN_EMAILS = ["joshuaooi105@gmail.com", "justin@unisphere.my", "admin@unisphere.my", "23torch03@gmail.com"];
 
 export async function POST(req: NextRequest) {
   try {

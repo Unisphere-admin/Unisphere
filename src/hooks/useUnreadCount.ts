@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useMessages } from '@/context/MessageContext';
 import { useAuth } from '@/context/AuthContext';
 
@@ -93,19 +93,12 @@ export function useUnreadCount(): number {
     }, 0);
   }, [conversations, hasUnreadMessages, messages, user?.id]);
   
-  // Update unread count whenever conversations, messages, or page visibility changes
+  // Update unread count only when conversations or messages actually change
+  // (page visibility changes don't affect the count itself)
   useEffect(() => {
     const count = calculateUnreadCount();
     setUnreadCount(count);
-  }, [
-    conversations, 
-    messages, 
-    calculateUnreadCount,
-    // Add page visibility dependencies to recalculate when these change
-    pageVisibility.isVisible,
-    pageVisibility.isFocused,
-    pageVisibility.isOnMessagesPage
-  ]);
+  }, [conversations, messages, calculateUnreadCount]);
   
   // Listen for local storage events to detect message updates in other tabs
   useEffect(() => {

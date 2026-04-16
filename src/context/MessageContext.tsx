@@ -225,6 +225,9 @@ export const MessageProvider = ({
   // Add a ref to track conversations that have been checked for premium access
   const checkedConversationsRef = useRef<Set<string>>(new Set());
 
+  // Guard to prevent concurrent/duplicate conversation fetches
+  const conversationFetchInProgressRef = useRef<boolean>(false);
+
   // Map to track temporary conversations
   const [tempConversations, setTempConversations] = useState<{
     [id: string]: {
@@ -291,53 +294,23 @@ export const MessageProvider = ({
   );
 
   // Check if user has premium access
-  const checkPremiumAccess = useCallback(async () => {
+  // Uses the user object from AuthContext instead of making a separate /api/auth/session call
+  const checkPremiumAccess = useCallback(() => {
     if (!user) {
       return false;
     }
 
-    // Add caching for premium access checks to avoid unnecessary API calls
-    const now = Date.now();
+    // Derive access directly from the AuthContext user object (already fetched)
+    const hasAccess =
+      user.role === "tutor" || user.has_access === true;
 
-    // If we have a cached result and it's not expired, use it
-    if (
-      hasPremiumAccess !== null &&
-      premiumAccessCheckedRef.current &&
-      now - premiumAccessTimestampRef.current < PREMIUM_ACCESS_CACHE_TTL
-    ) {
-      return hasPremiumAccess;
-    }
+    // Update local state so other parts of this context can reference it
+    setHasPremiumAccess(hasAccess);
+    premiumAccessCheckedRef.current = true;
+    premiumAccessTimestampRef.current = Date.now();
 
-    try {
-      // Use the API route instead of direct database access
-      const response = await fetch("/api/auth/session", {
-        credentials: "include",
-        headers: {
-          "Cache-Control": "no-cache, no-store, must-revalidate",
-          Pragma: "no-cache",
-        },
-      });
-
-      if (!response.ok) {
-        return false;
-      }
-
-      const data = await response.json();
-
-      // User has access if they are a tutor OR have premium access
-      const hasAccess =
-        data.user?.role === "tutor" || data.user?.has_access === true;
-
-      // Update cache
-      setHasPremiumAccess(hasAccess);
-      premiumAccessCheckedRef.current = true;
-      premiumAccessTimestampRef.current = now;
-
-      return hasAccess;
-    } catch (error) {
-      return false;
-    }
-  }, [user, hasPremiumAccess]);
+    return hasAccess;
+  }, [user]);
 
   // Create a temporary conversation
   const createTempConversation = useCallback(
@@ -524,7 +497,7 @@ export const MessageProvider = ({
         }
 
         // Check if user has premium access before proceeding
-        const accessStatus = await checkPremiumAccess();
+        const accessStatus = checkPremiumAccess();
         if (!accessStatus) {
           return false;
         }
@@ -759,7 +732,7 @@ export const MessageProvider = ({
       }
 
       // Check if user has premium access before proceeding
-      const accessStatus = await checkPremiumAccess();
+      const accessStatus = checkPremiumAccess();
       if (!accessStatus) {
         return;
       }
@@ -1068,7 +1041,7 @@ export const MessageProvider = ({
           setLoading(false);
 
           // Check premium access before fetching fresh data in the background
-          const accessStatus = await checkPremiumAccess();
+          const accessStatus = checkPremiumAccess();
           if (accessStatus) {
             // Fetch fresh data in the background if user has premium access
             fetchFreshConversations();
@@ -1078,7 +1051,7 @@ export const MessageProvider = ({
         }
 
         // No cache or expired cache, check premium access before showing loading state and fetching fresh data
-        const accessStatus = await checkPremiumAccess();
+        const accessStatus = checkPremiumAccess();
         if (accessStatus) {
           setLoading(true);
           await fetchFreshConversations();
@@ -1092,6 +1065,7 @@ export const MessageProvider = ({
         // Just use empty array or temporary conversations
         const tempConvs = createTemporaryConversationObjects();
         setConversations(sortConversations(tempConvs));
+        conversationFetchInProgressRef.current = false;
       } finally {
         setLoading(false);
       }
@@ -1148,6 +1122,12 @@ export const MessageProvider = ({
         return;
       }
 
+      // Prevent concurrent fetches (e.g., from React StrictMode or rapid dependency changes)
+      if (conversationFetchInProgressRef.current) {
+        return;
+      }
+      conversationFetchInProgressRef.current = true;
+
       const response = await fetch("/api/conversations", {
         credentials: "include", // Include cookies for auth
       });
@@ -1155,6 +1135,7 @@ export const MessageProvider = ({
       if (response.status === 401) {
         // User needs to login again
         setConversations([]);
+        conversationFetchInProgressRef.current = false;
         return;
       }
 
@@ -1243,14 +1224,19 @@ export const MessageProvider = ({
 
       // Save to localStorage cache - only save real conversations
       saveToCache(CACHE_CONFIG.CONVERSATIONS_CACHE_KEY, processedConversations);
+
+      // Release the fetch guard so future refreshes can proceed
+      conversationFetchInProgressRef.current = false;
     };
 
     fetchConversations();
+    // Note: checkPremiumAccess and hasPremiumAccess removed from deps to prevent
+    // re-fetches when premium state updates. checkPremiumAccess is called inside
+    // fetchConversations and derives its value synchronously from `user`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     user,
     tempConversations,
-    checkPremiumAccess,
-    hasPremiumAccess,
     sortConversations,
   ]);
 
@@ -1300,7 +1286,7 @@ export const MessageProvider = ({
       let accessStatus = hasPremiumAccess;
 
       if (needsAccessCheck) {
-        accessStatus = await checkPremiumAccess();
+        accessStatus = checkPremiumAccess();
       } else {
       }
 
@@ -1478,7 +1464,7 @@ export const MessageProvider = ({
       }
 
       // Check if user has premium access before proceeding
-      const accessStatus = await checkPremiumAccess();
+      const accessStatus = checkPremiumAccess();
       if (!accessStatus) {
         return Promise.resolve();
       }
@@ -1583,7 +1569,7 @@ export const MessageProvider = ({
 
       // Check premium access for non-temporary conversations
       if (!conversationId.startsWith("temp-")) {
-        const accessStatus = await checkPremiumAccess();
+        const accessStatus = checkPremiumAccess();
         if (!accessStatus) {
           throw new Error("Premium access required to send messages");
         }
@@ -2254,8 +2240,7 @@ export const MessageProvider = ({
 
 export const useMessages = () => {
   const context = useContext(MessageContext);
-  if (context === null) {
-    throw new Error("useMessages must be used within a MessageProvider");
-  }
+  // Return null when called outside a MessageProvider (e.g. Navbar on public pages).
+  // All callers that may run outside a provider already use optional chaining.
   return context;
 };

@@ -175,68 +175,54 @@ export async function getUserProfile(
     }
     
     try {
-      // First get the main user data that includes tokens
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, email, is_tutor, tokens, has_access')
-        .eq('id', userId)
-        .single();
-      
-      if (userError) {
+      // Fetch user data, tutor profile, and student profile in parallel
+      // to avoid sequential database round-trips
+      const [userResult, tutorResult, studentResult] = await Promise.all([
+        supabase.from('users').select('id, email, is_tutor, tokens, has_access').eq('id', userId).single(),
+        supabase.from('tutor_profile').select('*').eq('id', userId).single(),
+        supabase.from('student_profile').select('*').eq('id', userId).single(),
+      ]);
+
+      const userData = userResult.data;
+      if (userResult.error) {
         return { user: null, error: 'Failed to fetch user data' };
       }
-      
-      // Now check if user is a tutor
-      const { data: tutorData, error: tutorError } = await supabase
-        .from('tutor_profile')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      
-      if (tutorData) {
-        // User is a tutor - get survey_completed from tutor_profile
-        return { 
-          user: { 
-            ...tutorData,
+
+      if (tutorResult.data) {
+        return {
+          user: {
+            ...tutorResult.data,
             tokens: userData?.tokens || 0,
             has_access: userData?.has_access || false,
-            survey_completed: tutorData?.survey_completed || false,
-            is_tutor: true 
-          }, 
-          error: null 
+            survey_completed: tutorResult.data?.survey_completed || false,
+            is_tutor: true
+          },
+          error: null
         };
       }
-      
-      // If not a tutor, check student profiles
-      const { data: studentData, error: studentError } = await supabase
-        .from('student_profile')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      
-      if (studentData) {
-        // User is a student - get survey_completed from student_profile
-        return { 
-          user: { 
-            ...studentData,
+
+      if (studentResult.data) {
+        return {
+          user: {
+            ...studentResult.data,
             tokens: userData?.tokens || 0,
             has_access: userData?.has_access || false,
-            survey_completed: studentData?.survey_completed || false,
-            is_tutor: false 
-          }, 
-          error: null 
+            survey_completed: studentResult.data?.survey_completed || false,
+            is_tutor: false
+          },
+          error: null
         };
       }
-      
-      // If not found in either table, user profile doesn't exist but return basic user data
-      return { 
-        user: userData ? { 
+
+      // If not found in either table, return basic user data
+      return {
+        user: userData ? {
           ...userData,
           has_access: userData.has_access || false,
-          survey_completed: false, // Default to false if no profile exists
-          is_tutor: userData.is_tutor || false 
-        } : null, 
-        error: userData ? null : 'User profile not found' 
+          survey_completed: false,
+          is_tutor: userData.is_tutor || false
+        } : null,
+        error: userData ? null : 'User profile not found'
       };
     } catch (dbError) {
       return { user: null, error: 'Database query error' };
@@ -259,29 +245,21 @@ export async function checkUserExists(userId: string): Promise<{
 }> {
   try {
     const supabase = createAnonymousClient();
-    
-    // Check tutor profiles
-    const { data: tutorProfile, error: tutorError } = await supabase
-      .from('tutor_profile')
-      .select('id')
-      .eq('id', userId)
-      .single();
-    
-    if (tutorProfile) {
+
+    // Check both profile tables in parallel
+    const [tutorResult, studentResult] = await Promise.all([
+      supabase.from('tutor_profile').select('id').eq('id', userId).single(),
+      supabase.from('student_profile').select('id').eq('id', userId).single(),
+    ]);
+
+    if (tutorResult.data) {
       return { exists: true, isStudent: false, isTutor: true, error: null };
     }
-    
-    // Check student profiles
-    const { data: studentProfile, error: studentError } = await supabase
-      .from('student_profile')
-      .select('id')
-      .eq('id', userId)
-      .single();
-    
-    if (studentProfile) {
+
+    if (studentResult.data) {
       return { exists: true, isStudent: true, isTutor: false, error: null };
     }
-    
+
     // Not found in either table
     return { exists: false, isStudent: false, isTutor: false, error: 'User not found' };
   } catch (error) {
@@ -519,9 +497,6 @@ export async function updateUserProfile(
     let filteredUpdateData: Record<string, any> = {};
     
     // Detailed logging
-    console.log('Processing update for', isTutor ? 'tutor' : 'student', 'profile');
-    console.log('Update data received:', JSON.stringify(updateData, null, 2));
-    console.log('Country field in updateData:', updateData.country);
     
     // Filter fields based on role
     if (isTutor) {
@@ -620,9 +595,6 @@ export async function updateUserProfile(
     }
     
     // Log the final filtered data
-    console.log('Sending update to database:', JSON.stringify(filteredUpdateData, null, 2));
-    console.log('Country field in filteredUpdateData:', filteredUpdateData.country);
-    console.log('Table being updated:', profileTable);
     
     // Update the profile
     const { data, error } = await supabase
@@ -637,7 +609,6 @@ export async function updateUserProfile(
       return { profile: null, error: `Database error: ${error.message}` };
     }
     
-    console.log('Database update successful. Updated profile:', data);
     return { profile: data, error: null };
   } catch (error) {
     console.error('Uncaught error in updateUserProfile:', error);
@@ -692,7 +663,6 @@ export async function updateSurveyCompletionInProfile(userId: string): Promise<{
 
     // Determine which profile table to update
     const profileTable = user.is_tutor ? 'tutor_profile' : 'student_profile';
-    console.log(`Updating survey_completed in ${profileTable} for user ${userId}`);
 
     // Update the survey_completed field in the appropriate profile table
     const { error: updateError } = await supabase
@@ -705,7 +675,6 @@ export async function updateSurveyCompletionInProfile(userId: string): Promise<{
       return { success: false, error: updateError.message };
     }
 
-    console.log(`✅ Successfully updated survey_completed in ${profileTable} for user ${userId}`);
     return { success: true };
 
   } catch (error) {
@@ -730,7 +699,6 @@ export async function saveSurveyResponses(userId: string, surveyData: {
       return { success: false, error: 'Failed to create Supabase client' };
     }
 
-    console.log('Saving survey responses for user:', userId, surveyData);
 
     // Get user's name from the appropriate profile table
     let userName = 'Unknown User';
@@ -799,7 +767,6 @@ export async function saveSurveyResponses(userId: string, surveyData: {
       return { success: false, error: insertError.message };
     }
 
-    console.log('✅ Successfully saved survey responses for user:', userId, 'with name:', userName);
     return { success: true };
 
   } catch (error) {
@@ -808,10 +775,87 @@ export async function saveSurveyResponses(userId: string, surveyData: {
   }
 }
 
+// Sync survey answers into the student_profile table so tutors see them on the profile.
+// Only overwrites a field if the profile doesn't already have a value for it,
+// except for countries_to_apply / application_cycle which we always set from the survey.
+export async function syncSurveyToStudentProfile(userId: string, surveyData: {
+  region: string;
+  applicationCycle: string;
+  universities: string[];
+  services: string[];
+  country: string;
+  school: string;
+  course: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createRouteHandlerClientWithCookies();
+    if (!supabase) {
+      return { success: false, error: 'Failed to create Supabase client' };
+    }
+
+    // Fetch current profile so we don't stomp on data the student already filled in
+    const { data: existing } = await supabase
+      .from('student_profile')
+      .select('school_name, intended_major, country, countries_to_apply, application_cycle')
+      .eq('id', userId)
+      .single();
+
+    const update: Record<string, any> = {};
+
+    // Always sync these - they are the core outputs of the survey
+    if (surveyData.region) {
+      update.countries_to_apply = surveyData.region;
+    }
+    if (surveyData.applicationCycle) {
+      update.application_cycle = surveyData.applicationCycle;
+    }
+
+    // Sync universities list as JSON (always - it's the primary survey data)
+    if (surveyData.universities && surveyData.universities.length > 0) {
+      update.universities_to_apply = JSON.stringify(surveyData.universities);
+    }
+
+    // Sync services (maps to planned_admissions_support) - always sync
+    if (surveyData.services && surveyData.services.length > 0) {
+      update.planned_admissions_support = JSON.stringify(surveyData.services);
+    }
+
+    // Only fill in school_name / intended_major / country if blank
+    if (surveyData.school && !existing?.school_name) {
+      update.school_name = surveyData.school;
+    }
+    if (surveyData.course && !existing?.intended_major) {
+      update.intended_major = surveyData.course;
+    }
+    if (surveyData.country && !existing?.country) {
+      update.country = surveyData.country;
+    }
+
+    if (Object.keys(update).length === 0) {
+      return { success: true };
+    }
+
+    const { error: updateError } = await supabase
+      .from('student_profile')
+      .update(update)
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('Error syncing survey to student_profile:', updateError);
+      return { success: false, error: updateError.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error in syncSurveyToStudentProfile:', error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 // Get survey responses for a user
-export async function getSurveyResponses(userId: string): Promise<{ 
-  responses: any | null; 
-  error?: string 
+export async function getSurveyResponses(userId: string): Promise<{
+  responses: any | null;
+  error?: string
 }> {
   try {
     const supabase = await createRouteHandlerClientWithCookies();

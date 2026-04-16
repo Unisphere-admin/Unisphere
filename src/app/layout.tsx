@@ -1,21 +1,40 @@
 import { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Playfair_Display } from 'next/font/google';
+import localFont from 'next/font/local';
+
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  variable: '--font-playfair',
+  style: ['italic'],
+  display: 'swap',
+});
+
+const satoshi = localFont({
+  src: [
+    { path: '../../public/Fonts/WEB/fonts/Satoshi-Regular.woff2', weight: '400', style: 'normal' },
+    { path: '../../public/Fonts/WEB/fonts/Satoshi-Italic.woff2', weight: '400', style: 'italic' },
+    { path: '../../public/Fonts/WEB/fonts/Satoshi-Medium.woff2', weight: '500', style: 'normal' },
+    { path: '../../public/Fonts/WEB/fonts/Satoshi-MediumItalic.woff2', weight: '500', style: 'italic' },
+    { path: '../../public/Fonts/WEB/fonts/Satoshi-Bold.woff2', weight: '700', style: 'normal' },
+    { path: '../../public/Fonts/WEB/fonts/Satoshi-BoldItalic.woff2', weight: '700', style: 'italic' },
+    { path: '../../public/Fonts/WEB/fonts/Satoshi-Black.woff2', weight: '900', style: 'normal' },
+    { path: '../../public/Fonts/WEB/fonts/Satoshi-BlackItalic.woff2', weight: '900', style: 'italic' },
+  ],
+  variable: '--font-satoshi',
+  display: 'swap',
+});
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { ThemeProvider } from "next-themes";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { MessageProvider } from "@/context/MessageContext";
-import { SessionProvider } from "@/context/SessionContext";
-import { RealtimeProvider } from "@/context/RealtimeContext";
 import { QueryProvider } from "@/components/QueryProvider";
+import AuthenticatedProviders from "@/components/layout/AuthenticatedProviders";
 import { Toaster } from "@/components/ui/toaster"
 import { Toaster as Sonner } from "@/components/ui/sonner"
 import ClientLayoutWrapper from "@/components/layout/ClientLayoutWrapper";
-import { MessageNotification } from '@/components/MessageNotification';
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
-const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Unisphere - Your All-In-One Uni Admissions Platform',
@@ -37,34 +56,30 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className="w-full">
+    <html lang="en" suppressHydrationWarning className="w-full overflow-x-hidden">
       <head>
+        {/* Preload critical assets */}
+        <link rel="preload" as="image" href="/logo-name.png" />
         <style>{`
-          /* Ensure Sonner toasts are above everything */
           :root {
             --sonner-z-index: 100;
           }
         `}</style>
       </head>
-      <body className={`${inter.className} min-h-screen bg-background w-full`}>
+      <body className={`${playfair.variable} ${satoshi.variable} min-h-screen bg-background w-full overflow-x-hidden`}>
         <QueryProvider>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
             <AuthProvider>
               <TooltipProvider>
                 <SidebarProvider>
-                  <MessageProvider>
-                    <SessionProvider>
-                      <RealtimeProvider>
-                        <Toaster />
-                        <Sonner className="main-sonner-toaster" position="top-right" />
-                        <ClientLayoutWrapper>
-                          {children}
-                        </ClientLayoutWrapper>
-                        <MessageNotification />
-                        <SpeedInsights />
-                      </RealtimeProvider>
-                    </SessionProvider>
-                  </MessageProvider>
+                  <AuthenticatedProviders>
+                    <Toaster />
+                    <Sonner className="main-sonner-toaster" position="top-right" />
+                    <ClientLayoutWrapper>
+                      {children}
+                    </ClientLayoutWrapper>
+                    {process.env.NODE_ENV === "production" && <SpeedInsights />}
+                  </AuthenticatedProviders>
                 </SidebarProvider>
               </TooltipProvider>
             </AuthProvider>

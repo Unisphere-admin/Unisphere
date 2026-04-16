@@ -483,8 +483,7 @@ export async function getUserSessions(userId: string, userType: 'tutor' | 'stude
           student_profile:student_id(first_name, last_name)
         `)
         .eq('tutor_id', userId)
-        .not('scheduled_for', 'is', null)
-        .order('scheduled_for', { ascending: true });
+        .order('created_at', { ascending: false });
     } else {
       query = supabase
         .from('tutoring_session')
@@ -493,8 +492,7 @@ export async function getUserSessions(userId: string, userType: 'tutor' | 'stude
           tutor_profile:tutor_id(first_name, last_name)
         `)
         .eq('student_id', userId)
-        .not('scheduled_for', 'is', null)
-        .order('scheduled_for', { ascending: true });
+        .order('created_at', { ascending: false });
     }
     
     const { data, error } = await query;

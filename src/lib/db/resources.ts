@@ -272,25 +272,61 @@ export async function getFilePreviewUrl(filePath: string): Promise<string | null
 }
 
 /**
- * Download a resource from the bucket
+ * Download a resource from the bucket and record the download for lead tracking.
  * @param filePath Path to the file in the bucket
  * @returns Blob of the file or null on error
  */
 export async function downloadResource(filePath: string): Promise<Blob | null> {
   try {
     const supabase = createClient();
-    
+
     const { data, error } = await supabase.storage
       .from('resources')
       .download(filePath);
-    
+
     if (error) {
       throw error;
     }
 
+    // Record download for lead tracking (fire-and-forget, don't block the download)
+    trackDownload(filePath).catch(() => {});
+
     return data;
   } catch (error) {
     return null;
+  }
+}
+
+/**
+ * Record a file download with the current user's profile for lead tracking.
+ */
+async function trackDownload(filePath: string): Promise<void> {
+  try {
+    const supabase = createClient();
+
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return; // anonymous users not tracked
+
+    // Get user profile for name
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, email')
+      .eq('id', user.id)
+      .single();
+
+    const fileName = filePath.split('/').pop() || filePath;
+
+    await supabase.from('resource_download').insert({
+      file_path: filePath,
+      file_name: fileName,
+      user_id: user.id,
+      user_email: user.email || profile?.email || null,
+      user_name: profile?.full_name || null,
+      downloaded_at: new Date().toISOString(),
+    });
+  } catch {
+    // Silently fail - never block a download due to tracking errors
   }
 }
 

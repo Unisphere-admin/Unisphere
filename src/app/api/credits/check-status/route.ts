@@ -14,7 +14,6 @@ async function checkStatusHandler(req: NextRequest, user: any) {
     const { searchParams } = new URL(req.url);
     const message_id = searchParams.get("message_id");
 
-    console.log('Checking transaction status for message_id:', message_id);
 
     if (!message_id) {
       return NextResponse.json({ error: "Missing message_id" }, { status: 400 });
@@ -33,7 +32,6 @@ async function checkStatusHandler(req: NextRequest, user: any) {
       .eq("message_id", message_id)
       .maybeSingle();
 
-    console.log('Transaction check result:', { data, error, exists: !!data });
 
     if (error) {
       console.error("Error checking transaction:", error);

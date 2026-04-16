@@ -63,7 +63,6 @@ const VideoCallProvider: React.FC<VideoCallProviderProps> = ({ value, children }
       })
       .subscribe((status: string) => {
         if (status === 'SUBSCRIBED') {
-          console.log('Subscribed to in-call chat channel:', channelName);
         }
       });
 
@@ -97,7 +96,6 @@ const VideoCallProvider: React.FC<VideoCallProviderProps> = ({ value, children }
 
     try {
       if (!isScreenSharing) {
-        console.log('Starting screen sharing...');
         
         // Start screen sharing with better configuration
         const screenTracks = await AgoraRTC.createScreenVideoTrack({
@@ -109,16 +107,13 @@ const VideoCallProvider: React.FC<VideoCallProviderProps> = ({ value, children }
         
         // Unpublish camera track and publish screen track
         if (value.localVideoTrack) {
-          console.log('Unpublishing camera track...');
           await value.client.unpublish(value.localVideoTrack);
         }
         
-        console.log('Publishing screen track...');
         await value.client.publish(videoTrack);
         
         // Add screen sharing ended event listener
         videoTrack.on("track-ended", async () => {
-          console.log('Screen sharing track ended, stopping screen sharing');
           await stopScreenSharing();
         });
         
@@ -130,7 +125,6 @@ const VideoCallProvider: React.FC<VideoCallProviderProps> = ({ value, children }
           duration: 2000,
         });
         
-        console.log('Screen sharing started successfully');
       } else {
         await stopScreenSharing();
       }
@@ -161,7 +155,6 @@ const VideoCallProvider: React.FC<VideoCallProviderProps> = ({ value, children }
     if (!value.client) return;
     
     try {
-      console.log('Stopping screen sharing...');
       
       // Unpublish screen track
       if (screenTrack) {
@@ -172,7 +165,6 @@ const VideoCallProvider: React.FC<VideoCallProviderProps> = ({ value, children }
       
       // Always republish camera track when screen sharing stops
       if (value.localVideoTrack) {
-        console.log('Republishing camera track...');
         await value.client.publish(value.localVideoTrack);
         
         // If video was not muted before screen sharing, ensure it's enabled
@@ -209,7 +201,6 @@ const VideoCallProvider: React.FC<VideoCallProviderProps> = ({ value, children }
         duration: 2000,
       });
       
-      console.log('Screen sharing stopped successfully');
     } catch (error) {
       console.error('Error stopping screen sharing:', error);
       

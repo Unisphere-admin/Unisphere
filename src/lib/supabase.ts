@@ -1,7 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
-
-// Create a Supabase client for client-side usage
-export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-);
+// Use the shared browser client singleton so this module does not create
+// an additional GoTrueClient instance.
+import { createClient } from '@/utils/supabase/client';
+export const supabase = createClient();

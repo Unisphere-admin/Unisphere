@@ -5,7 +5,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
  * Enable verbose debugging for token refresh operations
  * Set to false in production
  */
-const VERBOSE_LOGGING = true;
+const VERBOSE_LOGGING = process.env.NODE_ENV === 'development';
 
 /**
  * Amount of time (in minutes) before token expiration when we should refresh

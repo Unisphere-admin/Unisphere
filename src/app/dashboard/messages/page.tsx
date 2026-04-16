@@ -8,6 +8,7 @@ import React, {
   useCallback,
   useMemo,
   useTransition,
+  Suspense,
 } from "react";
 import Link from "next/link";
 import {
@@ -35,6 +36,15 @@ import {
   AlertCircle,
   MessageSquare,
   Info,
+  School,
+  MapPin,
+  Globe,
+  GraduationCap,
+  FileText,
+  Trophy,
+  Briefcase,
+  BookOpen,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -146,7 +156,7 @@ interface StudentProfileData {
   intended_major?: string;
   current_subjects?: string[] | string;
   bio?: string;
-  // Add all additional fields from the student_profile table
+  // All fields from the student_profile table
   a_levels?: any[];
   ib_diploma?: any[];
   igcse?: any[];
@@ -164,6 +174,51 @@ interface StudentProfileData {
   year?: string;
   previous_schools?: string[] | string;
   school_name?: string;
+  gender?: string;
+  nationality?: string;
+  education_level?: string;
+  graduation_year?: string;
+  academic_achievements?: string;
+  learning_style?: string;
+  career_goals?: string;
+}
+
+function parseProfileJsonField(value: any): any[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return value.split(",").map((s: string) => s.trim()).filter(Boolean);
+    }
+  }
+  return [];
+}
+
+// Parses a field that may be a JSON-stringified array into a human-readable string.
+function parseProfileStringField(value: string | null | undefined): string {
+  if (!value) return "";
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.join(", ");
+    return String(parsed);
+  } catch {
+    return value;
+  }
+}
+
+// Returns an array of strings for badge rendering.
+function parseProfileStringAsArray(value: string | null | undefined): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.map(String);
+    return [String(parsed)];
+  } catch {
+    return value.split(",").map((s) => s.trim()).filter(Boolean);
+  }
 }
 
 // Add a custom type for session items that will be displayed in the messages list
@@ -242,7 +297,7 @@ const UnreadBadge = ({
   );
 };
 
-export default function MessagesPage() {
+function MessagesPageContent() {
   const { user } = useAuth();
   const {
     conversations,
@@ -638,6 +693,15 @@ export default function MessagesPage() {
   const [creditTitle, setCreditTitle] = useState("");
   const [creditAmount, setCreditAmount] = useState<number>(0);
 
+  // Message windowing: show only the most recent N items, reveal older ones on demand
+  const MESSAGES_WINDOW = 50;
+  const [visibleMessages, setVisibleMessages] = useState(MESSAGES_WINDOW);
+
+  // Reset window whenever the active conversation changes
+  useEffect(() => {
+    setVisibleMessages(MESSAGES_WINDOW);
+  }, [selectedConversationId]);
+
   // Typing indicator state
   const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -653,6 +717,30 @@ export default function MessagesPage() {
   // Redirect if not logged in
   if (!user) {
     redirect("/login");
+  }
+
+  // Show paywall for non-premium students
+  const hasAccess = user?.role === 'tutor' || user?.has_access;
+  if (!hasAccess) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 text-center">
+        <div className="w-16 h-16 mx-auto mb-6 flex items-center justify-center rounded-full bg-primary/10">
+          <MessageSquare className="h-8 w-8 text-primary" strokeWidth={1.5} />
+        </div>
+        <h2 className="text-2xl font-bold mb-2">Unlock Messaging</h2>
+        <p className="text-muted-foreground max-w-md mb-6">
+          To message tutors and book sessions, you need to purchase a credit package. Browse our plans to get started.
+        </p>
+        <div className="flex gap-3">
+          <Button asChild className="bg-[#128ca0] hover:bg-[#126d94]">
+            <Link href="/credits">View Plans & Pricing</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/tutors">Browse Tutors</Link>
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   // Filter conversations by search query
@@ -1598,7 +1686,6 @@ export default function MessagesPage() {
       }
 
       const data = await response.json();
-      console.log("Fetched student profile data:", data.profile);
 
       // The profile data is returned directly from the student_profile table
       setProfileData(data.profile);
@@ -2155,7 +2242,18 @@ export default function MessagesPage() {
                     </div>
                   ) : (
                     <div className="space-y-6 min-h-full flex flex-col">
-                      {combinedItems.map((item) => {
+                      {/* Load-earlier banner */}
+                      {visibleMessages < combinedItems.length && (
+                        <div className="flex justify-center pt-2 pb-1">
+                          <button
+                            onClick={() => setVisibleMessages((v) => v + MESSAGES_WINDOW)}
+                            className="text-xs text-muted-foreground hover:text-foreground border border-border/40 rounded-full px-4 py-1.5 bg-muted/30 hover:bg-muted/60 transition-colors"
+                          >
+                            Load earlier messages ({combinedItems.length - visibleMessages} older)
+                          </button>
+                        </div>
+                      )}
+                      {combinedItems.slice(-visibleMessages).map((item) => {
                         // Always use a stable key based on ID to maintain component identity
                         const uniqueItemKey =
                           item.type === "message"
@@ -2172,7 +2270,7 @@ export default function MessagesPage() {
                             ? new Date(item.session.created_at)
                             : new Date();
 
-                        // Find previous item for date comparison
+                        // Find previous item for date comparison (use full combinedItems for correct date headers)
                         const currentItemIndex = combinedItems.findIndex(
                           (i) => i.id === item.id
                         );
@@ -2741,437 +2839,385 @@ export default function MessagesPage() {
               </p>
             </div>
           ) : profileData ? (
-            <div className="space-y-6 py-2">
-              {/* Basic Information Section */}
-              <div className="flex items-center gap-4">
-                <Avatar className="h-16 w-16 border border-border/40 shadow-md">
-                  <AvatarImage src={profileData.avatar_url || undefined} />
-                  <AvatarFallback className="bg-primary/10 text-primary text-xl">
-                    {profileData.first_name?.charAt(0) || "S"}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h3 className="text-lg font-medium">
-                    {profileData.first_name} {profileData.last_name}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">Student</p>
-                  {profileData.age && (
-                    <p className="text-sm text-muted-foreground">
-                      Age: {profileData.age}
-                    </p>
+            (() => {
+              const fullName = `${profileData.first_name || ""} ${profileData.last_name || ""}`.trim() || "Student";
+              const subjects = parseProfileJsonField(profileData.current_subjects);
+              const previousSchools = parseProfileJsonField(profileData.previous_schools);
+              const aLevels = parseProfileJsonField(profileData.a_levels);
+              const ibDiploma = parseProfileJsonField(profileData.ib_diploma);
+              const igcseData = parseProfileJsonField(profileData.igcse);
+              const spmData = parseProfileJsonField(profileData.spm);
+              const extracurriculars = parseProfileJsonField(profileData.extracurricular_activities);
+              const awardsData = parseProfileJsonField(profileData.awards);
+              const hasExams = aLevels.length > 0 || ibDiploma.length > 0 || igcseData.length > 0 || spmData.length > 0;
+              const hasSchoolInfo = profileData.school_name || subjects.length > 0 || previousSchools.length > 0;
+              const hasUniPlanning = profileData.intended_universities || profileData.intended_major || profileData.universities_to_apply || profileData.planned_admissions_tests || profileData.completed_admissions_tests || profileData.planned_admissions_support || profileData.university_other_info;
+              const hasGoals = profileData.career_goals || profileData.learning_style || profileData.academic_achievements;
+
+              return (
+                <div className="space-y-5 py-2">
+                  {/* Profile Header */}
+                  <div className="flex items-start gap-4">
+                    <Avatar className="h-16 w-16 border-2 border-border/40 shadow-md flex-shrink-0">
+                      <AvatarImage src={profileData.avatar_url || undefined} />
+                      <AvatarFallback className="bg-gradient-to-br from-[#128ca0]/20 to-[#128ca0]/5 text-[#128ca0] text-xl font-semibold">
+                        {profileData.first_name?.charAt(0) || "S"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-semibold">{fullName}</h3>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                        {profileData.school_name && (
+                          <Badge variant="secondary" className="text-xs">
+                            <School className="h-3 w-3 mr-1" />
+                            {profileData.school_name}
+                            {profileData.year ? ` - ${profileData.year}` : ""}
+                          </Badge>
+                        )}
+                        {profileData.countries_to_apply && (
+                          <Badge variant="outline" className="text-xs">
+                            <MapPin className="h-3 w-3 mr-1" />
+                            {profileData.countries_to_apply}
+                          </Badge>
+                        )}
+                        {profileData.application_cycle && (
+                          <Badge variant="outline" className="text-xs">
+                            <Calendar className="h-3 w-3 mr-1" />
+                            {profileData.application_cycle}
+                          </Badge>
+                        )}
+                        {profileData.nationality && (
+                          <Badge variant="outline" className="text-xs">
+                            <Globe className="h-3 w-3 mr-1" />
+                            {profileData.nationality}
+                          </Badge>
+                        )}
+                      </div>
+                      {profileData.bio && (
+                        <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{profileData.bio}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* School & Subjects */}
+                  {hasSchoolInfo && (
+                    <Card className="border border-border/40 shadow-sm">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                          <School className="h-4 w-4" />
+                          School & Subjects
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pb-4 space-y-3">
+                        {profileData.school_name && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Current School</span>
+                            <p className="font-medium text-sm">{profileData.school_name}{profileData.year ? ` (${profileData.year})` : ""}</p>
+                          </div>
+                        )}
+                        {previousSchools.length > 0 && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Previous Schools</span>
+                            <p className="font-medium text-sm">{previousSchools.join(", ")}</p>
+                          </div>
+                        )}
+                        {subjects.length > 0 && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Current Subjects</span>
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {subjects.map((subject: any, i: number) => (
+                                <Badge key={i} variant="secondary" className="text-xs">
+                                  {typeof subject === "string" ? subject : subject.name || subject.subject || JSON.stringify(subject)}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Qualifications & Exams */}
+                  {hasExams && (
+                    <Card className="border border-border/40 shadow-sm">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          Qualifications & Exams
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pb-4 space-y-4">
+                        {aLevels.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-medium mb-2">A-Levels</h4>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Subject</TableHead>
+                                  <TableHead>AS Grade</TableHead>
+                                  <TableHead>Predicted</TableHead>
+                                  <TableHead>Achieved</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {aLevels.map((entry: any, index: number) => (
+                                  <TableRow key={index}>
+                                    <TableCell>{entry.subject}</TableCell>
+                                    <TableCell>{entry.asGrade || "-"}</TableCell>
+                                    <TableCell>{entry.predictedGrade || "-"}</TableCell>
+                                    <TableCell>{entry.achievedGrade || "-"}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                        {ibDiploma.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-medium mb-2">IB Diploma</h4>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Subject</TableHead>
+                                  <TableHead>Predicted</TableHead>
+                                  <TableHead>Achieved</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {ibDiploma.map((entry: any, index: number) => (
+                                  <TableRow key={index}>
+                                    <TableCell>{entry.subject}</TableCell>
+                                    <TableCell>{entry.predictedGrade || "-"}</TableCell>
+                                    <TableCell>{entry.achievedGrade || "-"}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                        {igcseData.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-medium mb-2">IGCSE / GCSE</h4>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Subject</TableHead>
+                                  <TableHead>Grade</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {igcseData.map((entry: any, index: number) => (
+                                  <TableRow key={index}>
+                                    <TableCell>{entry.subject}</TableCell>
+                                    <TableCell>{entry.achievedGrade || "-"}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                        {spmData.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-medium mb-2">SPM</h4>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Subject</TableHead>
+                                  <TableHead>Grade</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {spmData.map((entry: any, index: number) => (
+                                  <TableRow key={index}>
+                                    <TableCell>{entry.subject}</TableCell>
+                                    <TableCell>{entry.achievedGrade || "-"}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* University Application Details */}
+                  {hasUniPlanning && (
+                    <Card className="border border-border/40 shadow-sm">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                          <GraduationCap className="h-4 w-4" />
+                          University Application Details
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pb-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {profileData.intended_major && (
+                            <div>
+                              <span className="text-sm text-muted-foreground">Intended Major</span>
+                              <p className="font-medium text-sm">{profileData.intended_major}</p>
+                            </div>
+                          )}
+                          {profileData.intended_universities && (
+                            <div>
+                              <span className="text-sm text-muted-foreground">Intended Universities</span>
+                              <p className="font-medium text-sm">{profileData.intended_universities}</p>
+                            </div>
+                          )}
+                          {profileData.universities_to_apply && (
+                            <div className="sm:col-span-2">
+                              <span className="text-sm text-muted-foreground">Universities to Apply</span>
+                              <div className="flex flex-wrap gap-1.5 mt-1">
+                                {parseProfileStringAsArray(profileData.universities_to_apply).map((uni: string, i: number) => (
+                                  <Badge key={i} variant="secondary" className="text-xs">{uni}</Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {profileData.planned_admissions_tests && (
+                            <div>
+                              <span className="text-sm text-muted-foreground">Planned Admissions Tests</span>
+                              <p className="font-medium text-sm">{parseProfileStringField(profileData.planned_admissions_tests)}</p>
+                            </div>
+                          )}
+                          {profileData.completed_admissions_tests && (
+                            <div>
+                              <span className="text-sm text-muted-foreground">Completed Admissions Tests</span>
+                              <p className="font-medium text-sm">{parseProfileStringField(profileData.completed_admissions_tests)}</p>
+                            </div>
+                          )}
+                          {profileData.planned_admissions_support && (
+                            <div className="sm:col-span-2">
+                              <span className="text-sm text-muted-foreground">Admissions Support Needed</span>
+                              <div className="flex flex-wrap gap-1.5 mt-1">
+                                {parseProfileStringAsArray(profileData.planned_admissions_support).map((svc: string, i: number) => (
+                                  <Badge key={i} variant="outline" className="text-xs">{svc}</Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {profileData.university_other_info && (
+                            <div className="sm:col-span-2">
+                              <span className="text-sm text-muted-foreground">Additional Info</span>
+                              <p className="font-medium text-sm">{profileData.university_other_info}</p>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Extracurricular Activities */}
+                  {extracurriculars.length > 0 && (
+                    <Card className="border border-border/40 shadow-sm">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                          <Briefcase className="h-4 w-4" />
+                          Extracurricular Activities
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pb-4 space-y-2">
+                        {extracurriculars.map((activity: any, i: number) => (
+                          <div key={i} className="p-3 rounded-lg bg-accent/30 border border-border/30">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-medium text-sm">{activity.activity || activity.name || "Activity"}</h4>
+                              {activity.yearParticipated && (
+                                <span className="text-xs text-muted-foreground">{activity.yearParticipated}</span>
+                              )}
+                            </div>
+                            {activity.description && (
+                              <p className="text-sm text-muted-foreground mt-1">{activity.description}</p>
+                            )}
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Honors & Awards */}
+                  {awardsData.length > 0 && (
+                    <Card className="border border-border/40 shadow-sm">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                          <Trophy className="h-4 w-4" />
+                          Honors & Awards
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pb-4 space-y-2">
+                        {awardsData.map((award: any, i: number) => (
+                          <div key={i} className="p-3 rounded-lg bg-amber-50/50 dark:bg-amber-950/10 border border-amber-200/30 dark:border-amber-800/20">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-medium text-sm">{award.name || award.title || "Award"}</h4>
+                              {award.yearAwarded && (
+                                <span className="text-xs text-muted-foreground">{award.yearAwarded}</span>
+                              )}
+                            </div>
+                            {award.description && (
+                              <p className="text-sm text-muted-foreground mt-1">{award.description}</p>
+                            )}
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Goals & Learning Style */}
+                  {hasGoals && (
+                    <Card className="border border-border/40 shadow-sm">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                          <User className="h-4 w-4" />
+                          Goals & Learning Style
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pb-4 space-y-3">
+                        {profileData.career_goals && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Career Goals</span>
+                            <p className="font-medium text-sm">{profileData.career_goals}</p>
+                          </div>
+                        )}
+                        {profileData.learning_style && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Learning Style</span>
+                            <p className="font-medium text-sm">{profileData.learning_style}</p>
+                          </div>
+                        )}
+                        {profileData.academic_achievements && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Academic Achievements</span>
+                            <p className="font-medium text-sm">{profileData.academic_achievements}</p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Empty state: if student has barely filled out their profile */}
+                  {!hasSchoolInfo && !hasExams && !hasUniPlanning && !hasGoals && extracurriculars.length === 0 && awardsData.length === 0 && !profileData.bio && (
+                    <div className="text-center py-6 border border-dashed border-border/60 rounded-xl">
+                      <User className="h-10 w-10 mx-auto text-muted-foreground/40 mb-2" />
+                      <p className="text-sm text-muted-foreground">This student hasn't completed their profile yet.</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">Profile sections will appear here once they add their information.</p>
+                    </div>
+                  )}
+
+                  {/* View Full Profile link */}
+                  {profileData.id && (
+                    <div className="pt-1">
+                      <Link
+                        href={`/dashboard/students/${profileData.id}`}
+                        className="inline-flex items-center gap-1.5 text-sm text-[#128ca0] hover:text-[#0e6b68] font-medium transition-colors"
+                        onClick={() => setShowProfileDialog(false)}
+                      >
+                        View full profile page
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Link>
+                    </div>
                   )}
                 </div>
-              </div>
-
-              {/* Educational Background */}
-              <Card className="border border-border/40 shadow-sm">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">
-                    Educational Background
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pb-4 space-y-3">
-                  {/* Year/Form */}
-                  {profileData.year && (
-                    <div>
-                      <h4 className="text-sm font-medium">Year/Form</h4>
-                      <p className="text-sm">{profileData.year}</p>
-                    </div>
-                  )}
-
-                  {/* Current School */}
-                  {profileData.school_name && (
-                    <div>
-                      <h4 className="text-sm font-medium">Current School</h4>
-                      <p className="text-sm">{profileData.school_name}</p>
-                    </div>
-                  )}
-
-                  {/* Previous Schools */}
-                  {profileData.previous_schools && (
-                    <div>
-                      <h4 className="text-sm font-medium">Previous Schools</h4>
-                      {Array.isArray(profileData.previous_schools) ? (
-                        <p className="text-sm">
-                          {profileData.previous_schools.join(", ")}
-                        </p>
-                      ) : typeof profileData.previous_schools === "string" ? (
-                        <p className="text-sm">
-                          {profileData.previous_schools}
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
-
-                  {/* Current Subjects */}
-                  <div>
-                    <h4 className="text-sm font-medium">Current Subjects</h4>
-                    <p className="text-sm">
-                      {(() => {
-                        // Handle array format
-                        if (
-                          Array.isArray(profileData.current_subjects) &&
-                          profileData.current_subjects.length > 0
-                        ) {
-                          return profileData.current_subjects.join(", ");
-                        }
-                        // Handle string format (comma-separated)
-                        else if (
-                          typeof profileData.current_subjects === "string" &&
-                          profileData.current_subjects
-                        ) {
-                          return profileData.current_subjects;
-                        }
-                        // Default case - no subjects
-                        else {
-                          return (
-                            <span className="text-muted-foreground">
-                              Not specified
-                            </span>
-                          );
-                        }
-                      })()}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Bio/About Section */}
-              {profileData.bio && (
-                <Card className="border border-border/40 shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base">About</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm whitespace-pre-wrap">
-                      {profileData.bio}
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* University Plans Section */}
-              <Card className="border border-border/40 shadow-sm">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">University Plans</CardTitle>
-                </CardHeader>
-                <CardContent className="pb-4 space-y-3">
-                  {/* Application Cycle */}
-                  {profileData.application_cycle && (
-                    <div>
-                      <h4 className="text-sm font-medium">Application Cycle</h4>
-                      <p className="text-sm">{profileData.application_cycle}</p>
-                    </div>
-                  )}
-
-                  {/* Intended Universities */}
-                  <div>
-                    <h4 className="text-sm font-medium">
-                      Intended Universities
-                    </h4>
-                    <p className="text-sm">
-                      {profileData.intended_universities || (
-                        <span className="text-muted-foreground">
-                          Not specified
-                        </span>
-                      )}
-                    </p>
-                  </div>
-
-                  {/* Countries to Apply */}
-                  {profileData.countries_to_apply && (
-                    <div>
-                      <h4 className="text-sm font-medium">
-                        Countries Planning to Apply To
-                      </h4>
-                      <p className="text-sm">
-                        {profileData.countries_to_apply}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Universities to Apply */}
-                  {profileData.universities_to_apply && (
-                    <div>
-                      <h4 className="text-sm font-medium">
-                        Universities Planning to Apply To
-                      </h4>
-                      <p className="text-sm">
-                        {profileData.universities_to_apply}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Intended Major */}
-                  <div>
-                    <h4 className="text-sm font-medium">Intended Major</h4>
-                    <p className="text-sm">
-                      {profileData.intended_major || (
-                        <span className="text-muted-foreground">
-                          Not specified
-                        </span>
-                      )}
-                    </p>
-                  </div>
-
-                  {/* Planned Admissions Tests */}
-                  {profileData.planned_admissions_tests && (
-                    <div>
-                      <h4 className="text-sm font-medium">
-                        Planned Admissions Tests
-                      </h4>
-                      <p className="text-sm">
-                        {profileData.planned_admissions_tests}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Completed Admissions Tests */}
-                  {profileData.completed_admissions_tests && (
-                    <div>
-                      <h4 className="text-sm font-medium">
-                        Completed Admissions Tests
-                      </h4>
-                      <p className="text-sm">
-                        {profileData.completed_admissions_tests}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Planned Admissions Support */}
-                  {profileData.planned_admissions_support && (
-                    <div>
-                      <h4 className="text-sm font-medium">
-                        Planned Admissions Support
-                      </h4>
-                      <p className="text-sm">
-                        {profileData.planned_admissions_support}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Other University Information */}
-                  {profileData.university_other_info && (
-                    <div>
-                      <h4 className="text-sm font-medium">
-                        Other University Information
-                      </h4>
-                      <p className="text-sm">
-                        {profileData.university_other_info}
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Examination Records */}
-              {((profileData.a_levels && profileData.a_levels.length > 0) ||
-                (profileData.ib_diploma && profileData.ib_diploma.length > 0) ||
-                (profileData.igcse && profileData.igcse.length > 0) ||
-                (profileData.spm && profileData.spm.length > 0)) && (
-                <Card className="border border-border/40 shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base">
-                      Examination Records
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pb-4 space-y-4">
-                    {/* A-Levels */}
-                    {profileData.a_levels &&
-                      profileData.a_levels.length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-medium mb-2">A-Levels</h4>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Subject</TableHead>
-                                <TableHead>AS Grade</TableHead>
-                                <TableHead>Predicted Grade</TableHead>
-                                <TableHead>Achieved Grade</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {profileData.a_levels?.map((entry, index) => (
-                                <TableRow key={index}>
-                                  <TableCell>{entry.subject}</TableCell>
-                                  <TableCell>{entry.asGrade || "-"}</TableCell>
-                                  <TableCell>
-                                    {entry.predictedGrade || "-"}
-                                  </TableCell>
-                                  <TableCell>
-                                    {entry.achievedGrade || "-"}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      )}
-
-                    {/* IB Diploma */}
-                    {profileData.ib_diploma &&
-                      profileData.ib_diploma.length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-medium mb-2">
-                            IB Diploma
-                          </h4>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Subject</TableHead>
-                                <TableHead>Predicted Grade</TableHead>
-                                <TableHead>Achieved Grade</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {profileData.ib_diploma?.map((entry, index) => (
-                                <TableRow key={index}>
-                                  <TableCell>{entry.subject}</TableCell>
-                                  <TableCell>
-                                    {entry.predictedGrade || "-"}
-                                  </TableCell>
-                                  <TableCell>
-                                    {entry.achievedGrade || "-"}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      )}
-
-                    {/* IGCSE */}
-                    {profileData.igcse && profileData.igcse.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-medium mb-2">IGCSE</h4>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Subject</TableHead>
-                              <TableHead>Achieved Grade</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {profileData.igcse?.map((entry, index) => (
-                              <TableRow key={index}>
-                                <TableCell>{entry.subject}</TableCell>
-                                <TableCell>
-                                  {entry.achievedGrade || "-"}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-
-                    {/* SPM */}
-                    {profileData.spm && profileData.spm.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-medium mb-2">SPM</h4>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Subject</TableHead>
-                              <TableHead>Achieved Grade</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {profileData.spm?.map((entry, index) => (
-                              <TableRow key={index}>
-                                <TableCell>{entry.subject}</TableCell>
-                                <TableCell>
-                                  {entry.achievedGrade || "-"}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Extracurricular Activities and Awards */}
-              {((profileData.extracurricular_activities &&
-                profileData.extracurricular_activities.length > 0) ||
-                (profileData.awards && profileData.awards.length > 0)) && (
-                <Card className="border border-border/40 shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base">
-                      Activities & Achievements
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pb-4 space-y-4">
-                    {/* Extracurricular Activities */}
-                    {profileData.extracurricular_activities &&
-                      profileData.extracurricular_activities.length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-medium mb-2">
-                            Extracurricular Activities
-                          </h4>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Activity</TableHead>
-                                <TableHead>Description</TableHead>
-                                <TableHead>Year(s)</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {profileData.extracurricular_activities?.map(
-                                (entry, index) => (
-                                  <TableRow key={index}>
-                                    <TableCell>{entry.activity}</TableCell>
-                                    <TableCell>
-                                      {entry.description || "-"}
-                                    </TableCell>
-                                    <TableCell>
-                                      {entry.yearParticipated || "-"}
-                                    </TableCell>
-                                  </TableRow>
-                                )
-                              )}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      )}
-
-                    {/* Awards */}
-                    {profileData.awards && profileData.awards.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-medium mb-2">
-                          Honors & Awards
-                        </h4>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Award</TableHead>
-                              <TableHead>Description</TableHead>
-                              <TableHead>Year</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {profileData.awards?.map((entry, index) => (
-                              <TableRow key={index}>
-                                <TableCell>{entry.name}</TableCell>
-                                <TableCell>
-                                  {entry.description || "-"}
-                                </TableCell>
-                                <TableCell>
-                                  {entry.yearAwarded || "-"}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+              );
+            })()
           ) : (
             <div className="py-4 text-center">
               <p className="text-muted-foreground">
@@ -3191,5 +3237,13 @@ export default function MessagesPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
+      <MessagesPageContent />
+    </Suspense>
   );
 }

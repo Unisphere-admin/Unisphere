@@ -104,19 +104,8 @@ export async function GET(req: NextRequest) {
             // Tutor has profile and completed survey, redirect to dashboard
             return NextResponse.redirect(`${url.origin}/dashboard`);
         } else {
-            // For students, check survey completion first
-            if (!surveyCompleted) {
-                return NextResponse.redirect(`${url.origin}/survey`);
-            }
-            
-            // For students, check if they have premium access
-            if (hasPremiumAccess) {
-                // Premium students go to dashboard
-                return NextResponse.redirect(`${url.origin}/dashboard`);
-            } else {
-                // Non-premium students go to home page
-                return NextResponse.redirect(`${url.origin}/`);
-            }
+            // All students go to dashboard after login
+            return NextResponse.redirect(`${url.origin}/dashboard`);
         }
     } catch (err) {
         return NextResponse.redirect(`${url.origin}/login?error=server-error`);

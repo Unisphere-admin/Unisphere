@@ -5,19 +5,28 @@ import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
+// Singleton browser client - one GoTrueClient per browser context.
+// Creating multiple instances sharing the same storage key causes competing
+// auth refresh loops and "Multiple GoTrueClient instances" warnings.
+let _browserClient: ReturnType<typeof createBrowserClient> | null = null;
+
 /**
- * Creates a Supabase client for client-side usage
+ * Returns the shared Supabase browser client (singleton).
+ * Safe to call from any client component or utility - always returns the same instance.
  */
 export const createClient = () => {
-  return createBrowserClient(supabaseUrl, supabaseAnonKey);
+  if (!_browserClient) {
+    _browserClient = createBrowserClient(supabaseUrl, supabaseAnonKey);
+  }
+  return _browserClient;
 };
 
 /**
- * Creates an anonymous Supabase client
+ * Creates an anonymous Supabase client (uses the shared singleton).
  */
 export const createAnonymousClient = () => {
-  return createBrowserClient(supabaseUrl, supabaseAnonKey);
-}; 
+  return createClient();
+};
 
 /**
  * Creates a generic Supabase client with custom URL and key

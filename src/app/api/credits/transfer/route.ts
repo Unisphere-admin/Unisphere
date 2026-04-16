@@ -7,7 +7,6 @@ import { createClient } from "@supabase/supabase-js";
 export const dynamic = "force-dynamic";
 
 async function transferCreditsHandler(req: NextRequest, user: any) {
-  console.log('=== TRANSFER API CALLED ===');
   try {
     if (req.method !== "POST") {
       return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
@@ -16,7 +15,6 @@ async function transferCreditsHandler(req: NextRequest, user: any) {
     const body = await req.json();
     const { message_id, tutor_id, amount } = body || {};
 
-    console.log('Credit transfer request:', { message_id, tutor_id, amount, studentId: user.id });
 
     if (!tutor_id || !amount) {
       return NextResponse.json({ error: "Missing required fields: tutor_id and amount" }, { status: 400 });
@@ -45,7 +43,6 @@ async function transferCreditsHandler(req: NextRequest, user: any) {
         .maybeSingle();
 
       if (existingTransaction) {
-        console.log('Transaction already exists for message:', message_id);
         return NextResponse.json({ 
           error: "This credit request has already been processed",
           alreadyProcessed: true 
@@ -58,7 +55,6 @@ async function transferCreditsHandler(req: NextRequest, user: any) {
     // This ensures both debit and credit happen atomically with proper locking
     // ============================================================================
 
-    console.log(`💸 Initiating atomic transfer: ${transferAmount} credits from ${studentId} to ${tutor_id}`);
 
     const { data: transferResult, error: transferError } = await supabaseAdmin
       .rpc('atomic_transfer_credits', {
@@ -85,9 +81,6 @@ async function transferCreditsHandler(req: NextRequest, user: any) {
       }, { status: 400 });
     }
 
-    console.log(`✅ Atomic transfer completed successfully!`);
-    console.log(`   Student: ${result.from_old_balance} → ${result.from_new_balance} credits`);
-    console.log(`   Tutor: ${result.to_old_balance} → ${result.to_new_balance} credits`);
 
     // Fetch profile names for audit trail (non-critical)
     const { data: studentProf } = await supabaseAdmin
@@ -117,19 +110,12 @@ async function transferCreditsHandler(req: NextRequest, user: any) {
           status: 'accepted',
           processed_at: new Date().toISOString(),
         });
-        console.log('Credit request marked as processed:', message_id);
       } catch (err) {
         console.error('Failed to mark as processed (non-critical):', err);
         // Don't fail the whole transfer if we can't record the status
       }
     }
 
-    console.log('=== TRANSFER COMPLETE ===', {
-      success: true,
-      message_id,
-      newStudentBalance: result.from_new_balance,
-      newTutorBalance: result.to_new_balance
-    });
 
     return NextResponse.json({
       success: true,

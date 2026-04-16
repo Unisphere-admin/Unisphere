@@ -55,7 +55,6 @@ export function CreditRequestCard({
   useEffect(() => {
     const checkTransactionStatus = async () => {
       try {
-        console.log("Checking transaction status for message:", messageId);
         const response = await fetch(
           `/api/credits/check-status?message_id=${messageId}`,
           {
@@ -65,16 +64,13 @@ export function CreditRequestCard({
 
         if (response.ok) {
           const data = await response.json();
-          console.log("Transaction check result:", data);
           if (data.exists) {
-            console.log("Transaction exists with status:", data.status);
             if (data.status === "accepted") {
               setCurrentStatus("accepted");
             } else if (data.status === "declined") {
               setCurrentStatus("declined");
             }
           } else {
-            console.log("No transaction found, keeping status as pending");
           }
         } else {
           console.error(
@@ -96,12 +92,6 @@ export function CreditRequestCard({
   const handleAccept = async () => {
     if (!user || isButtonDisabled || currentStatus !== "pending") return;
 
-    console.log("Credit request accept attempt:", {
-      messageId,
-      tutorId,
-      amount,
-      currentUserId: user.id,
-    });
 
     setLoading(true);
     setIsButtonDisabled(true);
@@ -119,7 +109,6 @@ export function CreditRequestCard({
         amount,
       };
 
-      console.log("Sending transfer request:", payload);
 
       const response = await fetch("/api/credits/transfer", {
         method: "POST",
@@ -148,7 +137,6 @@ export function CreditRequestCard({
         throw new Error(result.error || "Failed to transfer credits");
       }
 
-      console.log("Transfer successful:", result);
 
       setCurrentStatus("accepted");
       toast({

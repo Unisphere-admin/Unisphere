@@ -21,8 +21,13 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const { email, password, confirmPassword, userType, firstName, lastName, first_name, last_name, country } = body;
-        
+        const {
+            email, password, confirmPassword, userType,
+            firstName, lastName, first_name, last_name,
+            country,
+            destination, universities, school, applicationCycle, studentCountry, exams, intendedMajor
+        } = body;
+
         // Handle both naming conventions for fields
         const actualFirstName = firstName || first_name;
         const actualLastName = lastName || last_name;
@@ -118,7 +123,7 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Create student profile with country
+        // Create student profile with all collected onboarding data
         try {
             const { error: profileError } = await supabase
                 .from('student_profile')
@@ -126,7 +131,14 @@ export async function POST(req: NextRequest) {
                     id: data.user.id,
                     first_name: actualFirstName,
                     last_name: actualLastName,
-                    country: userCountry
+                    country: studentCountry || userCountry,
+                    countries_to_apply: destination || null,
+                    universities_to_apply: universities ? JSON.stringify(universities) : null,
+                    school_name: school || null,
+                    application_cycle: applicationCycle || null,
+                    planned_admissions_tests: exams ? JSON.stringify(exams) : null,
+                    intended_major: intendedMajor || null,
+                    survey_completed: true,
                 });
 
             if (profileError) {

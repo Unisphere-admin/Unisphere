@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, CreditCard, ArrowRight, Home, ShoppingCart, Loader2 } from "lucide-react";
+import { CheckCircle, CreditCard, ArrowRight, Home, Loader2 } from "lucide-react";
 
 interface SessionData {
   credits: number;
@@ -14,7 +14,7 @@ interface SessionData {
   packageId: string;
 }
 
-export default function CreditsSuccessPage() {
+function CreditsSuccessContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session_id');
   const [isLoading, setIsLoading] = useState(true);
@@ -36,7 +36,7 @@ export default function CreditsSuccessPage() {
       if (!response.ok) {
         throw new Error('Failed to fetch session details');
       }
-      
+
       const data = await response.json();
       setSessionData(data);
     } catch (error) {
@@ -83,7 +83,7 @@ export default function CreditsSuccessPage() {
         <div className="absolute top-20 right-[20%] w-[500px] h-[500px] bg-green-500/5 rounded-full blur-3xl opacity-70 animate-pulse" style={{animationDuration: '8s'}}></div>
         <div className="absolute -bottom-20 left-[10%] w-[600px] h-[600px] bg-primary/5 rounded-full blur-3xl opacity-60" style={{animationDuration: '12s'}}></div>
       </div>
-      
+
       <div className="relative z-10 max-w-2xl w-full">
         <Card className="border-border/40 shadow-xl backdrop-blur-sm bg-card/95">
           <CardHeader className="text-center pb-4">
@@ -95,7 +95,7 @@ export default function CreditsSuccessPage() {
               Your credits have been added to your account
             </CardDescription>
           </CardHeader>
-          
+
           <CardContent className="space-y-6">
             <div className="text-center">
               <div className="flex items-center justify-center gap-2 mb-2">
@@ -113,23 +113,23 @@ export default function CreditsSuccessPage() {
             </div>
 
             <div className="bg-muted/30 rounded-lg p-4 border border-border/40">
-              <h3 className="font-semibold mb-2">What's next?</h3>
+              <h3 className="font-semibold mb-2">What&apos;s next?</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li>• Book tutoring sessions with our expert tutors</li>
-                <li>• Purchase courses and resources from our marketplace</li>
+                <li>• Find expert tutors and book your first session</li>
                 <li>• Access premium features and exclusive content</li>
               </ul>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3">
               <Button asChild className="flex-1 bg-primary hover:bg-primary/90">
-                <Link href="/marketplace" className="flex items-center gap-2">
-                  <ShoppingCart className="h-4 w-4" />
-                  Browse Marketplace
+                <Link href="/tutors" className="flex items-center gap-2">
+                  <ArrowRight className="h-4 w-4" />
+                  Find a Tutor
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
-              
+
               <Button variant="outline" asChild className="flex-1">
                 <Link href="/dashboard" className="flex items-center gap-2">
                   <Home className="h-4 w-4" />
@@ -140,7 +140,7 @@ export default function CreditsSuccessPage() {
 
             <div className="text-center text-sm text-muted-foreground">
               <p>
-                A receipt has been sent to your email. 
+                A receipt has been sent to your email.
                 If you have any questions, please contact our support team.
               </p>
             </div>
@@ -149,4 +149,19 @@ export default function CreditsSuccessPage() {
       </div>
     </div>
   );
-} 
+}
+
+export default function CreditsSuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen with-navbar flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    }>
+      <CreditsSuccessContent />
+    </Suspense>
+  );
+}

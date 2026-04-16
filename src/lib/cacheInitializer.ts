@@ -17,7 +17,7 @@ export function initializeCache(): void {
   // Check if user is authenticated before prefetching data
   const supabase = createClient();
   
-  supabase.auth.getSession().then(({ data }) => {
+  supabase.auth.getSession().then(({ data }: { data: { session: any } }) => {
     if (data.session) {
       // User is authenticated, prefetch all essential data
       prefetchAllData();
@@ -25,7 +25,7 @@ export function initializeCache(): void {
       // User is not authenticated, only prefetch public data
       prefetchPublicData();
     }
-  }).catch(error => {
+  }).catch((_error: unknown) => {
     // Prefetch public data even if auth check fails
     prefetchPublicData();
   });

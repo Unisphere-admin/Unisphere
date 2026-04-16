@@ -11,11 +11,10 @@ import {
 
 // Export runtime config for improved performance
 export const runtime = 'edge';
-export const dynamic = 'force-dynamic';
 // Ensure consistent JSON response format with headers
 const jsonHeaders = {
   'Content-Type': 'application/json',
-  'Cache-Control': 'no-store, no-cache, must-revalidate'
+  'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=300'
 };
 
 // Helper function to create consistent JSON responses

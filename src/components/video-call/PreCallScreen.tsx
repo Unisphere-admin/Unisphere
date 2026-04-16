@@ -95,7 +95,6 @@ const PreCallScreen: React.FC<PreCallScreenProps> = ({
             videoTrack.play(videoRef.current);
           }
 
-          console.log('Media tracks created successfully');
         } catch (trackErr) {
           console.error('Error creating tracks:', trackErr);
           setError('Failed to create media tracks. Please check your devices.');
@@ -142,7 +141,6 @@ const PreCallScreen: React.FC<PreCallScreenProps> = ({
     try {
       setSelectedCamera(deviceId);
       await localVideoTrack.setDevice(deviceId);
-      console.log('Camera changed successfully');
     } catch (err) {
       console.error('Error changing camera:', err);
       // Revert selection on error
@@ -159,7 +157,6 @@ const PreCallScreen: React.FC<PreCallScreenProps> = ({
     try {
       setSelectedMicrophone(deviceId);
       await localAudioTrack.setDevice(deviceId);
-      console.log('Microphone changed successfully');
     } catch (err) {
       console.error('Error changing microphone:', err);
       // Revert selection on error

@@ -24,3 +24,18 @@ dist-ssr
 *.sln
 *.sw?
 *.exe
+
+# Junk / temp files
+.fuse_hidden*
+FIND_ME_DELETE_THIS.txt
+cookies.txt
+.env.local.save
+edited/
+/1.png
+/2.png
+/3.png
+NoteDiff_File_Catalog.xlsx
+University_Application_Deadlines_2027.docx
+linkedin-post-visual.html
+uni_selector_visual.html
+unisphere-performance-report.html

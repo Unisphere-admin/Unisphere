@@ -136,11 +136,11 @@ const TutorProfileCard = ({ tutor, reviews = [], loading = false }: TutorProfile
                        tutor.country.map(c => getCountryCode(c)).filter(Boolean) as string[] : [];
 
   return (
-    <Card className="overflow-hidden hover:shadow-md transition-shadow">
+    <Card className="overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 border-border/60">
       <CardContent className="p-0">
         <div className="p-6">
           <div className="flex items-center gap-4 mb-4">
-            <Avatar className="h-14 w-14 border">
+            <Avatar className="h-14 w-14 border border-border/40 ring-2 ring-transparent hover:ring-[#128ca0]/20 transition-all duration-200">
               <AvatarImage src={avatarUrl || "/placeholder.svg"} />
               <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
@@ -179,7 +179,7 @@ const TutorProfileCard = ({ tutor, reviews = [], loading = false }: TutorProfile
             </div>
           </div>
           
-          <p className="text-sm mb-4 line-clamp-3">
+          <p className="text-sm mb-4 line-clamp-3 leading-relaxed text-foreground/80">
             {tutor.description || "No description provided"}
           </p>
           

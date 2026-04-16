@@ -54,18 +54,15 @@ async function getPublicTutorsHandler(request: NextRequest): Promise<NextRespons
         }
         
         
-        // Create response with no-cache headers
+        // Create response with short-lived cache (30s fresh, serve stale up to 5min while revalidating)
         const response = NextResponse.json({ tutors });
-        
-        // Set no-cache headers
-        response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-        response.headers.set('Pragma', 'no-cache');
-        response.headers.set('Expires', '0');
-        
+
+        response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
+
         return response;
     } catch (error) {
         return NextResponse.json(
-            { 
+            {
                 error: error instanceof Error ? error.message : 'Internal server error',
                 details: error instanceof Error ? error.stack : undefined,
                 hint: 'This may be a temporary network issue, please try again later.'
@@ -84,22 +81,19 @@ async function getTutorsHandler(
         // Use the data access layer to get tutors - pass premium access status
         const hasPremiumAccess = user.is_tutor || user.has_access === true;
         const { tutors, error } = await getAllTutors(hasPremiumAccess);
-        
+
         if (error) {
             return NextResponse.json(
                 { error },
                 { status: 500 }
             );
         }
-        
-        
-        // Create response with no-cache headers to prevent authentication leakage
+
+
+        // Short-lived private cache for authenticated responses (30s fresh, stale-while-revalidate 5min)
         const response = NextResponse.json({ tutors });
-        
-        // Set no-cache headers to prevent authenticated data from being cached
-        response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-        response.headers.set('Pragma', 'no-cache');
-        response.headers.set('Expires', '0');
+
+        response.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=300');
         
         return response;
     } catch (error) {

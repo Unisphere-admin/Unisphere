@@ -2,13 +2,133 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Summer Studio banner animations ────────────────────────────────── */
+@keyframes ss-banner-float1 { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(-20px,15px) scale(1.04)} 66%{transform:translate(15px,-12px) scale(0.97)} }
+@keyframes ss-banner-float2 { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(18px,-18px) scale(1.06)} 66%{transform:translate(-12px,20px) scale(0.94)} }
+@keyframes ss-banner-float3 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-10px,-10px) scale(1.05)} }
+@keyframes ss-banner-pulse  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.75)} }
+@keyframes ss-banner-gradient { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+
+/* ── Global smoothness & accessibility baseline ─────────────────────── */
+
+/* Smooth scrolling — respect reduced-motion preference */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Respect reduced-motion for ALL animations globally */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Brand-colored text selection */
+::selection {
+  background: rgba(18, 140, 160, 0.18);
+  color: inherit;
+}
+
+/* Custom scrollbar — subtle, brand-tinted */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(18, 140, 160, 0.25);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(18, 140, 160, 0.45);
+}
+
+/* cursor: pointer on all interactive elements */
+button:not([disabled]),
+[role="button"]:not([aria-disabled="true"]),
+label[for],
+select,
+summary {
+  cursor: pointer;
+}
+
 /* Add fadeIn animation keyframes */
+@keyframes uniRingPulse {
+  0%   { opacity: 1; transform: translate(-50%,-50%) scale(0.3); }
+  100% { opacity: 0; transform: translate(-50%,-50%) scale(1.8); }
+}
+.uni-ring-animate {
+  animation: uniRingPulse 0.35s ease-out forwards;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
   }
   to {
     opacity: 1;
+  }
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes stripeShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.dream-gradient {
+  background: linear-gradient(
+    270deg,
+    #635bff,
+    #00d4ff,
+    #7b5ea7,
+    #ff6ec7,
+    #435bff,
+    #00c2ff
+  );
+  background-size: 400% 400%;
+  animation: stripeShift 5s ease infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* FlipWords component animations */
+@keyframes flipWordLetterEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) rotateX(40deg) scale(0.95);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotateX(0deg) scale(1);
+    filter: blur(0px);
+  }
+}
+
+@keyframes flipWordLetterExit {
+  0% {
+    opacity: 1;
+    transform: translateY(0) rotateX(0deg) scale(1);
+    filter: blur(0px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) rotateX(-40deg) scale(0.95);
+    filter: blur(4px);
   }
 }
 
@@ -25,48 +145,45 @@
     --blue-teal: 190 60% 32%; /* #126d94 */
     --dark-teal: 185 78% 25%; /* #0e6b68 */
     
-    /* UI theming variables using our color palette */
-    /* --background: 140 30% 98%; */
-    --background: 186 30% 92%;
-    /* --foreground: 180 45% 25%; */
-    --foreground: 198, 78%, 28%;
+    /* UI theming variables - clean white theme */
+    --background: 0 0% 100%;
+    --foreground: 220 15% 20%;
 
-    --card: 186 30% 93%;
-    --card-foreground: 198 78% 28%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 15% 20%;
 
-    --popover: 186 30% 93%;
-    --popover-foreground: 180 45% 25%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 15% 20%;
 
-    --primary: 186 30% 50%; /* #128ca0 (teal) */
-    --primary-foreground: 140 30% 98%;
+    --primary: 186 30% 50%; /* keep teal for buttons/accents */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 190 60% 32%; /* #126d94 (blue-teal) */
+    --secondary: 190 60% 32%; /* keep blue-teal */
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 150 25% 95%;
-    /* --muted-foreground: 180 30% 35%; */
-    --muted-foreground: 203, 36%, 38%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 220 10% 45%;
 
-    --accent: 186 34% 68%; /* #84b4cc (mint-green) */
-    --accent-foreground: 185 78% 25%;
+    --accent: 0 0% 94%;
+    --accent-foreground: 220 15% 20%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 150 25% 85%; /* #c7e4e3 (pale-moss) */
-    --input: 150 25% 85%;  /* #c7e4e3 (pale-moss) */
-    --ring: 178 38% 55%;   /* #3e5461 (medium-teal) */
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 186 30% 50%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 150 25% 95%; /* Lighter version of pale-moss */
-    --sidebar-foreground: 180 45% 25%;
-    --sidebar-primary: 180 78% 32%; /* #128ca0 (teal) */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 220 15% 20%;
+    --sidebar-primary: 180 78% 32%; /* keep teal */
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 160 34% 68%; /* #84b4cc (mint-green) */
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 150 25% 85%; /* #c7e4e3 (pale-moss) */
-    --sidebar-ring: 178 38% 55%;   /* #3e5461 (medium-teal) */
+    --sidebar-accent: 0 0% 94%;
+    --sidebar-accent-foreground: 220 15% 20%;
+    --sidebar-border: 0 0% 90%;
+    --sidebar-ring: 186 30% 50%;
 
     --navbar-height: 64px;
   }
@@ -99,11 +216,33 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-satoshi), sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Brand-colored, visible focus rings for keyboard navigation */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Smooth transitions for interactive elements */
+  a, button {
+    transition-property: color, background-color, border-color, opacity, box-shadow, transform;
+    transition-duration: 180ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   h1, h2, h3, h4, h5, h6 {
     @apply font-semibold tracking-tight;
+    font-family: var(--font-satoshi), sans-serif;
+    line-height: 1.2;
+    letter-spacing: -0.015em;
   }
 
   h1 {
@@ -121,11 +260,48 @@
 
 @layer components {
   .hero-gradient {
-    @apply bg-gradient-to-b from-[#c7e4e3] via-[#84b4cc] to-background;
+    @apply bg-white;
   }
 
   .card-hover {
-    @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+    @apply transition-all duration-200 hover:shadow-lg hover:-translate-y-1;
+    will-change: transform;
+  }
+
+  /* Active nav link indicator — subtle underline that grows from center */
+  .nav-link-active {
+    position: relative;
+    color: hsl(var(--foreground)) !important;
+  }
+  .nav-link-active::after {
+    content: "";
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: hsl(var(--teal));
+    border-radius: 999px;
+  }
+
+  /* Animated underline for nav links on hover */
+  .nav-link-hover {
+    position: relative;
+  }
+  .nav-link-hover::after {
+    content: "";
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    right: 50%;
+    height: 2px;
+    background: hsl(var(--teal) / 0.5);
+    border-radius: 999px;
+    transition: left 200ms ease, right 200ms ease;
+  }
+  .nav-link-hover:hover::after {
+    left: 0;
+    right: 0;
   }
 
   .button-glow {
@@ -274,10 +450,10 @@
 
 @media (max-width: 768px) {
   .chat-drawer {
-    width: 100vw;
-    right: -100vw;
+    width: 100%;
+    right: -100%;
   }
-  
+
   .chat-drawer.open {
     right: 0;
   }

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, ControllerRenderProps, FieldPath, useFieldArray, Control } from "react-hook-form";
 import * as z from "zod";
-import { Loader2, Save, Mail, AlertCircle, Upload, X, Camera, User, Trash2, Plus, Tag } from "lucide-react";
+import { Loader2, Save, Mail, AlertCircle, Upload, X, Camera, User, Trash2, Plus, Tag, ChevronDown, CheckCircle2, GraduationCap, BookOpen, FileText, Activity, Award, Globe, Pencil, School } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,18 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createClient } from "@/utils/supabase/client";
 import Image from "next/image";
 import { uploadAvatar } from "@/utils/supabase/storage";
-import { AvatarEditor } from "@/components/AvatarEditor";
+import dynamic from "next/dynamic";
+const AvatarEditor = dynamic(
+  () => import("@/components/AvatarEditor").then((m) => m.AvatarEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-64 rounded-lg bg-muted/30 animate-pulse">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    ),
+  }
+);
 import { useCsrfToken } from "@/lib/csrf/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -44,7 +55,7 @@ const studentProfileSchema = baseProfileSchema.extend({
   bio: z.string().max(5000, "Bio must be less than 5000 characters").optional(),
   
   // Basic Information fields
-  age: z.string().max(3, "Invalid age").optional(),
+  date_of_birth: z.string().optional(),
   year: z.string().max(50, "Must be less than 50 characters").optional(),
   
   // Educational background
@@ -56,7 +67,7 @@ const studentProfileSchema = baseProfileSchema.extend({
   
   // University planning fields
   application_cycle: z.string().max(50, "Must be less than 50 characters").optional(),
-  countries_to_apply: z.string().max(500, "Must be less than 500 characters").optional(),
+  countries_to_apply: z.enum(["UK", "US", "Both"]).optional(),
   universities_to_apply: z.string().max(1000, "Must be less than 1000 characters").optional(),
   planned_admissions_tests: z.string().max(500, "Must be less than 500 characters").optional(),
   completed_admissions_tests: z.string().max(500, "Must be less than 500 characters").optional(),
@@ -113,7 +124,6 @@ const studentProfileSchema = baseProfileSchema.extend({
   ).optional(),
   
   // The following fields are kept but not shown in the form
-  date_of_birth: z.string().optional(),
   gender: z.string().optional(),
   nationality: z.string().max(100, "Must be less than 100 characters").optional(),
   phone_number: z.string().max(20, "Must be less than 20 characters").optional(),
@@ -801,6 +811,47 @@ const AwardsTable = ({
   );
 };
 
+const PASTEL_THEMES: Record<string, { icon: React.ReactNode; bg: string; border: string; hoverBg: string; accentColor: string; expandedBg: string; gradientFrom: string; gradientTo: string }> = {
+  "Personal Details":              { icon: <User className="h-4 w-4" />,          bg: "bg-[#FFF0F3]", border: "border-[#FECDD3]", hoverBg: "hover:bg-[#FFE4E9]", accentColor: "text-rose-500",    expandedBg: "bg-[#FFF5F7]", gradientFrom: "from-[#FFF0F3]", gradientTo: "to-[#FFF7F8]" },
+  "School & Subjects":             { icon: <School className="h-4 w-4" />,        bg: "bg-[#FFF8EB]", border: "border-[#FDE68A]", hoverBg: "hover:bg-[#FEF3C7]", accentColor: "text-amber-500",   expandedBg: "bg-[#FFFBF0]", gradientFrom: "from-[#FFF8EB]", gradientTo: "to-[#FFFDF5]" },
+  "Qualifications & Exams":        { icon: <FileText className="h-4 w-4" />,      bg: "bg-[#F3F0FF]", border: "border-[#DDD6FE]", hoverBg: "hover:bg-[#EDE9FE]", accentColor: "text-violet-500",  expandedBg: "bg-[#F8F5FF]", gradientFrom: "from-[#F3F0FF]", gradientTo: "to-[#FAF8FF]" },
+  "University Application Details": { icon: <GraduationCap className="h-4 w-4" />, bg: "bg-[#EFF8FF]", border: "border-[#BAE6FD]", hoverBg: "hover:bg-[#E0F2FE]", accentColor: "text-sky-500",     expandedBg: "bg-[#F5FAFF]", gradientFrom: "from-[#EFF8FF]", gradientTo: "to-[#F8FCFF]" },
+  "Extracurricular Activities":    { icon: <Activity className="h-4 w-4" />,      bg: "bg-[#ECFDF5]", border: "border-[#A7F3D0]", hoverBg: "hover:bg-[#D1FAE5]", accentColor: "text-emerald-500", expandedBg: "bg-[#F2FDF8]", gradientFrom: "from-[#ECFDF5]", gradientTo: "to-[#F7FEF9]" },
+  "Honors & Awards":               { icon: <Award className="h-4 w-4" />,         bg: "bg-[#FDF4FF]", border: "border-[#F0ABFC]", hoverBg: "hover:bg-[#FAE8FF]", accentColor: "text-fuchsia-500", expandedBg: "bg-[#FEF9FF]", gradientFrom: "from-[#FDF4FF]", gradientTo: "to-[#FEFAFF]" },
+  "Goals & Learning Style":        { icon: <User className="h-4 w-4" />,          bg: "bg-[#F0FDF4]", border: "border-[#86EFAC]", hoverBg: "hover:bg-[#DCFCE7]", accentColor: "text-green-500",   expandedBg: "bg-[#F7FEF9]", gradientFrom: "from-[#F0FDF4]", gradientTo: "to-[#F7FEF9]" },
+  "A-Levels":                      { icon: <BookOpen className="h-4 w-4" />,      bg: "bg-[#EEF2FF]", border: "border-[#C7D2FE]", hoverBg: "hover:bg-[#E0E7FF]", accentColor: "text-indigo-500",  expandedBg: "bg-[#F5F7FF]", gradientFrom: "from-[#EEF2FF]", gradientTo: "to-[#F8F9FF]" },
+  "IB Diploma":                    { icon: <Globe className="h-4 w-4" />,         bg: "bg-[#FFF1F2]", border: "border-[#FECACA]", hoverBg: "hover:bg-[#FFE4E6]", accentColor: "text-red-400",     expandedBg: "bg-[#FFF5F5]", gradientFrom: "from-[#FFF1F2]", gradientTo: "to-[#FFF8F8]" },
+  "IGCSE / GCSE":                  { icon: <BookOpen className="h-4 w-4" />,      bg: "bg-[#FFF7ED]", border: "border-[#FDBA74]", hoverBg: "hover:bg-[#FFEDD5]", accentColor: "text-orange-500",  expandedBg: "bg-[#FFFAF2]", gradientFrom: "from-[#FFF7ED]", gradientTo: "to-[#FFFCF5]" },
+  "SPM":                           { icon: <Pencil className="h-4 w-4" />,        bg: "bg-[#FFF0FC]", border: "border-[#F9A8D4]", hoverBg: "hover:bg-[#FCE7F3]", accentColor: "text-pink-500",    expandedBg: "bg-[#FFF5FD]", gradientFrom: "from-[#FFF0FC]", gradientTo: "to-[#FFF8FE]" },
+};
+
+const DEFAULT_PASTEL = { icon: <FileText className="h-4 w-4" />, bg: "bg-[#F8FAFC]", border: "border-slate-200", hoverBg: "hover:bg-slate-100", accentColor: "text-slate-500", expandedBg: "bg-[#FAFBFC]", gradientFrom: "from-slate-50", gradientTo: "to-white" };
+
+function CollapsibleQualSection({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const theme = PASTEL_THEMES[title] || DEFAULT_PASTEL;
+  return (
+    <div className={`border ${theme.border} rounded-2xl overflow-hidden bg-gradient-to-br ${theme.gradientFrom} ${theme.gradientTo} transition-all duration-300 ${open ? "shadow-md ring-1 ring-black/[0.03]" : "shadow-sm hover:shadow-md"}`}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={`flex items-center justify-between w-full px-5 py-4 text-left ${theme.hoverBg} transition-all duration-200`}
+      >
+        <span className="flex items-center gap-2.5">
+          <span className="leading-none">{theme.icon}</span>
+          <span className="font-semibold text-sm text-foreground">{title}</span>
+        </span>
+        <ChevronDown className={`h-4 w-4 ${theme.accentColor} transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className={`px-5 pb-5 pt-2 border-t ${theme.border} ${theme.expandedBg}`}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const { user, refreshUser } = useAuth();
@@ -822,7 +873,18 @@ export default function SettingsPage() {
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { token, fetchCsrfToken } = useCsrfToken();
-  
+  const pathname = usePathname();
+  const isSettingsPage = pathname?.includes('/settings');
+  const isProfilePage = pathname?.includes('/profile');
+
+  // Autosave
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const savedIndicatorTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const formReadyRef = useRef(false);
+  const isAutoSaveRef = useRef(false);
+  const autoSaveHandlerRef = useRef<(() => Promise<void>) | undefined>(undefined);
+
   // Service options for tutors
   const serviceOptions = [
     "Extracurricular Building",
@@ -977,14 +1039,6 @@ export default function SettingsPage() {
     }
     
     try {
-      // Ensure session is valid before making the request
-      const isSessionValid = await ensureAuthSession();
-      if (!isSessionValid) {
-        toast.error("Session expired. Please sign in again.");
-        router.push("/login");
-        return;
-      }
-      
       const response = await fetch(`/api/users/profile/${user.id}`, {
         method: "GET",
         headers: {
@@ -1078,15 +1132,12 @@ export default function SettingsPage() {
         setServiceCosts(extractedServiceCosts || {});
         
         // Log the data being set for debugging
-        console.log("Setting tutor form data:", tutorFormData);
-        console.log("Formatted subjects:", formattedSubjects);
-        console.log("Extracted service costs:", extractedServiceCosts);
       } else {
         // Reset student form with basic fields
         studentForm.reset({
           first_name: data.profile.first_name || "",
           last_name: data.profile.last_name || "",
-          age: data.profile.age?.toString() || "",
+          date_of_birth: data.profile.date_of_birth || "",
           year: data.profile.year || "",
           school_name: data.profile.school_name || "",
           previous_schools: Array.isArray(data.profile.previous_schools)
@@ -1120,15 +1171,22 @@ export default function SettingsPage() {
           // Educational goals
           intended_universities: data.profile.intended_universities || "",
           intended_major: data.profile.intended_major || "",
+
+          // Goals & learning
+          career_goals: data.profile.career_goals || "",
+          academic_achievements: data.profile.academic_achievements || "",
+          learning_style: data.profile.learning_style || "",
         });
-        
+
         // Update email form separately
         emailForm.reset({
           email: user.email || "",
         });
       }
-      
+
       setHasLoadedOnce(true);
+      // Enable autosave after initial form population settles
+      setTimeout(() => { formReadyRef.current = true; }, 500);
     } catch (error) {
       if (!silent) {
         toast.error("Failed to load profile data");
@@ -1240,13 +1298,12 @@ export default function SettingsPage() {
         tutorForm.reset(tutorFormData);
         setServiceCosts(extractedServiceCosts);
         
-        console.log("Resetting tutor form with profile data:", tutorFormData);
       } else {
         // Reset student form with basic fields
         studentForm.reset({
           first_name: profileData.first_name || "",
           last_name: profileData.last_name || "",
-          age: profileData.age?.toString() || "",
+          date_of_birth: profileData.date_of_birth || "",
           year: profileData.year || "",
           school_name: profileData.school_name || "",
           previous_schools: Array.isArray(profileData.previous_schools)
@@ -1270,7 +1327,7 @@ export default function SettingsPage() {
           
           // University planning fields
           application_cycle: profileData.application_cycle || "",
-          countries_to_apply: profileData.countries_to_apply || "",
+          countries_to_apply: (profileData.countries_to_apply || undefined) as "US" | "UK" | "Both" | undefined,
           universities_to_apply: profileData.universities_to_apply || "",
           planned_admissions_tests: profileData.planned_admissions_tests || "",
           completed_admissions_tests: profileData.completed_admissions_tests || "",
@@ -1280,6 +1337,11 @@ export default function SettingsPage() {
           // Educational goals
           intended_universities: profileData.intended_universities || "",
           intended_major: profileData.intended_major || "",
+
+          // Goals & learning
+          career_goals: profileData.career_goals || "",
+          academic_achievements: profileData.academic_achievements || "",
+          learning_style: profileData.learning_style || "",
         });
       }
 
@@ -1300,20 +1362,12 @@ export default function SettingsPage() {
   // Handle form submission for student profiles
   const onStudentSubmit = async (data: StudentProfileFormValues) => {
     if (!user) return;
-    setProfileLoading(true);
+    const isAutoSave = isAutoSaveRef.current;
+    isAutoSaveRef.current = false;
+    if (isAutoSave) setAutoSaveStatus('saving');
+    else setProfileLoading(true);
 
     try {
-      // Ensure session is valid before making the request
-      const isSessionValid = await ensureAuthSession();
-      if (!isSessionValid) {
-        toast.error("Session expired. Please sign in again.");
-        router.push("/login");
-        return;
-      }
-      
-      console.log("Form data received:", data);
-      console.log("Country value from form:", data.country);
-      
       // Process current_subjects as an array
       const currentSubjects = data.current_subjects 
         ? data.current_subjects.split(',').map(s => s.trim()).filter(Boolean)
@@ -1329,7 +1383,7 @@ export default function SettingsPage() {
         first_name: data.first_name,
         last_name: data.last_name,
         bio: data.bio,
-        age: data.age,
+        date_of_birth: data.date_of_birth || null,
         year: data.year,
         school_name: data.school_name,
         previous_schools: previousSchools && previousSchools.length > 0 ? previousSchools : null,
@@ -1365,8 +1419,6 @@ export default function SettingsPage() {
         intended_major: data.intended_major || null,
       };
       
-      console.log("Sending profile data:", JSON.stringify(profileData, null, 2));
-      console.log("Country field in profileData:", profileData.country);
 
       const response = await fetch("/api/users/profile", {
         method: "PATCH",
@@ -1392,17 +1444,27 @@ export default function SettingsPage() {
       }
 
       const responseData = await response.json();
-      console.log("Profile update success. Response data:", responseData);
 
       // Refresh user data silently
-      await refreshUser(true);
-      await fetchProfileData(true);
-      toast.success("Profile updated successfully");
+      formReadyRef.current = false;
+      await Promise.all([refreshUser(true), fetchProfileData(true)]);
+      setTimeout(() => { formReadyRef.current = true; }, 500);
+      if (isAutoSave) {
+        setAutoSaveStatus('saved');
+        if (savedIndicatorTimerRef.current) clearTimeout(savedIndicatorTimerRef.current);
+        savedIndicatorTimerRef.current = setTimeout(() => setAutoSaveStatus('idle'), 3000);
+      } else {
+        toast.success("Profile updated successfully");
+      }
     } catch (error) {
       console.error("Profile update failed:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to update profile");
+      if (isAutoSave) {
+        setAutoSaveStatus('idle');
+      } else {
+        toast.error(error instanceof Error ? error.message : "Failed to update profile");
+      }
     } finally {
-      setProfileLoading(false);
+      if (!isAutoSave) setProfileLoading(false);
     }
   };
 
@@ -1416,14 +1478,6 @@ export default function SettingsPage() {
     setEmailError("");
 
     try {
-      // Ensure session is valid before making the request
-      const isSessionValid = await ensureAuthSession();
-      if (!isSessionValid) {
-        toast.error("Session expired. Please sign in again.");
-        router.push("/login");
-        return;
-      }
-
       // Only process if email has changed
       if (data.email && data.email !== user.email) {
         const emailResponse = await fetch("/api/users/update-email", {
@@ -1467,18 +1521,13 @@ export default function SettingsPage() {
   // Handle form submission for tutor profiles
   const onTutorSubmit = async (data: TutorProfileFormValues) => {
     if (!user) return;
-    setProfileLoading(true);
+    const isAutoSave = isAutoSaveRef.current;
+    isAutoSaveRef.current = false;
+    if (isAutoSave) setAutoSaveStatus('saving');
+    else setProfileLoading(true);
 
     try {
       
-      // Ensure session is valid before making the request
-      const isSessionValid = await ensureAuthSession();
-      if (!isSessionValid) {
-        toast.error("Session expired. Please sign in again.");
-        router.push("/login");
-        return;
-      }
-
       // Format service costs for storage as numbers only
       const formattedServiceCosts: Record<string, number> = {};
       if (data.serviceCosts) {
@@ -1495,8 +1544,6 @@ export default function SettingsPage() {
         });
       }
       
-      console.log("Form data received:", data);
-      console.log("Formatted service costs:", formattedServiceCosts);
 
 
       const payload = {
@@ -1533,16 +1580,29 @@ export default function SettingsPage() {
       }
 
       // Refresh user data silently
-      await refreshUser(true);
-      await fetchProfileData(true);
-      toast.success("Profile updated successfully");
+      formReadyRef.current = false;
+      await Promise.all([refreshUser(true), fetchProfileData(true)]);
+      setTimeout(() => { formReadyRef.current = true; }, 500);
+      if (isAutoSave) {
+        setAutoSaveStatus('saved');
+        if (savedIndicatorTimerRef.current) clearTimeout(savedIndicatorTimerRef.current);
+        savedIndicatorTimerRef.current = setTimeout(() => setAutoSaveStatus('idle'), 3000);
+      } else {
+        toast.success("Profile updated successfully");
+      }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update profile");
+      if (isAutoSave) {
+        setAutoSaveStatus('idle');
+      } else {
+        toast.error(error instanceof Error ? error.message : "Failed to update profile");
+      }
     } finally {
-      // Slight delay to ensure state updates properly before setting loading to false
-      setTimeout(() => {
-        setProfileLoading(false);
-      }, 300);
+      if (!isAutoSave) {
+        // Slight delay to ensure state updates properly before setting loading to false
+        setTimeout(() => {
+          setProfileLoading(false);
+        }, 300);
+      }
     }
   };
 
@@ -1614,14 +1674,6 @@ export default function SettingsPage() {
       setAvatarLoading(true);
       setAvatarError(null);
       
-      // Ensure session is valid before upload
-      const isSessionValid = await ensureAuthSession();
-      if (!isSessionValid) {
-        toast.error("Session expired. Please sign in again.");
-        router.push("/login");
-        return;
-      }
-      
       // Ensure we have a CSRF token
       let csrfToken = token;
       if (!csrfToken) {
@@ -1683,8 +1735,7 @@ export default function SettingsPage() {
       }
       
       // Refresh user data and clear the file input
-      await refreshUser(true);
-      await fetchProfileData(true);
+      await Promise.all([refreshUser(true), fetchProfileData(true)]);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -1727,14 +1778,6 @@ export default function SettingsPage() {
     setPasswordError("");
 
     try {
-      // Ensure session is valid before making the request
-      const isSessionValid = await ensureAuthSession();
-      if (!isSessionValid) {
-        toast.error("Session expired. Please sign in again.");
-        router.push("/login");
-        return;
-      }
-
       // First verify the current password by making an API call
       const verifyResponse = await fetch('/api/auth/verify-password', {
         method: 'POST',
@@ -1862,8 +1905,6 @@ export default function SettingsPage() {
       const subjects = tutorForm.watch("subjects");
       const serviceCosts = tutorForm.watch("serviceCosts");
       
-      console.log("Form subjects:", subjects);
-      console.log("Form service costs:", serviceCosts);
       
       if (Array.isArray(subjects) && subjects.length > 0) {
         // Log each subject and which service it belongs to
@@ -1871,7 +1912,6 @@ export default function SettingsPage() {
           for (const service of serviceOptions) {
             if (subjectBelongsToService(subject, service)) {
               if (subject !== service) {
-                console.log(`Subject ${subject} belongs to service ${service}`);
               }
               break;
             }
@@ -1880,6 +1920,53 @@ export default function SettingsPage() {
       }
     }
   }, [isTutor, tutorForm.watch("subjects"), tutorForm.watch("serviceCosts")]);
+
+  // Keep autoSaveHandlerRef pointing at the latest submit logic
+  autoSaveHandlerRef.current = async () => {
+    const form = isTutor ? tutorForm : studentForm;
+    isAutoSaveRef.current = true;
+    const isValid = await form.trigger();
+    if (isValid) {
+      if (isTutor) {
+        await onTutorSubmit(form.getValues() as TutorProfileFormValues);
+      } else {
+        await onStudentSubmit(form.getValues() as StudentProfileFormValues);
+      }
+    } else {
+      isAutoSaveRef.current = false;
+    }
+  };
+
+  // Autosave effect - watches form changes and saves after a 1.5s debounce
+  useEffect(() => {
+    if (!hasLoadedOnce) return;
+
+    const watchCallback = () => {
+      if (!formReadyRef.current) return;
+
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+
+      autoSaveTimerRef.current = setTimeout(() => {
+        autoSaveHandlerRef.current?.();
+      }, 1500);
+    };
+
+    const subscription = isTutor
+      ? tutorForm.watch(watchCallback)
+      : studentForm.watch(watchCallback);
+
+    return () => {
+      (subscription as { unsubscribe: () => void }).unsubscribe();
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [isTutor, hasLoadedOnce, studentForm, tutorForm]);
+
+  // Cleanup indicator timer on unmount
+  useEffect(() => {
+    return () => {
+      if (savedIndicatorTimerRef.current) clearTimeout(savedIndicatorTimerRef.current);
+    };
+  }, []);
 
   // Create a skeleton loading component
   const SettingsSkeleton = () => (
@@ -2004,9 +2091,11 @@ export default function SettingsPage() {
       <div className="container max-w-3xl py-8 relative min-h-[calc(100vh-var(--navbar-height)-2rem)]">
         <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background pointer-events-none -z-10"></div>
         <div className="space-y-0.5 mb-6">
-          <h2 className="text-2xl font-bold">Settings</h2>
+          <h2 className="text-2xl font-bold">{isProfilePage ? 'Profile' : 'Settings'}</h2>
           <p className="text-muted-foreground">
-            Manage your account settings and profile information
+            {isProfilePage
+              ? 'Manage your profile information'
+              : 'Manage your account settings'}
           </p>
         </div>
         <Separator className="my-6 opacity-70" />
@@ -2040,16 +2129,18 @@ export default function SettingsPage() {
       <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background pointer-events-none -z-10"></div>
       
       <div className="space-y-0.5 mb-6">
-        <h2 className="text-2xl font-bold">Settings</h2>
+        <h2 className="text-2xl font-bold">{isProfilePage ? 'Profile' : 'Settings'}</h2>
         <p className="text-muted-foreground">
-          Manage your account settings and profile information
+          {isProfilePage
+            ? 'Manage your profile information'
+            : 'Manage your account settings'}
         </p>
       </div>
 
       <Separator className="my-6 opacity-70" />
 
-      {/* Profile Picture Card */}
-      <Card className="mb-8 bg-card/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-lg transition-all">
+      {/* Profile Picture Card - only on profile page */}
+      {!isSettingsPage && <Card className="mb-8 bg-card/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-lg transition-all">
         <CardHeader>
           <CardTitle>Profile Picture</CardTitle>
           <CardDescription>
@@ -2164,13 +2255,6 @@ export default function SettingsPage() {
                         className="w-full sm:w-auto shadow-sm border-border/40 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-all"
                         onClick={async () => {
                           // Update profile to remove avatar URL
-                          const isSessionValid = await ensureAuthSession();
-                          if (!isSessionValid) {
-                            toast.error("Session expired. Please sign in again.");
-                            router.push("/login");
-                            return;
-                          }
-                          
                           const response = await fetch("/api/users/profile", {
                             method: "PATCH",
                             headers: {
@@ -2208,9 +2292,10 @@ export default function SettingsPage() {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
-      <Card className="mb-8 bg-card/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-lg transition-all">
+      {/* Profile Settings Card - only on profile page */}
+      {!isSettingsPage && <Card className="mb-8 bg-card/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-lg transition-all">
         <CardHeader>
           <CardTitle>Profile Settings</CardTitle>
           <CardDescription>
@@ -2318,7 +2403,6 @@ export default function SettingsPage() {
                                       if (currentServiceCosts[service] === undefined) {
                                         const updatedCosts = { ...currentServiceCosts, [service]: 0 };
                                         tutorForm.setValue("serviceCosts", updatedCosts);
-                                        console.log("Initializing cost for service:", service, "with value:", 0);
                                       }
                                     }
                                   } else {
@@ -2552,386 +2636,460 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="flex justify-end">
-                  <Button type="submit" disabled={profileLoading} className="shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]">
-                    {profileLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="mr-2 h-4 w-4" />
-                        Save Changes
-                      </>
-                    )}
-                  </Button>
+                {/* Autosave indicator */}
+                <div className="flex justify-end items-center h-8">
+                  {autoSaveStatus === 'saving' && (
+                    <span className="flex items-center gap-1.5 text-sm text-muted-foreground animate-pulse">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Saving...
+                    </span>
+                  )}
+                  {autoSaveStatus === 'saved' && (
+                    <span className="flex items-center gap-1.5 text-sm text-green-600">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      All changes saved
+                    </span>
+                  )}
                 </div>
               </form>
             </Form>
           ) : (
-            // Student profile form - With simplified basic information
+            // Student profile form - Hub layout
             <Form {...studentForm}>
-              <form onSubmit={studentForm.handleSubmit(onStudentSubmit)} className="space-y-8">
-                {/* Basic Information */}
-                <div>
-                  <h3 className="text-lg font-medium mb-4">Basic Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={studentForm.control}
-                      name="first_name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>First Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="John" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={studentForm.control}
-                      name="last_name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Last Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Doe" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+              <form onSubmit={studentForm.handleSubmit(onStudentSubmit)} className="space-y-6">
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    <FormField
-                      control={studentForm.control}
-                      name="age"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Age</FormLabel>
-                          <FormControl>
-                            <Input type="number" placeholder="18" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={studentForm.control}
-                      name="year"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Year/Form</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. Year 12, Form 6" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                {/* ── KEY INFO (always visible) ── */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={studentForm.control}
+                    name="first_name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>First Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="John" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={studentForm.control}
+                    name="last_name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Last Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Doe" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    <FormField
-                      control={studentForm.control}
-                      name="country"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Country</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                {/* Bio */}
+                <FormField
+                  control={studentForm.control}
+                  name="bio"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bio</FormLabel>
+                      <FormControl>
+                        <textarea
+                          className="flex min-h-[100px] w-full rounded-md border border-input bg-background/80 backdrop-blur-sm px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm focus-visible:border-primary/30 transition-all"
+                          placeholder="Tell us about yourself, your interests, and what you hope to achieve..."
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Where are you applying + What do you want to study */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={studentForm.control}
+                    name="countries_to_apply"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Where are you applying?</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl>
+                            <SelectTrigger className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm">
+                              <SelectValue placeholder="Select a destination" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="UK">UK</SelectItem>
+                            <SelectItem value="US">US</SelectItem>
+                            <SelectItem value="Both">Both (UK & US)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          This determines which timeline tracks are shown by default.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={studentForm.control}
+                    name="intended_major"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>What do you want to study?</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g. Computer Science, undecided but leaning STEM" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                        </FormControl>
+                        <FormDescription>
+                          Be as specific or open as you like
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Dream universities */}
+                <FormField
+                  control={studentForm.control}
+                  name="universities_to_apply"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Dream Universities</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. Oxford, Cambridge, Harvard, MIT" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* ── EXPANDABLE SECTIONS ── */}
+                <div className="space-y-3.5 pt-4">
+                  <p className="text-xs text-muted-foreground/80 uppercase tracking-wider font-semibold flex items-center gap-1.5">Tap to expand each section</p>
+
+                  <CollapsibleQualSection title="Personal Details">
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                          control={studentForm.control}
+                          name="date_of_birth"
+                          render={({ field }) => {
+                            const age = field.value ? (() => {
+                              const dob = new Date(field.value);
+                              const today = new Date();
+                              let a = today.getFullYear() - dob.getFullYear();
+                              const m = today.getMonth() - dob.getMonth();
+                              if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) a--;
+                              return a;
+                            })() : null;
+                            return (
+                              <FormItem>
+                                <FormLabel>Date of Birth</FormLabel>
+                                <FormControl>
+                                  <Input type="date" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                                </FormControl>
+                                {age !== null && age >= 0 && (
+                                  <FormDescription>Age: {age} years old</FormDescription>
+                                )}
+                                <FormMessage />
+                              </FormItem>
+                            );
+                          }}
+                        />
+                        <FormField
+                          control={studentForm.control}
+                          name="year"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Year/Form</FormLabel>
+                              <FormControl>
+                                <Input placeholder="e.g. Year 12, Form 6" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </CollapsibleQualSection>
+
+                  <CollapsibleQualSection title="School & Subjects">
+                    <div className="space-y-4">
+                      <FormField
+                        control={studentForm.control}
+                        name="school_name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Current School</FormLabel>
                             <FormControl>
-                              <SelectTrigger className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm">
-                                <SelectValue placeholder="Select your country" />
-                              </SelectTrigger>
+                              <Input placeholder="Oxford High School" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
                             </FormControl>
-                            <SelectContent>
-                              <SelectItem value="MY">Malaysia (Ringgit)</SelectItem>
-                              <SelectItem value="GB">United Kingdom (GBP)</SelectItem>
-                              <SelectItem value="HK">Hong Kong (HKD)</SelectItem>
-                              <SelectItem value="SG">Singapore (SGD)</SelectItem>
-                              <SelectItem value="US">United States (USD)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormDescription>
-                            This will be used to display prices in your local currency
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-
-                {/* Educational Information */}
-                <div>
-                  <h3 className="text-lg font-medium mb-4">Educational Information</h3>
-                  <div className="space-y-4">
-                    <FormField
-                      control={studentForm.control}
-                      name="school_name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Current School</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Oxford High School" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={studentForm.control}
-                      name="previous_schools"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Previous School(s)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="London Grammar School, St. Mary's" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
-                          </FormControl>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Enter multiple schools separated by commas
-                          </p>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-
-                {/* Current Subjects (keeping this as it's useful) */}
-                <div>
-                  <h3 className="text-lg font-medium mb-4">Current Subjects</h3>
-                  <FormField
-                    control={studentForm.control}
-                    name="current_subjects"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Subjects Studying</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Mathematics, Physics, Chemistry" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
-                        </FormControl>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Enter subjects separated by commas
-                        </p>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                {/* Qualifications */}
-                <div>
-                  <h3 className="text-lg font-medium mb-4">Qualifications</h3>
-                  <div className="space-y-6">
-                    <div className="pt-2">
-                      <h4 className="font-medium mb-2">A-Levels</h4>
-                      <ALevelsTable control={studentForm.control} showTitle={false} />
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={studentForm.control}
+                        name="previous_schools"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Previous School(s)</FormLabel>
+                            <FormControl>
+                              <Input placeholder="London Grammar School, St. Mary's" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                            </FormControl>
+                            <FormDescription>Separate multiple schools with commas</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={studentForm.control}
+                        name="current_subjects"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Current Subjects</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Mathematics, Physics, Chemistry" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                            </FormControl>
+                            <FormDescription>Separate subjects with commas</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                    <div className="pt-2">
-                      <h4 className="font-medium mb-2">IB Diploma</h4>
-                      <IbDiplomaTable control={studentForm.control} showTitle={false} />
+                  </CollapsibleQualSection>
+
+                  <CollapsibleQualSection title="Qualifications & Exams">
+                    <div className="space-y-4">
+                      <p className="text-sm text-muted-foreground">Only fill in the sections relevant to you.</p>
+                      <CollapsibleQualSection title="A-Levels">
+                        <ALevelsTable control={studentForm.control} showTitle={false} />
+                      </CollapsibleQualSection>
+                      <CollapsibleQualSection title="IB Diploma">
+                        <IbDiplomaTable control={studentForm.control} showTitle={false} />
+                      </CollapsibleQualSection>
+                      <CollapsibleQualSection title="IGCSE / GCSE">
+                        <IgcseTable control={studentForm.control} showTitle={false} />
+                      </CollapsibleQualSection>
+                      <CollapsibleQualSection title="SPM">
+                        <SpmTable control={studentForm.control} showTitle={false} />
+                      </CollapsibleQualSection>
                     </div>
-                    <div className="pt-2">
-                      <h4 className="font-medium mb-2">IGCSE</h4>
-                      <IgcseTable control={studentForm.control} showTitle={false} />
+                  </CollapsibleQualSection>
+
+                  <CollapsibleQualSection title="University Application Details">
+                    <div className="space-y-4">
+                      <FormField
+                        control={studentForm.control}
+                        name="application_cycle"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Application Cycle</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g. 2025-26" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={studentForm.control}
+                        name="planned_admissions_tests"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Admissions tests you plan to take</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g. SAT, TMUA, MAT" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={studentForm.control}
+                        name="completed_admissions_tests"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Admissions tests and scores completed</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g. SAT - 1480 (720 EBRW, 760 Math)" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={studentForm.control}
+                        name="planned_admissions_support"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Admissions support from Unisphere</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g. US Admissions Support, SAT Prep" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={studentForm.control}
+                        name="university_other_info"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Other Notes</FormLabel>
+                            <FormControl>
+                              <textarea
+                                className="flex min-h-[80px] w-full rounded-md border border-input bg-background/80 backdrop-blur-sm px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm focus-visible:border-primary/30 transition-all"
+                                placeholder="Anything else about your university plans..."
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                    <div className="pt-2">
-                      <h4 className="font-medium mb-2">SPM</h4>
-                      <SpmTable control={studentForm.control} showTitle={false} />
+                  </CollapsibleQualSection>
+
+                  <CollapsibleQualSection title="Extracurricular Activities">
+                    <ExtracurricularActivitiesTable control={studentForm.control} showTitle={false} />
+                  </CollapsibleQualSection>
+
+                  <CollapsibleQualSection title="Honors & Awards">
+                    <AwardsTable control={studentForm.control} showTitle={false} />
+                  </CollapsibleQualSection>
+
+                  <CollapsibleQualSection title="Goals & Learning Style">
+                    <div className="space-y-4 pt-2">
+                      <FormField
+                        control={studentForm.control}
+                        name="career_goals"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Career Goals</FormLabel>
+                            <FormControl>
+                              <textarea
+                                {...field}
+                                rows={3}
+                                placeholder="e.g. I want to study Computer Science and work in AI research..."
+                                className="w-full rounded-md border border-input bg-background/80 px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={studentForm.control}
+                        name="academic_achievements"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Academic Achievements</FormLabel>
+                            <FormControl>
+                              <textarea
+                                {...field}
+                                rows={3}
+                                placeholder="e.g. Top of my class in Mathematics, Science Olympiad finalist..."
+                                className="w-full rounded-md border border-input bg-background/80 px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={studentForm.control}
+                        name="learning_style"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Learning Style</FormLabel>
+                            <FormControl>
+                              <textarea
+                                {...field}
+                                rows={2}
+                                placeholder="e.g. I learn best through worked examples and practice problems..."
+                                className="w-full rounded-md border border-input bg-background/80 px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                  </div>
+                  </CollapsibleQualSection>
                 </div>
 
-                {/* Extracurricular Activities */}
-                <div>
-                  <h3 className="text-lg font-medium mb-4">Extracurricular Activities</h3>
-                  <ExtracurricularActivitiesTable control={studentForm.control} showTitle={false} />
-                </div>
-
-                {/* Honors and Awards */}
-                <div>
-                  <h3 className="text-lg font-medium mb-4">Honors and Awards</h3>
-                  <AwardsTable control={studentForm.control} showTitle={false} />
-                </div>
-
-                {/* University Plans */}
-                <div>
-                  <h3 className="text-lg font-medium mb-4">University Plans</h3>
-                  <div className="space-y-4">
-                    <FormField
-                      control={studentForm.control}
-                      name="application_cycle"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Application Cycle (e.g. 2025-26)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="2025-26" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={studentForm.control}
-                      name="intended_major"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Intended major(s)/course</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. Computer Science, Economics" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={studentForm.control}
-                      name="countries_to_apply"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Countries you're planning to apply to</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. UK, US, Australia" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
-                          </FormControl>
-                          <FormDescription>
-                            Feel free to be specific here, e.g. "both the UK and US, but I would prefer to go to the UK" or "UK only"
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={studentForm.control}
-                      name="universities_to_apply"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Universities you're planning to apply to</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. Oxford, Cambridge, Harvard" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={studentForm.control}
-                      name="planned_admissions_tests"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Admissions tests you're planning to take</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. SAT, TMUA" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={studentForm.control}
-                      name="completed_admissions_tests"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Admissions tests and scores you've taken</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. SAT - 1480 (720 EBRW, 760 Math)" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={studentForm.control}
-                      name="planned_admissions_support"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Admissions support you're planning to receive</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. US Admissions Support, Extracurricular Building, SAT" {...field} className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm" />
-                          </FormControl>
-                          <FormDescription>
-                            Services you're planning to receive from UniSphere
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={studentForm.control}
-                      name="university_other_info"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Other Information</FormLabel>
-                          <FormControl>
-                            <textarea 
-                              className="flex min-h-[120px] w-full rounded-md border border-input bg-background/80 backdrop-blur-sm px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm focus-visible:border-primary/30 transition-all"
-                              placeholder="Any other information about your university plans..."
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-
-                {/* Bio (keeping this as a general description) */}
-                <div>
-                  <h3 className="text-lg font-medium mb-4">Bio</h3>
-                  <FormField
-                    control={studentForm.control}
-                    name="bio"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>About Me</FormLabel>
-                        <FormControl>
-                          <textarea 
-                            className="flex min-h-[120px] w-full rounded-md border border-input bg-background/80 backdrop-blur-sm px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm focus-visible:border-primary/30 transition-all"
-                            placeholder="Tell us about yourself, your interests, and what you hope to achieve with tutoring..."
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                {/* Submit Button */}
-                <div className="flex justify-end pt-4">
-                  <Button 
-                    type="submit" 
-                    disabled={profileLoading} 
-                    className="shadow-md hover:shadow-lg bg-primary hover:bg-primary/90 transition-all hover:translate-y-[-2px]"
-                  >
-                    {profileLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Saving Profile...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="mr-2 h-4 w-4" />
-                        Save Changes
-                      </>
-                    )}
-                  </Button>
+                {/* Autosave indicator */}
+                <div className="flex justify-end items-center h-8 pt-4">
+                  {autoSaveStatus === 'saving' && (
+                    <span className="flex items-center gap-1.5 text-sm text-muted-foreground animate-pulse">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Saving...
+                    </span>
+                  )}
+                  {autoSaveStatus === 'saved' && (
+                    <span className="flex items-center gap-1.5 text-sm text-green-600">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      All changes saved
+                    </span>
+                  )}
                 </div>
               </form>
             </Form>
           )}
         </CardContent>
-      </Card>
+      </Card>}
+
+      {/* Currency Settings Card - only on settings page */}
+      {!isProfilePage && (
+      <>
+      {!isTutor && (
+        <Card className="mb-6 bg-card/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-lg transition-all">
+          <CardHeader>
+            <CardTitle>Currency</CardTitle>
+            <CardDescription>
+              Choose which currency you want to pay in
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...studentForm}>
+              <div className="space-y-4">
+                <FormField
+                  control={studentForm.control}
+                  name="country"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Payment Currency</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="bg-background/80 backdrop-blur-sm border-border/40 shadow-sm">
+                            <SelectValue placeholder="Select your currency" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="MY">Malaysia (MYR)</SelectItem>
+                          <SelectItem value="GB">United Kingdom (GBP)</SelectItem>
+                          <SelectItem value="HK">Hong Kong (HKD)</SelectItem>
+                          <SelectItem value="SG">Singapore (SGD)</SelectItem>
+                          <SelectItem value="US">United States (USD)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <p className="text-sm text-muted-foreground">
+                  You may only change your payment currency once. After that, any further changes will need to be handled on a request-by-request basis through support.
+                </p>
+              </div>
+            </Form>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="mb-6 bg-card/80 backdrop-blur-sm border-border/40 shadow-md hover:shadow-lg transition-all">
         <CardHeader>
@@ -3131,6 +3289,8 @@ export default function SettingsPage() {
           </Form>
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   );
 } 

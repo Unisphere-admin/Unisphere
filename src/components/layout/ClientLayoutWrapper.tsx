@@ -74,10 +74,10 @@ export default function ClientLayoutWrapper({
     setupAuthCacheCheck();
   }, []);
 
-  // Show loading screen during initial auth load and critical data prefetch
-  // This prevents "no data" flashes
-  const showLoading =
-    (loading && initialLoad) || (!cachePrefetched && isDashboard);
+  // Only block render on dashboard (where we need the cache prefetch to avoid
+  // data flashes). Public pages render immediately - auth resolves in the background
+  // and the Navbar / page guards update reactively.
+  const showLoading = !cachePrefetched && isDashboard;
 
   if (showLoading) {
     return <AuthLoadingScreen />;

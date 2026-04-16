@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useVideoCall } from './VideoCallProvider';
 import { SidePanelProps } from './types';
 import { X, Send, Loader2 } from 'lucide-react';
+import { toast } from '@/components/ui/sonner';
 
 const ChatPanel: React.FC<SidePanelProps> = ({ isOpen, onClose, title }) => {
   const { messages, isLoadingMessages, onSendMessage, user } = useVideoCall();
@@ -28,6 +29,7 @@ const ChatPanel: React.FC<SidePanelProps> = ({ isOpen, onClose, title }) => {
       setMessageText('');
     } catch (error) {
       console.error('Error sending message:', error);
+      toast.error('Failed to send message. Please try again.');
     } finally {
       setIsSending(false);
     }

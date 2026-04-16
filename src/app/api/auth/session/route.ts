@@ -58,32 +58,9 @@ export async function GET(request: NextRequest) {
             );
         }
         
-        // Check if we need to refresh the session token
-        // Note: We use getSession() here ONLY for token refresh purposes, not for authentication
-        // Authentication is already handled via getUser() above
-        try {
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        // If session exists but might be expiring soon, refresh it
-            if (!sessionError && session && session.expires_at) {
-            const expiresAt = new Date(session.expires_at * 1000);
-            const now = new Date();
-            const timeLeft = expiresAt.getTime() - now.getTime();
-            
-            // If less than 10 minutes left, refresh the session
-            if (timeLeft < 10 * 60 * 1000) {
-                await supabase.auth.refreshSession();
-            }
-        }
-        } catch (refreshError: any) {
-            // Better error handling for refresh failures
-            if (refreshError.name === 'AuthSessionMissingError' || 
-                refreshError.message?.includes('Auth session missing')) {
-            } else {
-            }
-            // We can continue as we already have the authenticated user
-        }
-        
+        // Token refresh is handled by the client-side tokenRefresh system,
+        // so we skip it here to avoid an extra round-trip.
+
         // Get the user ID from the verified user object
         const userId = user.id;
         const isTutor = user.user_metadata?.is_tutor === true;

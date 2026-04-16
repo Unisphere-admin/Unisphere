@@ -1,17 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, Mail, MapPin, Phone, ChevronRight, Heart, Globe, Linkedin, Instagram, Youtube } from "lucide-react";
+import Image from "next/image";
+import { Mail, Phone, ChevronRight, Heart, Linkedin, Instagram, Youtube } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-} from "@/components/ui/navigation-menu";
 
 const Footer = () => {
   return (
@@ -22,30 +14,30 @@ const Footer = () => {
       </div>
       
       <div className="container relative z-10 py-12 md:py-16 px-4 md:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
           <div>
             <Link href="/" className="flex items-center gap-2 transition hover:opacity-80 mb-6">
-              <img src="/logo-name.png" alt="Unisphere" className="h-8 w-auto" />
+              <Image src="/logo-name.png" alt="Unisphere" height={32} width={200} className="h-8 w-auto" />
             </Link>
             <p className="mt-4 text-muted-foreground text-sm leading-relaxed">
             Your all-in-one UK & US University preparation platform
             </p>
             <div className="mt-5 flex space-x-3">
-              <a href="https://www.instagram.com/unisphere.my/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
-                <Button variant="outline" size="icon" className="rounded-full h-9 w-9 shadow-sm border-border/40 hover:bg-[#E1306C]/10 hover:text-[#E1306C] hover:border-[#E1306C]/20">
+              <Button asChild variant="outline" size="icon" className="rounded-full h-9 w-9 shadow-sm border-border/40 hover:bg-[#E1306C]/10 hover:text-[#E1306C] hover:border-[#E1306C]/20">
+                <a href="https://www.instagram.com/unisphere.my/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
                   <Instagram className="h-4 w-4" />
-                </Button>
-              </a>
-              <a href="https://www.linkedin.com/company/unispheremy" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
-                <Button variant="outline" size="icon" className="rounded-full h-9 w-9 shadow-sm border-border/40 hover:bg-[#0077B5]/10 hover:text-[#0077B5] hover:border-[#0077B5]/20">
+                </a>
+              </Button>
+              <Button asChild variant="outline" size="icon" className="rounded-full h-9 w-9 shadow-sm border-border/40 hover:bg-[#0077B5]/10 hover:text-[#0077B5] hover:border-[#0077B5]/20">
+                <a href="https://www.linkedin.com/company/unispheremy" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
                   <Linkedin className="h-4 w-4" />
-                </Button>
-              </a>
-              <a href="#" target="_blank" rel="noopener noreferrer" aria-label="YouTube">
-                <Button variant="outline" size="icon" className="rounded-full h-9 w-9 shadow-sm border-border/40 hover:bg-[#FF0000]/10 hover:text-[#FF0000] hover:border-[#FF0000]/20">
+                </a>
+              </Button>
+              <Button asChild variant="outline" size="icon" className="rounded-full h-9 w-9 shadow-sm border-border/40 hover:bg-[#FF0000]/10 hover:text-[#FF0000] hover:border-[#FF0000]/20">
+                <a href="#" target="_blank" rel="noopener noreferrer" aria-label="YouTube">
                   <Youtube className="h-4 w-4" />
-                </Button>
-              </a>
+                </a>
+              </Button>
             </div>
           </div>
           
@@ -80,51 +72,6 @@ const Footer = () => {
           <div>
             <h3 className="text-base font-semibold mb-4 flex items-center gap-1.5">
               <span className="w-1 h-5 bg-primary/50 rounded-full"></span>
-              Services
-            </h3>
-            <ul className="space-y-3">
-              <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
-                  <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
-                  <span className="transition-colors">UK University Admissions</span>
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
-                  <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
-                  <span className="transition-colors">US University Admissions</span>
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
-                  <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
-                  <span className="transition-colors">SAT/ACT</span>
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
-                  <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
-                  <span className="transition-colors">Extracurricular Building</span>
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
-                  <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
-                  <span className="transition-colors">UK Admissions Tests</span>
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 group">
-                  <ChevronRight className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" strokeWidth={2.5} />
-                  <span className="transition-colors">Subject Tutoring</span>
-                </a>
-              </li>
-            </ul>
-          </div>
-          
-          <div>
-            <h3 className="text-base font-semibold mb-4 flex items-center gap-1.5">
-              <span className="w-1 h-5 bg-primary/50 rounded-full"></span>
               Contact Us
             </h3>
             <div className="space-y-4">
@@ -147,7 +94,7 @@ const Footer = () => {
       
       <div className="border-t border-border/40">
         <div className="container py-6 px-4 md:px-8 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-          <p className="text-sm text-muted-foreground/80">
+          <p className="text-sm text-muted-foreground/80" suppressHydrationWarning>
             © {new Date().getFullYear()} Unisphere. All rights reserved.
           </p>
     

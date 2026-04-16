@@ -13,6 +13,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Mail, Users, Send, Eye, Save, Filter, Loader2 } from "lucide-react";
 
 // Admin emails that can access this page
@@ -64,6 +74,7 @@ export default function AdminEmailPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [previewHtml, setPreviewHtml] = useState("");
+  const [showSendConfirm, setShowSendConfirm] = useState(false);
 
   // Fetch matching users when filters change
   useEffect(() => {
@@ -164,11 +175,11 @@ export default function AdminEmailPage() {
       return;
     }
 
-    const confirmed = window.confirm(
-      `Are you sure you want to send this email to ${userCount} users?`
-    );
-    if (!confirmed) return;
+    setShowSendConfirm(true);
+  };
 
+  const handleConfirmedSend = async () => {
+    setShowSendConfirm(false);
     setIsSending(true);
     try {
       const response = await fetch("/api/admin/email/send-campaign", {
@@ -496,6 +507,27 @@ export default function AdminEmailPage() {
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={showSendConfirm} onOpenChange={setShowSendConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send Email Campaign</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to send this email to{" "}
+              <strong>{userCount} users</strong>? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmedSend}
+              className="bg-[#128ca0] hover:bg-[#0e6b7a]"
+            >
+              Send Campaign
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

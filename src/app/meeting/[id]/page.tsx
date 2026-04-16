@@ -2,24 +2,37 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/context/AuthContext";
 import { useRealtime } from "@/context/RealtimeContext";
 import { toast } from "@/components/ui/use-toast";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 import { Loader2 } from "lucide-react";
-import AgoraRTC, {
+// Types only - no runtime bundle cost
+import type {
   IAgoraRTCClient,
   IAgoraRTCRemoteUser,
   ICameraVideoTrack,
   IMicrophoneAudioTrack,
   ILocalVideoTrack,
 } from "agora-rtc-sdk-ng";
+import type { VideoCallState } from "@/components/video-call/types";
 
-// Video Call Components
-import VideoCallLayout from "@/components/video-call/VideoCallLayout";
-import VideoCallProvider from "@/components/video-call/VideoCallProvider";
-import { VideoCallState } from "@/components/video-call/types";
-import PreCallScreen from "@/components/video-call/PreCallScreen";
+// Dynamically import heavy video-call components with ssr:false so the
+// Agora SDK (and all its WebRTC machinery) is never bundled for the server
+// and only loads client-side when the user actually enters a meeting.
+const VideoCallLayout = dynamic(
+  () => import("@/components/video-call/VideoCallLayout"),
+  { ssr: false, loading: () => <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin" /></div> }
+);
+const VideoCallProvider = dynamic(
+  () => import("@/components/video-call/VideoCallProvider"),
+  { ssr: false }
+);
+const PreCallScreen = dynamic(
+  () => import("@/components/video-call/PreCallScreen"),
+  { ssr: false, loading: () => <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin" /></div> }
+);
 
 export default function MeetingPage() {
   const { id: sessionId } = useParams();
@@ -126,14 +139,12 @@ export default function MeetingPage() {
       setShowPreCall(false);
       initRef.current = true;
 
+      // Dynamically import Agora SDK - only loaded when the user actually joins
+      const AgoraRTC = (await import("agora-rtc-sdk-ng")).default;
+
       // Configure Agora logging
-      if (process.env.NODE_ENV === "production") {
-        AgoraRTC.setLogLevel(1);
-        AgoraRTC.disableLogUpload();
-      } else {
-        AgoraRTC.setLogLevel(1);
-        AgoraRTC.disableLogUpload();
-      }
+      AgoraRTC.setLogLevel(1);
+      AgoraRTC.disableLogUpload();
 
       // Create Agora client
       const agoraClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
@@ -174,7 +185,6 @@ export default function MeetingPage() {
           try {
             if (audioTrack && typeof audioTrack.play === "function") {
               await audioTrack.play();
-              console.log(`Successfully playing remote audio for user ${uid}`);
               return true;
             }
           } catch (error) {
@@ -193,9 +203,7 @@ export default function MeetingPage() {
 
       agoraClient.on("user-published", async (remoteUser, mediaType) => {
         try {
-          console.log("Remote user published:", remoteUser.uid, mediaType);
           await agoraClient.subscribe(remoteUser, mediaType);
-          console.log("Successfully subscribed to:", remoteUser.uid, mediaType);
 
           if (mediaType === "video") {
             setRemoteUsers((prev) => {
@@ -213,10 +221,6 @@ export default function MeetingPage() {
               const existingUsers = prev.filter(
                 (user) => user.uid !== remoteUser.uid
               );
-              console.log("Updated remote users with video:", [
-                ...existingUsers,
-                updatedUser,
-              ]);
               return [...existingUsers, updatedUser];
             });
           }
@@ -237,15 +241,10 @@ export default function MeetingPage() {
               const existingUsers = prev.filter(
                 (user) => user.uid !== remoteUser.uid
               );
-              console.log("Updated remote users with audio:", [
-                ...existingUsers,
-                updatedUser,
-              ]);
               return [...existingUsers, updatedUser];
             });
 
             if (remoteUser.audioTrack) {
-              console.log("Playing remote audio for:", remoteUser.uid);
               await playRemoteAudioWithRetry(
                 remoteUser.audioTrack,
                 remoteUser.uid
@@ -281,18 +280,12 @@ export default function MeetingPage() {
       });
 
       agoraClient.on("connection-state-change", (state, prevState, reason) => {
-        console.log(
-          `Connection state changed: ${prevState} -> ${state}, reason: ${reason}`
-        );
         if (state === "CONNECTED") {
           setIsConnected(true);
           // Re-play all remote audio tracks after reconnection
           setRemoteUsers((prev) => {
             prev.forEach((user) => {
               if (user.audioTrack && user.hasAudio) {
-                console.log(
-                  `Re-playing audio for user ${user.uid} after reconnection`
-                );
                 playRemoteAudioWithRetry(user.audioTrack, user.uid);
               }
             });
@@ -301,7 +294,6 @@ export default function MeetingPage() {
         } else if (state === "DISCONNECTED") {
           setIsConnected(false);
         } else if (state === "RECONNECTING") {
-          console.log("Attempting to reconnect...");
           toast({
             title: "Connection Issue",
             description: "Reconnecting to the call...",
@@ -342,7 +334,6 @@ export default function MeetingPage() {
 
       // Handle user info updates (mute/unmute events)
       agoraClient.on("user-info-updated", (uid, msg) => {
-        console.log(`User ${uid} info updated:`, msg);
         if (msg === "mute-audio" || msg === "unmute-audio") {
           setRemoteUsers((prev) =>
             prev.map((user) => {
@@ -374,7 +365,6 @@ export default function MeetingPage() {
 
       if (!audioTrack || !videoTrack) {
         // Fallback: create new tracks if not provided from pre-call
-        console.log("Creating new audio/video tracks...");
         const [newAudioTrack, newVideoTrack] =
           await AgoraRTC.createMicrophoneAndCameraTracks();
         audioTrack = newAudioTrack;
@@ -386,17 +376,13 @@ export default function MeetingPage() {
       // IMPORTANT: Enable tracks BEFORE publishing so they're active when published
       if (audioTrack) {
         await audioTrack.setEnabled(!isAudioMuted);
-        console.log("Audio track enabled:", !isAudioMuted);
       }
       if (videoTrack) {
         await videoTrack.setEnabled(!isVideoMuted);
-        console.log("Video track enabled:", !isVideoMuted);
       }
 
       // Publish tracks to the channel
-      console.log("Publishing audio and video tracks...");
       await agoraClient.publish([audioTrack, videoTrack]);
-      console.log("Tracks published successfully");
 
       // Verify tracks are published
       const publishedTracks = agoraClient.localTracks;
@@ -406,17 +392,11 @@ export default function MeetingPage() {
       const hasVideoPublished = publishedTracks.some(
         (t) => t.trackMediaType === "video"
       );
-      console.log("Published tracks verification:", {
-        hasAudioPublished,
-        hasVideoPublished,
-        totalTracks: publishedTracks.length,
-      });
 
       if (!hasAudioPublished && audioTrack) {
         console.warn("Audio track not detected, attempting republish...");
         try {
           await agoraClient.publish(audioTrack);
-          console.log("Audio track republished successfully");
         } catch (republishErr) {
           console.error("Failed to republish audio:", republishErr);
         }
@@ -451,7 +431,6 @@ export default function MeetingPage() {
             if (!isAudioStillPublished && !isAudioMuted) {
               console.warn("Audio track no longer published, republishing...");
               await agoraClient.publish(audioTrack);
-              console.log("Audio track recovered");
             }
           } catch (err) {
             console.error("Audio monitor error:", err);
@@ -558,9 +537,6 @@ export default function MeetingPage() {
 
           // If audio should be playing but isn't, try to restart it
           if (!isPlaying && track.play) {
-            console.log(
-              `Audio health check: restarting audio for user ${user.uid}`
-            );
             try {
               track.play();
             } catch (err) {
@@ -655,7 +631,6 @@ export default function MeetingPage() {
         return;
       }
       const newMuteState = !isAudioMuted;
-      console.log(`Toggling audio: ${isAudioMuted ? "unmuting" : "muting"}`);
 
       try {
         await localAudioTrack.setEnabled(!newMuteState);
@@ -670,12 +645,10 @@ export default function MeetingPage() {
           if (!isAudioPublished) {
             console.warn("Audio track not published, republishing...");
             await client.publish(localAudioTrack);
-            console.log("Audio track republished after unmute");
           }
         }
 
         setIsAudioMuted(newMuteState);
-        console.log(`Audio is now ${newMuteState ? "muted" : "unmuted"}`);
       } catch (err) {
         console.error("Error toggling audio:", err);
       }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useLayoutEffect } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -62,31 +62,7 @@ export default function SchedulePage() {
   const [cancelingSession, setCancelingSession] = useState<string | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [sessionToCancel, setSessionToCancel] = useState<{ id: string, message_id: string | null | undefined } | null>(null);
-  
-  // Action loading state
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  
-  // Track visible sessions state
-  const [visibleSessions, setVisibleSessions] = useState<string[]>([]);
-  const previousSessionsRef = useRef<SessionType[]>([]);
-  
-  // Save scroll position
-  const contentRef = useRef<HTMLDivElement>(null);
-  const scrollPosition = useRef<number>(0);
-  
-  // Save scroll position
-  const saveScrollPosition = () => {
-    if (contentRef.current) {
-      scrollPosition.current = window.scrollY;
-    }
-  };
-  
-  // Restore scroll position after data changes
-  useLayoutEffect(() => {
-    if (!loadingSessions && scrollPosition.current > 0) {
-      window.scrollTo(0, scrollPosition.current);
-    }
-  }, [sessions, loadingSessions, visibleSessions]);
 
   // Redirect if not logged in
   useEffect(() => {
@@ -95,75 +71,17 @@ export default function SchedulePage() {
     }
   }, [user, router, loadingSessions]);
 
-  // Add this useEffect for handling session refreshes
-  useEffect(() => {
-    // Save scroll position before sessions update
-    saveScrollPosition();
-    
-    if (!loadingSessions && sessions && sessions.length > 0) {
-      // Keep track of session IDs for maintaining UI state
-      const currentSessionIds = sessions.map(session => session.id);
-      setVisibleSessions(prev => {
-        const existingIds = prev.filter(id => currentSessionIds.includes(id));
-        const newIds = currentSessionIds.filter(id => !prev.includes(id));
-        return [...existingIds, ...newIds];
-      });
-      
-      // Store previous sessions state for reference
-      previousSessionsRef.current = [...sessions];
-    }
-  }, [sessions, loadingSessions]);
-
   // Subscribe to realtime updates for all conversation IDs in the sessions
   useEffect(() => {
     if (!sessions || !sessions.length) return;
-    
-    // Get unique conversation IDs from sessions
     const conversationIds = Array.from(
       new Set(sessions.map(session => session.conversation_id))
     ).filter(Boolean) as string[];
-    
-    // Subscribe to each conversation
-    conversationIds.forEach(conversationId => {
-      if (conversationId) subscribeToConversation(conversationId);
-    });
-    
-    // Cleanup subscriptions when component unmounts
+    conversationIds.forEach(id => { if (id) subscribeToConversation(id); });
     return () => {
-      conversationIds.forEach(conversationId => {
-        if (conversationId) unsubscribeFromConversation(conversationId);
-      });
+      conversationIds.forEach(id => { if (id) unsubscribeFromConversation(id); });
     };
   }, [sessions, subscribeToConversation, unsubscribeFromConversation]);
-
-  // Add an effect to handle session list updates from SessionContext
-  useEffect(() => {
-    if (!loadingSessions && sessions) {
-      // Transform sessions into a map for faster lookups
-      const sessionsMap = new Map(
-        sessions.map(session => [session.id, session])
-      );
-      
-      // Update the visible sessions with the full sessions data
-      setVisibleSessions(prev => {
-        // Keep existing visible sessions in the same order
-        const updatedVisible = prev
-          .filter(id => sessionsMap.has(id))
-          .map(id => sessionsMap.get(id)!.id);
-        
-        // Add any new sessions that should be visible but aren't yet
-        const newSessionIds = sessions
-          .filter(session => !prev.includes(session.id) && 
-            ['requested', 'accepted', 'started'].includes(session.status?.toLowerCase() || ''))
-          .map(session => session.id);
-          
-        return [...updatedVisible, ...newSessionIds];
-      });
-      
-      // Save current sessions for reference
-      previousSessionsRef.current = [...sessions];
-    }
-  }, [sessions, loadingSessions]);
 
   const today = new Date();
   const formattedDate = new Intl.DateTimeFormat('en-US', {
@@ -441,35 +359,30 @@ export default function SchedulePage() {
     );
   }
 
-  // Get the sessions that should be displayed
-  const upcomingSessions = visibleSessions
-    // Map ID to actual session object and cast to SessionType
-    .map(id => sessions.find(session => session.id === id) as SessionType | undefined)
-    .filter((session): session is SessionType => session !== undefined) // Type guard
-    // Make sure we only show upcoming and active sessions
-    .filter((session) => {
-      const normalizedStatus = session.status?.toLowerCase?.() || '';
-      return normalizedStatus === "requested" || 
-             normalizedStatus === "accepted" || 
-             normalizedStatus === "started";
+  // Compute upcoming and past sessions directly from the sessions array - no intermediary state
+  const upcomingSessions: SessionType[] = (sessions || [])
+    .filter((s) => {
+      const st = s.status?.toLowerCase?.() || '';
+      return st === "requested" || st === "accepted" || st === "started";
     })
     .sort((a, b) => {
-      // First, sort by status (started > accepted > requested)
       const statusOrder: Record<string, number> = { started: 0, accepted: 1, requested: 2 };
-      const statusA = (a.status || '').toLowerCase();
-      const statusB = (b.status || '').toLowerCase();
-      const statusDiff = (statusOrder[statusA] || 99) - (statusOrder[statusB] || 99);
-      if (statusDiff !== 0) return statusDiff;
-      
-      // For same status, sort by scheduled date (soonest first)
-      if (a.scheduled_for && b.scheduled_for) {
-        return new Date(a.scheduled_for).getTime() - new Date(b.scheduled_for).getTime();
-      }
-      
-      // Use any available timestamp for sorting as fallback
-      const timeA = new Date(a.scheduled_for || a.updated_at || a.created_at || Date.now()).getTime();
-      const timeB = new Date(b.scheduled_for || b.updated_at || b.created_at || Date.now()).getTime();
+      const diff = (statusOrder[a.status?.toLowerCase() || ''] ?? 99) - (statusOrder[b.status?.toLowerCase() || ''] ?? 99);
+      if (diff !== 0) return diff;
+      const timeA = new Date(a.scheduled_for || a.updated_at || a.created_at || 0).getTime();
+      const timeB = new Date(b.scheduled_for || b.updated_at || b.created_at || 0).getTime();
       return timeA - timeB;
+    });
+
+  const pastSessions: SessionType[] = (sessions || [])
+    .filter((s) => {
+      const st = s.status?.toLowerCase?.() || '';
+      return st === "ended" || st === "cancelled";
+    })
+    .sort((a, b) => {
+      const timeA = new Date((a as any).ended_at || a.updated_at || a.created_at || 0).getTime();
+      const timeB = new Date((b as any).ended_at || b.updated_at || b.created_at || 0).getTime();
+      return timeB - timeA; // most recent first
     });
 
   const getSessionStatusText = (status: string) => {
@@ -511,7 +424,7 @@ export default function SchedulePage() {
       <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background pointer-events-none -z-10"></div>
       
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold mb-2 sm:mb-0">Upcoming Sessions</h1>
+        <h1 className="text-2xl font-bold mb-2 sm:mb-0">Sessions</h1>
         <div className="flex items-center text-sm text-muted-foreground">
           <Calendar className="mr-2 h-4 w-4" />
           <span>{formattedDate}</span>
@@ -713,6 +626,54 @@ export default function SchedulePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Past Sessions ── */}
+      {pastSessions.length > 0 && (
+        <Card className="bg-card/80 backdrop-blur-sm border-border/40 shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle>Past Sessions</CardTitle>
+            <CardDescription>{pastSessions.length} completed session{pastSessions.length !== 1 ? "s" : ""}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {pastSessions.map((session) => {
+                const endDate = (session as any).ended_at || session.updated_at || session.created_at;
+                const withName = user?.role === "student"
+                  ? `${session.tutor_profile?.first_name || ""} ${session.tutor_profile?.last_name || ""}`.trim()
+                  : `${session.student_profile?.first_name || ""} ${session.student_profile?.last_name || ""}`.trim();
+                return (
+                  <div
+                    key={session.id}
+                    className="flex items-center justify-between p-3 rounded-lg border border-border/30 bg-muted/20"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <h4 className="text-sm font-medium truncate">
+                          {session.name || session.subject || "Tutoring Session"}
+                        </h4>
+                        <Badge
+                          variant="outline"
+                          className={
+                            session.status === "ended"
+                              ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-300 text-[10px]"
+                              : "bg-muted text-muted-foreground border-border text-[10px]"
+                          }
+                        >
+                          {session.status === "ended" ? "Completed" : "Cancelled"}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {withName ? `with ${withName}` : ""}
+                        {endDate ? ` \u00b7 ${format(parseISO(endDate), "MMM d, yyyy")}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Confirmation Dialog */}
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -48,7 +48,7 @@ import {
 } from "@/lib/validation";
 import { useCsrfToken, addCsrfToken } from "@/lib/csrf/client";
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
   const { refreshUser, user } = useAuth();
   const { toast } = useToast();
@@ -212,22 +212,9 @@ export default function LoginPage() {
         if (redirectPath) {
           // If there's a specific redirect path, use it
           router.push(redirectPath);
-        } else if (userData?.role === "tutor") {
-          // Tutors should skip the survey and go straight to dashboard (or home if no premium access)
-          if (hasPremiumAccess) {
-            router.push("/dashboard");
-          } else {
-            router.push("/");
-          }
-        } else if (!surveyCompleted) {
-          // First-time non-tutor users who haven't completed the survey
-          router.push("/survey");
-        } else if (hasPremiumAccess) {
-          // Premium users go to dashboard
-          router.push("/dashboard");
         } else {
-          // Non-premium users go to home page
-          router.push("/");
+          // All users go to dashboard
+          router.push("/dashboard");
         }
 
         return true;
@@ -567,5 +554,13 @@ export default function LoginPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
+      <LoginPageContent />
+    </Suspense>
   );
 }

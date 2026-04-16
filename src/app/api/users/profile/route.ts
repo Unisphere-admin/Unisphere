@@ -34,8 +34,6 @@ async function updateUserProfileHandler(
       );
     }
     
-    console.log('Updating profile with data:', JSON.stringify(body, null, 2));
-    console.log('Country field in request body:', body.country);
     
     // Use the data layer function to update profile
     const { profile, error } = await updateUserProfile(userId, user, body);

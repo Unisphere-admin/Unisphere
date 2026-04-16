@@ -176,7 +176,6 @@ export default function Survey() {
     setIsLoading(true);
 
     try {
-      console.log("Starting survey completion...", answers);
 
       // Call the API to mark survey as completed
       const response = await fetch("/api/users/survey", {
@@ -188,10 +187,8 @@ export default function Survey() {
         credentials: "include",
       });
 
-      console.log("API response status:", response.status);
 
       const responseData = await response.json();
-      console.log("API response data:", responseData);
 
       if (!response.ok) {
         throw new Error(responseData.error || "Failed to complete survey");
@@ -204,7 +201,6 @@ export default function Survey() {
       });
 
       // Redirect to dashboard or home
-      console.log("Redirecting to dashboard...");
       router.push("/dashboard");
     } catch (error) {
       console.error("Error completing survey:", error);
@@ -339,6 +335,7 @@ export default function Survey() {
                           alt={opt.label + " logo"}
                           width={100}
                           height={100}
+                          quality={100}
                           className="object-contain h-full w-full bg-white rounded-xl"
                           sizes="(max-width: 767px) 100vw, 8rem"
                         />

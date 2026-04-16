@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Session, User } from '@supabase/supabase-js';
+import { Session, User, AuthChangeEvent } from '@supabase/supabase-js';
 import { useRouter, usePathname } from 'next/navigation';
 import { shouldProtectRoute, PUBLIC_PATHS, isTutorProfilePath } from '@/lib/auth/protectResource';
 import { resetPrefetchStatus } from '@/lib/prefetch';
@@ -34,27 +34,61 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const PROFILE_CACHE_KEY = 'auth_user_profile_cache';
+const PROFILE_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
+function getCachedProfile(): AuthUser | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(PROFILE_CACHE_KEY);
+    if (!raw) return null;
+    const { data, timestamp } = JSON.parse(raw);
+    if (Date.now() - timestamp > PROFILE_CACHE_TTL_MS) {
+      localStorage.removeItem(PROFILE_CACHE_KEY);
+      return null;
+    }
+    return data as AuthUser;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedProfile(profile: AuthUser): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({ data: profile, timestamp: Date.now() }));
+  } catch {}
+}
+
+function clearCachedProfile(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(PROFILE_CACHE_KEY);
+  } catch {}
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [silentLoading, setSilentLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastRefreshed, setLastRefreshed] = useState(0);
+  const lastRefreshedRef = useRef(0);
   const supabase = createClient();
   const router = useRouter();
   const pathname = usePathname();
   const refreshCleanupRef = useRef<(() => void) | null>(null);
 
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = async (forceRefresh = false) => {
+    // Return cached profile if available and not forcing refresh
+    if (!forceRefresh) {
+      const cached = getCachedProfile();
+      if (cached) return cached;
+    }
+
     try {
       const response = await fetch('/api/auth/session', {
         method: 'GET',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
       });
 
       if (!response.ok) {
@@ -62,8 +96,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const data = await response.json();
-      return data.user || null;
+      const profile = data.user || null;
+
+      if (profile) {
+        setCachedProfile(profile);
+      }
+
+      return profile;
     } catch (error) {
+      console.error('Failed to fetch user profile:', error);
       return null;
     }
   };
@@ -71,13 +112,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = useCallback(async (silent = false) => {
     // Throttle refreshes to prevent multiple rapid calls
     const now = Date.now();
-    const timeSinceLastRefresh = now - lastRefreshed;
+    const timeSinceLastRefresh = now - lastRefreshedRef.current;
     const MIN_REFRESH_INTERVAL = 2000; // 2 seconds minimum between refreshes
-    
+
     if (timeSinceLastRefresh < MIN_REFRESH_INTERVAL) {
       return; // Skip refresh if called too frequently
     }
-    
+
     try {
       // Use silent loading state if requested
       if (silent) {
@@ -85,39 +126,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setLoading(true);
       }
-      
+
       setError(null);
-      setLastRefreshed(now);
-      
+      lastRefreshedRef.current = now;
+
       // First ensure token is refreshed if needed
       await refreshTokenIfNeeded(supabase);
-      
-      // Get authenticated user - safer than getSession()
-      const { data: { user: authUser }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError) {
-        throw userError;
+
+      // Parallelize getUser + getSession -- both are independent
+      const [userResult, sessionResult] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase.auth.getSession(),
+      ]);
+
+      if (userResult.error) {
+        throw userResult.error;
       }
-      
-      // Get session only for access_token data if needed
-      const { data: { session: currentSession }, error: sessionError } = 
-        await supabase.auth.getSession();
-      
-      if (sessionError) {
-        // Continue since we already have the authenticated user
-      }
-      
-      setSession(currentSession);
-      
-      if (authUser) {
-        // Fetch user profile from API
-        const userProfile = await fetchUserProfile();
+
+      setSession(sessionResult.data?.session ?? null);
+
+      if (userResult.data?.user) {
+        // Fetch user profile from API (force refresh on explicit refreshUser calls)
+        const userProfile = await fetchUserProfile(silent ? false : true);
         setUser(userProfile);
       } else {
         setUser(null);
       }
     } catch (error) {
-      
+
       setError(error instanceof Error ? error.message : 'Unknown error');
       setUser(null);
     } finally {
@@ -127,7 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       }
     }
-  }, [lastRefreshed, supabase.auth]);
+  }, [supabase]);
 
   const signOut = async () => {
     try {
@@ -212,7 +248,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error(errorData.error || 'Logout failed');
       }
       
-      // Clear user state
+      // Clear profile cache and user state
+      clearCachedProfile();
       setUser(null);
       setSession(null);
       
@@ -245,13 +282,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, newSession) => {
+      (event: AuthChangeEvent, newSession: Session | null) => {
         
         setSession(newSession);
         
-        // Only refresh user on meaningful auth events
-        if (['SIGNED_IN', 'TOKEN_REFRESHED', 'SIGNED_OUT', 'USER_UPDATED'].includes(event)) {
-          refreshUser(true); // Use silent refresh on auth events
+        if (event === 'TOKEN_REFRESHED') {
+          // Token was refreshed -- just update session, no need to re-fetch profile
+          setSession(newSession);
+        } else if (['SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED'].includes(event)) {
+          refreshUser(true); // Use silent refresh on meaningful auth events
         }
       }
     );

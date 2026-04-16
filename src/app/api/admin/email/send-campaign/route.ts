@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createRouteHandlerClientWithCookies } from "@/lib/db/client";
 
 // Admin emails that can access this endpoint
-const ADMIN_EMAILS = ["justin@unisphere.my", "admin@unisphere.my", "23torch03@gmail.com"];
+const ADMIN_EMAILS = ["joshuaooi105@gmail.com", "ghayuan.ng@gmail.com", "jjzlee018@gmail.com", "justin@unisphere.my", "admin@unisphere.my", "23torch03@gmail.com"];
 
 interface FilterState {
   userType: string;
@@ -27,11 +27,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { campaignName, subject, htmlBody, filters } = (await req.json()) as {
+    const { campaignName, subject, htmlBody, filters, specificEmails } = (await req.json()) as {
       campaignName: string;
       subject: string;
       htmlBody: string;
-      filters: FilterState;
+      filters?: FilterState;
+      specificEmails?: string[];
     };
 
     if (!campaignName || !subject || !htmlBody) {
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
           "Content-Type": "application/json",
           Cookie: req.headers.get("cookie") || "",
         },
-        body: JSON.stringify({ filters }),
+        body: JSON.stringify(specificEmails ? { specificEmails } : { filters }),
       }
     );
 

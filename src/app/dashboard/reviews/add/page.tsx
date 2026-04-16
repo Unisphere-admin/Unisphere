@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
 /**
  * Redirect page for backward compatibility
  * This redirects old review links to the new leave-review page
  */
-export default function ReviewRedirectPage() {
+function ReviewRedirectPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
@@ -38,4 +38,12 @@ export default function ReviewRedirectPage() {
       </div>
     </div>
   );
-} 
+}
+
+export default function ReviewRedirectPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
+      <ReviewRedirectPageContent />
+    </Suspense>
+  );
+}

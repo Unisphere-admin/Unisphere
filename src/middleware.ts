@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { 
-  getAuthUser, 
-  shouldProtectRoute, 
-  redirectToLogin, 
-  shouldRedirectToPaywall, 
-  redirectToPaywall, 
-  isStaticAssetPath 
+import {
+  getAuthUser,
+  shouldProtectRoute,
+  requiresPremiumAccess,
+  redirectToLogin,
+  shouldRedirectToPaywall,
+  redirectToPaywall,
+  isStaticAssetPath
 } from '@/lib/auth/protectResource';
 import { createRouteHandlerClientWithCookies } from '@/lib/db/client';
 import { cookies } from 'next/headers';
@@ -53,10 +54,10 @@ async function canAccessMeeting(user: any, sessionId: string): Promise<boolean> 
     // Create Supabase client
     const supabase = await createRouteHandlerClientWithCookies();
     
-    // Query the session
+    // Query only the fields needed for access checks
     const { data, error } = await supabase
       .from('tutoring_session')
-      .select('*')
+      .select('tutor_id, student_id, status, tutor_ready, student_ready')
       .eq('id', sessionId)
       .single();
       
@@ -69,13 +70,9 @@ async function canAccessMeeting(user: any, sessionId: string): Promise<boolean> 
       return false;
     }
     
-    // Check if session is active
+    // Check if session is active - once started, both participants can join
+    // regardless of individual ready-state toggles
     if (data.status !== 'started') {
-      return false;
-    }
-    
-    // Check if both users are ready
-    if (!data.tutor_ready || !data.student_ready) {
       return false;
     }
     
@@ -90,7 +87,7 @@ async function canAccessMeeting(user: any, sessionId: string): Promise<boolean> 
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  
+
   // Skip middleware for static assets and Next.js internals
   if (isStaticAssetPath(pathname)) {
     return NextResponse.next();
@@ -101,7 +98,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Get the authenticated user
+  // ─── PERFORMANCE FAST-PATH ──────────────────────────────────────────────────
+  // getAuthUser() fires two Supabase round-trips (auth.getUser + users table).
+  // For truly public pages that need neither auth nor premium checks - e.g. /,
+  // /about, /tutors, /login, /signup - we can skip both calls entirely.
+  // This is the single biggest TTFB improvement for unauthenticated visitors.
+  const isMeeting = isMeetingRoute(pathname);
+  const needsAuth = shouldProtectRoute(pathname);
+  const needsPremium = requiresPremiumAccess(pathname);
+
+  if (!isMeeting && !needsAuth && !needsPremium) {
+    return NextResponse.next();
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
+  // Get the authenticated user (only reached for protected/premium/meeting routes)
   const user = await getAuthUser();
   
   // Special handling for meeting routes

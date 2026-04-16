@@ -31,7 +31,6 @@ const VideoGrid: React.FC = () => {
         // Clear any existing content
         localVideoRef.current.innerHTML = "";
         localVideoTrack.play(localVideoRef.current);
-        console.log("Playing local video track");
       } catch (error) {
         console.error("Error playing local video:", error);
       }
@@ -45,7 +44,6 @@ const VideoGrid: React.FC = () => {
         // Clear any existing content
         screenShareRef.current.innerHTML = "";
         screenTrack.play(screenShareRef.current);
-        console.log("Playing screen share track");
       } catch (error) {
         console.error("Error playing screen share:", error);
       }
@@ -54,50 +52,20 @@ const VideoGrid: React.FC = () => {
 
   // Play remote videos
   useEffect(() => {
-    console.log("Remote users updated:", remoteUsers.length);
     remoteUsers.forEach((u, idx) => {
-      console.log(`Remote user ${idx}:`, {
-        uid: u.uid,
-        hasVideo: u.hasVideo,
-        hasAudio: u.hasAudio,
-        videoTrack: !!u.videoTrack,
-        audioTrack: !!u.audioTrack,
-      });
     });
 
     const playRemoteVideos = () => {
-      console.log(
-        "playRemoteVideos called, processing",
-        remoteUsers.length,
-        "users"
-      );
       remoteUsers.forEach((remoteUser) => {
-        console.log(
-          `Checking user ${remoteUser.uid}: hasVideo=${
-            remoteUser.hasVideo
-          }, videoTrack=${!!remoteUser.videoTrack}`
-        );
         if (remoteUser.videoTrack && remoteUser.hasVideo) {
           const elementId = `remote-video-${remoteUser.uid}`;
           const element = document.getElementById(elementId);
-          console.log(
-            `Attempting to play remote video for user ${remoteUser.uid}:`,
-            {
-              elementId,
-              elementExists: !!element,
-              videoTrack: !!remoteUser.videoTrack,
-              hasVideo: remoteUser.hasVideo,
-            }
-          );
 
           if (element) {
             try {
               // Clear any existing content
               element.innerHTML = "";
               remoteUser.videoTrack.play(element);
-              console.log(
-                `Successfully playing remote video for user ${remoteUser.uid}`
-              );
             } catch (error) {
               console.error(
                 `Error playing remote video for user ${remoteUser.uid}:`,
@@ -115,9 +83,6 @@ const VideoGrid: React.FC = () => {
                 try {
                   retryElement.innerHTML = "";
                   remoteUser.videoTrack.play(retryElement);
-                  console.log(
-                    `Successfully playing remote video for user ${remoteUser.uid} (retry)`
-                  );
                 } catch (error) {
                   console.error(
                     `Error playing remote video for user ${remoteUser.uid} (retry):`,
@@ -158,7 +123,6 @@ const VideoGrid: React.FC = () => {
           try {
             localVideoRef.current.innerHTML = "";
             localVideoTrack.play(localVideoRef.current);
-            console.log("Restored local video after screen sharing");
           } catch (error) {
             console.error("Error restoring local video:", error);
           }

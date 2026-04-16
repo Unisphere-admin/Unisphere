@@ -1,327 +1,116 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
-import { 
-  CheckCircle, 
-  Sparkles, 
-  GraduationCap,
-  Users,
-  Calendar,
-  MessageCircle,
-  ArrowRight,
-  Star,
-  PanelsTopLeft,
-  School,
-  FileEdit,
-  Award
-} from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { useEffect, useState } from "react";
+import { FlipWords } from "@/components/ui/flip-words";
+import { UniversityOrbit } from "@/components/landing/UniversityOrbit";
+import { ArrowRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
+const ScrollStep = dynamic(
+  () => import("@/components/landing/BelowFoldSections").then(m => ({ default: m.ScrollStep })),
+  { ssr: false }
+);
+
+const RevolvingCards = dynamic(
+  () => import("@/components/landing/RevolvingCards").then(m => ({ default: m.RevolvingCards })),
+  { ssr: false }
+);
+
+const ChatGraphic = dynamic(
+  () => import("@/components/landing/ChatGraphic").then(m => ({ default: m.ChatGraphic })),
+  { ssr: false }
+);
+
+const SummerStudioBanner = dynamic(
+  () => import("@/components/landing/SummerStudioBanner").then(m => ({ default: m.SummerStudioBanner })),
+  { ssr: false }
+);
+
 export default function HomePage() {
-  const [currentTextIndex, setCurrentTextIndex] = useState(0);
-  const [textFading, setTextFading] = useState(false);
-  const animatedTexts = ["Personal Statements", "Essays", "Entrance Tests", "Interviews"];
-  
-  useEffect(() => {
-    // Create a fade-in, fade-out cycle
-    const fadeOutTimer = setInterval(() => {
-      // Start fade out
-      setTextFading(true);
-      
-      // After fade out completes, change text and fade in
-      setTimeout(() => {
-        setCurrentTextIndex(prevIndex => (prevIndex + 1) % animatedTexts.length);
-        setTextFading(false);
-      }, 700); // Match the fadeOut animation duration
-      
-    }, 3000); // Total time for each text to be displayed
-    
-    return () => {
-      clearInterval(fadeOutTimer);
-    };
-  }, []);
+  const flipWords = ["Oxbridge Interviews", "Personal Statements", "Essays", "Admissions Tests", "ACT/SAT"];
 
   const { user } = useAuth();
 
   return (
     <div className="flex flex-col w-full with-navbar">
       {/* Hero Section */}
-      <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-b from-[#c7e4e3]/30 via-background/95 to-[#c2d8d2]/20">
-        
+      <section className="relative py-8 pb-12 md:py-16 bg-white">
+
         <div className="container relative z-10 mx-auto px-4 md:px-6 max-w-screen-xl h-full">
-          <div className="flex flex-col md:flex-row gap-12 items-center h-full">
-            <div className="flex-1 space-y-6">
-              
-              <h1 className="font-bold tracking-tight text-4xl md:text-5xl lg:text-6xl">
-              Your all-in-one UK & US preparation platform
+          <div className="flex flex-col md:flex-row gap-0 items-center h-full">
+            <div className="flex-[3] space-y-6 text-center md:text-left">
+
+              <h1 className="font-bold tracking-tight text-[2.25rem] md:text-6xl text-center md:text-left" style={{ lineHeight: 1.08 }}>
+                <span className="block">We Help</span>
+                <span className="block">International Students</span>
+                <span className="block">Land Their</span>
+                <span
+                  className="block dream-gradient"
+                  style={{ fontFamily: "var(--font-playfair)", fontStyle: "italic", fontWeight: 400, fontSize: '1.10em', lineHeight: 1.15 }}
+                >Dream</span>
+                <span className="block">University Offers</span>
               </h1>
-              <p className="text-xl text-muted-foreground md:text-2xl max-w-[600px]">
-                Build your sphere of mentors to help with 
-                <br />
-                <span 
-                  className={`inline-block ${textFading ? 'animate-fadeOut' : 'animate-fadeIn'}`}
-                >
-                  {" " + animatedTexts[currentTextIndex]}
+              <div className="max-w-[700px] space-y-1 mx-auto md:mx-0 mt-2 text-center md:text-left">
+                <p className="text-xl md:text-2xl text-muted-foreground font-normal leading-relaxed">
+                  Mentors that help you with
+                </p>
+                <span className="block text-2xl md:text-4xl font-semibold text-foreground" style={{ lineHeight: 1.25 }}>
+                  <FlipWords words={flipWords} duration={1500} />
                 </span>
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 mt-8">
-              <Link href="/tutors" className="flex items-center gap-2">
-                <Button size="lg" className="shadow-md bg-[#128ca0] hover:bg-[#126d94] transition-all hover:shadow-lg hover:translate-y-[-2px] group w-full">
-                  
-                    Explore Now <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
-                  
-                </Button>
-              </Link>
-              
-              {!user && (
+              </div>
+              <div className="mt-8 flex justify-center md:justify-start">
                 <Link href="/signup">
-                  <Button size="lg" variant="secondary" className="border-[#c2d8d2]/60 hover:border-[#84b4cc]/60 hover:bg-[#c7e4e3]/10 transition-all w-full">
-                    Sign Up
+                  <Button size="lg" className="w-full max-w-xs md:w-auto shadow-md bg-[#128ca0] hover:bg-[#126d94] transition-all hover:shadow-lg hover:translate-y-[-2px] group">
+                    Get started <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
                   </Button>
                 </Link>
-              )}
-              <Link href="/about">
-                
-                </Link>
               </div>
-              
+
             </div>
-            <div className="flex-1 relative ">
-              <div className="relative w-full justify-center items-center mx-auto" style={{maxWidth: '40rem'}}>
-                
-                  <img
-                    src="/uniandlogo.png"
-                    alt="Online Learning"
-                    className="w-full max-w-full rounded-t-xl object-contain group-hover:scale-105 transition-transform duration-700 h-90 lg:h-[31rem]"
-                  />
-        
-                </div>
+            <div className="hidden md:flex flex-[3] relative items-center justify-center overflow-hidden" style={{ margin: "-2rem 0" }}>
+              <UniversityOrbit />
             </div>
           </div>
         </div>
       </section>
 
-      {/* Platform Features Section with Connected Circles - Enhanced Roadmap Style */}
-      <section className="py-20 md:py-32 w-full bg-card/80 backdrop-blur-sm border-y border-[#c2d8d2]/30">
-        <div className="container mx-auto px-4 md:px-6 max-w-screen-xl">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <Badge className="mb-4 bg-[#4b92a9]/10 text-[#126d94] hover:bg-[#4b92a9]/20 border-none">How We Work</Badge>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Your Path to Success</h2>
-            <p className="text-lg text-muted-foreground">
-              Follow our proven roadmap to maximize your university admission chances
-            </p>
-          </div>
+      {/* ── Summer Studio Banner ──────────────────────────────────────── */}
+      <SummerStudioBanner />
 
-          {/* Enhanced Roadmap with Connected Circles */}
-          <div className="relative mt-20">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 lg:gap-8 mt-12 relative z-10">
-              {/* Step 1 */}
-              <div className="flex flex-col items-center text-center">
-                <div className="relative">
-                  <div className="h-28 w-28 bg-[#c7e4e4] rounded-full flex items-center justify-center mb-6">
-                    <PanelsTopLeft className="h-12 w-12 text-[#128ca0]" />
-                  </div>
-                  {/* Number badge positioned at the top of circle */}
-                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-8 w-8 text-white text-xs font-bold bg-[#128ca0]">
-                    1
-                </div>
-                </div>
-                
-                <h3 className="text-xl font-semibold mb-3">Join Our Platform</h3>
-                <p className="text-muted-foreground">
-Sign up and top-up your balance unlock everything you need to begin your journey, from booking tutors to using our exclusive guides, resources and communities
-                </p>
-              </div>
-              
-              {/* Step 2 */}
-              <div className="flex flex-col items-center text-center">
-                <div className="relative">
-                  <div className="h-28 w-28 bg-[#c7e4e4] rounded-full flex items-center justify-center mb-6">
-                    <School className="h-12 w-12 text-[#128ca0]" />
-                  </div>
-                  {/* Number badge positioned at the top of circle */}
-                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-8 w-8 text-white text-xs font-bold bg-[#128ca0]">
-                    2
-                </div>
-                </div>
-                
-                <h3 className="text-xl font-semibold mb-3">Connect with Tutors</h3>
-                <p className="text-muted-foreground">
-                  Create your own sphere of mentors from your dream universities and courses. Whether you need help with entrance tests or interviews, you'll find a tutor who can do it.
-                </p>
-              </div>
-              
-              {/* Step 3 */}
-              <div className="flex flex-col items-center text-center">
-                <div className="relative">
-                  <div className="h-28 w-28 bg-[#c7e4e4] rounded-full flex items-center justify-center mb-6">
-                    <FileEdit className="h-12 w-12 text-[#128ca0]" />
-                  </div>
-                  {/* Number badge positioned at the top of circle */}
-                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-8 w-8 text-white text-xs font-bold bg-[#128ca0]">
-                    3
-                </div>
-                </div>
-                
-                <h3 className="text-xl font-semibold mb-3">Personalised Guidance</h3>
-                <p className="text-muted-foreground">
-                  Learn directly from current students who've recently succeeded in the exact process you're about to go through. Get insider tips and tailored advice every step of the way.
-                </p>
-              </div>
-              
-              {/* Step 4 */}
-              <div className="flex flex-col items-center text-center">
-                <div className="relative">
-                  <div className="h-28 w-28 bg-[#c7e4e4] rounded-full flex items-center justify-center mb-6">
-                    <Award className="h-12 w-12 text-[#128ca0]" />
-                  </div>
-                  {/* Number badge positioned at the top of circle */}
-                  <div className="absolute -right-2 -top-2 flex justify-center items-center rounded-full h-8 w-8 text-white text-xs font-bold bg-[#128ca0]">
-                    4
-                </div>
-                </div>
-                
-                <h3 className="text-xl font-semibold mb-3">Maximise Admission Chances</h3>
-                <p className="text-muted-foreground">
-                  With relevant, affordable, and flexible support from students who've been in your shoes, you'll undeniably craft a stronger application and give yourself the best shot at success.
-                </p>
-              </div>
-            </div>
-            
-            {/* Create one continuous horizontal line through all circles */}
-            <div className="hidden md:block absolute top-[4.1rem] left-[12%] right-[12%] h-[1px] bg-[#84b4cc] z-0"></div>
-            
-            {/* Add connection dots at the edges of each circle */}
-            <div className="hidden md:block absolute top-[4.1rem] left-[calc(25%-4em)] w-[4px] h-[4px] rounded-full bg-[#84b4cc] transform translate-y-[-1.5px] z-0"></div>
-            <div className="hidden md:block absolute top-[4.1rem] left-[calc(25%+4em)] w-[4px] h-[4px] rounded-full bg-[#84b4cc] transform translate-y-[-1.5px] z-0"></div>
-            <div className="hidden md:block absolute top-[4.1rem] left-[calc(50%-4em)] w-[4px] h-[4px] rounded-full bg-[#84b4cc] transform translate-y-[-1.5px] z-0"></div>
-            <div className="hidden md:block absolute top-[4.1rem] left-[calc(50%+4em)] w-[4px] h-[4px] rounded-full bg-[#84b4cc] transform translate-y-[-1.5px] z-0"></div>
-            <div className="hidden md:block absolute top-[4.1rem] left-[calc(75%-4em)] w-[4px] h-[4px] rounded-full bg-[#84b4cc] transform translate-y-[-1.5px] z-0"></div>
-            <div className="hidden md:block absolute top-[4.1rem] left-[calc(75%+4em)] w-[4px] h-[4px] rounded-full bg-[#84b4cc] transform translate-y-[-1.5px] z-0"></div>
-          </div>
+      {/* How We Work - Apple-style scroll animation */}
+      <section className="w-full bg-white border-t border-[#c2d8d2]/30">
+        <ScrollStep
+          title="How Can We Help?"
+          description="Tell us which universities you're applying to as well as what you need help with. Which part of the application do you need help with? We'll set everything up from there."
+          reverse={false}
+          videoSrc="/uni_selector_visual.html"
+        />
+        <ScrollStep
+          title="Get Matched with Tutors"
+          description="We match you with tutors who fit your exact profile - the right university, the right course, the right experience. No guesswork, just the perfect fit."
+          reverse={true}
+          mediaContent={<RevolvingCards />}
+        />
+        <ScrollStep
+          title="Build Your Team of Tutors"
+          description="Assemble your team of tutors and reach out to them anytime, 24/7. They're here whenever you need them."
+          reverse={false}
+          wideMedia
+          mediaContent={<ChatGraphic />}
+        />
 
-          <div className="mt-16 text-center">
-            <Button size="lg" className="bg-[#128ca0] hover:bg-[#126d94] shadow-md hover:shadow-lg transition-all hover:translate-y-[-2px] group">
-              <Link href="/tutors" className="flex items-center gap-2">
-                Start Your Journey <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
-              </Link>
-            </Button>
-          </div>
+        <div className="py-16 flex flex-col items-center gap-4">
+          <Link href="/signup">
+            <button className="group relative inline-flex items-center justify-center gap-4 px-8 py-4 md:px-12 md:py-6 rounded-2xl bg-[#128ca0] text-white text-lg md:text-2xl font-bold shadow-2xl hover:shadow-[0_20px_60px_-10px_rgba(18,140,160,0.5)] transition-all duration-200 hover:scale-[1.03] hover:bg-[#0f7a8d] active:scale-[0.98] w-full max-w-sm mx-auto md:w-auto">
+              Start Your Journey
+              <ArrowRight className="h-6 w-6 group-hover:translate-x-2 transition-transform duration-200" />
+            </button>
+          </Link>
+          <p className="text-muted-foreground text-sm tracking-wide">Free to sign up. No credit card required.</p>
         </div>
       </section>
-
-      {/* Testimonials */}
-      {/* <section className="py-20 md:py-32 w-full bg-gradient-to-b from-[#c7e4e3]/10 via-background/95 to-[#c2d8d2]/20 relative overflow-hidden">
-        <div className="absolute inset-0 z-0">
-          <div className="absolute top-40 right-[30%] w-72 h-72 bg-[#84b4cc]/10 rounded-full blur-3xl opacity-60 animate-pulse" style={{animationDuration: '10s'}}></div>
-          <div className="absolute bottom-20 left-[20%] w-80 h-80 bg-[#84b7bd]/10 rounded-full blur-3xl opacity-50 animate-pulse" style={{animationDuration: '15s'}}></div>
-        </div>
-        <div className="container mx-auto px-4 md:px-6 max-w-screen-xl relative z-10">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <Badge className="mb-4 bg-[#4b92a9]/10 text-[#126d94] hover:bg-[#4b92a9]/20 border-none">Testimonials</Badge>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">What Our Students Say
-            </h2>
-            <p className="text-lg text-muted-foreground">
-            Hear from students who've reached their goals with the help of UniSphere tutors
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6 lg:gap-10">
-            <Card className="bg-card/50 backdrop-blur-sm border-[#c2d8d2]/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px]">
-              <CardHeader className="pb-2">
-                <div className="flex text-[#3e5461] mb-1">
-                  
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="mb-6 text-foreground/90 leading-relaxed">
-                  "This platform helped me raise my calculus grade from a C to an A. 
-                  The personalized approach made all the difference."
-                </p>
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10 ring-2 ring-[#3e5461]/20">
-                    <AvatarImage src="https://randomuser.me/api/portraits/women/32.jpg" />
-                    <AvatarFallback>JS</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium">Name</p>
-                    <p className="text-sm text-muted-foreground">University</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-card/50 backdrop-blur-sm border-[#c2d8d2]/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px]">
-              <CardHeader className="pb-2">
-                <div className="flex text-[#3e5461] mb-1">
-                  
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="mb-6 text-foreground/90 leading-relaxed">
-                  "I needed help with my Spanish course, and this platform was amazing. 
-                  I can now confidently hold conversations in Spanish!"
-                </p>
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10 ring-2 ring-[#3e5461]/20">
-                    <AvatarImage src="https://randomuser.me/api/portraits/men/42.jpg" />
-                    <AvatarFallback>AP</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium">Name</p>
-                    <p className="text-sm text-muted-foreground">University</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-card/50 backdrop-blur-sm border-[#c2d8d2]/40 shadow-md hover:shadow-xl transition-all duration-300 hover:translate-y-[-3px]">
-              <CardHeader className="pb-2">
-                <div className="flex text-[#3e5461] mb-1">
-                 
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="mb-6 text-foreground/90 leading-relaxed">
-                  "The flexible scheduling options made it possible for me to fit learning
-                  around my busy work schedule. Highly recommend!"
-                </p>
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10 ring-2 ring-[#3e5461]/20">
-                    <AvatarImage src="https://randomuser.me/api/portraits/women/22.jpg" />
-                    <AvatarFallback>MJ</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium">Name</p>
-                    <p className="text-sm text-muted-foreground">University</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="mt-16 text-center">
-            <Button size="lg" className="bg-[#3e5461]/10 text-[#128ca0] hover:bg-[#3e5461]/20 hover:shadow-md transition-all border-[#c2d8d2]/40 hover:translate-y-[-2px] group">
-              <Link href="/tutors" className="flex items-center gap-2">
-                Begin Your Journey <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </section> */}
     </div>
   );
-} 
+}

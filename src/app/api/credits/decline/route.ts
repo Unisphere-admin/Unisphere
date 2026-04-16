@@ -15,7 +15,6 @@ async function declineCreditRequestHandler(req: NextRequest, user: any) {
     const body = await req.json();
     const { message_id, tutor_id } = body || {};
 
-    console.log('Decline credit request:', { message_id, tutor_id, studentId: user.id });
 
     if (!message_id || !tutor_id) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -54,7 +53,6 @@ async function declineCreditRequestHandler(req: NextRequest, user: any) {
       processed_at: new Date().toISOString(),
     });
 
-    console.log('Credit request declined:', message_id);
 
     return NextResponse.json({ 
       success: true,

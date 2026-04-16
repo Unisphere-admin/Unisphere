@@ -23,9 +23,20 @@ import { withCsrfProtection } from '@/lib/csrf-next';
 export const dynamic = 'force-dynamic';
 
 // Cache recent responses to reduce database load
+// Bounded to MAX_CACHE_SIZE entries to prevent unbounded memory growth
 const responseCache = new Map<string, { data: any, timestamp: number }>();
-// Reduce TTL to 1 minute for better real-time updates while still providing caching benefits
-const CACHE_TTL = 60000; // 1 minute TTL (reduced from 15 minutes)
+const CACHE_TTL = 60000; // 1 minute TTL
+const MAX_CACHE_SIZE = 100; // Cap at 100 entries to prevent memory leaks
+
+// Evict expired entries periodically (runs during cache writes)
+const evictExpiredEntries = () => {
+  const now = Date.now();
+  Array.from(responseCache.entries()).forEach(([key, value]) => {
+    if (now - value.timestamp >= CACHE_TTL) {
+      responseCache.delete(key);
+    }
+  });
+};
 
 // Helper to get cached responses or fetch new ones
 const getCachedOrFresh = async <T>(
@@ -34,21 +45,32 @@ const getCachedOrFresh = async <T>(
 ): Promise<T> => {
   const now = Date.now();
   const cached = responseCache.get(cacheKey);
-  
+
   // Use cache if available and not expired
   if (cached && (now - cached.timestamp < CACHE_TTL)) {
     return cached.data as T;
   }
-  
+
   // Otherwise fetch fresh data
   const result = await fetchFn();
-  
+
+  // Evict stale entries before adding new ones
+  if (responseCache.size >= MAX_CACHE_SIZE) {
+    evictExpiredEntries();
+  }
+
+  // If still at capacity after eviction, remove oldest entry
+  if (responseCache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = responseCache.keys().next().value;
+    if (oldestKey) responseCache.delete(oldestKey);
+  }
+
   // Cache the new result
   responseCache.set(cacheKey, {
     data: result,
-    timestamp: now
+    timestamp: now,
   });
-  
+
   return result;
 };
 
@@ -514,8 +536,6 @@ async function patchTutoringSessionsHandler(
           // This prevents race conditions and ensures credits are always deducted
           // ============================================================================
 
-          console.log(`💳 Session acceptance requested - Cost: ${sessionCost} credit(s)`);
-          console.log(`👤 Student: ${studentId}, Accepting user: ${user.id}`);
 
           // Create admin client for atomic credit deduction
           const supabaseAdmin = createClient(
@@ -541,20 +561,14 @@ async function patchTutoringSessionsHandler(
           // Check if deduction was successful
           const result = deductResult[0];
           if (!result.success) {
-            console.log(`❌ Credit deduction failed: ${result.error_message}`);
             return NextResponse.json({
               error: result.error_message || 'Insufficient credits'
             }, { status: 400 });
           }
 
-          console.log(`✅ Credits deducted successfully!`);
-          console.log(`   Old balance: ${result.old_balance}`);
-          console.log(`   New balance: ${result.new_balance}`);
-          console.log(`   Credits deducted: ${result.credits_deducted}`);
 
           // Now that credits are deducted, update the session status
           // If this fails, credits will be refunded by the Edge Function when status changes to cancelled
-          console.log(`🔄 Updating session status to: ${status}`);
           response = await updateSessionStatus(user, session_id, status);
 
           // Check if session update succeeded
@@ -575,8 +589,6 @@ async function patchTutoringSessionsHandler(
               creditsDeducted: true
             }, { status: 500 });
           } else {
-            console.log(`✅ Session ${session_id} status updated successfully to: ${response.session.status}`);
-            console.log(`   Session ID: ${response.session.id}`);
           }
         } else {
           response = await updateSessionStatus(user, session_id, status);

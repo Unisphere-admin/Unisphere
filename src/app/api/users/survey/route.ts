@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth/protectResource';
-import { updateSurveyCompletionInProfile, saveSurveyResponses } from '@/lib/db/users';
+import { updateSurveyCompletionInProfile, saveSurveyResponses, syncSurveyToStudentProfile } from '@/lib/db/users';
 
 export async function POST(request: NextRequest) {
   try {
     // Get authenticated user
     const authUser = await getAuthUser();
     if (!authUser) {
-      console.log('No authenticated user found');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log('Authenticated user:', authUser.id);
 
     // Get the survey data from the request body
     const surveyData = await request.json();
-    console.log('Survey data received:', surveyData);
 
     // Validate survey data structure
     if (!surveyData.region || !surveyData.applicationCycle || !surveyData.country || !surveyData.school || !surveyData.course) {
@@ -26,7 +23,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Save survey responses to the survey_responses table
-    console.log('Saving survey responses for user:', authUser.id);
     const { success: saveSuccess, error: saveError } = await saveSurveyResponses(authUser.id, surveyData);
 
     if (!saveSuccess) {
@@ -37,10 +33,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('✅ Successfully saved survey responses');
+
+    // Sync survey answers into the student_profile so tutors can see them
+    const { success: syncSuccess, error: syncError } = await syncSurveyToStudentProfile(authUser.id, surveyData);
+    if (!syncSuccess) {
+      // Log but don't fail - survey_responses was saved successfully
+      console.error('Warning: could not sync survey data to student_profile:', syncError);
+    }
 
     // Update survey completion using the profile table function
-    console.log('Updating survey_completed in profile table for user:', authUser.id);
     const { success, error } = await updateSurveyCompletionInProfile(authUser.id);
 
     if (!success) {
@@ -51,7 +52,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`✅ Successfully marked survey as completed for user ${authUser.id}`);
 
     return NextResponse.json({ 
       success: true, 

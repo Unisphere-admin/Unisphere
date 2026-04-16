@@ -104,15 +104,15 @@ const config: Config = {
 				'fadeOut': {
 					'0%': { opacity: '1' },
 					'100%': { opacity: '0' },
-				}
+				},
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
 				'accordion-up': 'accordion-up 0.2s ease-out',
 				'float': 'float 6s ease-in-out infinite',
 				'pulse-soft': 'pulse-soft 3s ease-in-out infinite',
-				'fadeIn': 'fadeIn 0.7s ease-in forwards',
-				'fadeOut': 'fadeOut 0.7s ease-out forwards'
+				'fadeIn': 'fadeIn 0.2s ease-in forwards',
+				'fadeOut': 'fadeOut 0.2s ease-out forwards',
 			}
 		}
 	},

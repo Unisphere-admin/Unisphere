@@ -2,17 +2,33 @@
 
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+
+// Dynamically import Recharts - it is ~300 KB and only needed for the activity chart.
+// This keeps it out of the initial JS bundle for the dashboard page.
+const DashboardChart = dynamic(() => import("./DashboardChart"), {
+  ssr: false,
+  loading: () => <div className="h-full animate-pulse bg-muted/50 rounded-lg" />,
+});
 import { useAuth } from "@/context/AuthContext";
 import { useSessions } from "@/context/SessionContext";
 import { useMessages } from "@/context/MessageContext";
-import { 
-  BarChart as BarChartIcon, 
-  Calendar, 
-  Clock, 
+import {
+  BarChart as BarChartIcon,
+  Calendar,
+  Clock,
   Wallet,
   ArrowRight,
   ArrowUpRight,
-  Sparkles
+  Sparkles,
+  History,
+  ArrowDownLeft,
+  ArrowUpLeft,
+  CreditCard,
+  BookOpen,
+  XCircle,
+  X,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -22,17 +38,8 @@ import { Progress } from "@/components/ui/progress";
 import { SessionLink } from "@/components/SessionLink";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-// Import Recharts components
-import {
-  BarChart as RechartsBarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 import { useEffect, useState, useMemo } from "react";
 import { ActiveSession } from "@/context/SessionContext";
 
@@ -126,13 +133,35 @@ export default function DashboardPage() {
   const { sessions, refreshSessions, loadingSessions } = useSessions();
   const messageContext = useMessages();
   const [initialLoading, setInitialLoading] = useState(true);
-  const [activityData, setActivityData] = useState<ActivityData[]>([]);
-  const [totalHours, setTotalHours] = useState(0);
+  const [creditHistoryOpen, setCreditHistoryOpen] = useState(false);
+  const [creditHistory, setCreditHistory] = useState<any[]>([]);
+  const [creditHistoryLoading, setCreditHistoryLoading] = useState(false);
   
   // If user isn't logged in, redirect to home
   if (!user) {
     redirect("/");
   }
+
+  // Credit history fetch
+  const fetchCreditHistory = async () => {
+    setCreditHistoryLoading(true);
+    try {
+      const res = await fetch("/api/credits/history");
+      if (res.ok) {
+        const data = await res.json();
+        setCreditHistory(data.history || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch credit history:", err);
+    } finally {
+      setCreditHistoryLoading(false);
+    }
+  };
+
+  const openCreditHistory = () => {
+    setCreditHistoryOpen(true);
+    fetchCreditHistory();
+  };
 
   // User role
   const isStudent = user?.role === "student";
@@ -190,30 +219,24 @@ export default function DashboardPage() {
     return () => clearInterval(intervalId);
   }, [refreshSessions]);
   
-  // Calculate total tutoring hours from session history - only from ended sessions
-  useEffect(() => {
-    if (completedSessions && completedSessions.length > 0) {
-      const hours = completedSessions.reduce((total, session) => {
-        // Calculate duration if start and end times exist
-        if (session.started_at && session.ended_at && session.status === 'ended') {
-          const start = new Date(session.started_at);
-          const end = new Date(session.ended_at);
-          const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-          return total + durationHours;
-        }
-        return total; // Skip sessions without proper timing information
-      }, 0);
-      
-      setTotalHours(parseFloat(hours.toFixed(1)));
-    }
+  // Memoize total hours -- only recalculates when completedSessions changes
+  const totalHours = useMemo(() => {
+    if (!completedSessions || completedSessions.length === 0) return 0;
+    const hours = completedSessions.reduce((total, session) => {
+      if (session.started_at && session.ended_at && session.status === 'ended') {
+        const start = new Date(session.started_at);
+        const end = new Date(session.ended_at);
+        const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+        return total + durationHours;
+      }
+      return total;
+    }, 0);
+    return parseFloat(hours.toFixed(1));
   }, [completedSessions]);
-    
-  // Generate activity data from completed sessions only
-  useEffect(() => {
-    if (completedSessions.length > 0) {
-      // Generate chart data from these sessions
-      setActivityData(generateActivityData(completedSessions));
-    }
+
+  // Memoize activity chart data -- only recalculates when completedSessions changes
+  const activityData = useMemo(() => {
+    return generateActivityData(completedSessions);
   }, [completedSessions]);
 
   // Get next session time
@@ -336,10 +359,19 @@ export default function DashboardPage() {
           <CardContent>
             <div className="text-4xl font-bold">{user?.tokens || 0}</div>
             <p className="text-sm mt-2 text-primary-foreground/80">
-              {isStudent 
+              {isStudent
                 ? "Credits are used to book tutoring sessions"
                 : "Earn Credits when students book your sessions"}
             </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={openCreditHistory}
+              className="mt-3 text-primary-foreground/90 hover:text-primary-foreground hover:bg-primary-foreground/15 gap-1.5 px-2 h-8 text-xs font-medium"
+            >
+              <History className="h-3.5 w-3.5" />
+              View Credit History
+            </Button>
           </CardContent>
         </Card>
 
@@ -402,64 +434,7 @@ export default function DashboardPage() {
           <CardContent>
             <div className="h-[280px]">
               {activityData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsBarChart
-                    data={activityData}
-                    margin={{
-                      top: 10,
-                      right: 10,
-                      left: -20,
-                      bottom: 0,
-                    }}
-                  >
-                    <defs>
-                      <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#128ca0" stopOpacity={0.9} />
-                        <stop offset="100%" stopColor="#84b4cc" stopOpacity={0.7} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.4} />
-                    <XAxis 
-                      dataKey="name"
-                      tickFormatter={(value, index) => {
-                        const item = activityData[index];
-                        return item ? item.name : value;
-                      }}
-                      axisLine={{ stroke: 'var(--border)', strokeOpacity: 0.4 }}
-                      tick={{ fill: 'var(--card-foreground)' }}
-                    />
-                    <YAxis 
-                      allowDecimals={false}
-                      axisLine={{ stroke: 'var(--border)', strokeOpacity: 0.4 }}
-                      tick={{ fill: 'var(--card-foreground)' }}
-                    />
-                    <Tooltip 
-                      formatter={(value) => [`${value} sessions`, 'Sessions']}
-                      contentStyle={{
-                        backgroundColor: 'var(--card-foreground)',
-                        borderRadius: '0.5rem',
-                        border: '1px solid var(--border)',
-                        boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
-                      }}
-                      labelFormatter={(label, payload) => {
-                        if (payload && payload[0]) {
-                          const item = activityData.find(d => d.name === label);
-                          if (item && item.date) {
-                            return `${label} ${item.date.getFullYear()}`;
-                          }
-                        }
-                        return label;
-                      }}
-                    />
-                    <Bar 
-                      dataKey="sessions" 
-                      fill="url(#barGradient)" 
-                      radius={[4, 4, 0, 0]} 
-                      opacity={0.9}
-                      animationDuration={1500}
-                    />
-                  </RechartsBarChart>
-                </ResponsiveContainer>
+                <DashboardChart activityData={activityData} />
               ) : (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center p-6">
@@ -592,6 +567,90 @@ export default function DashboardPage() {
           )}
         </Card>
       </div>
+
+      {/* Credit History Modal */}
+      <Dialog open={creditHistoryOpen} onOpenChange={setCreditHistoryOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <History className="h-5 w-5 text-primary" />
+              Credit History
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto -mx-6 px-6">
+            {creditHistoryLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <span className="ml-2 text-sm text-muted-foreground">Loading history...</span>
+              </div>
+            ) : creditHistory.length === 0 ? (
+              <div className="text-center py-12">
+                <Wallet className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+                <p className="text-muted-foreground text-sm">No credit history yet</p>
+                <p className="text-muted-foreground/60 text-xs mt-1">Transactions will appear here once you start using credits</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {creditHistory.map((item: any) => {
+                  const isPositive = item.type === "transfer_in" || item.type === "lesson_earning";
+                  const isDeclined = item.type === "transfer_declined";
+                  const date = new Date(item.date);
+                  const formattedDate = date.toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  });
+                  const formattedTime = date.toLocaleTimeString("en-GB", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+
+                  const iconMap: Record<string, React.ReactNode> = {
+                    transfer_in: <ArrowDownLeft className="h-4 w-4 text-emerald-500" />,
+                    transfer_out: <ArrowUpLeft className="h-4 w-4 text-orange-500" />,
+                    transfer_declined: <XCircle className="h-4 w-4 text-red-400" />,
+                    lesson_deduction: <BookOpen className="h-4 w-4 text-sky-500" />,
+                    lesson_earning: <BookOpen className="h-4 w-4 text-emerald-500" />,
+                    top_up: <CreditCard className="h-4 w-4 text-violet-500" />,
+                  };
+
+                  const bgMap: Record<string, string> = {
+                    transfer_in: "bg-emerald-50",
+                    transfer_out: "bg-orange-50",
+                    transfer_declined: "bg-red-50",
+                    lesson_deduction: "bg-sky-50",
+                    lesson_earning: "bg-emerald-50",
+                    top_up: "bg-violet-50",
+                  };
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${bgMap[item.type] || "bg-muted"}`}>
+                        {iconMap[item.type] || <Wallet className="h-4 w-4 text-muted-foreground" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{item.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formattedDate} at {formattedTime}
+                        </p>
+                      </div>
+                      <div className={`text-sm font-semibold tabular-nums shrink-0 ${
+                        isDeclined ? "text-red-400 line-through" : isPositive ? "text-emerald-600" : "text-foreground"
+                      }`}>
+                        {isDeclined ? "" : isPositive ? "+" : "-"}{item.amount}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-} 
+}
