@@ -795,6 +795,9 @@ export default function SummerStudioPage() {
           </div>
         </section>
 
+        {/* ═══════════════ MENTOR PROJECTS ═══════════════ */}
+        <MentorProjects />
+
         {/* ═══════════════ WHAT YOU GET ═══════════════ */}
         <section className="py-20 relative">
           <div className="container max-w-screen-xl mx-auto px-4 md:px-6">
@@ -1172,5 +1175,84 @@ function TimelineStep({
         <p className="text-sm text-gray-500 leading-relaxed">{step.desc}</p>
       </div>
     </div>
+  );
+}
+
+/* ────────────────── Mentor Projects ────────────────────────── */
+
+const PROJECTS = [
+  {
+    id: "placeholder-left",
+    name: "Coming Soon",
+    logo: null,
+    description: "",
+    placeholder: true,
+  },
+  {
+    id: "stem-bulletin",
+    name: "The STEM Bulletin",
+    logo: "/projects/stem-bulletin.png",
+    description: "A student-run STEM publication covering the latest in science, technology, engineering and mathematics. Founded and grown by a Unisphere mentor, it has become a platform for young researchers to share their work with a global audience.",
+    url: null,
+    placeholder: false,
+  },
+  {
+    id: "placeholder-right",
+    name: "Coming Soon",
+    logo: null,
+    description: "",
+    placeholder: true,
+  },
+];
+
+function MentorProjects() {
+  const [open, setOpen] = useState<string | null>(null);
+  const { ref, isVisible } = useScrollReveal(0.2);
+
+  return (
+    <section className="py-20 relative">
+      <div className="container max-w-screen-xl mx-auto px-4 md:px-6">
+        <div ref={ref} style={{ opacity: isVisible ? 1 : 0, transform: isVisible ? "translateY(0)" : "translateY(24px)", transition: "all 0.8s ease" }}>
+          <div className="text-center mb-12">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] ss-gradient-text inline-block mb-3">Real Impact</p>
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              Get mentored by tutors who have actually built things
+            </h2>
+            <p className="text-gray-500 max-w-xl mx-auto text-base">
+              Our mentors don't just advise. They've launched real projects you can learn from and be inspired by.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-6 max-w-3xl mx-auto">
+            {PROJECTS.map((project) => (
+              <div key={project.id} className="flex flex-col items-center">
+                {project.placeholder ? (
+                  <div className="w-full aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-300 text-sm font-medium select-none">
+                    Coming Soon
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setOpen(open === project.id ? null : project.id)}
+                      className="w-full aspect-square rounded-2xl border border-gray-100 bg-white flex items-center justify-center p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 cursor-pointer"
+                      style={{ boxShadow: open === project.id ? "0 0 0 2px rgba(120,87,255,0.4), 0 8px 24px rgba(120,87,255,0.12)" : undefined }}
+                    >
+                      <img src={project.logo!} alt={project.name} className="w-full h-full object-contain" />
+                    </button>
+                    {open === project.id && (
+                      <div className="mt-4 w-full rounded-2xl border border-gray-100 bg-white p-5 shadow-lg text-left" style={{ animation: "fadeIn 0.2s ease" }}>
+                        <p className="font-semibold text-gray-900 mb-2">{project.name}</p>
+                        <p className="text-sm text-gray-500 leading-relaxed">{project.description}</p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+    </section>
   );
 }
