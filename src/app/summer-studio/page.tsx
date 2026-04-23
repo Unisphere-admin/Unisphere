@@ -800,7 +800,7 @@ export default function SummerStudioPage() {
           <div className="container max-w-screen-xl mx-auto px-4 md:px-6">
             <div
               ref={statsReveal.ref}
-              className="rounded-2xl p-6 md:p-8 max-w-3xl mx-auto transition-all duration-1000"
+              className="rounded-2xl p-6 md:p-8 max-w-4xl mx-auto transition-all duration-1000"
               style={{
                 background: "rgba(255,255,255,0.75)",
                 backdropFilter: "blur(20px)",
