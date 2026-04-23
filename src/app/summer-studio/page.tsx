@@ -506,7 +506,7 @@ export default function SummerStudioPage() {
     {
       week: "Week 4-5",
       title: "Launch, Test & Get Fresh Eyes",
-      desc: "Your project is taking shape. Now it's time to put it out there, gain traction, and validate your ideas. We'll loop in one or two additional mentors to give you new perspectives and challenge your thinking.",
+      desc: "Your project is taking shape. Now it's time to put it out there and validate your ideas. That might mean publishing on a journal, launching a website, or starting a blog. We'll loop in one or two additional mentors to give you new perspectives and challenge your thinking.",
     },
     {
       week: "Week 6",
