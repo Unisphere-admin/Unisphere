@@ -1,26 +1,11 @@
 import { Metadata } from 'next';
 import { Playfair_Display } from 'next/font/google';
-import localFont from 'next/font/local';
+import { GeistSans } from 'geist/font/sans';
 
 const playfair = Playfair_Display({
   subsets: ['latin'],
   variable: '--font-playfair',
   style: ['italic'],
-  display: 'swap',
-});
-
-const satoshi = localFont({
-  src: [
-    { path: '../../public/Fonts/WEB/fonts/Satoshi-Regular.woff2', weight: '400', style: 'normal' },
-    { path: '../../public/Fonts/WEB/fonts/Satoshi-Italic.woff2', weight: '400', style: 'italic' },
-    { path: '../../public/Fonts/WEB/fonts/Satoshi-Medium.woff2', weight: '500', style: 'normal' },
-    { path: '../../public/Fonts/WEB/fonts/Satoshi-MediumItalic.woff2', weight: '500', style: 'italic' },
-    { path: '../../public/Fonts/WEB/fonts/Satoshi-Bold.woff2', weight: '700', style: 'normal' },
-    { path: '../../public/Fonts/WEB/fonts/Satoshi-BoldItalic.woff2', weight: '700', style: 'italic' },
-    { path: '../../public/Fonts/WEB/fonts/Satoshi-Black.woff2', weight: '900', style: 'normal' },
-    { path: '../../public/Fonts/WEB/fonts/Satoshi-BlackItalic.woff2', weight: '900', style: 'italic' },
-  ],
-  variable: '--font-satoshi',
   display: 'swap',
 });
 import './globals.css';
@@ -66,7 +51,7 @@ export default function RootLayout({
           }
         `}</style>
       </head>
-      <body className={`${playfair.variable} ${satoshi.variable} min-h-screen bg-background w-full overflow-x-hidden`}>
+      <body className={`${playfair.variable} ${GeistSans.variable} min-h-screen bg-background w-full overflow-x-hidden`}>
         <QueryProvider>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
             <AuthProvider>
