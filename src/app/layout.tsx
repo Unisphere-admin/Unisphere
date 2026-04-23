@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { Playfair_Display, Urbanist } from 'next/font/google';
+import { Playfair_Display, Syne } from 'next/font/google';
 
 const playfair = Playfair_Display({
   subsets: ['latin'],
@@ -8,10 +8,10 @@ const playfair = Playfair_Display({
   display: 'swap',
 });
 
-const urbanist = Urbanist({
+const syne = Syne({
   subsets: ['latin'],
-  variable: '--font-urbanist',
-  weight: ['300', '400', '500', '600', '700', '800'],
+  variable: '--font-syne',
+  weight: ['400', '500', '600', '700', '800'],
   display: 'swap',
 });
 import './globals.css';
@@ -57,7 +57,7 @@ export default function RootLayout({
           }
         `}</style>
       </head>
-      <body className={`${playfair.variable} ${urbanist.variable} min-h-screen bg-background w-full overflow-x-hidden`}>
+      <body className={`${playfair.variable} ${syne.variable} min-h-screen bg-background w-full overflow-x-hidden`}>
         <QueryProvider>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
             <AuthProvider>
