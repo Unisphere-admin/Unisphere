@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
-import { Playfair_Display, Syne } from 'next/font/google';
+import { Playfair_Display } from 'next/font/google';
+import localFont from 'next/font/local';
 
 const playfair = Playfair_Display({
   subsets: ['latin'],
@@ -8,10 +9,17 @@ const playfair = Playfair_Display({
   display: 'swap',
 });
 
-const syne = Syne({
-  subsets: ['latin'],
-  variable: '--font-syne',
-  weight: ['400', '500', '600', '700', '800'],
+const satoshi = localFont({
+  src: [
+    { path: '../../public/Fonts/WEB/fonts/Satoshi-Light.woff2', weight: '300', style: 'normal' },
+    { path: '../../public/Fonts/WEB/fonts/Satoshi-Regular.woff2', weight: '400', style: 'normal' },
+    { path: '../../public/Fonts/WEB/fonts/Satoshi-Italic.woff2', weight: '400', style: 'italic' },
+    { path: '../../public/Fonts/WEB/fonts/Satoshi-Medium.woff2', weight: '500', style: 'normal' },
+    { path: '../../public/Fonts/WEB/fonts/Satoshi-Bold.woff2', weight: '700', style: 'normal' },
+    { path: '../../public/Fonts/WEB/fonts/Satoshi-BoldItalic.woff2', weight: '700', style: 'italic' },
+    { path: '../../public/Fonts/WEB/fonts/Satoshi-Black.woff2', weight: '900', style: 'normal' },
+  ],
+  variable: '--font-satoshi',
   display: 'swap',
 });
 import './globals.css';
@@ -57,7 +65,7 @@ export default function RootLayout({
           }
         `}</style>
       </head>
-      <body className={`${playfair.variable} ${syne.variable} min-h-screen bg-background w-full overflow-x-hidden`}>
+      <body className={`${playfair.variable} ${satoshi.variable} min-h-screen bg-background w-full overflow-x-hidden`}>
         <QueryProvider>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
             <AuthProvider>
