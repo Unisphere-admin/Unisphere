@@ -1932,7 +1932,7 @@ export default function TutorsPage() {
         </div>
         <div className="container relative z-10 mx-auto px-4 md:px-6 max-w-screen-xl">
           <div className="max-w-3xl mx-auto text-center">
-            <h1 className="text-3xl font-bold tracking-tight mb-4 md:text-5xl text-center md:text-left">
+            <h1 className="text-3xl font-bold tracking-tight mb-4 md:text-5xl text-center">
               Find Your Perfect <span className="text-[#128ca0]">Tutor</span>
             </h1>
 
