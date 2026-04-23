@@ -795,49 +795,6 @@ export default function SummerStudioPage() {
           </div>
         </section>
 
-        {/* ═══════════════ STATS BAR ═══════════════ */}
-        <section className="py-6 relative z-10 -mt-16">
-          <div className="container max-w-screen-xl mx-auto px-4 md:px-6">
-            <div
-              ref={statsReveal.ref}
-              className="rounded-2xl p-6 md:p-8 max-w-4xl mx-auto transition-all duration-1000"
-              style={{
-                background: "rgba(255,255,255,0.75)",
-                backdropFilter: "blur(20px)",
-                WebkitBackdropFilter: "blur(20px)",
-                border: "1px solid rgba(120,87,255,0.1)",
-                boxShadow: "0 8px 32px rgba(120,87,255,0.08)",
-                opacity: statsReveal.isVisible ? 1 : 0,
-                transform: statsReveal.isVisible
-                  ? "translateY(0) scale(1)"
-                  : "translateY(30px) scale(0.97)",
-              }}
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 text-center md:gap-8">
-                {[
-                  { value: 6, suffix: " Weeks", label: "Duration" },
-                  { value: 20, suffix: " Mentors", label: "Specialized" },
-                  { value: 11, suffix: " Students", label: "Enrolled" },
-                  { value: 1, suffix: " Project", label: "Outcome" },
-                ].map((item) => (
-                  <div key={item.label}>
-                    <p className="text-4xl font-black ss-gradient-text tabular-nums whitespace-nowrap">
-                      <AnimatedCounter
-                        target={item.value}
-                        suffix={item.suffix}
-                        duration={1200}
-                      />
-                    </p>
-                    <p className="text-xs text-gray-400 uppercase tracking-widest mt-1.5 font-medium">
-                      {item.label}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* ═══════════════ WHAT YOU GET ═══════════════ */}
         <section className="py-20 relative">
           <div className="container max-w-screen-xl mx-auto px-4 md:px-6">
