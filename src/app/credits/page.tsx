@@ -13,7 +13,9 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
-import { loadStripe } from '@stripe/stripe-js';
+// @stripe/stripe-js is lazy-loaded inside the checkout handler via dynamic
+// import — avoids pulling the Stripe SDK into this route's client bundle on
+// first paint. Users who never click checkout never pay the download cost.
 import { getCurrencyInfo } from "@/lib/currency";
 
 
@@ -113,7 +115,9 @@ export default function CreditsPage() {
 
       const { sessionId } = await response.json();
 
-      // Redirect to Stripe's hosted checkout page
+      // Redirect to Stripe's hosted checkout page. Lazy-import Stripe SDK
+      // only now (on click) so the route's initial bundle stays light.
+      const { loadStripe } = await import('@stripe/stripe-js');
       const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
       if (stripe) {
         const { error } = await stripe.redirectToCheckout({ sessionId });

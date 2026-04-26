@@ -225,9 +225,8 @@ export function ChatGraphic() {
   return (
     <div
       ref={containerRef}
-      className="w-full overflow-hidden relative"
+      className="w-full overflow-hidden relative h-[560px] md:h-[420px]"
       style={{
-        height: "420px",
         opacity: isFadingOut ? 0 : 1,
         transition: `opacity ${RESET_DURATION}ms ease`,
       }}

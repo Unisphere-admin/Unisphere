@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Mobile Preview</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #111;
+    font-family: system-ui, sans-serif;
+    color: #fff;
+  }
+  .layout {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    gap: 20px;
+    padding: 12px 24px;
+  }
+  .left-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+  }
+  h1 { font-size: 11px; opacity: 0.5; letter-spacing: 0.12em; text-transform: uppercase; }
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: stretch;
+    width: 130px;
+  }
+  .controls a {
+    background: #222;
+    border: 1px solid #444;
+    color: #ccc;
+    padding: 7px 13px;
+    border-radius: 8px;
+    font-size: 12px;
+    text-decoration: none;
+    cursor: pointer;
+    text-align: center;
+  }
+  .controls a:hover, .controls a.active { background: #128ca0; border-color: #128ca0; color: #fff; }
+  .scroll-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 130px;
+  }
+  .scroll-controls label {
+    font-size: 10px;
+    opacity: 0.4;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    text-align: center;
+  }
+  .scroll-btn {
+    background: #1e3a3a;
+    border: 1px solid #2a5a5a;
+    color: #5ff;
+    padding: 8px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: center;
+    user-select: none;
+  }
+  .scroll-btn:hover { background: #2a4f4f; }
+  .scroll-btn:active { background: #128ca0; }
+  .scroll-pos {
+    font-size: 10px;
+    opacity: 0.4;
+    text-align: center;
+  }
+  .phone-outer {
+    position: relative;
+    background: #1a1a1a;
+    border-radius: 48px;
+    padding: 12px;
+    box-shadow:
+      0 0 0 2px #333,
+      0 0 0 4px #222,
+      0 30px 80px rgba(0,0,0,0.8);
+    flex-shrink: 0;
+  }
+  .phone-outer::before {
+    content: '';
+    position: absolute;
+    left: -4px;
+    top: 110px;
+    width: 4px;
+    height: 32px;
+    background: #2a2a2a;
+    border-radius: 2px 0 0 2px;
+    box-shadow: 0 44px 0 #2a2a2a, 0 82px 0 #2a2a2a;
+  }
+  .phone-outer::after {
+    content: '';
+    position: absolute;
+    right: -4px;
+    top: 150px;
+    width: 4px;
+    height: 58px;
+    background: #2a2a2a;
+    border-radius: 0 2px 2px 0;
+  }
+  .phone-screen {
+    width: 370px;
+    height: 760px;
+    border-radius: 38px;
+    overflow: hidden;
+    background: #000;
+    position: relative;
+  }
+  /* Dynamic island */
+  .phone-screen::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 110px;
+    height: 30px;
+    background: #000;
+    border-radius: 20px;
+    z-index: 100;
+    pointer-events: none;
+  }
+  iframe {
+    width: 390px;
+    height: 760px;
+    border: none;
+    transform-origin: top left;
+    transform: scaleX(0.949);
+    display: block;
+  }
+  .url-bar {
+    font-size: 10px;
+    opacity: 0.35;
+    text-align: center;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <div class="left-panel">
+    <h1>Mobile 390px</h1>
+    <div class="controls" id="nav">
+      <a href="#" onclick="load('/', this)">Home</a>
+      <a href="#" onclick="load('/about', this)">About</a>
+      <a href="#" onclick="load('/tutors', this)">Tutors</a>
+      <a href="#" onclick="load('/summer-studio', this)">Summer Studio</a>
+      <a href="#" onclick="load('/credits', this)">Credits</a>
+      <a href="#" onclick="load('/login', this)">Login</a>
+    </div>
+    <div class="scroll-controls">
+      <label>Scroll</label>
+      <div class="scroll-btn" onclick="scrollPage(-300)">▲ Up 300px</div>
+      <div class="scroll-btn" onclick="scrollPage(-150)">▲ Up 150px</div>
+      <div class="scroll-btn" onclick="scrollPage(150)">▼ Down 150px</div>
+      <div class="scroll-btn" onclick="scrollPage(300)">▼ Down 300px</div>
+      <div class="scroll-btn" onclick="scrollPage(600)">▼ Down 600px</div>
+      <div class="scroll-btn" onclick="scrollToTop()">⬆ Top</div>
+      <div class="scroll-btn" onclick="scrollToBottom()">⬇ Bottom</div>
+      <div class="scroll-pos" id="scrollpos">y: 0</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="phone-outer">
+      <div class="phone-screen" id="phoneScreen">
+        <iframe id="preview" src="http://localhost:3000/"></iframe>
+      </div>
+    </div>
+    <div class="url-bar" id="urlbar">localhost:3000/</div>
+  </div>
+</div>
+
+<script>
+document.querySelector('#nav a').classList.add('active');
+
+function getIframeWin() {
+  return document.getElementById('preview').contentWindow;
+}
+
+function scrollPage(delta) {
+  const win = getIframeWin();
+  if (!win) return;
+  win.scrollBy({ top: delta, behavior: 'instant' });
+  setTimeout(updatePos, 50);
+}
+
+function scrollToTop() {
+  const win = getIframeWin();
+  if (!win) return;
+  win.scrollTo({ top: 0, behavior: 'instant' });
+  setTimeout(updatePos, 50);
+}
+
+function scrollToBottom() {
+  const win = getIframeWin();
+  if (!win) return;
+  const doc = win.document;
+  win.scrollTo({ top: doc.documentElement.scrollHeight, behavior: 'instant' });
+  setTimeout(updatePos, 50);
+}
+
+function updatePos() {
+  const win = getIframeWin();
+  if (!win) return;
+  const doc = win.document;
+  const y = win.scrollY;
+  const h = doc.documentElement.scrollHeight;
+  document.getElementById('scrollpos').textContent = `y: ${y} / ${h}`;
+}
+
+function load(path, el) {
+  event.preventDefault();
+  const iframe = document.getElementById('preview');
+  iframe.src = 'http://localhost:3000' + path;
+  document.getElementById('urlbar').textContent = 'localhost:3000' + path;
+  document.querySelectorAll('.controls a').forEach(a => a.classList.remove('active'));
+  el.classList.add('active');
+  // Reset scroll pos display
+  document.getElementById('scrollpos').textContent = 'y: 0';
+}
+
+// Update scroll pos on iframe scroll
+document.getElementById('preview').addEventListener('load', function() {
+  const win = this.contentWindow;
+  try {
+    win.addEventListener('scroll', updatePos, { passive: true });
+  } catch(e) {}
+  updatePos();
+});
+
+// Forward wheel events over the phone screen
+document.getElementById('phoneScreen').addEventListener('wheel', function(e) {
+  e.preventDefault();
+  const win = getIframeWin();
+  if (win) {
+    win.scrollBy({ top: e.deltaY, behavior: 'instant' });
+    setTimeout(updatePos, 50);
+  }
+}, { passive: false });
+</script>
+</body>
+</html>

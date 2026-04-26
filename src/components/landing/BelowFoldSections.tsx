@@ -288,12 +288,11 @@ function JoinPlatformAnimation() {
     : "What do you need help with?";
 
   return (
-    <div ref={wrapperRef} className="w-full flex flex-col items-center gap-5">
+    <div ref={wrapperRef} className="w-full flex flex-col items-center gap-3 md:gap-5">
       <p className="text-sm font-medium text-foreground/70">{label}</p>
       <div
-        className="w-full flex items-center justify-center"
+        className="w-full flex items-center justify-center h-[220px] md:h-[380px]"
         style={{
-          height: '380px',
           opacity: fading ? 0 : 1,
           transition: 'opacity 0.35s ease',
           overflow: 'visible',

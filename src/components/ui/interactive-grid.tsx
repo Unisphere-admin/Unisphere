@@ -20,7 +20,7 @@ function seededRandom(seed: number) {
  * Replaces the previous approach of rendering ~1,100 individual <div> DOM nodes,
  * which caused significant layout/paint overhead on the About page.
  */
-function StaticGrid() {
+function StaticGrid({ variant = "default" }: { variant?: "default" | "teal" }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -35,7 +35,9 @@ function StaticGrid() {
       if (!ctx) return;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = "rgba(100, 80, 200, 0.13)";
+      ctx.strokeStyle = variant === "teal"
+        ? "rgba(30, 130, 160, 0.16)"
+        : "rgba(100, 80, 200, 0.13)";
       ctx.lineWidth = 1;
 
       const rand = seededRandom(77);
@@ -69,7 +71,7 @@ function StaticGrid() {
       window.removeEventListener("resize", onResize);
       clearTimeout(resizeTimer);
     };
-  }, []);
+  }, [variant]);
 
   return (
     <canvas
@@ -82,34 +84,57 @@ function StaticGrid() {
 
 /**
  * InteractiveGridBackground - fixed behind all page content.
- * Diagonal stripe bands + rich blue/purple/pink gradient base + scattered static squares.
+ * Diagonal stripe bands + gradient base + scattered static squares.
+ *
+ * Two palettes:
+ *   - "default": rich blue/purple/pink wash (used by /about)
+ *   - "teal":    teal/sky-blue/white wash (used by /testimonials)
  */
-export function InteractiveGridBackground() {
+export function InteractiveGridBackground({
+  variant = "default",
+}: {
+  variant?: "default" | "teal";
+}) {
+  const backgroundImage = variant === "teal"
+    ? [
+        /* Diagonal stripe band 1 - deep royal blue */
+        "linear-gradient(123deg, transparent 0%, transparent 34%, rgba(35,95,210,0.16) 34%, rgba(35,95,210,0.16) 54%, transparent 54%, transparent 100%)",
+        /* Diagonal stripe band 2 - bright cyan-blue */
+        "linear-gradient(251deg, transparent 0%, transparent 62%, rgba(45,175,235,0.16) 62%, rgba(45,175,235,0.16) 84%, transparent 84%, transparent 100%)",
+        /* Teal wash - top-left */
+        "linear-gradient(140deg, rgba(18,140,175,0.28) 0%, transparent 44%)",
+        /* Vibrant sky blue wash - top-right */
+        "linear-gradient(220deg, rgba(45,135,225,0.26) 0%, transparent 44%)",
+        /* Cyan aqua wash - bottom-right */
+        "linear-gradient(310deg, rgba(70,195,235,0.22) 0%, transparent 42%)",
+        /* Soft white wash - center, brightens the middle */
+        "linear-gradient(180deg, transparent 20%, rgba(255,255,255,0.32) 50%, transparent 80%)",
+        /* Base: pale blue-teal to off-white to pale azure */
+        "linear-gradient(150deg, #d4ecf5 0%, #b8dcee 35%, #eef6f9 65%, #c0dcec 100%)",
+      ].join(",")
+    : [
+        /* Diagonal stripe band 1 */
+        "linear-gradient(123deg, transparent 0%, transparent 34%, rgba(14,100,180,0.10) 34%, rgba(14,100,180,0.10) 54%, transparent 54%, transparent 100%)",
+        /* Diagonal stripe band 2 */
+        "linear-gradient(251deg, transparent 0%, transparent 62%, rgba(200,50,150,0.09) 62%, rgba(200,50,150,0.09) 84%, transparent 84%, transparent 100%)",
+        /* Teal wash - top-left */
+        "linear-gradient(140deg, rgba(18,140,160,0.25) 0%, transparent 42%)",
+        /* Blue wash - top-right */
+        "linear-gradient(220deg, rgba(14,80,200,0.18) 0%, transparent 40%)",
+        /* Pink wash - bottom-right */
+        "linear-gradient(310deg, rgba(210,50,140,0.18) 0%, transparent 40%)",
+        /* Purple accent - center */
+        "linear-gradient(180deg, transparent 20%, rgba(100,50,200,0.08) 50%, transparent 80%)",
+        /* Base: deep, rich, saturated */
+        "linear-gradient(150deg, #bde0ec 0%, #d0c0e8 35%, #eac0d8 65%, #bed8ec 100%)",
+      ].join(",");
+
   return (
     <div className="fixed inset-0" style={{ zIndex: 0 }}>
       {/* Gradient base with diagonal stripes */}
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage:
-            /* Diagonal stripe band 1 */
-            "linear-gradient(123deg, transparent 0%, transparent 34%, rgba(14,100,180,0.10) 34%, rgba(14,100,180,0.10) 54%, transparent 54%, transparent 100%)," +
-            /* Diagonal stripe band 2 */
-            "linear-gradient(251deg, transparent 0%, transparent 62%, rgba(200,50,150,0.09) 62%, rgba(200,50,150,0.09) 84%, transparent 84%, transparent 100%)," +
-            /* Teal wash - top-left */
-            "linear-gradient(140deg, rgba(18,140,160,0.25) 0%, transparent 42%)," +
-            /* Blue wash - top-right */
-            "linear-gradient(220deg, rgba(14,80,200,0.18) 0%, transparent 40%)," +
-            /* Pink wash - bottom-right */
-            "linear-gradient(310deg, rgba(210,50,140,0.18) 0%, transparent 40%)," +
-            /* Purple accent - center */
-            "linear-gradient(180deg, transparent 20%, rgba(100,50,200,0.08) 50%, transparent 80%)," +
-            /* Base: deep, rich, saturated */
-            "linear-gradient(150deg, #bde0ec 0%, #d0c0e8 35%, #eac0d8 65%, #bed8ec 100%)",
-        }}
-      />
+      <div className="absolute inset-0" style={{ backgroundImage }} />
       {/* Static Lego-style square grid */}
-      <StaticGrid />
+      <StaticGrid variant={variant} />
     </div>
   );
 }

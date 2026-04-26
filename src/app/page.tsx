@@ -28,6 +28,11 @@ const SummerStudioBanner = dynamic(
   { ssr: false }
 );
 
+const TestimonialsBanner = dynamic(
+  () => import("@/components/landing/TestimonialsBanner").then(m => ({ default: m.TestimonialsBanner })),
+  { ssr: false }
+);
+
 export default function HomePage() {
   const flipWords = ["Oxbridge Interviews", "Personal Statements", "Essays", "Admissions Tests", "ACT/SAT"];
 
@@ -38,32 +43,40 @@ export default function HomePage() {
       {/* Hero Section */}
       <section className="relative py-8 pb-12 md:py-16 bg-white">
 
-        <div className="container relative z-10 mx-auto px-4 md:px-6 max-w-screen-xl h-full">
+        <div className="container relative z-10 mx-auto px-6 md:px-10 max-w-screen-xl h-full">
           <div className="flex flex-col md:flex-row gap-0 items-center h-full">
-            <div className="flex-[3] space-y-6 text-center md:text-left">
+            <div className="flex-[3] space-y-6 text-left">
 
-              <h1 className="font-bold tracking-tight text-[2.25rem] md:text-6xl text-center md:text-left" style={{ lineHeight: 1.08 }}>
-                <span className="block">We Help</span>
-                <span className="block">International Students</span>
-                <span className="block">Land Their</span>
-                <span
-                  className="block dream-gradient"
-                  style={{ fontFamily: "var(--font-playfair)", fontStyle: "italic", fontWeight: 400, fontSize: '1.10em', lineHeight: 1.15 }}
-                >Dream</span>
-                <span className="block">University Offers</span>
+              <h1
+                className="font-bold tracking-tight text-[3rem] sm:text-[3.25rem] md:text-6xl text-left"
+                style={{ lineHeight: 1.05 }}
+              >
+                <span className="block hero-anim-init hero-anim-line" style={{ animationDelay: '0.10s' }}>We Help</span>
+                <span className="block text-[3.3rem] sm:text-[3.55rem] md:text-6xl hero-anim-init hero-anim-line" style={{ animationDelay: '0.30s' }}>International Students</span>
+                <span className="block hero-anim-init hero-anim-line" style={{ animationDelay: '0.50s' }}>Land Their</span>
+                <span className="block hero-anim-init hero-anim-dream-wrap" style={{ animationDelay: '0.75s' }}>
+                  <span
+                    className="inline-block dream-gradient text-[3.6rem] sm:text-[3.9rem] md:text-[4.125rem]"
+                    style={{ fontFamily: "var(--font-playfair)", fontStyle: "italic", fontWeight: 400, lineHeight: 1.15 }}
+                  >Dream</span>
+                </span>
+                <span className="block hero-anim-init hero-anim-line" style={{ animationDelay: '1.20s' }}>University Offers</span>
               </h1>
-              <div className="max-w-[700px] space-y-1 mx-auto md:mx-0 mt-2 text-center md:text-left">
+              <div className="max-w-[700px] space-y-1 mt-2 text-left hero-anim-init hero-anim-line" style={{ animationDelay: '1.55s' }}>
                 <p className="text-xl md:text-2xl text-muted-foreground font-normal leading-relaxed">
                   Mentors that help you with
                 </p>
-                <span className="block text-2xl md:text-4xl font-semibold text-foreground" style={{ lineHeight: 1.25 }}>
+                <span className="block text-[1.75rem] md:text-4xl font-semibold text-foreground" style={{ lineHeight: 1.25 }}>
                   <FlipWords words={flipWords} duration={1500} />
                 </span>
               </div>
-              <div className="mt-8 flex justify-center md:justify-start">
+              <div className="mt-10 flex justify-start hero-anim-init hero-anim-line" style={{ animationDelay: '1.85s' }}>
                 <Link href="/signup">
-                  <Button size="lg" className="w-full max-w-xs md:w-auto shadow-md bg-[#128ca0] hover:bg-[#126d94] transition-all hover:shadow-lg hover:translate-y-[-2px] group">
-                    Get started <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
+                  <Button
+                    size="lg"
+                    className="w-full max-w-xs md:w-auto h-12 md:h-14 px-8 md:px-10 text-base md:text-lg font-semibold shadow-md bg-[#128ca0] hover:bg-[#126d94] transition-all hover:shadow-lg hover:translate-y-[-2px] group"
+                  >
+                    Get started <ArrowRight className="h-5 w-5 md:h-6 md:w-6 group-hover:translate-x-1 transition-transform duration-200" />
                   </Button>
                 </Link>
               </div>
@@ -75,6 +88,9 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* ── Testimonials Banner ───────────────────────────────────────── */}
+      <TestimonialsBanner />
 
       {/* ── Summer Studio Banner ──────────────────────────────────────── */}
       <SummerStudioBanner />

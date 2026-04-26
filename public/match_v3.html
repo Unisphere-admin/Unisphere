@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Constellation Network</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100vh;
+            background: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        svg {
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .center-student {
+            position: absolute;
+            width: 70px;
+            height: 70px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #e5e5e5;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .student-icon {
+            width: 40px;
+            height: 40px;
+            background: #999;
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .student-icon::before {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            background: #999;
+            border-radius: 50%;
+            top: 25%;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .student-icon::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 14px;
+            background: #999;
+            border-radius: 50% 50% 0 0;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .tutor-circle {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 5;
+        }
+
+        .tutor-photo {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            transition: all 0.6s ease;
+        }
+
+        .tutor-label {
+            position: absolute;
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 11px;
+            font-weight: 600;
+            color: #0d9488;
+            white-space: nowrap;
+            opacity: 0;
+            animation: labelFadeIn 0.5s ease forwards;
+            animation-delay: 3.5s;
+        }
+
+        @keyframes labelFadeIn {
+            0% {
+                opacity: 0;
+            }
+            100% {
+                opacity: 1;
+            }
+        }
+
+        /* Position tutors in circle */
+        .tutor-circle:nth-child(2) {
+            --angle: 0deg;
+        }
+
+        .tutor-circle:nth-child(3) {
+            --angle: 60deg;
+        }
+
+        .tutor-circle:nth-child(4) {
+            --angle: 120deg;
+        }
+
+        .tutor-circle:nth-child(5) {
+            --angle: 180deg;
+        }
+
+        .tutor-circle:nth-child(6) {
+            --angle: 240deg;
+        }
+
+        .tutor-circle:nth-child(7) {
+            --angle: 300deg;
+        }
+
+        .constellation {
+            position: relative;
+            width: 600px;
+            height: 600px;
+        }
+
+        .tutor-wrapper {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .tutor-circle {
+            animation: placeInCircle 0.1s ease forwards;
+        }
+
+        .tutor-circle:nth-child(2) {
+            animation-delay: 0s;
+            --angle: 0deg;
+        }
+
+        .tutor-circle:nth-child(3) {
+            animation-delay: 0s;
+            --angle: 60deg;
+        }
+
+        .tutor-circle:nth-child(4) {
+            animation-delay: 0s;
+            --angle: 120deg;
+        }
+
+        .tutor-circle:nth-child(5) {
+            animation-delay: 0s;
+            --angle: 180deg;
+        }
+
+        .tutor-circle:nth-child(6) {
+            animation-delay: 0s;
+            --angle: 240deg;
+        }
+
+        .tutor-circle:nth-child(7) {
+            animation-delay: 0s;
+            --angle: 300deg;
+        }
+
+        @keyframes placeInCircle {
+            0% {
+                transform: translate(-50%, -50%) rotate(var(--angle)) translateX(160px) rotate(calc(-1 * var(--angle)));
+            }
+            100% {
+                transform: translate(-50%, -50%) rotate(var(--angle)) translateX(160px) rotate(calc(-1 * var(--angle)));
+            }
+        }
+
+        /* Best match highlight - Jin Ming at position 3 (60deg) */
+        .tutor-circle:nth-child(3) {
+            animation: bestMatchCycle 4s ease-in-out infinite !important;
+        }
+
+        .tutor-circle:nth-child(3) .tutor-photo {
+            animation: bestMatchGlow 4s ease-in-out infinite;
+        }
+
+        @keyframes bestMatchCycle {
+            0%, 100% {
+                transform: translate(-50%, -50%) rotate(60deg) translateX(160px) rotate(-60deg) scale(1);
+                filter: drop-shadow(none);
+            }
+            50% {
+                transform: translate(-50%, -50%) rotate(60deg) translateX(160px) rotate(-60deg) scale(1.15);
+                filter: drop-shadow(0 0 20px rgba(13, 148, 136, 0.6));
+            }
+        }
+
+        @keyframes bestMatchGlow {
+            0%, 100% {
+                box-shadow: none;
+            }
+            50% {
+                box-shadow: 0 0 20px rgba(13, 148, 136, 0.5), inset 0 0 20px rgba(13, 148, 136, 0.2);
+            }
+        }
+
+        /* Other tutors fade */
+        .tutor-circle:nth-child(2) .tutor-photo,
+        .tutor-circle:nth-child(4) .tutor-photo,
+        .tutor-circle:nth-child(5) .tutor-photo,
+        .tutor-circle:nth-child(6) .tutor-photo,
+        .tutor-circle:nth-child(7) .tutor-photo {
+            animation: otherTutorsFade 4s ease-in-out infinite;
+        }
+
+        @keyframes otherTutorsFade {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        /* Connection lines */
+        line {
+            stroke: #0d9488;
+            stroke-width: 1.5;
+            stroke-dasharray: 200;
+            stroke-dashoffset: 200;
+            animation: drawLine 2.5s ease-in forwards;
+        }
+
+        line:nth-of-type(1) { animation-delay: 0.2s; }
+        line:nth-of-type(2) { animation-delay: 0.4s; }
+        line:nth-of-type(3) { animation-delay: 0.6s; }
+        line:nth-of-type(4) { animation-delay: 0.8s; }
+        line:nth-of-type(5) { animation-delay: 1s; }
+        line:nth-of-type(6) { animation-delay: 1.2s; }
+
+        @keyframes drawLine {
+            0% {
+                stroke-dashoffset: 200;
+            }
+            100% {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        /* Loop the lines */
+        svg {
+            animation: lineReset 4s ease-in-out infinite;
+        }
+
+        @keyframes lineReset {
+            0%, 100% {
+                opacity: 1;
+            }
+            75% {
+                opacity: 1;
+            }
+            76% {
+                opacity: 0;
+            }
+        }
+
+        /* Cursor styling */
+        .cursor {
+            position: fixed;
+            width: 48px;
+            height: 48px;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        .cursor svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+        }
+    </style>
+</head>
+<body>
+    <div class="cursor">
+        <svg viewBox="0 0 24 24" fill="white" stroke="#222" stroke-width="1.2">
+            <path d="M4 2l16 10-7 1-4 7z"/>
+        </svg>
+    </div>
+
+    <svg viewBox="0 0 600 600">
+        <!-- Connection lines from center -->
+        <line x1="300" y1="300" x2="460" y2="300" />
+        <line x1="300" y1="300" x2="390" y2="438.2" />
+        <line x1="300" y1="300" x2="210" y2="438.2" />
+        <line x1="300" y1="300" x2="140" y2="300" />
+        <line x1="300" y1="300" x2="210" y2="161.8" />
+        <line x1="300" y1="300" x2="390" y2="161.8" />
+    </svg>
+
+    <div class="center-student">
+        <div class="student-icon"></div>
+    </div>
+
+    <div class="constellation">
+        <div class="tutor-circle" style="--angle: 0deg;">
+            <img src="https://wtsekxjhqvwnpexnszwl.supabase.co/storage/v1/object/public/avatars/233eec2a-5857-42bd-ae1b-26666175b68e/bbbcf803-f809-4899-b652-8b8e579982a4.jpeg" alt="Scott Hong" class="tutor-photo">
+        </div>
+
+        <div class="tutor-circle" style="--angle: 60deg;">
+            <img src="https://wtsekxjhqvwnpexnszwl.supabase.co/storage/v1/object/public/avatars/f223d50a-498c-4c7c-b740-052463f673aa/141176b4-f633-4d68-af69-4ae479428cc9.jpg" alt="Jin Ming Ooi" class="tutor-photo">
+            <div class="tutor-label">Best Match</div>
+        </div>
+
+        <div class="tutor-circle" style="--angle: 120deg;">
+            <img src="https://wtsekxjhqvwnpexnszwl.supabase.co/storage/v1/object/public/avatars/edbaa66f-c24c-4d32-a522-775b5beee7a9/c588b5f8-012c-47e9-92b2-3452195dd42b.jpg" alt="Victor Ngow" class="tutor-photo">
+        </div>
+
+        <div class="tutor-circle" style="--angle: 180deg;">
+            <img src="https://wtsekxjhqvwnpexnszwl.supabase.co/storage/v1/object/public/avatars/0158fbbf-7611-4e61-b802-83c907045541/870c5753-e1a5-413c-abe6-3cdb50797fad.jpg" alt="Sabrina Azizulezly" class="tutor-photo">
+        </div>
+
+        <div class="tutor-circle" style="--angle: 240deg;">
+            <img src="https://wtsekxjhqvwnpexnszwl.supabase.co/storage/v1/object/public/avatars/d54917a6-8b13-4b51-a1f3-1ffaea618931/dfc45621-6426-4fe7-9cbe-aff85d7009f2.jpg" alt="Cheng Yu Lin" class="tutor-photo">
+        </div>
+
+        <div class="tutor-circle" style="--angle: 300deg;">
+            <img src="https://wtsekxjhqvwnpexnszwl.supabase.co/storage/v1/object/public/avatars/7b7a63f9-030f-4326-b15a-7a6538495631/c4578e5f-3e10-4a3a-aae6-3e2bb79382e1.jpg" alt="Sadhana Saravanan" class="tutor-photo">
+        </div>
+    </div>
+
+    <script>
+        const cursor = document.querySelector('.cursor');
+
+        document.addEventListener('mousemove', (e) => {
+            cursor.style.left = (e.clientX - 24) + 'px';
+            cursor.style.top = (e.clientY - 24) + 'px';
+        });
+    </script>
+</body>
+</html>

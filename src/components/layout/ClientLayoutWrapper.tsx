@@ -41,38 +41,47 @@ export default function ClientLayoutWrapper({
     }
   }, [loading, initialLoad]);
 
-  // Initialize caching system immediately when component mounts - only once
+  // Initialize caching system only once, and only AFTER auth has resolved
+  // and a user is present. This avoids running a localStorage-polling
+  // setInterval for anonymous landing-page traffic that will never benefit
+  // from an auth-tied cache.
   useEffect(() => {
-    if (!cacheInitializedRef.current) {
-      // Initialize the cache system immediately
-      initializeCache();
-      cacheInitializedRef.current = true;
-
-      // Start prefetching key data for common routes
-      const prefetchCommonData = async () => {
-        try {
-          // Only prefetch tutors data if on dashboard or tutors page
-          // No need to prefetch premium data if user doesn't have access
-          if (
-            (isDashboard || isTutorsPage) &&
-            (user?.has_access || user?.role === "tutor")
-          ) {
-            await prefetchTutors();
-          }
-          setCachePrefetched(true);
-        } catch (err) {
-          setCachePrefetched(true); // Consider prefetch complete even on error
-        }
-      };
-
-      prefetchCommonData();
+    if (loading) return;              // wait for auth to resolve
+    if (!user) {
+      // Anonymous visitor: cache prefetch not needed, mark complete so any
+      // loading gates don't block render.
+      setCachePrefetched(true);
+      return;
     }
-  }, [isDashboard, isTutorsPage, user?.has_access, user?.role]);
+    if (cacheInitializedRef.current) return;
 
-  // Setup auth cache check on component mount - separate from cache initialization
+    initializeCache();
+    cacheInitializedRef.current = true;
+
+    const prefetchCommonData = async () => {
+      try {
+        if (
+          (isDashboard || isTutorsPage) &&
+          (user?.has_access || user?.role === "tutor")
+        ) {
+          await prefetchTutors();
+        }
+        setCachePrefetched(true);
+      } catch {
+        setCachePrefetched(true);
+      }
+    };
+
+    prefetchCommonData();
+  }, [loading, user, isDashboard, isTutorsPage]);
+
+  // Setup auth cache check only once we know we actually have an authenticated
+  // user. Same reasoning: no point burning a 5-minute auth-refresh interval
+  // when nobody is signed in.
   useEffect(() => {
+    if (loading || !user) return;
     setupAuthCacheCheck();
-  }, []);
+  }, [loading, user]);
 
   // Only block render on dashboard (where we need the cache prefetch to avoid
   // data flashes). Public pages render immediately - auth resolves in the background

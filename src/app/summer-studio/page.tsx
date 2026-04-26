@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
@@ -10,7 +11,6 @@ import {
   Lightbulb,
   Trophy,
   Loader2,
-  Sparkles,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -615,7 +615,7 @@ export default function SummerStudioPage() {
         {/* ═══════════════ HERO ═══════════════ */}
         <section
           ref={heroSectionRef}
-          className="relative min-h-[90vh] flex items-center overflow-hidden"
+          className="relative flex items-start pt-8 md:pt-14 pb-10 md:pb-20 overflow-hidden"
           style={{ background: "#ffffff" }}
         >
           {/* SVG floating shapes background */}
@@ -677,7 +677,7 @@ export default function SummerStudioPage() {
             <div className="max-w-3xl mx-auto text-center">
               {/* Header */}
               <p
-                className="text-sm md:text-base uppercase tracking-[0.25em] font-semibold mb-4 transition-all duration-700"
+                className="text-[0.62rem] md:text-xs uppercase tracking-[0.25em] font-semibold mb-3 transition-all duration-700"
                 style={{
                   color: "#6b46c1",
                   opacity: heroReady ? 1 : 0,
@@ -690,7 +690,7 @@ export default function SummerStudioPage() {
 
               {/* Badge */}
               <div
-                className="inline-flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium mb-8 transition-all duration-700"
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium mb-5 md:mb-7 transition-all duration-700"
                 style={{
                   background: "rgba(255,255,255,0.7)",
                   color: "#6b46c1",
@@ -702,12 +702,13 @@ export default function SummerStudioPage() {
                   filter: heroReady ? "blur(0)" : "blur(4px)",
                 }}
               >
-                <Sparkles className="h-4 w-4 text-purple-400" />
                 New for Summer 2026
               </div>
 
-              {/* Headline with letter-split */}
-              <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 leading-[1.15] text-gray-900">
+              {/* Headline with letter-split — mobile bumped up significantly,
+                  but kept just under the threshold where "Leadership Project"
+                  would wrap on a typical 375-414px phone. */}
+              <h1 className="text-[2.65rem] sm:text-[3.25rem] md:text-6xl lg:text-7xl font-bold tracking-tight mb-5 leading-[1.05] text-gray-900">
                 <LetterSplit text="Build a Standout" delay={400} className="block" />
                 <span className="block">
                   <LetterSplit text="Leadership Project" delay={900} gradient />
@@ -717,7 +718,7 @@ export default function SummerStudioPage() {
 
               {/* Subtitle */}
               <p
-                className="text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed transition-all duration-1000"
+                className="text-base md:text-lg max-w-2xl mx-auto mb-8 leading-relaxed transition-all duration-1000"
                 style={{
                   color: "rgba(60,60,80,0.7)",
                   opacity: heroReady ? 1 : 0,
@@ -1192,8 +1193,8 @@ const PROJECTS = [
     id: "stem-bulletin",
     name: "The STEM Bulletin",
     logo: "/projects/stem-bulletin.png",
-    description: "A student-run STEM publication covering the latest in science, technology, engineering and mathematics. Founded and grown by a Unisphere mentor, it has become a platform for young researchers to share their work with a global audience.",
-    url: null,
+    description: "A student-run STEM publication covering the latest in science, technology, engineering and mathematics. Founded and grown by a Unisphere mentor, it has become a platform for young researchers to share their work with a global audience.\n\nThis kind of extracurricular has helped students gain admission to universities such as Harvard, Yale, Princeton, Stanford, Oxford, and Cambridge.",
+    url: "https://www.thestembulletin.com/",
     placeholder: false,
   },
   {
@@ -1208,48 +1209,55 @@ const PROJECTS = [
 function MentorProjects() {
   const [open, setOpen] = useState<string | null>(null);
   const { ref, isVisible } = useScrollReveal(0.2);
+  const activeProject = PROJECTS.find(p => p.id === open && !p.placeholder);
 
   return (
-    <section className="py-20 relative">
+    <section className="py-10 md:py-20 relative">
       <div className="container max-w-screen-xl mx-auto px-4 md:px-6">
         <div ref={ref} style={{ opacity: isVisible ? 1 : 0, transform: isVisible ? "translateY(0)" : "translateY(24px)", transition: "all 0.8s ease" }}>
-          <div className="text-center mb-12">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] ss-gradient-text inline-block mb-3">Real Impact</p>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Get mentored by tutors who have actually built things
-            </h2>
-            <p className="text-gray-500 max-w-xl mx-auto text-base">
-              Our mentors don't just advise. They've launched real projects you can learn from and be inspired by.
-            </p>
-          </div>
+          <p className="text-center text-2xl md:text-3xl font-bold text-gray-900 mb-10">
+            Get mentored by tutors who have built projects such as
+          </p>
 
           <div className="grid grid-cols-3 gap-6 max-w-3xl mx-auto">
             {PROJECTS.map((project) => (
-              <div key={project.id} className="flex flex-col items-center">
+              <div key={project.id}>
                 {project.placeholder ? (
                   <div className="w-full aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-300 text-sm font-medium select-none">
                     Coming Soon
                   </div>
                 ) : (
-                  <>
-                    <button
-                      onClick={() => setOpen(open === project.id ? null : project.id)}
-                      className="w-full aspect-square rounded-2xl border border-gray-100 bg-white flex items-center justify-center p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 cursor-pointer"
-                      style={{ boxShadow: open === project.id ? "0 0 0 2px rgba(120,87,255,0.4), 0 8px 24px rgba(120,87,255,0.12)" : undefined }}
-                    >
-                      <img src={project.logo!} alt={project.name} className="w-full h-full object-contain" />
-                    </button>
-                    {open === project.id && (
-                      <div className="mt-4 w-full rounded-2xl border border-gray-100 bg-white p-5 shadow-lg text-left" style={{ animation: "fadeIn 0.2s ease" }}>
-                        <p className="font-semibold text-gray-900 mb-2">{project.name}</p>
-                        <p className="text-sm text-gray-500 leading-relaxed">{project.description}</p>
-                      </div>
-                    )}
-                  </>
+                  <button
+                    onClick={() => setOpen(open === project.id ? null : project.id)}
+                    className="relative w-full aspect-square rounded-2xl border border-gray-100 bg-white flex items-center justify-center p-2 md:p-3 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 cursor-pointer overflow-hidden"
+                    style={{ boxShadow: open === project.id ? "0 0 0 2px rgba(120,87,255,0.4), 0 8px 24px rgba(120,87,255,0.12)" : undefined }}
+                  >
+                    <Image
+                      src={project.logo!}
+                      alt={project.name}
+                      fill
+                      sizes="(max-width: 768px) 33vw, 200px"
+                      className="object-contain p-2"
+                    />
+                  </button>
                 )}
               </div>
             ))}
           </div>
+
+          {activeProject && (
+            <div className="max-w-3xl mx-auto mt-5 rounded-2xl border border-gray-100 bg-white p-6 shadow-lg" style={{ animation: "fadeIn 0.2s ease" }}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="font-semibold text-gray-900">{activeProject.name}</p>
+                <a href={activeProject.url!} target="_blank" rel="noopener noreferrer" className="text-sm font-medium underline text-blue-500 hover:text-blue-700">
+                  Visit
+                </a>
+              </div>
+              {activeProject.description.split("\n\n").map((para, i) => (
+                <p key={i} className="text-sm text-gray-500 leading-relaxed mb-2 last:mb-0">{para}</p>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }`}</style>

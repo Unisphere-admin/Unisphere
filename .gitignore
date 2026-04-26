@@ -39,3 +39,7 @@ University_Application_Deadlines_2027.docx
 linkedin-post-visual.html
 uni_selector_visual.html
 unisphere-performance-report.html
+# Git bundles — too large for GitHub's 100MB push limit
+*.bundle
+# Local push helper — contains a personal access token
+push-to-github.sh

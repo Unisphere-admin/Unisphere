@@ -18,8 +18,17 @@ const CYCLE_MS = 3000;
  */
 const RevolvingCards = React.memo(function RevolvingCards() {
   const [active, setActive] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
   const visibleRef = useRef(true);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Track viewport so the card layout shrinks on mobile (~half scale).
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   // Pause when off-screen
   useEffect(() => {
@@ -43,13 +52,29 @@ const RevolvingCards = React.memo(function RevolvingCards() {
     return () => clearInterval(interval);
   }, []);
 
+  // Size values: mobile is roughly half of desktop. Positions recomputed
+  // so the center card is still centered inside the track and the fan
+  // angles stay visually consistent at either size.
+  const cardW         = isMobile ? 130 : 240;
+  const cardH         = isMobile ? 184 : 340;
+  const trackMaxWidth = isMobile ? 260 : 460;
+  const trackHeight   = isMobile ? 184 : 340;
+  const minHeight     = isMobile ? 210 : 380;
+  const pos = isMobile
+    ? { center: 65,  right: 125, left: -5,  yOff: 6  }
+    : { center: 110, right: 230, left: -10, yOff: 12 };
+  const radius = isMobile ? 16 : 28;
+
   return (
     <div
       ref={containerRef}
       className="w-full flex items-center justify-center"
-      style={{ minHeight: "380px" }}
+      style={{ minHeight: `${minHeight}px` }}
     >
-      <div className="relative w-full" style={{ maxWidth: "460px", height: "340px" }}>
+      <div
+        className="relative mx-auto"
+        style={{ maxWidth: `${trackMaxWidth}px`, width: `${trackMaxWidth}px`, height: `${trackHeight}px` }}
+      >
         {CARDS.map((card, i) => {
           const offset = (i - active + CARDS.length) % CARDS.length;
 
@@ -62,13 +87,13 @@ const RevolvingCards = React.memo(function RevolvingCards() {
 
           if (offset === 0) {
             // Front center card
-            x = 110; y = 0; scale = 1; zIndex = 3; opacity = 1; rotate = 0;
+            x = pos.center; y = 0; scale = 1; zIndex = 3; opacity = 1; rotate = 0;
           } else if (offset === 1) {
             // Right card
-            x = 230; y = 12; scale = 0.88; zIndex = 2; opacity = 0.5; rotate = 5;
+            x = pos.right; y = pos.yOff; scale = 0.88; zIndex = 2; opacity = 0.5; rotate = 5;
           } else {
             // Left card
-            x = -10; y = 12; scale = 0.88; zIndex = 1; opacity = 0.5; rotate = -5;
+            x = pos.left; y = pos.yOff; scale = 0.88; zIndex = 1; opacity = 0.5; rotate = -5;
           }
 
           return (
@@ -76,8 +101,8 @@ const RevolvingCards = React.memo(function RevolvingCards() {
               key={i}
               className="absolute top-0 left-0"
               style={{
-                width: "240px",
-                height: "340px",
+                width: `${cardW}px`,
+                height: `${cardH}px`,
                 transform: `translate3d(${x}px, ${y}px, 0) scale(${scale}) rotate(${rotate}deg)`,
                 zIndex,
                 opacity,
@@ -88,11 +113,11 @@ const RevolvingCards = React.memo(function RevolvingCards() {
               <Image
                 src={card.src}
                 alt={card.alt}
-                width={240}
-                height={340}
+                width={cardW}
+                height={cardH}
                 className="w-full h-full object-cover"
                 style={{
-                  borderRadius: "28px",
+                  borderRadius: `${radius}px`,
                   boxShadow: offset === 0
                     ? "0 12px 40px rgba(0,0,0,0.12)"
                     : "0 4px 16px rgba(0,0,0,0.06)",

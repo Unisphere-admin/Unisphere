@@ -470,14 +470,25 @@ export default function AboutPage() {
           <div className="absolute top-10 left-[15%] w-64 h-64 bg-[#84b4cc]/10 rounded-full blur-3xl opacity-60 animate-pulse" style={{ animationDuration: "11s" }} />
         </div>
         <div className="max-w-3xl mx-auto text-center mb-6 relative z-10">
-          <Badge className="mb-3 bg-[#4b92a9]/10 text-[#126d94] hover:bg-[#4b92a9]/20 transition-colors">From the Team</Badge>
-          <h2 className="text-3xl md:text-4xl font-bold mb-2 text-center">Stories</h2>
-          <p className="text-muted-foreground">Updates, insights, and moments from the Unisphere journey</p>
+          <Badge className="mb-4 px-4 py-1.5 text-sm md:text-base bg-[#4b92a9]/10 text-[#126d94] hover:bg-[#4b92a9]/20 transition-colors">From the Team</Badge>
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-3 text-center tracking-tight">Stories</h2>
+          <p className="text-muted-foreground text-base md:text-lg">Updates, insights, and moments from the Unisphere journey</p>
         </div>
         <div className="max-w-4xl mx-auto relative z-10">
           <StoriesCarousel />
         </div>
       </section>
+
+      {/* Inline CTA to testimonials page */}
+      <div className="flex justify-center pb-6 md:pb-10">
+        <Link
+          href="/testimonials"
+          className="group inline-flex items-center gap-2 text-sm md:text-base font-medium text-[#126d94] hover:text-[#0e5474] transition-colors"
+        >
+          See our testimonials
+          <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" strokeWidth={2} />
+        </Link>
+      </div>
 
       {/* How Unisphere Works */}
       <section className="py-10 md:py-14 bg-[#c7e4e3]/20  border border-[#c2d8d2]/30 rounded-2xl shadow-sm relative overflow-hidden">

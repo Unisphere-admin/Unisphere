@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Match Card Reveal</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100vh;
+            background: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .container {
+            position: relative;
+            width: 400px;
+            height: 500px;
+        }
+
+        .cards-stack {
+            position: absolute;
+            width: 300px;
+            left: 50px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .card {
+            position: absolute;
+            width: 300px;
+            height: 90px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 12px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .card-photo {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .card-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .card-name {
+            font-weight: 600;
+            color: #222;
+        }
+
+        .card-uni {
+            font-size: 12px;
+            color: #666;
+            background: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 4px;
+            width: fit-content;
+        }
+
+        .card-matched {
+            position: absolute;
+            top: 8px;
+            right: 12px;
+            background: #0d9488;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            opacity: 0;
+            animation: popIn 0.6s ease 0.8s forwards;
+        }
+
+        @keyframes popIn {
+            0% {
+                opacity: 0;
+                transform: scale(0.3);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        @keyframes slideOut {
+            0% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            70% {
+                transform: translateX(-400px);
+                opacity: 0;
+            }
+            71% {
+                transform: translateX(300px);
+                opacity: 0;
+            }
+            100% {
+                transform: translateX(300px);
+                opacity: 0;
+            }
+        }
+
+        @keyframes scaleMatchedCard {
+            0% {
+                transform: scale(1);
+                border: 2px solid transparent;
+            }
+            70% {
+                transform: scale(1);
+                border: 2px solid transparent;
+            }
+            80% {
+                transform: scale(1.08);
+                border: 3px solid #0d9488;
+                box-shadow: 0 0 20px rgba(13, 148, 136, 0.4);
+            }
+            100% {
+                transform: scale(1.08);
+                border: 3px solid #0d9488;
+                box-shadow: 0 0 20px rgba(13, 148, 136, 0.4);
+            }
+        }
+
+        @keyframes resetCards {
+            0% {
+                transform: translateX(0);
+            }
+            100% {
+                transform: translateX(0);
+            }
+        }
+
+        .card:nth-child(1) {
+            top: 0;
+            animation: slideOut 4s ease-in-out infinite;
+        }
+
+        .card:nth-child(2) {
+            top: 20px;
+            animation: slideOut 4s ease-in-out infinite;
+            animation-delay: 0.1s;
+        }
+
+        .card:nth-child(3) {
+            top: 40px;
+            animation: scaleMatchedCard 4s ease-in-out infinite;
+        }
+
+        .card:nth-child(4) {
+            top: 60px;
+        }
+
+        .card:nth-child(5) {
+            top: 80px;
+        }
+
+        /* Cursor styling */
+        .cursor {
+            position: fixed;
+            width: 48px;
+            height: 48px;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        .cursor svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+        }
+
+        .click-ring {
+            position: fixed;
+            width: 40px;
+            height: 40px;
+            border: 2px solid #0d9488;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9998;
+        }
+
+        @keyframes ringPulse {
+            0% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(0.3);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(1.8);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="cursor">
+        <svg viewBox="0 0 24 24" fill="white" stroke="#222" stroke-width="1.2">
+            <path d="M4 2l16 10-7 1-4 7z"/>
+        </svg>
+    </div>
+
+    <div class="container">
+        <div class="cards-stack">
+            <div class="card">
+                <img src="https://wtsekxjhqvwnpexnszwl.supabase.co/storage/v1/object/public/avatars/233eec2a-5857-42bd-ae1b-26666175b68e/bbbcf803-f809-4899-b652-8b8e579982a4.jpeg" alt="Scott Hong" class="card-photo">
+                <div class="card-content">
+                    <div class="card-name">Scott Hong</div>
+                    <div class="card-uni">Cambridge · Economics</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <img src="https://wtsekxjhqvwnpexnszwl.supabase.co/storage/v1/object/public/avatars/f223d50a-498c-4c7c-b740-052463f673aa/141176b4-f633-4d68-af69-4ae479428cc9.jpg" alt="Jin Ming Ooi" class="card-photo">
+                <div class="card-content">
+                    <div class="card-name">Jin Ming Ooi</div>
+                    <div class="card-uni">Oxford · Personal Statement</div>
+                </div>
+                <div class="card-matched">Matched ✓</div>
+            </div>
+
+            <div class="card">
+                <img src="https://wtsekxjhqvwnpexnszwl.supabase.co/storage/v1/object/public/avatars/edbaa66f-c24c-4d32-a522-775b5beee7a9/c588b5f8-012c-47e9-92b2-3452195dd42b.jpg" alt="Victor Ngow" class="card-photo">
+                <div class="card-content">
+                    <div class="card-name">Victor Ngow</div>
+                    <div class="card-uni">LSE · Finance</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <img src="https://wtsekxjhqvwnpexnszwl.supabase.co/storage/v1/object/public/avatars/0158fbbf-7611-4e61-b802-83c907045541/870c5753-e1a5-413c-abe6-3cdb50797fad.jpg" alt="Sabrina Azizulezly" class="card-photo">
+                <div class="card-content">
+                    <div class="card-name">Sabrina Azizulezly</div>
+                    <div class="card-uni">Yale · Pre-Med</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <img src="https://wtsekxjhqvwnpexnszwl.supabase.co/storage/v1/object/public/avatars/d54917a6-8b13-4b51-a1f3-1ffaea618931/dfc45621-6426-4fe7-9cbe-aff85d7009f2.jpg" alt="Cheng Yu Lin" class="card-photo">
+                <div class="card-content">
+                    <div class="card-name">Cheng Yu Lin</div>
+                    <div class="card-uni">Imperial · Engineering</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const cursor = document.querySelector('.cursor');
+
+        document.addEventListener('mousemove', (e) => {
+            cursor.style.left = (e.clientX - 24) + 'px';
+            cursor.style.top = (e.clientY - 24) + 'px';
+        });
+    </script>
+</body>
+</html>

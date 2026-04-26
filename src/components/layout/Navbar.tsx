@@ -72,7 +72,7 @@ const Navbar = () => {
   useEffect(() => { setMounted(true); }, []);
 
   const isDarkNav = false; // was pathname === "/credits" when credits had dark Vanta background
-  const isTransparentNav = mounted && pathname === "/about";
+  const isTransparentNav = mounted && (pathname === "/about" || pathname === "/testimonials");
   return (
     <header className={`fixed top-0 left-0 right-0 z-50 w-full h-[var(--navbar-height)] ${
       isTransparentNav
@@ -90,7 +90,64 @@ const Navbar = () => {
           <nav className="hidden md:flex items-center gap-8 text-sm ml-6">
             {[
               { href: "/", label: "Home" },
-              { href: "/about", label: "About Us" },
+            ].map(({ href, label }) => {
+              const isActive = mounted && pathname === href;
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`font-medium transition-colors duration-200 nav-link-hover ${
+                    isDarkNav || isTransparentNav
+                      ? isActive ? "text-white" : "text-white/70 hover:text-white"
+                      : isActive ? "nav-link-active text-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                </Link>
+              );
+            })}
+
+            {/* About Us with hover dropdown. Uses group-hover so a CSS-only
+                menu appears; the pt-2 "bridge" keeps the dropdown open while
+                the cursor moves from the link down into the menu. */}
+            {(() => {
+              const isActive = mounted && (pathname === "/about" || pathname === "/testimonials");
+              return (
+                <div className="relative group">
+                  <Link
+                    href="/about"
+                    aria-current={isActive ? "page" : undefined}
+                    className={`font-medium transition-colors duration-200 nav-link-hover inline-flex items-center gap-1 ${
+                      isDarkNav || isTransparentNav
+                        ? isActive ? "text-white" : "text-white/70 hover:text-white"
+                        : isActive ? "nav-link-active text-foreground" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    About Us
+                    <ChevronDown className="h-3.5 w-3.5 opacity-60 transition-transform duration-200 group-hover:rotate-180" strokeWidth={2} />
+                  </Link>
+                  <div className="absolute left-1/2 -translate-x-1/2 top-full pt-3 invisible opacity-0 translate-y-[-4px] group-hover:visible group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 z-50">
+                    <div className="min-w-[180px] rounded-xl bg-white shadow-[0_10px_40px_-10px_rgba(18,140,160,0.25)] border border-slate-100 py-2 overflow-hidden">
+                      <Link
+                        href="/about"
+                        className="block px-5 py-2.5 text-sm text-foreground/80 hover:text-foreground hover:bg-slate-50 transition-colors"
+                      >
+                        About Us
+                      </Link>
+                      <Link
+                        href="/testimonials"
+                        className="block px-5 py-2.5 text-sm text-foreground/80 hover:text-foreground hover:bg-slate-50 transition-colors"
+                      >
+                        Testimonials
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {[
               { href: "/tutors", label: "Browse Tutors" },
             ].map(({ href, label }) => {
               const isActive = mounted && pathname === href;
@@ -301,12 +358,19 @@ const Navbar = () => {
                 >
                   <Home className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Home
                 </Link>
-                <Link 
-                  href="/about" 
+                <Link
+                  href="/about"
                   className="flex items-center gap-3 p-3 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors touch-manipulation"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <Globe className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> About Us
+                </Link>
+                <Link
+                  href="/testimonials"
+                  className="flex items-center gap-3 p-3 pl-11 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors touch-manipulation text-[0.925rem]"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <GraduationCap className="h-4 w-4 text-[#3e5461]" strokeWidth={1.5} /> Testimonials
                 </Link>
                 <Link
                   href="/tutors"

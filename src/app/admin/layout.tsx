@@ -21,6 +21,10 @@ import {
   FolderOpen,
 } from "lucide-react";
 
+// Note: this layout is a client component, so it cannot export `metadata`.
+// /admin is already disallowed in src/app/robots.ts, which is the more
+// effective signal — crawlers respect robots.txt before fetching the page.
+
 const ADMIN_EMAILS = ["joshuaooi105@gmail.com", "ghayuan.ng@gmail.com", "jjzlee018@gmail.com"];
 
 const navItems = [
@@ -98,6 +102,7 @@ export default function AdminLayout({
             className={`p-1 rounded hover:bg-gray-100 text-gray-400 ${
               collapsed ? "mx-auto" : "ml-auto"
             }`}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {collapsed ? (
               <ChevronRight className="h-4 w-4" />

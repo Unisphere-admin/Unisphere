@@ -4,7 +4,7 @@ import Image from "next/image";
 
 // Positions computed via physics-based circle packing (pack-circles.js)
 // Big: Harvard, Yale, Oxford, Cambridge, Stanford, Imperial (14-16%)
-// Small: UC Davis, Durham, NYU, UCLA (7-8%)
+// Small: Durham, NYU, UCLA (7-8%)
 // Others: medium (10-13%)
 // Verified: zero overlaps, 3.6% minimum gap
 const LOGOS = [
@@ -29,7 +29,6 @@ const LOGOS = [
   { name: "Caltech", src: "/Unilogos/Caltech Logo.png", x: 24.2, y: 71.9, size: 11 },
   { name: "UChicago", src: "/Unilogos/UChicago Logo.png", x: 41.2, y: 29.6, size: 10 },
   { name: "UCLA", src: "/Unilogos/UCLA Logo.png", x: 29.3, y: 48.7, size: 7 },
-  { name: "UC Davis", src: "/Unilogos/UCDavis Logo.png", x: 32.6, y: 37.8, size: 8 },
   { name: "UC Berkeley", src: "/Unilogos/UCBerkeley Logo.png", x: 55.0, y: 28.3, size: 10 },
 ] as const;
 
@@ -249,7 +248,7 @@ export const UniversityOrbit = memo(function UniversityOrbit() {
                   alt={logo.name}
                   fill
                   sizes="(max-width: 768px) 20vw, 12vw"
-                  quality={100}
+                  quality={80}
                   className="object-cover"
                   draggable={false}
                   loading="lazy"

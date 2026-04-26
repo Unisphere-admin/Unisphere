@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Side-by-Side Match</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100vh;
+            background: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            gap: 80px;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            position: relative;
+        }
+
+        .profile-card {
+            width: 240px;
+            padding: 20px;
+            background: white;
+            border: 1px solid #e5e5e5;
+            border-radius: 12px;
+        }
+
+        .profile-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #999;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .profile-tags {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .profile-tag {
+            background: #f0f0f0;
+            color: #666;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+
+        .tutor-card {
+            position: relative;
+            width: 240px;
+            padding: 20px;
+            background: white;
+            border: 1px solid #e5e5e5;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            animation: slideInTutor 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+            animation-delay: 2.5s;
+        }
+
+        @keyframes slideInTutor {
+            0%, 10% {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            15% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            85% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            100% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .tutor-photo {
+            width: 100%;
+            height: 120px;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+
+        .tutor-name {
+            font-weight: 600;
+            color: #222;
+            font-size: 14px;
+        }
+
+        .tutor-uni {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .tutor-subjects {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .tutor-subject {
+            background: #0d9488;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        /* Connection lines */
+        .connection-lines {
+            position: absolute;
+            width: 80px;
+            height: 100px;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        line {
+            stroke: #0d9488;
+            stroke-width: 2;
+            stroke-dasharray: 80;
+            stroke-dashoffset: 80;
+            animation: drawConnection 0.6s ease forwards;
+        }
+
+        line:nth-of-type(1) {
+            animation-delay: 3.3s;
+        }
+
+        line:nth-of-type(2) {
+            animation-delay: 3.8s;
+        }
+
+        line:nth-of-type(3) {
+            animation-delay: 4.3s;
+        }
+
+        @keyframes drawConnection {
+            0% {
+                stroke-dashoffset: 80;
+            }
+            100% {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        /* Reset lines for loop */
+        .connection-lines {
+            animation: resetConnections 5.5s ease-in-out infinite;
+        }
+
+        @keyframes resetConnections {
+            0%, 75% {
+                opacity: 1;
+            }
+            76% {
+                opacity: 0;
+            }
+            100% {
+                opacity: 0;
+            }
+        }
+
+        /* Matched badge */
+        .matched-badge {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #0d9488;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            opacity: 0;
+            z-index: 50;
+            animation: badgePopIn 0.6s ease forwards;
+            animation-delay: 4.8s;
+            pointer-events: none;
+        }
+
+        @keyframes badgePopIn {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.3);
+            }
+            100% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+
+        /* Reset badge for loop */
+        .matched-badge {
+            animation: badgePopIn 0.6s ease forwards;
+            animation-delay: 4.8s;
+        }
+
+        @keyframes badgeReset {
+            0%, 85% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 0;
+            }
+            100% {
+                opacity: 0;
+            }
+        }
+
+        /* Cursor styling */
+        .cursor {
+            position: fixed;
+            width: 48px;
+            height: 48px;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        .cursor svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+        }
+    </style>
+</head>
+<body>
+    <div class="cursor">
+        <svg viewBox="0 0 24 24" fill="white" stroke="#222" stroke-width="1.2">
+            <path d="M4 2l16 10-7 1-4 7z"/>
+        </svg>
+    </div>
+
+    <div class="matched-badge">Matched!</div>
+
+    <div class="container">
+        <!-- Left profile card -->
+        <div class="profile-card">
+            <div class="profile-title">Your Profile</div>
+            <div class="profile-tags">
+                <div class="profile-tag">Applying to Oxford</div>
+                <div class="profile-tag">Needs: Personal Statement</div>
+                <div class="profile-tag">A-Levels</div>
+            </div>
+        </div>
+
+        <!-- Connection lines -->
+        <div class="connection-lines">
+            <svg viewBox="0 0 80 100">
+                <line x1="0" y1="20" x2="80" y2="20" />
+                <line x1="0" y1="50" x2="80" y2="50" />
+                <line x1="0" y1="80" x2="80" y2="80" />
+            </svg>
+        </div>
+
+        <!-- Right tutor card -->
+        <div class="tutor-card">
+            <img src="https://wtsekxjhqvwnpexnszwl.supabase.co/storage/v1/object/public/avatars/edbaa66f-c24c-4d32-a522-775b5beee7a9/c588b5f8-012c-47e9-92b2-3452195dd42b.jpg" alt="Victor Ngow" class="tutor-photo">
+            <div class="tutor-name">Victor Ngow</div>
+            <div class="tutor-uni">LSE · Finance</div>
+            <div class="tutor-subjects">
+                <div class="tutor-subject">Finance</div>
+                <div class="tutor-subject">Economics</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const cursor = document.querySelector('.cursor');
+
+        document.addEventListener('mousemove', (e) => {
+            cursor.style.left = (e.clientX - 24) + 'px';
+            cursor.style.top = (e.clientY - 24) + 'px';
+        });
+
+        // Animate the entire sequence on loop
+        const container = document.querySelector('.container');
+        const connectionLines = document.querySelector('.connection-lines');
+        const matchedBadge = document.querySelector('.matched-badge');
+        const tutorCard = document.querySelector('.tutor-card');
+
+        function resetAnimation() {
+            // Reset all animations by removing and re-adding them
+            setTimeout(() => {
+                tutorCard.style.animation = 'none';
+                connectionLines.style.animation = 'none';
+                matchedBadge.style.animation = 'none';
+
+                setTimeout(() => {
+                    tutorCard.style.animation = 'slideInTutor 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) infinite';
+                    tutorCard.style.animationDelay = '2.5s';
+                    connectionLines.style.animation = 'resetConnections 5.5s ease-in-out infinite';
+                    matchedBadge.style.animation = 'badgePopIn 0.6s ease forwards';
+                    matchedBadge.style.animationDelay = '4.8s';
+                }, 50);
+            }, 5500);
+        }
+
+        // Start the animation
+        resetAnimation();
+
+        // Loop the animation every 5.5 seconds
+        setInterval(() => {
+            resetAnimation();
+        }, 5500);
+    </script>
+</body>
+</html>

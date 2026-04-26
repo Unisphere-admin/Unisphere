@@ -5,6 +5,9 @@ import DashboardSidebar from "@/components/layout/DashboardSidebar";
 import { SessionLinkHandler } from "@/components/layout/SessionLinkHandler";
 import ProtectedPageWrapper from "@/components/layout/ProtectedPageWrapper";
 
+// Note: this layout is a client component, so it cannot export `metadata`.
+// /dashboard is already disallowed in src/app/robots.ts, which is the more
+// effective signal — crawlers respect robots.txt before fetching the page.
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <ProtectedPageWrapper>
@@ -21,4 +24,4 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       </div>
     </ProtectedPageWrapper>
   );
-} 
+}
