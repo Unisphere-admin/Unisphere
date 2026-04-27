@@ -10,6 +10,7 @@ import { toast } from "@/components/ui/sonner";
 import { initializeCache } from "@/lib/cacheInitializer";
 import { setupAuthCacheCheck } from "@/utils/authUtils";
 import { prefetchTutors } from "@/lib/tutorsCaching";
+import { needsAppProviders } from "@/lib/auth/needsAppProviders";
 
 interface ClientLayoutWrapperProps {
   children: ReactNode;
@@ -41,15 +42,26 @@ export default function ClientLayoutWrapper({
     }
   }, [loading, initialLoad]);
 
-  // Initialize caching system only once, and only AFTER auth has resolved
-  // and a user is present. This avoids running a localStorage-polling
-  // setInterval for anonymous landing-page traffic that will never benefit
-  // from an auth-tied cache.
+  // Initialize caching system only once, and only AFTER auth has resolved,
+  // a user is present, AND the current route actually needs the cached data.
+  //
+  // Marketing pages (`/`, `/about`, `/tutors`, `/testimonials`, etc.) don't
+  // read conversations / sessions / messages, so prefetching them on those
+  // routes burns ~2 seconds of `/api/conversations`, `/api/tutoring-sessions`,
+  // and `/api/users/profile` calls with zero benefit. Restricting to app
+  // routes (dashboard, session, resources, etc.) is what unblocks fast
+  // home-page loads for logged-in users.
   useEffect(() => {
     if (loading) return;              // wait for auth to resolve
     if (!user) {
       // Anonymous visitor: cache prefetch not needed, mark complete so any
       // loading gates don't block render.
+      setCachePrefetched(true);
+      return;
+    }
+    if (!needsAppProviders(pathname)) {
+      // Authenticated user, but on a marketing/public route. Skip the cache
+      // prefetch entirely — the data isn't used here.
       setCachePrefetched(true);
       return;
     }
@@ -73,7 +85,7 @@ export default function ClientLayoutWrapper({
     };
 
     prefetchCommonData();
-  }, [loading, user, isDashboard, isTutorsPage]);
+  }, [loading, user, isDashboard, isTutorsPage, pathname]);
 
   // Setup auth cache check only once we know we actually have an authenticated
   // user. Same reasoning: no point burning a 5-minute auth-refresh interval

@@ -25,6 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { InteractiveGridBackground, InteractiveGridOverlay } from "@/components/ui/interactive-grid";
+import { ScrollStrips } from "@/components/landing/ScrollStrips";
 
 interface Story {
   id: number;
@@ -40,7 +41,7 @@ const stories: Story[] = [
   {
     id: 1,
     date: "January 2025",
-    title: "Back at BISKL: Levelling Up",
+    title: "Back at BSKL: Levelling Up",
     excerpt:
       "Justin Lee returned to The British International School of KL to speak to a room full of aspiring university applicants about his journey. He talked openly about the mistakes he made along the way, the importance of staying consistent, and how peer mentorship shaped his perspective more than any textbook ever could. It was the kind of honest, experience-driven conversation that most students never get access to. That same belief in the power of real peer guidance is exactly what inspired the creation of Unisphere.",
     tags: ["Community"],
@@ -461,6 +462,10 @@ export default function AboutPage() {
     <InteractiveGridBackground />
     {/* Interactive grid overlay - fixed, on top of content, pointer-events pass through */}
     <InteractiveGridOverlay />
+    {/* Scroll-triggered diagonal strips that "rip" across the page on scroll —
+        same effect as the testimonials page but using the default purple/pink/blue
+        palette to match this page's InteractiveGrid background. */}
+    <ScrollStrips variant="default" />
     <div className="with-navbar w-full relative" style={{ zIndex: 1 }}>
     <div className="container max-w-screen-xl mx-auto px-4 md:px-6 w-full relative z-10">
 

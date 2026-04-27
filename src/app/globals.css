@@ -81,12 +81,6 @@ summary {
   50% { opacity: 0; }
 }
 
-@keyframes stripeShift {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
 .dream-gradient {
   background: linear-gradient(
     270deg,
@@ -123,21 +117,13 @@ summary {
   }
 }
 
-@keyframes heroDreamReveal {
-  0% {
-    opacity: 0;
-    transform: translate3d(0, 16px, 0) scale(0.94);
-    filter: blur(10px);
-  }
-  55% {
-    opacity: 0.85;
-    filter: blur(3px);
-  }
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-    filter: blur(0);
-  }
+/* Typewriter entrance for "Dream": a clip-path wipe reveals the word from
+   left to right. No cursor — just the letters appearing as if being typed.
+   Steps timing makes the reveal feel discrete (letter-by-letter) rather
+   than a smooth slide. */
+@keyframes dreamTypewriter {
+  from { clip-path: inset(0 100% 0 0); }
+  to   { clip-path: inset(0 0 0 0); }
 }
 
 .hero-anim-init {
@@ -150,19 +136,26 @@ summary {
   animation: heroLineRise 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.hero-anim-dream-wrap {
-  animation: heroDreamReveal 1400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+/* "Dream" word: starts fully clipped (invisible), the clip-path retracts
+   left→right over 750ms in 5 discrete steps, so each step roughly reveals
+   one letter. After typing finishes the word is just the existing
+   rainbow-gradient text — the typewriter is purely an entrance. */
+.dream-typewriter {
+  clip-path: inset(0 100% 0 0);
+  animation: dreamTypewriter 750ms steps(5, end) forwards;
 }
 
 /* Respect users who prefer reduced motion -- show everything instantly. */
 @media (prefers-reduced-motion: reduce) {
   .hero-anim-init,
   .hero-anim-line,
-  .hero-anim-dream-wrap {
+  .hero-anim-dream-wrap,
+  .dream-typewriter {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
     filter: none !important;
+    clip-path: none !important;
   }
 }
 

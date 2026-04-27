@@ -5,6 +5,20 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
+// Same teal-variant gradient stack used by /testimonials, applied scoped to
+// just this section. We don't reuse <InteractiveGridBackground/> directly
+// because it positions itself `fixed inset-0` to cover the whole viewport —
+// fine for full-page use, but it would bleed into the hero when embedded.
+const TEAL_BG = [
+  "linear-gradient(123deg, transparent 0%, transparent 34%, rgba(35,95,210,0.16) 34%, rgba(35,95,210,0.16) 54%, transparent 54%, transparent 100%)",
+  "linear-gradient(251deg, transparent 0%, transparent 62%, rgba(45,175,235,0.16) 62%, rgba(45,175,235,0.16) 84%, transparent 84%, transparent 100%)",
+  "linear-gradient(140deg, rgba(18,140,175,0.28) 0%, transparent 44%)",
+  "linear-gradient(220deg, rgba(45,135,225,0.26) 0%, transparent 44%)",
+  "linear-gradient(310deg, rgba(70,195,235,0.22) 0%, transparent 42%)",
+  "linear-gradient(180deg, transparent 20%, rgba(255,255,255,0.32) 50%, transparent 80%)",
+  "linear-gradient(150deg, #d4ecf5 0%, #b8dcee 35%, #eef6f9 65%, #c0dcec 100%)",
+].join(",");
+
 // Universities our students have got into. Listed in the order they should
 // appear in the marquee. `src: null` means we do not yet have that logo file
 // in /public/Unilogos/ — those render as a clean text fallback so the layout
@@ -32,12 +46,16 @@ export const TestimonialsBanner = memo(function TestimonialsBanner() {
   const items = [...LOGOS, ...LOGOS];
 
   return (
-    // Plain background — the banner now blends with the surrounding page
-    // section instead of carrying its own blue tint. The thin top/bottom
-    // borders still mark the band, but visually it sits flat.
-    <section className="relative py-10 md:py-14 border-t border-b border-[#c2d8d2]/30 overflow-hidden bg-white">
+    // Same teal gradient stack as /testimonials, but scoped to this section
+    // via `absolute inset-0` instead of the component's `fixed` default.
+    <section className="relative py-10 md:py-14 border-t border-b border-[#c2d8d2]/30 overflow-hidden">
+      <div
+        aria-hidden
+        className="absolute inset-0 pointer-events-none"
+        style={{ backgroundImage: TEAL_BG }}
+      />
 
-      <div className="relative container mx-auto px-4 md:px-6 max-w-screen-xl mb-7 md:mb-9 text-center">
+      <div className="relative z-10 container mx-auto px-4 md:px-6 max-w-screen-xl mb-7 md:mb-9 text-center">
         <p className="text-[0.7rem] md:text-xs font-semibold uppercase tracking-[0.24em] text-[#128ca0]/80 mb-3">
           Student Success Stories
         </p>
@@ -59,10 +77,12 @@ export const TestimonialsBanner = memo(function TestimonialsBanner() {
         </Link>
       </div>
 
-      {/* Logo marquee with faded edges so logos glide in and out smoothly */}
-      <div className="relative">
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-16 md:w-28 z-10 bg-gradient-to-r from-white to-transparent" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-16 md:w-28 z-10 bg-gradient-to-l from-white to-transparent" />
+      {/* Logo marquee. Edge fades are tinted to match the teal gradient base
+          (rather than pure white) so the marquee blends back into the section
+          background instead of cutting a white shape out of it. */}
+      <div className="relative z-10">
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-16 md:w-28 z-10 bg-gradient-to-r from-[#dbecf3] via-[#dbecf3]/80 to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-16 md:w-28 z-10 bg-gradient-to-l from-[#dbecf3] via-[#dbecf3]/80 to-transparent" />
 
         <div className="tb-logo-track flex w-max items-center gap-10 md:gap-14 px-6 py-2">
           {items.map((logo, i) => (

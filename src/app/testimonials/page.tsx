@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState, useEffect, useRef, type CSSProperties } from "react";
 import { InteractiveGridBackground, InteractiveGridOverlay } from "@/components/ui/interactive-grid";
+import { ScrollStrips } from "@/components/landing/ScrollStrips";
 
 /* ═══════════════════════════════════════════════════════════════════
    LETTER SPLIT
@@ -113,6 +114,13 @@ type Story = {
   offers: readonly Offer[];
   programme: readonly string[];
   quotes: readonly string[];
+  // Optional Ivy League badge — renders as a small ribbon/flag on the
+  // student card. If undefined, no badge is shown (e.g. for the
+  // anonymous student who has no Ivy offers).
+  ivyCount?: number;
+  // Optional context note shown beneath the student's name. Used for the
+  // anonymous student to explain the privacy choice.
+  note?: string;
 };
 
 const STORIES: readonly Story[] = [
@@ -121,10 +129,11 @@ const STORIES: readonly Story[] = [
     name: "Aidan Lee",
     meta: "2025-2026 Application Cycle",
     photo: "/headshots/AidanLee-cutout.webp",
+    // Princeton, Dartmouth, Brown, Columbia — all four are Ivies.
+    ivyCount: 4,
     offers: [
       { name: "Princeton University", src: "/Unilogos/Princeton Logo.png" },
-      // Dartmouth logo PNG not in the project yet — placeholder tile until it lands.
-      { name: "Dartmouth College",    src: null, short: "D" },
+      { name: "Dartmouth College",    src: "/Unilogos/Dartmouth Logo.png" },
       { name: "Brown University",     src: "/Unilogos/Brown Logo.png" },
       { name: "Columbia University",  src: "/Unilogos/Columbia Logo.png" },
     ],
@@ -144,13 +153,14 @@ const STORIES: readonly Story[] = [
     name: "Andrew Zheng",
     meta: "2025-2026 Application Cycle",
     photo: "/headshots/AndrewZheng-cutout.webp",
+    // Cornell + Dartmouth = 2 Ivies. CMU and Georgia Tech are top schools but
+    // not Ivy League.
+    ivyCount: 2,
     offers: [
-      // Three of these schools don't have logo PNGs yet — they render as letter
-      // placeholder tiles until /public/Unilogos/{School} Logo.png is added.
-      { name: "Carnegie Mellon",  src: null, short: "CMU" },
-      { name: "Cornell University", src: "/Unilogos/Cornell Logo.png" },
-      { name: "Dartmouth College", src: null, short: "D" },
-      { name: "Vanderbilt",       src: null, short: "V" },
+      { name: "Carnegie Mellon University", src: "/Unilogos/CMU Logo.png" },
+      { name: "Cornell University",         src: "/Unilogos/Cornell Logo.png" },
+      { name: "Dartmouth College",          src: "/Unilogos/Dartmouth Logo.png" },
+      { name: "Northwestern University",    src: "/Unilogos/Northwestern Logo.png" },
     ],
     /* Programme tags rendered under WORKED ON for Andrew. */
     programme: [
@@ -165,22 +175,28 @@ const STORIES: readonly Story[] = [
   },
   {
     id: "anonymous-1",
-    name: "Anonymous",
-    meta: "Anonymous Student",
+    name: "Anonymous Student",
+    meta: "2025-2026 Application Cycle",
     photo: "/headshots/LY-cutout.webp",
+    // No Ivy badge — anonymous student's offers are all UCs, not Ivy League.
+    note:
+      "We respect every student's privacy — this student preferred to keep their identity off our website. Thank you for understanding.",
     offers: [
-      // Anonymous student — UCLA confirmed; remaining tiles still placeholders
-      // until the user provides the rest of the offers.
+      // Using the official acronyms here so the labels fit on one line
+      // under each tile. Otherwise "UC Santa Barbara" wraps as
+      // "UC Santa / Barbara" which orphans the last word.
       { name: "UCLA", src: "/Unilogos/UCLA Logo.png" },
-      { name: "TBD", src: null, short: "?" },
-      { name: "TBD", src: null, short: "?" },
-      { name: "TBD", src: null, short: "?" },
+      { name: "UCSB", src: "/Unilogos/UCSB Logo.png" },
+      { name: "UCSD", src: "/Unilogos/UCSD Logo.png" },
     ],
     programme: [
-      "TBD",
+      "SAT Writing",
+      "US Admissions",
     ],
     quotes: [
-      "Quote coming soon.",
+      "Getting into UCLA felt so surreal. I woke up, saw the email, and because there was no confetti, I actually thought I got rejected! I wasn't even planning on applying to the UCs at first, but I'm so glad I did.",
+      "Before working with Unisphere, my biggest challenge was knowing how to translate my ideas into words. I had a vision for my essays, but putting it all together was tough. That's where Sarah Harris was a huge help. She took my drafts, helped me refine them, and made everything flow so much better.",
+      "To anyone on the fence about joining Unisphere, just sign up for the free consultation. You have nothing to lose. And my advice to students starting out: take the SAT early, plan your studying ahead of time, and do extracurriculars you're genuinely passionate about. When you actually care about what you're writing about, it shows in your essays.",
     ],
   },
 ];
@@ -211,6 +227,10 @@ export default function TestimonialsPage() {
     <div style={{ position: "relative", minHeight: "100vh" }}>
       <InteractiveGridBackground variant="teal" />
       <InteractiveGridOverlay />
+      {/* Scroll-triggered diagonal strips that "rip" across the page as the
+          reader scrolls down. Adds depth on top of the static InteractiveGrid
+          backdrop. */}
+      <ScrollStrips />
 
       <div className="with-navbar w-full relative" style={{ zIndex: 1 }}>
         <div className="container max-w-screen-xl mx-auto px-4 md:px-6 w-full relative z-10">
@@ -429,6 +449,11 @@ function StudentTestimonial({
               filter: "drop-shadow(0 20px 40px rgba(11,43,58,0.18))",
             }}
           />
+          {/* Ivy League ribbon — only renders when ivyCount is set on the
+              story. Drops down from the top of the figure after the slide
+              finishes. The negative right anchors it slightly outside the
+              figure box so it reads as a banner rather than a label. */}
+          {story.ivyCount ? <IvyRibbon count={story.ivyCount} visible={slid} /> : null}
         </div>
 
         {/* Story panel — right column, slides in after figure moves */}
@@ -461,9 +486,30 @@ function StudentTestimonial({
           <p className="text-[0.7rem] font-bold uppercase tracking-[0.26em] text-[#062538] mb-2">
             {story.meta}
           </p>
-          <h2 className="text-[2.5rem] font-bold text-[#0b2b3a] tracking-tight leading-none">
+          <h2
+            className="font-bold text-[#0b2b3a] tracking-tight leading-none"
+            style={{
+              // Same length-based sizing as the desktop name so longer
+              // names like "Anonymous Student" still fit on one line on
+              // mobile.
+              fontSize:
+                story.name.length > 14
+                  ? "1.7rem"
+                  : story.name.length > 10
+                  ? "2.1rem"
+                  : "2.5rem",
+              whiteSpace: "nowrap",
+            }}
+          >
             {story.name}
           </h2>
+          {/* Privacy / context note — rendered for the anonymous student
+              on mobile too, mirroring the desktop layout. */}
+          {story.note ? (
+            <p className="mt-3 text-xs leading-relaxed text-[#1e4556]/75 italic max-w-[34ch] mx-auto">
+              {story.note}
+            </p>
+          ) : null}
         </div>
 
         {/* Picture (left) + Universities stacked (right) */}
@@ -509,6 +555,8 @@ function StudentTestimonial({
                   filter: "drop-shadow(0 14px 28px rgba(11,43,58,0.20))",
                 }}
               />
+              {/* Ivy ribbon (mobile) — same component, smaller mobile preset. */}
+              {story.ivyCount ? <IvyRibbon count={story.ivyCount} visible={slid} isMobile /> : null}
             </div>
           </div>
 
@@ -614,6 +662,104 @@ function StudentTestimonial({
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   IVY RIBBON
+   Small teal flag/banner that drops down from the top of the student
+   figure once it has slid into place. Rendered inside the figure
+   container (so it scales/translates with the figure). The shape is a
+   pill with a chevron-cut bottom edge so it reads as a banner rather
+   than just a label.
+   ═══════════════════════════════════════════════════════════════════ */
+
+function IvyRibbon({
+  count,
+  visible,
+  isMobile = false,
+}: {
+  count: number;
+  visible: boolean;
+  isMobile?: boolean;
+}) {
+  // Clip-path used by all four nested layers so they share the same
+  // chevron-bottom pennant silhouette at progressively smaller sizes.
+  const chevron = "polygon(0 0, 100% 0, 100% 78%, 50% 100%, 0 78%)";
+
+  // Mobile gets a noticeably smaller ribbon so it doesn't dominate the
+  // smaller figure — desktop keeps the previous size.
+  const innerPadding = isMobile ? "5px 9px 8px 9px" : "7px 12px 11px 12px";
+  const minWidth = isMobile ? "40px" : "56px";
+  const numberFs = isMobile ? "0.95rem" : "1.25rem";
+  const labelFs = isMobile ? "0.42rem" : "0.5rem";
+  const labelMt = isMobile ? 2 : 3;
+
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: "absolute",
+        top: "-2%",
+        right: "8%",
+        // Drop in from above and settle with a slight bounce. Delayed so
+        // the flag arrives just AFTER the figure finishes its slide.
+        transform: visible
+          ? "translateY(0) rotate(-4deg)"
+          : "translateY(-40px) rotate(-4deg)",
+        opacity: visible ? 1 : 0,
+        transition:
+          "transform 800ms cubic-bezier(0.34, 1.45, 0.64, 1) 750ms, opacity 600ms ease 750ms",
+        pointerEvents: "none",
+        zIndex: 12,
+        // Heavy drop shadow on the wrapper. filter:drop-shadow respects the
+        // chevron silhouette of the inner clipped layers.
+        filter:
+          "drop-shadow(0 16px 28px rgba(11, 43, 58, 0.55)) drop-shadow(0 4px 10px rgba(11, 43, 58, 0.25))",
+      }}
+    >
+      {/* Layer 1 — outer white outline. */}
+      <div style={{ background: "#ffffff", clipPath: chevron, padding: "3px" }}>
+        {/* Layer 2 — teal gap between outer and inner outlines. */}
+        <div style={{ background: "#128ca0", clipPath: chevron, padding: "2px" }}>
+          {/* Layer 3 — inner white outline. */}
+          <div style={{ background: "#ffffff", clipPath: chevron, padding: "2px" }}>
+            {/* Layer 4 — solid teal fill with the number + label. */}
+            <div
+              style={{
+                background: "#128ca0",
+                color: "#ffffff",
+                clipPath: chevron,
+                padding: innerPadding,
+                textAlign: "center",
+                minWidth,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: numberFs,
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                {count}
+              </div>
+              <div
+                style={{
+                  fontSize: labelFs,
+                  fontWeight: 700,
+                  letterSpacing: "0.20em",
+                  marginTop: labelMt,
+                }}
+              >
+                {count === 1 ? "IVY" : "IVIES"}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    STORY PANEL
    Appears item-by-item with a 120ms stagger once `inView` is true.
    Each block has its own delay so the reveal feels like an editorial
@@ -649,16 +795,40 @@ function StoryPanel({
         {story.meta}
       </p>
 
-      {/* Name — hero of the panel */}
+      {/* Name — hero of the panel. Font size scales down for longer names
+          (Andrew Zheng, Anonymous Student) so they always fit on one line.
+          whiteSpace: nowrap is the safety net. */}
       <h2
         className="mt-2 md:mt-3 font-bold text-[#0b2b3a] tracking-tight leading-[0.95]"
         style={{
-          fontSize: isMobile ? "3rem" : "clamp(3.5rem, 7vw, 6rem)",
+          fontSize: isMobile
+            ? story.name.length > 14
+              ? "1.9rem"
+              : story.name.length > 10
+              ? "2.4rem"
+              : "3rem"
+            : story.name.length > 14
+            ? "clamp(2.2rem, 4vw, 3.6rem)"
+            : story.name.length > 10
+            ? "clamp(2.8rem, 5.5vw, 4.8rem)"
+            : "clamp(3.5rem, 7vw, 6rem)",
+          whiteSpace: "nowrap",
           ...reveal(140),
         }}
       >
         {story.name}
       </h2>
+
+      {/* Optional context note — shown for the anonymous student to
+          explain the privacy choice. Sits just under the name. */}
+      {story.note ? (
+        <p
+          className="mt-3 md:mt-4 text-xs md:text-sm leading-relaxed text-[#1e4556]/75 italic max-w-[44ch]"
+          style={reveal(200)}
+        >
+          {story.note}
+        </p>
+      ) : null}
 
       {/* Offers received — logo on top, name below. Bigger tiles (~2x)
           with a layered drop shadow. On mobile the 4 tiles break into 2x2
@@ -792,28 +962,34 @@ function QuoteRotator({
     return () => clearInterval(interval);
   }, [quotes.length]);
 
-  // Tight minimum sized to the longest quote with only a tiny buffer so the
-  // dots sit close to the end of the text instead of floating in dead space.
-  const minHeight = isMobile ? "138px" : "100px";
+  // Natural-flow rendering: only the active quote takes layout space, so
+  // there's no dead area below short quotes. Container height adjusts to
+  // whichever quote is currently showing. Trade-off: a small height jump
+  // when rotating between quotes of very different lengths, but that's
+  // far less ugly than 100+px of empty whitespace under short quotes.
 
   return (
     <div className="flex-1" ref={rootRef}>
-      <div className="relative" style={{ minHeight }}>
+      <div className="relative">
         {quotes.map((q, i) => (
           <p
             key={i}
-            className="absolute inset-0 text-[0.98rem] md:text-[1.05rem] font-medium leading-snug text-[#0b2b3a]"
+            className="text-[0.88rem] md:text-[0.95rem] font-medium leading-snug text-[#0b2b3a]"
             style={{
+              display: active === i ? "block" : "none",
               opacity: active === i ? 1 : 0,
-              transform: active === i ? "translateY(0)" : "translateY(6px)",
-              transition:
-                "opacity 700ms cubic-bezier(0.2,1,0.3,1), transform 700ms cubic-bezier(0.2,1,0.3,1)",
-              pointerEvents: active === i ? "auto" : "none",
+              animation: active === i ? "qr-fade-in 600ms cubic-bezier(0.2,1,0.3,1) forwards" : undefined,
             }}
           >
             &ldquo;{q}&rdquo;
           </p>
         ))}
+        <style jsx>{`
+          @keyframes qr-fade-in {
+            from { opacity: 0; transform: translateY(4px); }
+            to   { opacity: 1; transform: translateY(0); }
+          }
+        `}</style>
       </div>
 
       {quotes.length > 1 && (

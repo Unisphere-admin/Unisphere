@@ -33,7 +33,12 @@ const TestimonialsBanner = dynamic(
   { ssr: false }
 );
 
-export default function HomePage() {
+const MobileHeroLogoStack = dynamic(
+  () => import("@/components/landing/MobileHeroLogoStack").then(m => ({ default: m.MobileHeroLogoStack })),
+  { ssr: false }
+);
+
+export default function HomePage() { 
   const flipWords = ["Oxbridge Interviews", "Personal Statements", "Essays", "Admissions Tests", "ACT/SAT"];
 
   const { user } = useAuth();
@@ -42,6 +47,11 @@ export default function HomePage() {
     <div className="flex flex-col w-full with-navbar">
       {/* Hero Section */}
       <section className="relative py-8 pb-12 md:py-16 bg-white">
+
+        {/* Mobile-only floating logo stack on the right side of the hero.
+            Positioned absolutely so it overlays without pushing or wrapping
+            the hero text. The hero <section> is the positioning context. */}
+        <MobileHeroLogoStack />
 
         <div className="container relative z-10 mx-auto px-6 md:px-10 max-w-screen-xl h-full">
           <div className="flex flex-col md:flex-row gap-0 items-center h-full">
@@ -54,10 +64,10 @@ export default function HomePage() {
                 <span className="block hero-anim-init hero-anim-line" style={{ animationDelay: '0.10s' }}>We Help</span>
                 <span className="block text-[3.3rem] sm:text-[3.55rem] md:text-6xl hero-anim-init hero-anim-line" style={{ animationDelay: '0.30s' }}>International Students</span>
                 <span className="block hero-anim-init hero-anim-line" style={{ animationDelay: '0.50s' }}>Land Their</span>
-                <span className="block hero-anim-init hero-anim-dream-wrap" style={{ animationDelay: '0.75s' }}>
+                <span className="block">
                   <span
-                    className="inline-block dream-gradient text-[3.6rem] sm:text-[3.9rem] md:text-[4.125rem]"
-                    style={{ fontFamily: "var(--font-playfair)", fontStyle: "italic", fontWeight: 400, lineHeight: 1.15 }}
+                    className="inline-block dream-gradient dream-typewriter text-[3.6rem] sm:text-[3.9rem] md:text-[4.125rem]"
+                    style={{ fontFamily: "var(--font-playfair)", fontStyle: "italic", fontWeight: 400, lineHeight: 1.15, animationDelay: '0.75s' }}
                   >Dream</span>
                 </span>
                 <span className="block hero-anim-init hero-anim-line" style={{ animationDelay: '1.20s' }}>University Offers</span>
