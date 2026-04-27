@@ -197,9 +197,12 @@ export const UniversityOrbit = memo(function UniversityOrbit() {
           <div
             className="w-full h-full rounded-full flex items-center justify-center"
             style={{
-              background: "radial-gradient(circle at 45% 40%, #a8e0e8 0%, #5abcc7 30%, #128ca0 70%, #0e6b68 100%)",
+              // White hub with a soft inner highlight to keep some dimension.
+              // The brand logo (blue) sits inside, matching the favicon/logo.png look.
+              background:
+                "radial-gradient(circle at 45% 40%, #ffffff 0%, #f5fafb 65%, #e7f1f3 100%)",
               boxShadow:
-                "0 12px 48px rgba(18, 140, 160, 0.35), 0 4px 16px rgba(0,0,0,0.1), inset 0 -4px 12px rgba(0,0,0,0.1), inset 0 4px 12px rgba(255,255,255,0.2)",
+                "0 12px 48px rgba(18, 140, 160, 0.18), 0 4px 16px rgba(0,0,0,0.06), inset 0 -2px 8px rgba(18,140,160,0.06)",
             }}
           >
             <Image
@@ -207,7 +210,9 @@ export const UniversityOrbit = memo(function UniversityOrbit() {
               alt="Unisphere"
               width={400}
               height={332}
-              className="w-[52%] h-auto object-contain brightness-0 invert opacity-90"
+              // Original blue logo, no colour filters. Sized at 60% width so the
+              // logo reads clearly in the hub but doesn't crowd the rim.
+              className="w-[60%] h-auto object-contain"
               draggable={false}
               priority
             />

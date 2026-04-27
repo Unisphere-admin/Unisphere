@@ -32,11 +32,10 @@ export const TestimonialsBanner = memo(function TestimonialsBanner() {
   const items = [...LOGOS, ...LOGOS];
 
   return (
-    <section className="relative py-10 md:py-14 border-t border-b border-[#c2d8d2]/30 overflow-hidden bg-gradient-to-b from-[#f6fbfc] via-white to-[#f6fbfc]">
-      {/* Soft ambient glows that give the banner a little personality
-          without taking attention away from the content. */}
-      <div aria-hidden className="pointer-events-none absolute -top-24 -left-24 w-80 h-80 rounded-full bg-[#a0d8df]/25 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute -bottom-28 -right-20 w-96 h-96 rounded-full bg-[#cdeef2]/40 blur-3xl" />
+    {/* Plain background — the banner now blends with the surrounding
+        page section instead of carrying its own blue tint. The thin top/bottom
+        borders still mark the band, but visually it sits flat. */}
+    <section className="relative py-10 md:py-14 border-t border-b border-[#c2d8d2]/30 overflow-hidden bg-white">
 
       <div className="relative container mx-auto px-4 md:px-6 max-w-screen-xl mb-7 md:mb-9 text-center">
         <p className="text-[0.7rem] md:text-xs font-semibold uppercase tracking-[0.24em] text-[#128ca0]/80 mb-3">
