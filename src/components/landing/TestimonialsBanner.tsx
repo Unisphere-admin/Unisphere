@@ -32,9 +32,9 @@ export const TestimonialsBanner = memo(function TestimonialsBanner() {
   const items = [...LOGOS, ...LOGOS];
 
   return (
-    {/* Plain background — the banner now blends with the surrounding
-        page section instead of carrying its own blue tint. The thin top/bottom
-        borders still mark the band, but visually it sits flat. */}
+    // Plain background — the banner now blends with the surrounding page
+    // section instead of carrying its own blue tint. The thin top/bottom
+    // borders still mark the band, but visually it sits flat.
     <section className="relative py-10 md:py-14 border-t border-b border-[#c2d8d2]/30 overflow-hidden bg-white">
 
       <div className="relative container mx-auto px-4 md:px-6 max-w-screen-xl mb-7 md:mb-9 text-center">
