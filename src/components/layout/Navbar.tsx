@@ -185,14 +185,18 @@ const Navbar = () => {
         <div className="flex items-center gap-3">
           {user && (
             <div className="hidden md:flex items-center gap-3 mr-1">
+              {/* prefetch={false} on auth-gated routes saves ~100KB of bundle
+                  preload on every public page. Dashboard/Messages chunks are
+                  large because they pull in admin tooling and message-thread
+                  rendering — code most public visitors will never reach. */}
               <Button variant="ghost" size="sm" asChild className={`hover:bg-muted ${isDarkNav || isTransparentNav ? "text-white/70 hover:text-white hover:bg-white/10" : "text-muted-foreground hover:text-foreground"}`}>
-                <Link href="/dashboard" className="flex items-center gap-1.5 font-medium">
+                <Link href="/dashboard" prefetch={false} className="flex items-center gap-1.5 font-medium">
                   <LayoutDashboard className="h-4 w-4" strokeWidth={2} />
                   Dashboard
                 </Link>
               </Button>
               <Button variant="ghost" size="sm" asChild className={`relative ${isDarkNav || isTransparentNav ? "text-white/70 hover:text-white hover:bg-white/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
-                <Link href={hasAccess ? "/dashboard/messages" : "/credits"} className="flex items-center gap-1.5 font-medium">
+                <Link href={hasAccess ? "/dashboard/messages" : "/credits"} prefetch={false} className="flex items-center gap-1.5 font-medium">
                   <MessageSquare className="h-4 w-4" strokeWidth={2} />
                   Messages
                   {!hasAccess ? (
