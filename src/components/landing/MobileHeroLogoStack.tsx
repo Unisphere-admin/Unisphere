@@ -35,12 +35,12 @@ const LOGOS: Logo[] = [
 // Slightly slower than the previous stepped 22s — continuous motion needs
 // more time to feel ambient.
 //
-// Sizes tuned so the leftmost peak (a tile at scale 1.15) reaches ~104px
+// Sizes tuned so the leftmost peak (a tile at scale 1.20) reaches ~126px
 // in from the viewport's right edge. The headline column reserves 120px
 // of right-padding plus the container's 24px px-6, putting the text edge
-// 144px from viewport right — a clean ~40px buffer at peak.
+// 144px from viewport right — a ~18px buffer at peak.
 const PERIOD_S = 28;
-const TILE_PX = 48;
+const TILE_PX = 56;
 const RADIUS_PX = 84;
 
 /**
@@ -130,12 +130,14 @@ function MobileHeroLogoStackImpl() {
 
       <style jsx>{`
         .mhls-orbit {
-          /* Pinned slightly past the right edge so the visible peak sits
-             a touch closer to the right side of the screen than before.
-             Vertical position is set inline by the effect above (Dream's
-             centre Y, with a small downward nudge applied). */
+          /* Orbit centre sits 8px INSIDE the right edge (was -8px past it),
+             so a bit more of each tile is visible on screen. Combined with
+             the bumped tile/peak sizes, the orbit reads larger and lives
+             further into the page than before. Vertical position is set
+             inline by the effect above (Dream's centre Y, with a small
+             downward nudge applied). */
           position: absolute;
-          right: -8px;
+          right: 8px;
           width: 0;
           height: 0;
           pointer-events: none;
@@ -177,16 +179,15 @@ function MobileHeroLogoStackImpl() {
           to   { transform: rotate(-360deg); }
         }
         /* Scale contrast: small at off-screen edges, peak at the leftmost
-           point (angle 180°). Peak 1.15 keeps the tile clear of the
-           headline text — combined with the 48px base tile and 84px
-           radius, the leftmost reach is ~104px from viewport right,
-           well clear of the 144px headline padding edge. */
+           point (angle 180°). Peak 1.20 makes the approaching highlight
+           feel more present; the larger 56px base tile pushes the visible
+           tiles further into the page so they read larger overall. */
         @keyframes mhls-scale {
-          0%   { transform: scale(0.40); }   /* angle 0°, far right edge */
-          25%  { transform: scale(0.70); }   /* angle 90°, off-screen top */
-          50%  { transform: scale(1.15); }   /* angle 180°, peak */
-          75%  { transform: scale(0.70); }   /* angle 270°, off-screen bottom */
-          100% { transform: scale(0.40); }   /* back to angle 0° */
+          0%   { transform: scale(0.42); }   /* angle 0°, far right edge */
+          25%  { transform: scale(0.72); }   /* angle 90°, off-screen top */
+          50%  { transform: scale(1.20); }   /* angle 180°, peak */
+          75%  { transform: scale(0.72); }   /* angle 270°, off-screen bottom */
+          100% { transform: scale(0.42); }   /* back to angle 0° */
         }
 
         @media (prefers-reduced-motion: reduce) {

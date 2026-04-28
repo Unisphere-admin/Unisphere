@@ -69,7 +69,7 @@ export default function HomePage() {
             <div className="flex-[3] space-y-6 text-left pr-[120px] md:pr-0">
 
               <h1
-                className="font-bold tracking-tight text-[3rem] sm:text-[3.25rem] md:text-6xl text-left"
+                className="font-bold tracking-tight text-[3.2rem] sm:text-[3.45rem] md:text-6xl text-left"
                 style={{ lineHeight: 1.05 }}
               >
                 <span className="block hero-anim-init hero-anim-line" style={{ animationDelay: '0.10s' }}>We Help</span>
@@ -77,7 +77,7 @@ export default function HomePage() {
                 <span className="block hero-anim-init hero-anim-line" style={{ animationDelay: '0.50s' }}>Land Their</span>
                 <span className="block hero-anim-init hero-anim-line" style={{ animationDelay: '0.70s' }}>
                   <span
-                    className="inline-block dream-gradient text-[3.6rem] sm:text-[3.9rem] md:text-[4.125rem]"
+                    className="inline-block dream-gradient text-[3.85rem] sm:text-[4.15rem] md:text-[4.125rem]"
                     style={{ fontFamily: "var(--font-playfair)", fontStyle: "italic", fontWeight: 400, lineHeight: 1.15 }}
                   >Dream</span>
                 </span>
