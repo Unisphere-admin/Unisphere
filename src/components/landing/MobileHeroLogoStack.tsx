@@ -34,9 +34,14 @@ const LOGOS: Logo[] = [
 
 // Slightly slower than the previous stepped 22s — continuous motion needs
 // more time to feel ambient.
+//
+// Sizes are tuned so the leftmost peak (where a tile reaches scale 1.15)
+// stays within the right ~110px of the viewport. The text column reserves
+// 120px on the right via padding, leaving a small buffer between the orbit's
+// reach and the headline edge on every mobile width.
 const PERIOD_S = 28;
-const TILE_PX = 56;
-const RADIUS_PX = 100;
+const TILE_PX = 48;
+const RADIUS_PX = 84;
 
 /**
  * Find the "Dream" word in the hero headline and return its centre Y
@@ -171,13 +176,15 @@ function MobileHeroLogoStackImpl() {
           from { transform: rotate(0deg);    }
           to   { transform: rotate(-360deg); }
         }
-        /* Stronger scale contrast: very small at the off-screen edges,
-           large at the leftmost peak (angle 180°). */
+        /* Scale contrast: small at off-screen edges, peak at the leftmost
+           point (angle 180°). Peak tuned to 1.15 so the tile doesn't bloat
+           into the headline text — the right ~120px padding on the headline
+           leaves enough buffer for this peak. */
         @keyframes mhls-scale {
           0%   { transform: scale(0.40); }   /* angle 0°, far right edge */
-          25%  { transform: scale(0.75); }   /* angle 90°, off-screen top */
-          50%  { transform: scale(1.30); }   /* angle 180°, peak */
-          75%  { transform: scale(0.75); }   /* angle 270°, off-screen bottom */
+          25%  { transform: scale(0.70); }   /* angle 90°, off-screen top */
+          50%  { transform: scale(1.15); }   /* angle 180°, peak */
+          75%  { transform: scale(0.70); }   /* angle 270°, off-screen bottom */
           100% { transform: scale(0.40); }   /* back to angle 0° */
         }
 

@@ -1,5 +1,5 @@
 "use client";
-
+// banner v3 — full student-offer roster (Northwestern, UCLA, UCSB, UCSD added)
 import { memo } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -23,20 +23,33 @@ const TEAL_BG = [
 // appear in the marquee. `src: null` means we do not yet have that logo file
 // in /public/Unilogos/ — those render as a clean text fallback so the layout
 // stays correct, and you can drop in the PNG later with no other changes.
+//
+// The list is curated to match the offers our students actually received
+// (see /testimonials for the full breakdown):
+//   - Aidan Lee       — Princeton, Dartmouth, Brown, Columbia
+//   - Andrew Zheng    — Carnegie Mellon, Cornell, Dartmouth, Northwestern
+//   - Anonymous       — UCLA, UCSB, UCSD
+// Plus a handful of UK schools (Oxford, LSE, Imperial, UCL, Yale) that
+// appear elsewhere on the site so the banner reads as a representative
+// mix rather than a single student's page.
 type LogoItem = { name: string; src: string | null; short?: string };
 
 const LOGOS: ReadonlyArray<LogoItem> = [
-  { name: "Oxford",           src: "/Unilogos/Oxford Logo.png" },
-  { name: "LSE",              src: "/Unilogos/LSE Logo.png" },
-  { name: "Imperial",         src: "/Unilogos/Imperial Logo.png" },
-  { name: "Princeton",        src: "/Unilogos/Princeton Logo.png" },
-  { name: "Yale",             src: "/Unilogos/Yale Logo.png" },
-  { name: "Columbia",         src: "/Unilogos/Columbia Logo.png" },
-  { name: "Brown",            src: "/Unilogos/Brown Logo.png" },
-  { name: "Dartmouth",        src: null, short: "Dart." },       // TODO: add /public/Unilogos/Dartmouth Logo.png
-  { name: "Carnegie Mellon",  src: null, short: "CMU"  },        // TODO: add /public/Unilogos/CarnegieMellon Logo.png
-  { name: "Cornell",          src: "/Unilogos/Cornell Logo.png" },
-  { name: "UCL",              src: "/Unilogos/UCL Logo.png" },
+  { name: "Oxford",          src: "/Unilogos/Oxford Logo.png" },
+  { name: "LSE",             src: "/Unilogos/LSE Logo.png" },
+  { name: "Imperial",        src: "/Unilogos/Imperial Logo.png" },
+  { name: "UCL",             src: "/Unilogos/UCL Logo.png" },
+  { name: "Princeton",       src: "/Unilogos/Princeton Logo.png" },
+  { name: "Yale",            src: "/Unilogos/Yale Logo.png" },
+  { name: "Columbia",        src: "/Unilogos/Columbia Logo.png" },
+  { name: "Brown",           src: "/Unilogos/Brown Logo.png" },
+  { name: "Cornell",         src: "/Unilogos/Cornell Logo.png" },
+  { name: "Dartmouth",       src: "/Unilogos/Dartmouth Logo.png" },
+  { name: "Carnegie Mellon", src: "/Unilogos/CMU Logo.png" },
+  { name: "Northwestern",    src: "/Unilogos/Northwestern Logo.png" },
+  { name: "UCLA",            src: "/Unilogos/UCLA Logo.png" },
+  { name: "UCSB",            src: "/Unilogos/UCSB Logo.png" },
+  { name: "UCSD",            src: "/Unilogos/UCSD Logo.png" },
 ];
 
 export const TestimonialsBanner = memo(function TestimonialsBanner() {

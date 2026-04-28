@@ -55,7 +55,13 @@ export default function HomePage() {
 
         <div className="container relative z-10 mx-auto px-6 md:px-10 max-w-screen-xl h-full">
           <div className="flex flex-col md:flex-row gap-0 items-center h-full">
-            <div className="flex-[3] space-y-6 text-left">
+            {/* On mobile, reserve ~120px on the right of the text column so
+                the headline never collides with the absolutely-positioned
+                MobileHeroLogoStack orbit (which sits pinned to the right edge
+                near the "Dream" word). On md+ the orbit doesn't exist and we
+                use UniversityOrbit in a separate flex column instead — no
+                padding needed there. */}
+            <div className="flex-[3] space-y-6 text-left pr-[120px] md:pr-0">
 
               <h1
                 className="font-bold tracking-tight text-[3rem] sm:text-[3.25rem] md:text-6xl text-left"
@@ -66,11 +72,28 @@ export default function HomePage() {
                 <span className="block hero-anim-init hero-anim-line" style={{ animationDelay: '0.50s' }}>Land Their</span>
                 <span className="block">
                   <span
-                    className="inline-block dream-gradient dream-typewriter text-[3.6rem] sm:text-[3.9rem] md:text-[4.125rem]"
-                    style={{ fontFamily: "var(--font-playfair)", fontStyle: "italic", fontWeight: 400, lineHeight: 1.15, animationDelay: '0.75s' }}
-                  >Dream</span>
+                    className="inline-block dream-gradient text-[3.6rem] sm:text-[3.9rem] md:text-[4.125rem]"
+                    style={{ fontFamily: "var(--font-playfair)", fontStyle: "italic", fontWeight: 400, lineHeight: 1.15 }}
+                    aria-label="Dream"
+                  >
+                    {/* Each letter snaps in instantly on its own delay, so
+                        the word literally appears one letter at a time:
+                        D … r … e … a … m. The letters stay inline (no
+                        inline-block) so the parent's text-clip gradient
+                        flows across the whole word as one continuous fill. */}
+                    <span className="dream-letter" style={{ animationDelay: '0.85s' }}>D</span>
+                    <span className="dream-letter" style={{ animationDelay: '0.97s' }}>r</span>
+                    <span className="dream-letter" style={{ animationDelay: '1.09s' }}>e</span>
+                    <span className="dream-letter" style={{ animationDelay: '1.21s' }}>a</span>
+                    <span className="dream-letter" style={{ animationDelay: '1.33s' }}>m</span>
+                  </span>
                 </span>
-                <span className="block hero-anim-init hero-anim-line" style={{ animationDelay: '1.20s' }}>University Offers</span>
+                {/* Mobile: stack "University" / "Offers" on two lines so the
+                    headline doesn't sprawl into the orbit area. Desktop:
+                    keep them on one line for visual balance with UniversityOrbit. */}
+                <span className="block md:hidden hero-anim-init hero-anim-line" style={{ animationDelay: '1.20s' }}>University</span>
+                <span className="block md:hidden hero-anim-init hero-anim-line" style={{ animationDelay: '1.30s' }}>Offers</span>
+                <span className="hidden md:block hero-anim-init hero-anim-line" style={{ animationDelay: '1.20s' }}>University Offers</span>
               </h1>
               <div className="max-w-[700px] space-y-1 mt-2 text-left hero-anim-init hero-anim-line" style={{ animationDelay: '1.55s' }}>
                 <p className="text-xl md:text-2xl text-muted-foreground font-normal leading-relaxed">
