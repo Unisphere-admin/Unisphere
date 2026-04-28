@@ -117,14 +117,6 @@ summary {
   }
 }
 
-/* Per-letter snap-in for "Dream". Each letter's opacity flips from 0 to 1
-   instantly (steps(1, end)) on its own delay, so the word reads as five
-   discrete letters appearing one after the other instead of a smooth slide
-   or blurred reveal. */
-@keyframes dreamLetterSnap {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
 
 .hero-anim-init {
   opacity: 0;
@@ -136,23 +128,10 @@ summary {
   animation: heroLineRise 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Each letter starts invisible and snaps to fully visible on its delay.
-   `steps(1, end)` makes the change instantaneous — no fade, no slide,
-   just on/off, which is what reads as "the letter appeared".
-   Important: letters are inline (NOT inline-block), so they don't break
-   the parent's `-webkit-background-clip: text` gradient — the rainbow
-   fill flows continuously across all five letters as they reveal. */
-.dream-letter {
-  opacity: 0;
-  animation: dreamLetterSnap 1ms steps(1, end) forwards;
-}
-
 /* Respect users who prefer reduced motion -- show everything instantly. */
 @media (prefers-reduced-motion: reduce) {
   .hero-anim-init,
-  .hero-anim-line,
-  .hero-anim-dream-wrap,
-  .dream-letter {
+  .hero-anim-line {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;

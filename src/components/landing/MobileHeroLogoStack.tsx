@@ -35,10 +35,10 @@ const LOGOS: Logo[] = [
 // Slightly slower than the previous stepped 22s — continuous motion needs
 // more time to feel ambient.
 //
-// Sizes are tuned so the leftmost peak (where a tile reaches scale 1.15)
-// stays within the right ~110px of the viewport. The text column reserves
-// 120px on the right via padding, leaving a small buffer between the orbit's
-// reach and the headline edge on every mobile width.
+// Sizes tuned so the leftmost peak (a tile at scale 1.15) reaches ~104px
+// in from the viewport's right edge. The headline column reserves 120px
+// of right-padding plus the container's 24px px-6, putting the text edge
+// 144px from viewport right — a clean ~40px buffer at peak.
 const PERIOD_S = 28;
 const TILE_PX = 48;
 const RADIUS_PX = 84;
@@ -177,9 +177,10 @@ function MobileHeroLogoStackImpl() {
           to   { transform: rotate(-360deg); }
         }
         /* Scale contrast: small at off-screen edges, peak at the leftmost
-           point (angle 180°). Peak tuned to 1.15 so the tile doesn't bloat
-           into the headline text — the right ~120px padding on the headline
-           leaves enough buffer for this peak. */
+           point (angle 180°). Peak 1.15 keeps the tile clear of the
+           headline text — combined with the 48px base tile and 84px
+           radius, the leftmost reach is ~104px from viewport right,
+           well clear of the 144px headline padding edge. */
         @keyframes mhls-scale {
           0%   { transform: scale(0.40); }   /* angle 0°, far right edge */
           25%  { transform: scale(0.70); }   /* angle 90°, off-screen top */

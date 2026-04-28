@@ -45,8 +45,13 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col w-full with-navbar">
-      {/* Hero Section */}
-      <section className="relative py-8 pb-12 md:py-16 bg-white">
+      {/* Hero Section. `overflow-x-hidden` and `max-w-[100vw]` together
+          guarantee that the absolutely-positioned mobile orbit (which has
+          tiles extending past the right edge as part of the revolving
+          effect) cannot widen the page on any viewport. Without this,
+          some preview tools and iframes render the page at content width
+          rather than viewport width and shift the visible content. */}
+      <section className="relative py-8 pb-12 md:py-16 bg-white overflow-x-hidden max-w-[100vw]">
 
         {/* Mobile-only floating logo stack on the right side of the hero.
             Positioned absolutely so it overlays without pushing or wrapping
@@ -70,32 +75,20 @@ export default function HomePage() {
                 <span className="block hero-anim-init hero-anim-line" style={{ animationDelay: '0.10s' }}>We Help</span>
                 <span className="block text-[3.3rem] sm:text-[3.55rem] md:text-6xl hero-anim-init hero-anim-line" style={{ animationDelay: '0.30s' }}>International Students</span>
                 <span className="block hero-anim-init hero-anim-line" style={{ animationDelay: '0.50s' }}>Land Their</span>
-                <span className="block">
+                <span className="block hero-anim-init hero-anim-line" style={{ animationDelay: '0.70s' }}>
                   <span
                     className="inline-block dream-gradient text-[3.6rem] sm:text-[3.9rem] md:text-[4.125rem]"
                     style={{ fontFamily: "var(--font-playfair)", fontStyle: "italic", fontWeight: 400, lineHeight: 1.15 }}
-                    aria-label="Dream"
-                  >
-                    {/* Each letter snaps in instantly on its own delay, so
-                        the word literally appears one letter at a time:
-                        D … r … e … a … m. The letters stay inline (no
-                        inline-block) so the parent's text-clip gradient
-                        flows across the whole word as one continuous fill. */}
-                    <span className="dream-letter" style={{ animationDelay: '0.85s' }}>D</span>
-                    <span className="dream-letter" style={{ animationDelay: '0.97s' }}>r</span>
-                    <span className="dream-letter" style={{ animationDelay: '1.09s' }}>e</span>
-                    <span className="dream-letter" style={{ animationDelay: '1.21s' }}>a</span>
-                    <span className="dream-letter" style={{ animationDelay: '1.33s' }}>m</span>
-                  </span>
+                  >Dream</span>
                 </span>
                 {/* Mobile: stack "University" / "Offers" on two lines so the
                     headline doesn't sprawl into the orbit area. Desktop:
                     keep them on one line for visual balance with UniversityOrbit. */}
-                <span className="block md:hidden hero-anim-init hero-anim-line" style={{ animationDelay: '1.20s' }}>University</span>
-                <span className="block md:hidden hero-anim-init hero-anim-line" style={{ animationDelay: '1.30s' }}>Offers</span>
-                <span className="hidden md:block hero-anim-init hero-anim-line" style={{ animationDelay: '1.20s' }}>University Offers</span>
+                <span className="block md:hidden hero-anim-init hero-anim-line" style={{ animationDelay: '0.90s' }}>University</span>
+                <span className="block md:hidden hero-anim-init hero-anim-line" style={{ animationDelay: '1.05s' }}>Offers</span>
+                <span className="hidden md:block hero-anim-init hero-anim-line" style={{ animationDelay: '0.90s' }}>University Offers</span>
               </h1>
-              <div className="max-w-[700px] space-y-1 mt-2 text-left hero-anim-init hero-anim-line" style={{ animationDelay: '1.55s' }}>
+              <div className="max-w-[700px] space-y-1 mt-2 text-left hero-anim-init hero-anim-line" style={{ animationDelay: '1.30s' }}>
                 <p className="text-xl md:text-2xl text-muted-foreground font-normal leading-relaxed">
                   Mentors that help you with
                 </p>
@@ -103,7 +96,7 @@ export default function HomePage() {
                   <FlipWords words={flipWords} duration={1500} />
                 </span>
               </div>
-              <div className="mt-10 flex justify-start hero-anim-init hero-anim-line" style={{ animationDelay: '1.85s' }}>
+              <div className="mt-10 flex justify-start hero-anim-init hero-anim-line" style={{ animationDelay: '1.60s' }}>
                 <Link href="/signup">
                   <Button
                     size="lg"
