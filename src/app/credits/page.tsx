@@ -215,7 +215,7 @@ export default function CreditsPage() {
           <h2 className="text-xl font-semibold mb-2">We can't load pricing right now</h2>
           <p className="text-muted-foreground mb-6">
             This is a temporary issue on our end. Please try again in a moment, or
-            contact us at <a href="mailto:hello@unisphere.my" className="underline hover:text-foreground">hello@unisphere.my</a>{' '}
+            contact us at <a href="mailto:admin@unisphere.my" className="underline hover:text-foreground">admin@unisphere.my</a>{' '}
             and we'll help you top up directly.
           </p>
           <Button

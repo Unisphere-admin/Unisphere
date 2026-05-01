@@ -115,17 +115,25 @@ export async function GET(req: NextRequest) {
   try {
     // If Stripe is not configured, return mock products for local development
     if (!stripe) {
+      console.warn('[stripe/products] STRIPE_SECRET_KEY not set — returning mock products for local development');
       return NextResponse.json({ products: MOCK_PRODUCTS });
     }
     const products = [];
+    // Per-product failures we hit on the way through. Surfaced in the 500
+    // response so production logs (and the on-call engineer) can see exactly
+    // which Stripe product caused the empty response, instead of a generic
+    // "pricing unavailable" with no breadcrumbs.
+    const failures: Array<{ packageId: string; productId: string; reason: string }> = [];
 
     // Fetch each product and its pricing
     for (const [packageId, productId] of Object.entries(STRIPE_PRODUCTS)) {
       try {
         // Get the product
         const product = await stripe.products.retrieve(productId);
-        
+
         if (!product.active) {
+          console.warn(`[stripe/products] ${packageId} (${productId}) is inactive in Stripe — skipping`);
+          failures.push({ packageId, productId, reason: 'product inactive in Stripe' });
           continue;
         }
 
@@ -135,6 +143,12 @@ export async function GET(req: NextRequest) {
           active: true,
           expand: ['data.currency_options'], // Expand currency_options to get full data
         });
+
+        if (prices.data.length === 0) {
+          console.warn(`[stripe/products] ${packageId} (${productId}) has no active prices in Stripe — skipping`);
+          failures.push({ packageId, productId, reason: 'no active prices in Stripe' });
+          continue;
+        }
 
         
         // Alternative: Try to get multi-currency pricing by fetching the product with expand
@@ -359,21 +373,40 @@ export async function GET(req: NextRequest) {
         } else {
         }
       } catch (error) {
-        console.error(`Error fetching product ${productId}:`, error);
+        // Capture the actual Stripe error type/code/message so production
+        // logs tell us exactly what went wrong (resource_missing, invalid
+        // API key, archived product, etc.) instead of a generic "Error".
+        const stripeErr = error as any;
+        const reason = stripeErr?.code
+          ? `${stripeErr.type || 'StripeError'}: ${stripeErr.code} — ${stripeErr.message}`
+          : (stripeErr?.message || String(error));
+        console.error(`[stripe/products] ${packageId} (${productId}) failed: ${reason}`);
+        failures.push({ packageId, productId, reason });
         // Continue with other products even if one fails
       }
     }
 
     // If we somehow ended up with zero products after iterating all configured
     // product IDs, that's a server-side configuration problem (bad product
-    // IDs, archived products, Stripe API outage). Return 500 so the client
-    // can show a real error state instead of "no products for sale", and so
-    // monitoring/Sentry alerts on the failure rather than silently shipping
-    // an empty page to paying users.
+    // IDs, archived products, bad API key, Stripe outage). Return 500 with
+    // the per-product failure list so production logs and Sentry have real
+    // breadcrumbs instead of a generic "pricing unavailable".
     if (products.length === 0) {
-      console.error('Stripe products endpoint returned zero entries — check STRIPE_*_PRODUCT_ID env vars and that the products are active in Stripe.');
+      console.error(
+        '[stripe/products] returned zero entries.',
+        'Failures:', JSON.stringify(failures, null, 2),
+        '\nCheck (1) STRIPE_SECRET_KEY env var on Vercel,',
+        '(2) STRIPE_*_PRODUCT_ID env vars or hardcoded fallbacks in this file,',
+        '(3) that those products are active in Stripe with at least one active price.'
+      );
       return NextResponse.json(
-        { error: 'Pricing temporarily unavailable. Please try again shortly.' },
+        {
+          error: 'Pricing temporarily unavailable. Please try again shortly.',
+          // `failures` is safe to send to the client — it doesn't contain
+          // secrets, just product IDs and Stripe error codes. Helpful when
+          // debugging from the network tab instead of needing Vercel access.
+          failures,
+        },
         { status: 500 }
       );
     }
@@ -382,10 +415,16 @@ export async function GET(req: NextRequest) {
       headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600' }
     });
   } catch (error) {
-    console.error('Error fetching products:', error);
+    const stripeErr = error as any;
+    console.error(
+      '[stripe/products] top-level failure:',
+      stripeErr?.code
+        ? `${stripeErr.type || 'StripeError'}: ${stripeErr.code} — ${stripeErr.message}`
+        : (stripeErr?.message || String(error))
+    );
     return NextResponse.json(
       { error: 'Failed to fetch products' },
       { status: 500 }
     );
   }
-} 
+}
