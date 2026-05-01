@@ -83,11 +83,14 @@ const MOCK_PRODUCTS = [
   },
 ];
 
-// Only initialize Stripe if the secret key is available
+// Only initialize Stripe if the secret key is available.
+// We deliberately don't pin apiVersion — letting the Node SDK pick its
+// own default avoids the situation where a hardcoded future version
+// triggers a connection-level rejection because the account/SDK pair
+// doesn't recognise it. Trim the env var defensively in case the value
+// was pasted with a trailing newline/space (Vercel UI doesn't strip).
 const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2025-07-30.basil',
-    })
+  ? new Stripe(process.env.STRIPE_SECRET_KEY.trim())
   : null;
 
 // Helper function to map credits to package IDs

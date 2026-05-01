@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { getAuthUser } from '@/lib/auth/protectResource';
 
-// Only initialize Stripe if the secret key is available
+// Only initialize Stripe if the secret key is available.
+// No pinned apiVersion — let the SDK use its default. Trim the env var
+// defensively against accidental whitespace.
 const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2025-07-30.basil',
-    })
+  ? new Stripe(process.env.STRIPE_SECRET_KEY.trim())
   : null;
 
 // Product IDs from your Stripe product catalog. See the long comment in

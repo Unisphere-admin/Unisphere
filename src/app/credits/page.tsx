@@ -279,8 +279,8 @@ export default function CreditsPage() {
                       <div className="mt-1 mb-2">
                         <span className="text-xl font-medium text-foreground/80">{formatStripeCurrency(product.price, product.currency)}</span>
                       </div>
-                      <CardDescription>
-                        {product.description || "Get started with 3-5 mentor sessions. Perfect for targeted help with applications or interview prep from current students at elite universities."}
+                      <CardDescription className="mt-1">
+                        Roughly 3-5 sessions
                       </CardDescription>
                     </>
                   );
@@ -327,8 +327,8 @@ export default function CreditsPage() {
                       <div className="mt-1 mb-2">
                         <span className="text-xl font-medium text-foreground/80">{formatStripeCurrency(product.price, product.currency)}</span>
                       </div>
-                      <CardDescription>
-                        {product.description || "Popular option with 10-15 sessions. Comprehensive support for students applying to multiple universities with essay reviews and interview preparation."}
+                      <CardDescription className="mt-1">
+                        Roughly 8-10 sessions
                       </CardDescription>
                     </>
                   );
@@ -372,8 +372,8 @@ export default function CreditsPage() {
                       <div className="mt-1 mb-2">
                         <span className="text-xl font-medium text-foreground/80">{formatStripeCurrency(product.price, product.currency)}</span>
                       </div>
-                      <CardDescription>
-                        {product.description || "Best value for complete application support. Full access to all features with unlimited sessions for comprehensive application assistance and academic support."}
+                      <CardDescription className="mt-1">
+                        Roughly 18-20 sessions
                       </CardDescription>
                     </>
                   );
