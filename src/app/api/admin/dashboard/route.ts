@@ -654,55 +654,77 @@ export async function GET(req: NextRequest) {
       }
 
       case "recent-signups": {
-        // Recent signups feed for the admin overview. Pulls students
-        // (non-tutors) ordered by created_at desc, joined to their
-        // student_profile so we can show name + school + target country
-        // in the row without a second roundtrip.
+        // Recent signups feed for the admin overview.
+        //
+        // The public.users table has NO created_at column (only id, email,
+        // conversation, email_confirmed_at, is_tutor, tokens, has_access).
+        // Real signup time lives in auth.users — so we use the admin API
+        // for the canonical sorted-by-newest list, then enrich each row
+        // with the public.users record + student_profile + survey_responses
+        // we have for that user.
         const limit = Math.min(
           parseInt(req.nextUrl.searchParams.get("limit") || "20"),
           100
         );
 
-        const { data: users } = await supabase
-          .from("users")
-          .select("id, email, created_at, is_tutor, has_access")
-          .eq("is_tutor", false)
-          .order("created_at", { ascending: false })
-          .limit(limit);
+        // listUsers returns auth users sorted by created_at desc. We pull
+        // a wider page than the limit so we can filter out tutors and
+        // still hit the requested count.
+        const { data: authPage } = await supabase.auth.admin.listUsers({
+          page: 1,
+          perPage: Math.min(limit * 3, 100),
+        });
+        const authUsers = authPage?.users || [];
 
-        if (!users || users.length === 0) {
+        if (authUsers.length === 0) {
           return NextResponse.json({ signups: [] });
         }
 
-        const userIds = users.map((u: any) => u.id);
-
-        const [profilesRes, surveyRes] = await Promise.all([
+        // Pull public.users / profile / survey rows for ALL the auth users
+        // we received, then assemble in the correct order below.
+        const allIds = authUsers.map((u: any) => u.id);
+        const [publicUsersRes, profilesRes, surveyRes] = await Promise.all([
+          supabase
+            .from("users")
+            .select("id, is_tutor, has_access, tokens")
+            .in("id", allIds),
           supabase
             .from("student_profile")
             .select(
               "id, first_name, last_name, avatar_url, country, school, countries_to_apply, application_cycle, survey_completed"
             )
-            .in("id", userIds),
+            .in("id", allIds),
           supabase
             .from("survey_responses")
             .select("user_id, school, country, application_cycle, universities, course")
-            .in("user_id", userIds),
+            .in("user_id", allIds),
         ]);
 
+        const publicMap: Record<string, any> = {};
+        for (const u of publicUsersRes.data || []) publicMap[u.id] = u;
         const profileMap: Record<string, any> = {};
         for (const p of profilesRes.data || []) profileMap[p.id] = p;
-
         const surveyMap: Record<string, any> = {};
         for (const s of surveyRes.data || []) surveyMap[s.user_id] = s;
 
-        const signups = users.map((u: any) => {
+        // Walk auth users (already in newest-first order), drop tutors,
+        // stop at limit. is_tutor lives on either public.users.is_tutor
+        // or auth.user_metadata.is_tutor, depending on signup flow.
+        const signups: any[] = [];
+        for (const u of authUsers) {
+          if (signups.length >= limit) break;
+          const pub = publicMap[u.id] || {};
+          const isTutor =
+            pub.is_tutor === true || u.user_metadata?.is_tutor === true;
+          if (isTutor) continue;
+
           const profile = profileMap[u.id] || {};
           const survey = surveyMap[u.id];
-          return {
+          signups.push({
             id: u.id,
-            email: u.email,
-            created_at: u.created_at,
-            has_access: u.has_access,
+            email: u.email || "",
+            created_at: u.created_at || null,
+            has_access: pub.has_access ?? false,
             survey_completed: !!profile.survey_completed,
             first_name: profile.first_name || null,
             last_name: profile.last_name || null,
@@ -713,12 +735,11 @@ export async function GET(req: NextRequest) {
               profile.countries_to_apply || survey?.country || null,
             application_cycle:
               profile.application_cycle || survey?.application_cycle || null,
-            // First 3 target unis for the row preview (full list lives in detail)
             target_unis_preview: Array.isArray(survey?.universities)
               ? survey.universities.slice(0, 3)
               : [],
-          };
-        });
+          });
+        }
 
         return NextResponse.json({ signups });
       }
@@ -745,10 +766,13 @@ export async function GET(req: NextRequest) {
           paymentsRes,
           studentSessionsRes,
           tutorSessionsRes,
+          authUserRes,
         ] = await Promise.all([
           supabase
             .from("users")
-            .select("id, email, tokens, has_access, is_tutor, created_at, last_sign_in")
+            // public.users does NOT have created_at or last_sign_in.
+            // We pull those from auth.users below.
+            .select("id, email, tokens, has_access, is_tutor")
             .eq("id", studentId)
             .maybeSingle(),
           supabase
@@ -784,30 +808,34 @@ export async function GET(req: NextRequest) {
             .eq("tutor_id", studentId)
             .order("created_at", { ascending: false })
             .limit(20),
+          // auth.users — owner of created_at and last_sign_in_at, neither
+          // of which exists on public.users. Always fetched in parallel
+          // with the rest so the panel can show signup time and last
+          // login regardless of whether public.users has a row.
+          supabase.auth.admin.getUserById(studentId),
         ]);
 
-        // Build the `user` field from whatever source we have. Some
-        // accounts exist only in auth.users (signed up but never wrote
-        // to public.users). Fall back to the auth admin API so we still
-        // surface their email, role, and signup time instead of crashing.
-        let user: any = userRes.data;
-        if (!user) {
-          try {
-            const { data: authUser } = await supabase.auth.admin.getUserById(studentId);
-            if (authUser?.user) {
-              user = {
-                id: authUser.user.id,
-                email: authUser.user.email || "",
-                tokens: 0,
-                has_access: false,
-                is_tutor: !!authUser.user.user_metadata?.is_tutor,
-                created_at: authUser.user.created_at || null,
-                last_sign_in: authUser.user.last_sign_in_at || null,
-              };
+        // Combine public.users (tokens / access / role) with auth.users
+        // (timestamps) into the `user` payload the panel expects.
+        const authUser = (authUserRes as any)?.data?.user || null;
+        let user: any = userRes.data
+          ? {
+              ...userRes.data,
+              created_at: authUser?.created_at || null,
+              last_sign_in: authUser?.last_sign_in_at || null,
             }
-          } catch (e) {
-            // Fall through to the not-found case below
-          }
+          : null;
+        if (!user && authUser) {
+          // No public.users row — synthesize from auth alone.
+          user = {
+            id: authUser.id,
+            email: authUser.email || "",
+            tokens: 0,
+            has_access: false,
+            is_tutor: !!authUser.user_metadata?.is_tutor,
+            created_at: authUser.created_at || null,
+            last_sign_in: authUser.last_sign_in_at || null,
+          };
         }
 
         if (!user) {
