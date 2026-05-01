@@ -5,7 +5,8 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, CreditCard, Loader2, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { MapPin, Loader2, AlertCircle, Check } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -30,6 +31,107 @@ interface StripeProduct {
   priceId: string;
   active: boolean;
 }
+
+// Per-tier marketing copy. Pattern matches the Calendly pricing page:
+// each card has a name, a subtitle, then a categorised feature list.
+// Paid tiers chain — "Basic features, plus:" — so the value progression
+// reads cleanly without repeating bullets.
+//
+// Edit these freely; nothing here is wired to Stripe.
+// Items can be plain strings, or objects with `bold: true` for items
+// we want to visually emphasise (e.g. the 24/7 support line on the
+// premium tier — it's the one differentiator across the paid cards).
+type FeatureItem = string | { text: string; bold?: boolean };
+type FeatureSection = { title: string; items: FeatureItem[] };
+type TierCopy = {
+  name: string;
+  subtitle: string;
+  sessionRange?: string;
+  sections: FeatureSection[];
+};
+
+const TIER_COPY: Record<string, TierCopy> = {
+  free: {
+    name: "Free",
+    subtitle: "For exploring Unisphere",
+    // sessionRange filled with a friendly placeholder so the price block
+    // is the same height as the paid tiers and the CTA aligns across cards.
+    sessionRange: "Sign up in seconds",
+    sections: [
+      {
+        title: "Browse",
+        items: [
+          "Browse all tutors",
+          "View tutor profiles",
+          "Read student success stories",
+        ],
+      },
+      {
+        title: "Free resources",
+        items: [
+          "Access to free resources",
+          "Access to opportunities",
+        ],
+      },
+    ],
+  },
+  basic: {
+    name: "500 Credits",
+    subtitle: "For trying us out",
+    sessionRange: "Roughly 3-5 sessions",
+    sections: [
+      {
+        title: "What's included",
+        items: [
+          "Access to messaging tutors",
+          "Access to booking tutors",
+          "Timeline & deadline tracker",
+          "Application strategy support",
+          "Dedicated mentor matching",
+        ],
+      },
+    ],
+  },
+  standard: {
+    name: "1,000 Credits",
+    subtitle: "For most students",
+    sessionRange: "Roughly 8-10 sessions",
+    sections: [
+      {
+        title: "What's included",
+        items: [
+          "Access to messaging tutors",
+          "Access to booking tutors",
+          "Timeline & deadline tracker",
+          "Application strategy support",
+          "Dedicated mentor matching",
+          { text: "Access to exclusive events", bold: true },
+          { text: "Peer project matching", bold: true },
+        ],
+      },
+    ],
+  },
+  premium: {
+    name: "2,000 Credits",
+    subtitle: "For serious applicants",
+    sessionRange: "Roughly 18-20 sessions",
+    sections: [
+      {
+        title: "What's included",
+        items: [
+          "Access to messaging tutors",
+          "Access to booking tutors",
+          "Timeline & deadline tracker",
+          "Application strategy support",
+          "Dedicated mentor matching",
+          { text: "Access to exclusive events", bold: true },
+          { text: "Peer project matching", bold: true },
+          { text: "24/7 priority support", bold: true },
+        ],
+      },
+    ],
+  },
+};
 
 export default function CreditsPage() {
   const { user } = useAuth();
@@ -95,10 +197,26 @@ export default function CreditsPage() {
       return;
     }
 
+    // Resolve the SAME product the page displayed for this user — so the
+    // priceId + currency we send to Stripe match exactly what the user saw
+    // on the card. Without this, the server would default to whatever
+    // price Stripe returns first (usually USD) and Malaysian users etc.
+    // would see RM on the card but get billed in dollars at checkout.
+    const product = getProductForUserCountry(packageId);
+    if (!product) {
+      toast({
+        title: "Pricing unavailable",
+        description: "We couldn't find that package. Please refresh and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsProcessing(packageId);
 
     try {
-      // Create checkout session
+      // Create checkout session — pass the exact priceId + currency the
+      // user saw on the card so checkout displays the same numbers.
       const response = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
         headers: {
@@ -106,6 +224,8 @@ export default function CreditsPage() {
         },
         body: JSON.stringify({
           packageId,
+          priceId: product.priceId,
+          currency: product.currency.toLowerCase(),
         }),
       });
 
@@ -232,9 +352,24 @@ export default function CreditsPage() {
   return (
     <div className="min-h-screen">
 
-      {/* ── Hero + packages ── */}
-      <div className="py-16 px-4">
-        <div className="container max-w-7xl mx-auto">
+      {/* ── Hero + packages ──
+          Background: full-section illustration of mountains + fir trees
+          under a soft blue sky (public/backgrounds/credits-bg.webp).
+          A subtle white-to-transparent overlay at the top keeps the
+          headline + subheading legible against the brighter sky area.
+          The cards float above all of this with z-10. */}
+      <div
+        className="relative overflow-hidden py-16 px-4 bg-cover bg-center"
+        style={{ backgroundImage: "url('/backgrounds/credits-bg.webp')" }}
+      >
+        {/* Soft white wash near the top so the "Credits" headline and
+            sub-copy stay readable against the brightest sky area. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-white/55 via-white/25 to-transparent z-0"
+        />
+
+        <div className="container max-w-6xl mx-auto relative z-10">
           <div className="flex flex-col items-center justify-center text-center max-w-4xl mx-auto mb-12">
             <h1 className="text-4xl md:text-5xl font-bold mb-6 text-center md:text-center">Credits</h1>
             <p className="text-lg text-muted-foreground max-w-2xl">
@@ -261,150 +396,84 @@ export default function CreditsPage() {
             )}
           </div>
 
-          {/* Credit Package Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
-            {/* Basic Package */}
-            <Card className="border relative overflow-hidden hover:shadow-lg transition-all flex flex-col">
-              <CardHeader className="text-center md:text-left">
-                <CardTitle className="text-2xl">Basic</CardTitle>
-                {(() => {
-                  const product = getProductForUserCountry('basic');
-                  if (!product) return <div className="text-muted-foreground">Loading...</div>;
-                  return (
-                    <>
-                      <div className="mt-4 mb-2">
-                        <span className="text-4xl font-bold">{product.credits}</span>
-                        <span className="text-2xl font-bold"> Credits</span>
-                      </div>
-                      <div className="mt-1 mb-2">
-                        <span className="text-xl font-medium text-foreground/80">{formatStripeCurrency(product.price, product.currency)}</span>
-                      </div>
-                      <CardDescription className="mt-1">
-                        Roughly 3-5 sessions
-                      </CardDescription>
-                    </>
-                  );
-                })()}
-              </CardHeader>
-              <CardContent className="flex-1" />
-              <CardFooter>
-                {user?.role === 'tutor' ? (
-                  <Button variant="outline" className="w-full" disabled>
-                    Tutor Account
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => handlePurchase('basic')}
-                    disabled={isProcessing === 'basic'}
-                  >
-                    {isProcessing === 'basic' ? (
-                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</>
-                    ) : (
-                      <><CreditCard className="mr-2 h-4 w-4" />Buy Basic Package</>
-                    )}
-                  </Button>
-                )}
-              </CardFooter>
-            </Card>
+          {/* Credit Package Cards — Calendly-style. Free + 3 paid tiers.
+              On lg+ all 4 sit in a row; on md they wrap 2x2; on mobile
+              they stack. */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16 items-stretch">
+            {/* Free tier — no Stripe, just the value of signing up.
+                We give creditsLabel a deliberate placeholder so the price
+                block has the same line-count as the paid tiers, which
+                keeps the CTA aligned across all 4 cards. */}
+            <PricingCard
+              tier={TIER_COPY.free}
+              priceLabel="Always free"
+              creditsLabel="No credit card needed"
+              ctaLabel={user ? "You're on Free" : "Get started"}
+              ctaHref={user ? null : "/signup"}
+              ctaVariant="dark"
+              isPopular={false}
+              isProcessing={false}
+              isDisabled={!!user}
+              onCta={undefined}
+            />
 
-            {/* Standard Package */}
-            <Card className="border-2 border-primary/30 relative overflow-hidden shadow-lg hover:shadow-xl transition-all flex flex-col">
-              <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-primary to-primary/40"></div>
-              <Badge className="absolute top-4 right-4 bg-primary text-primary-foreground font-semibold">Popular</Badge>
-              <CardHeader className="text-center md:text-left">
-                <CardTitle className="text-2xl">Standard</CardTitle>
-                {(() => {
-                  const product = getProductForUserCountry('standard');
-                  if (!product) return <div className="text-muted-foreground">Loading...</div>;
-                  return (
-                    <>
-                      <div className="mt-4 mb-2">
-                        <span className="text-4xl font-bold">{product.credits}</span>
-                        <span className="text-2xl font-bold"> Credits</span>
-                      </div>
-                      <div className="mt-1 mb-2">
-                        <span className="text-xl font-medium text-foreground/80">{formatStripeCurrency(product.price, product.currency)}</span>
-                      </div>
-                      <CardDescription className="mt-1">
-                        Roughly 8-10 sessions
-                      </CardDescription>
-                    </>
-                  );
-                })()}
-              </CardHeader>
-              <CardContent className="flex-1" />
-              <CardFooter>
-                {user?.role === 'tutor' ? (
-                  <Button className="w-full" disabled>
-                    Tutor Account
-                  </Button>
-                ) : (
-                  <Button
-                    className="w-full"
-                    onClick={() => handlePurchase('standard')}
-                    disabled={isProcessing === 'standard'}
-                  >
-                    {isProcessing === 'standard' ? (
-                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</>
-                    ) : (
-                      <><CreditCard className="mr-2 h-4 w-4" />Buy Standard Package</>
-                    )}
-                  </Button>
-                )}
-              </CardFooter>
-            </Card>
+            {/* Basic */}
+            {(() => {
+              const product = getProductForUserCountry('basic');
+              return (
+                <PricingCard
+                  tier={TIER_COPY.basic}
+                  priceLabel={product ? formatStripeCurrency(product.price, product.currency) : "—"}
+                  creditsLabel={product ? `${product.credits} credits` : null}
+                  ctaLabel={user?.role === 'tutor' ? "Tutor Account" : "Top up"}
+                  ctaVariant="filled"
+                  isPopular={false}
+                  isProcessing={isProcessing === 'basic'}
+                  isDisabled={user?.role === 'tutor' || !product}
+                  onCta={() => handlePurchase('basic')}
+                />
+              );
+            })()}
 
-            {/* Premium Package */}
-            <Card className="border relative overflow-hidden hover:shadow-lg transition-all flex flex-col">
-              <CardHeader className="text-center md:text-left">
-                <CardTitle className="text-2xl">Premium</CardTitle>
-                {(() => {
-                  const product = getProductForUserCountry('premium');
-                  if (!product) return <div className="text-muted-foreground">Loading...</div>;
-                  return (
-                    <>
-                      <div className="mt-4 mb-2">
-                        <span className="text-4xl font-bold">{product.credits}</span>
-                        <span className="text-2xl font-bold"> Credits</span>
-                      </div>
-                      <div className="mt-1 mb-2">
-                        <span className="text-xl font-medium text-foreground/80">{formatStripeCurrency(product.price, product.currency)}</span>
-                      </div>
-                      <CardDescription className="mt-1">
-                        Roughly 18-20 sessions
-                      </CardDescription>
-                    </>
-                  );
-                })()}
-              </CardHeader>
-              <CardContent className="flex-1" />
-              <CardFooter>
-                {user?.role === 'tutor' ? (
-                  <Button variant="outline" className="w-full" disabled>
-                    Tutor Account
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => handlePurchase('premium')}
-                    disabled={isProcessing === 'premium'}
-                  >
-                    {isProcessing === 'premium' ? (
-                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</>
-                    ) : (
-                      <><CreditCard className="mr-2 h-4 w-4" />Buy Premium Package</>
-                    )}
-                  </Button>
-                )}
-              </CardFooter>
-            </Card>
+            {/* Standard — most popular */}
+            {(() => {
+              const product = getProductForUserCountry('standard');
+              return (
+                <PricingCard
+                  tier={TIER_COPY.standard}
+                  priceLabel={product ? formatStripeCurrency(product.price, product.currency) : "—"}
+                  creditsLabel={product ? `${product.credits} credits` : null}
+                  ctaLabel={user?.role === 'tutor' ? "Tutor Account" : "Top up"}
+                  ctaVariant="filled"
+                  isPopular
+                  isProcessing={isProcessing === 'standard'}
+                  isDisabled={user?.role === 'tutor' || !product}
+                  onCta={() => handlePurchase('standard')}
+                />
+              );
+            })()}
+
+            {/* Premium */}
+            {(() => {
+              const product = getProductForUserCountry('premium');
+              return (
+                <PricingCard
+                  tier={TIER_COPY.premium}
+                  priceLabel={product ? formatStripeCurrency(product.price, product.currency) : "—"}
+                  creditsLabel={product ? `${product.credits} credits` : null}
+                  ctaLabel={user?.role === 'tutor' ? "Tutor Account" : "Top up"}
+                  ctaVariant="filled"
+                  isPopular={false}
+                  isProcessing={isProcessing === 'premium'}
+                  isDisabled={user?.role === 'tutor' || !product}
+                  onCta={() => handlePurchase('premium')}
+                />
+              );
+            })()}
           </div>
 
-          <div className="text-center mb-8">
-            <a href="/tutors" className="text-muted-foreground hover:text-foreground underline underline-offset-4 text-sm transition-colors">
+          <div className="text-center mb-8 relative z-10">
+            <a href="/tutors" className="text-[#1f4a72]/80 hover:text-[#1f4a72] underline underline-offset-4 text-sm transition-colors">
               Browse tutors and book your first session
             </a>
           </div>
@@ -460,4 +529,145 @@ export default function CreditsPage() {
       </div>
     </div>
   );
-} 
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// PricingCard — single tier card. Used for both the Free tier (no
+// Stripe) and the three paid Stripe-backed tiers. Layout intentionally
+// mirrors Calendly's pricing cards: name + subtitle at top, price block
+// in the middle, CTA button, then a categorised feature list at the
+// bottom with check-marked bullets.
+// ─────────────────────────────────────────────────────────────────────
+
+type CtaVariant = "filled" | "outline" | "dark";
+
+interface PricingCardProps {
+  tier: TierCopy;
+  priceLabel: string;          // e.g. "MYR 600.00" or "Always free"
+  creditsLabel: string | null; // e.g. "500 credits" — null for Free
+  ctaLabel: string;
+  ctaVariant: CtaVariant;
+  ctaHref?: string | null;     // if set, render as <Link> instead of button
+  isPopular: boolean;
+  isProcessing: boolean;
+  isDisabled: boolean;
+  onCta?: () => void;
+}
+
+function PricingCard({
+  tier,
+  priceLabel,
+  creditsLabel,
+  ctaLabel,
+  ctaVariant,
+  ctaHref,
+  isPopular,
+  isProcessing,
+  isDisabled,
+  onCta,
+}: PricingCardProps) {
+  // Wrap the CTA in either a Link (Free → /signup) or a button that
+  // fires onCta (paid tiers → Stripe checkout).
+  const ctaInner = isProcessing ? (
+    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</>
+  ) : (
+    ctaLabel
+  );
+
+  // Per-variant button styling — chunky shadows give the cards a more
+  // tactile, premium feel. The "filled" (recommended/Standard) variant
+  // gets the heaviest shadow so it visually wins the eye.
+  const buttonClasses = (() => {
+    const base = "w-full font-semibold transition-all";
+    if (ctaVariant === "filled") {
+      return `${base} bg-[#128ca0] hover:bg-[#0f7a8d] text-white shadow-[0_10px_25px_-8px_rgba(18,140,160,0.65)] hover:shadow-[0_14px_30px_-8px_rgba(18,140,160,0.8)] hover:-translate-y-0.5`;
+    }
+    if (ctaVariant === "dark") {
+      return `${base} bg-[#1f4a72] hover:bg-[#173d62] text-white shadow-[0_10px_25px_-8px_rgba(31,74,114,0.55)] hover:shadow-[0_14px_30px_-8px_rgba(31,74,114,0.7)] hover:-translate-y-0.5`;
+    }
+    // outline
+    return `${base} border-2 border-[#128ca0]/30 text-[#0f3a52] hover:bg-[#128ca0]/5 hover:border-[#128ca0]/60 shadow-[0_6px_15px_-6px_rgba(15,58,82,0.25)] hover:shadow-[0_10px_22px_-8px_rgba(15,58,82,0.35)] hover:-translate-y-0.5`;
+  })();
+
+  const cta = ctaHref ? (
+    <Button asChild className={buttonClasses} variant="default">
+      <Link href={ctaHref}>{ctaInner}</Link>
+    </Button>
+  ) : (
+    <Button
+      className={buttonClasses}
+      variant="default"
+      onClick={onCta}
+      disabled={isDisabled || isProcessing}
+    >
+      {ctaInner}
+    </Button>
+  );
+
+  return (
+    <Card
+      className={`relative flex flex-col h-full bg-white max-w-[280px] mx-auto w-full transition-all hover:-translate-y-1 ${
+        isPopular
+          ? "border-2 border-[#128ca0] shadow-[0_25px_60px_-15px_rgba(15,58,82,0.55),0_10px_25px_-10px_rgba(15,58,82,0.35)]"
+          : "border border-slate-200/80 shadow-[0_18px_45px_-15px_rgba(15,58,82,0.35),0_8px_20px_-10px_rgba(15,58,82,0.2)] hover:shadow-[0_25px_60px_-15px_rgba(15,58,82,0.5),0_10px_25px_-10px_rgba(15,58,82,0.3)]"
+      }`}
+    >
+      {isPopular && (
+        <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#128ca0] text-white font-semibold shadow-md px-3 py-1 hover:bg-[#128ca0]">
+          Recommended
+        </Badge>
+      )}
+
+      {/* Header: name + subtitle. Fixed-height block so all 4 cards align. */}
+      <CardHeader className="pb-3">
+        <CardTitle className="text-xl">{tier.name}</CardTitle>
+        <CardDescription className="text-sm">{tier.subtitle}</CardDescription>
+      </CardHeader>
+
+      {/* Price block + CTA. The price block is a fixed-height grid of three
+          rows so the CTA sits at the same Y on all four cards regardless
+          of whether the tier has credits or sessionRange filled in. */}
+      <CardContent className="flex flex-col gap-4 pb-4">
+        <div className="space-y-1 min-h-[5.25rem]">
+          <div className="text-2xl font-bold leading-tight">{priceLabel}</div>
+          {creditsLabel && (
+            <div className="text-sm text-muted-foreground">{creditsLabel}</div>
+          )}
+          {tier.sessionRange && (
+            <div className="text-sm text-muted-foreground">{tier.sessionRange}</div>
+          )}
+        </div>
+        {cta}
+      </CardContent>
+
+      {/* Feature list. Sits immediately under the CTA — no `mt-auto` —
+          so all four cards have their feature lists starting at the
+          same Y. Cards have `h-full` from the parent so they still
+          stretch to equal heights overall. */}
+      <CardFooter className="flex flex-col items-stretch gap-4 pt-0 pb-6">
+        {tier.sections.map((section) => (
+          <div key={section.title} className="space-y-2">
+            <p className="text-sm font-semibold text-foreground">{section.title}</p>
+            <ul className="space-y-2">
+              {section.items.map((item) => {
+                const text = typeof item === "string" ? item : item.text;
+                const bold = typeof item === "string" ? false : !!item.bold;
+                return (
+                  <li
+                    key={text}
+                    className={`flex items-start gap-2 text-sm ${
+                      bold ? "font-semibold text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    <Check className="w-4 h-4 mt-0.5 text-[#128ca0] flex-shrink-0" />
+                    <span>{text}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </CardFooter>
+    </Card>
+  );
+}

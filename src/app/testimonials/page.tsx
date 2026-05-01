@@ -937,6 +937,16 @@ function QuoteRotator({
   const [active, setActive] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const visibleRef = useRef(true);
+  // Touch tracking for swipe gestures on mobile. Pointer events would be
+  // nicer but Safari is finicky with them inside scrollable containers,
+  // so plain touchstart/touchend with a horizontal-distance threshold
+  // is the most reliable cross-browser approach.
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+
+  // Helpers — wrap modulo so we go cleanly between first/last quote.
+  const goNext = () => setActive((prev) => (prev + 1) % quotes.length);
+  const goPrev = () => setActive((prev) => (prev - 1 + quotes.length) % quotes.length);
 
   // Pause auto-rotation when the quote block is scrolled off-screen so we do
   // not burn a setInterval tick on work nobody can see.
@@ -968,9 +978,67 @@ function QuoteRotator({
   // when rotating between quotes of very different lengths, but that's
   // far less ugly than 100+px of empty whitespace under short quotes.
 
+  // Swipe + tap interactions:
+  // - Mobile: a horizontal swipe of >40px (and not predominantly vertical,
+  //   which would be a scroll) advances or goes back. We don't preventDefault
+  //   inside touchmove so the page can still scroll naturally.
+  // - Desktop & mobile: a tap/click anywhere on the quote text advances to
+  //   the next quote. The dot row at the bottom keeps working too (its
+  //   onClick stops propagation via the explicit setActive(i) handler).
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    if (!t) return;
+    touchStartXRef.current = t.clientX;
+    touchStartYRef.current = t.clientY;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const startX = touchStartXRef.current;
+    const startY = touchStartYRef.current;
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+    if (startX === null || startY === null) return;
+    const t = e.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+    // Ignore mostly-vertical gestures (the user was scrolling).
+    if (Math.abs(dy) > Math.abs(dx)) return;
+    if (Math.abs(dx) < 40) return;
+    if (dx < 0) goNext();
+    else goPrev();
+  };
+  const onClick = () => {
+    // Single-tap / left-click anywhere on the quote box → next quote.
+    if (quotes.length < 2) return;
+    goNext();
+  };
+
   return (
     <div className="flex-1" ref={rootRef}>
-      <div className="relative">
+      <div
+        className="relative cursor-pointer select-none"
+        onClick={onClick}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        role={quotes.length > 1 ? "button" : undefined}
+        tabIndex={quotes.length > 1 ? 0 : undefined}
+        onKeyDown={(e) => {
+          // Keyboard accessibility — left/right arrows + space/enter.
+          if (quotes.length < 2) return;
+          if (e.key === "ArrowRight" || e.key === " " || e.key === "Enter") {
+            e.preventDefault();
+            goNext();
+          } else if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            goPrev();
+          }
+        }}
+        aria-label={
+          quotes.length > 1
+            ? `Quote ${active + 1} of ${quotes.length}. Tap or swipe for next.`
+            : undefined
+        }
+      >
         {quotes.map((q, i) => (
           <p
             key={i}

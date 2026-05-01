@@ -2,6 +2,16 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Search, Loader2, ChevronLeft, ChevronRight, X } from "lucide-react";
+import dynamic from "next/dynamic";
+
+// Lazy-loaded — only fetched when a row is clicked. Keeps the initial
+// /admin/users bundle leaner since the panel is hidden by default.
+const StudentDetailPanel = dynamic(
+  () => import("@/components/admin/StudentDetailPanel").then((m) => ({
+    default: m.StudentDetailPanel,
+  })),
+  { ssr: false }
+);
 
 interface UserProfile {
   first_name?: string;
@@ -142,6 +152,10 @@ export default function AdminUsersPage() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [availableYears, setAvailableYears] = useState<string[]>([]);
   const [availableDestinations, setAvailableDestinations] = useState<string[]>([]);
+  // ID of the user whose detail panel is open. Clicking a row sets this;
+  // closing the panel clears it. The shared StudentDetailPanel handles
+  // the actual fetching so this page stays simple.
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const limit = 30;
 
   // Load filter options on mount
@@ -441,7 +455,8 @@ export default function AdminUsersPage() {
                   return (
                     <tr
                       key={u.id}
-                      className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors"
+                      onClick={() => setSelectedUserId(u.id)}
+                      className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer"
                     >
                       <td className="px-4 py-3">
                         <div>
@@ -539,6 +554,14 @@ export default function AdminUsersPage() {
           </div>
         )}
       </div>
+
+      {/* Detail slide-over (shared with /admin overview).
+          Works for both students and tutors — the API returns whatever
+          profile + survey data exists for the user. */}
+      <StudentDetailPanel
+        studentId={selectedUserId}
+        onClose={() => setSelectedUserId(null)}
+      />
     </div>
   );
 }

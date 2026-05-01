@@ -34,34 +34,56 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { packageId } = await req.json();
+    const { packageId, priceId, currency } = await req.json();
 
     // Validate package ID
     if (!STRIPE_PRODUCTS[packageId as keyof typeof STRIPE_PRODUCTS]) {
       return NextResponse.json({ error: 'Invalid package selected' }, { status: 400 });
+    }
+    if (!priceId || typeof priceId !== 'string') {
+      return NextResponse.json({ error: 'Missing priceId' }, { status: 400 });
+    }
+    if (!currency || typeof currency !== 'string') {
+      return NextResponse.json({ error: 'Missing currency' }, { status: 400 });
     }
 
     const productId = STRIPE_PRODUCTS[packageId as keyof typeof STRIPE_PRODUCTS];
 
     // Fetch the product from Stripe to get current pricing
     const product = await stripe.products.retrieve(productId);
-    
+
     if (!product.active) {
       return NextResponse.json({ error: 'Product is not active' }, { status: 400 });
     }
 
-    // Get all active prices for this product
-    const prices = await stripe.prices.list({
-      product: productId,
-      active: true,
-    });
-
-    if (!prices.data.length) {
-      return NextResponse.json({ error: 'No active price found for this product' }, { status: 400 });
+    // Fetch the SPECIFIC price the client requested, with currency_options
+    // expanded so we can verify the requested currency is actually supported.
+    // This is also our anti-tampering check: if the priceId doesn't belong
+    // to the product we expect for this packageId, refuse the request.
+    const price = await stripe.prices.retrieve(priceId, { expand: ['currency_options'] });
+    if (!price.active) {
+      return NextResponse.json({ error: 'Price is no longer active' }, { status: 400 });
+    }
+    const priceProductId = typeof price.product === 'string' ? price.product : price.product?.id;
+    if (priceProductId !== productId) {
+      console.error(`[create-checkout-session] priceId ${priceId} doesn't belong to product ${productId} for packageId ${packageId}`);
+      return NextResponse.json({ error: 'Price does not match selected package' }, { status: 400 });
     }
 
-    // Use the first active price (you can modify this logic if you have multiple prices)
-    const price = prices.data[0];
+    // Confirm the requested currency is one this price actually supports —
+    // either as the price's base currency or via currency_options. This
+    // guarantees the Checkout Session will charge in the same currency the
+    // user saw on the credits card.
+    const requestedCurrency = currency.toLowerCase();
+    const baseCurrency = price.currency?.toLowerCase();
+    const currencyOpts = (price as any).currency_options || {};
+    const supported =
+      requestedCurrency === baseCurrency ||
+      Object.keys(currencyOpts).map((c) => c.toLowerCase()).includes(requestedCurrency);
+    if (!supported) {
+      console.error(`[create-checkout-session] currency ${requestedCurrency} not supported by price ${priceId} (base ${baseCurrency}, opts ${Object.keys(currencyOpts).join(',')})`);
+      return NextResponse.json({ error: 'Selected currency is not supported by this price' }, { status: 400 });
+    }
 
     // Extract credits from product metadata or description.
     // We intentionally do NOT fall back to a default - a misconfigured product
@@ -81,12 +103,16 @@ export async function POST(req: NextRequest) {
     const credits = parseInt(creditsRaw);
 
 
-    // Create Stripe checkout session using the product
+    // Create Stripe checkout session — explicitly pass the requested currency
+    // so Stripe charges in the same currency the user saw on the credits page.
+    // For prices with currency_options, this picks that option; for single-
+    // currency prices, it's a no-op (Stripe just confirms it matches).
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
+      currency: requestedCurrency,
       line_items: [
         {
-          price: price.id, // Use the Stripe price ID
+          price: price.id,
           quantity: 1,
         },
       ],
@@ -99,6 +125,7 @@ export async function POST(req: NextRequest) {
         credits: credits.toString(),
         productId: productId,
         priceId: price.id,
+        currency: requestedCurrency,
         productName: product.name,
         has_access: 'true',
       },
@@ -111,6 +138,7 @@ export async function POST(req: NextRequest) {
           packageId,
           credits: credits.toString(),
           productId: productId,
+          currency: requestedCurrency,
           has_access: 'true',
         },
       },

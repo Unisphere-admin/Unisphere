@@ -208,12 +208,17 @@ function LoginPageContent() {
         } else {
         }
 
-        // Navigate based on user status
-        if (redirectPath) {
-          // If there's a specific redirect path, use it
+        // Navigate based on user status. The onboarding survey is
+        // mandatory before students can use the rest of the app — if
+        // they haven't completed it, ALWAYS take them there first,
+        // regardless of any redirectPath. Tutors skip the survey
+        // (their account doesn't have a meaningful student survey).
+        const isTutor = userData?.role === "tutor";
+        if (!isTutor && !surveyCompleted) {
+          router.push("/survey");
+        } else if (redirectPath) {
           router.push(redirectPath);
         } else {
-          // All users go to dashboard
           router.push("/dashboard");
         }
 
@@ -478,6 +483,21 @@ function LoginPageContent() {
             </CardFooter>
           </form>
         </Card>
+
+        {/* Sign-up CTA for new users.
+            Sits directly under the login card so anyone landing here
+            without an account has a clear path forward instead of being
+            stuck on a form they can't fill in. */}
+        <div className="mt-4 text-center text-sm">
+          <span className="text-muted-foreground">Don&apos;t have an account?</span>{" "}
+          <Link
+            href="/signup"
+            className="font-semibold text-primary hover:underline inline-flex items-center gap-1"
+          >
+            Get started
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
 
         <div className="mt-6 text-center text-sm text-muted-foreground">
           <p className="backdrop-blur-sm bg-background/40 p-3 rounded-lg shadow-sm border border-border/20">

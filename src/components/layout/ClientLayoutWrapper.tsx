@@ -3,7 +3,7 @@
 import { ReactNode, useEffect, useState, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import AuthLoadingScreen from "./AuthLoadingScreen";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { toast } from "@/components/ui/sonner";
@@ -11,6 +11,25 @@ import { initializeCache } from "@/lib/cacheInitializer";
 import { setupAuthCacheCheck } from "@/utils/authUtils";
 import { prefetchTutors } from "@/lib/tutorsCaching";
 import { needsAppProviders } from "@/lib/auth/needsAppProviders";
+
+/**
+ * Routes a logged-in student WITHOUT a completed survey is allowed to
+ * see while their account is still in onboarding limbo. Anything else
+ * gets redirected to /survey. Tutors and admins are exempt.
+ *
+ * `/survey` itself is included so they can complete it.
+ * `/login`, `/signup`, `/reset-password` so they can sign out and back in.
+ * `/api/...` so survey submission and signout requests still work.
+ * Empty pathname covers SSR-mismatch edge cases.
+ */
+const SURVEY_BYPASS_PATHS = ["/survey", "/login", "/signup", "/reset-password", "/api"];
+
+function isSurveyBypassPath(pathname: string | null) {
+  if (!pathname) return true;
+  return SURVEY_BYPASS_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(p + "/")
+  );
+}
 
 interface ClientLayoutWrapperProps {
   children: ReactNode;
@@ -21,6 +40,7 @@ export default function ClientLayoutWrapper({
 }: ClientLayoutWrapperProps) {
   const { loading, silentLoading, user } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   const isDashboard = pathname?.startsWith("/dashboard");
   const isTutorsPage = pathname?.startsWith("/tutors");
   const isSurvey = pathname === "/survey"; // Add survey check
@@ -34,6 +54,20 @@ export default function ClientLayoutWrapper({
   useEffect(() => {
     setIsDev(process.env.NODE_ENV === "development");
   }, []);
+
+  // ─── Survey gate ────────────────────────────────────────────────────
+  // The onboarding survey is mandatory for students. If a logged-in
+  // student lands anywhere other than /survey (or a small allowlist of
+  // bypass paths) without survey_completed=true, send them to /survey.
+  // Tutors are exempt — the survey is student-only.
+  useEffect(() => {
+    if (loading) return;
+    if (!user) return;
+    if (user.role === "tutor") return;
+    if (user.survey_completed) return;
+    if (isSurveyBypassPath(pathname)) return;
+    router.replace("/survey");
+  }, [loading, user, pathname, router]);
 
   // Track initial loading state
   useEffect(() => {

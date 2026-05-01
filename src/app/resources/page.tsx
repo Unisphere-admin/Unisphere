@@ -341,13 +341,19 @@ function ResourcesContent() {
     return list;
   }, [resources, searchQuery, activeCategory]);
 
-  /* ── Fetch opportunities from Supabase ── */
+  /* ── Fetch opportunities from Supabase.
+       Only the home view renders the Opportunities section, so when a
+       user deep-links straight into a folder (e.g. /resources?path=Other)
+       we skip the fetch entirely and avoid burning a network call on
+       data that won't be displayed. */
   useEffect(() => {
+    if (currentPath !== "") return;
+    if (opportunities.length > 0) return; // already loaded
     fetch("/api/opportunities")
       .then(r => r.json())
       .then(data => setOpportunities(data.opportunities || []))
       .catch(() => {});
-  }, []);
+  }, [currentPath, opportunities.length]);
 
   /* ── Derived: filtered opportunities ── */
   const filteredOpportunities = useMemo(() => {
@@ -463,75 +469,19 @@ function ResourcesContent() {
 
       {/* ════════════════════════════════════════
           HOME PAGE CONTENT (no folder selected)
+          Order is intentional: folders FIRST so students can find PDF
+          essays, personal statements, etc. without scrolling past
+          everything else. Opportunities + Timeline promo sit below.
           ════════════════════════════════════════ */}
       {currentPath === "" && (
         <>
-          {/* ── Opportunities section ── */}
-          {filteredOpportunities.length > 0 && (
-            <section className="mb-12">
-              <div className="flex items-center justify-between mb-1">
-                <h2 className="text-xl font-bold">Opportunities &amp; Projects</h2>
-                <span className="text-xs text-muted-foreground">{filteredOpportunities.length} available</span>
-              </div>
-              <p className="text-sm text-muted-foreground mb-5">
-                Real competitions, programmes, and extracurriculars you can join - add any to your timeline to track the deadline.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredOpportunities.map(opp => (
-                  <OpportunityCard
-                    key={opp.id}
-                    opp={opp}
-                    added={addedOpportunities.has(opp.id)}
-                    onAdd={handleAddToTimeline}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* ── Timeline promo ── */}
-          <div className="mb-10 rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 dark:border-amber-800/40 p-6 sm:p-8">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
-              <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 shadow-lg shadow-amber-500/20 flex-shrink-0">
-                <Calendar className="h-7 w-7 text-white" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-lg font-bold text-foreground">Application Timeline</h3>
-                  <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 text-[10px] uppercase tracking-wider font-semibold">Beta</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  A personalised, month-by-month roadmap keeping your applications on track. Add opportunities above and they appear automatically as deadlines.
-                </p>
-                <div className="flex flex-wrap items-center gap-4 mt-3">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Clock className="h-3.5 w-3.5" />
-                    <span>Personalised deadlines</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    <span>Smart reminders</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <GraduationCap className="h-3.5 w-3.5" />
-                    <span>UK &amp; US applications</span>
-                  </div>
-                  <button
-                    onClick={() => router.push("/dashboard/timeline")}
-                    className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-amber-700 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 transition-colors"
-                  >
-                    Go to Timeline
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* ── Study Materials heading ── */}
           {(activeCategory === "all" || activeCategory === "essays" || activeCategory === "interviews" || activeCategory === "uk" || activeCategory === "us" || activeCategory === "oxbridge" || activeCategory === "ivy-league") && (
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-xl font-bold">Study Materials</h2>
+              <span className="text-xs text-muted-foreground">
+                Personal statements, essays, supplemental essays &amp; more
+              </span>
             </div>
           )}
         </>
@@ -654,6 +604,74 @@ function ResourcesContent() {
           })}
         </div>
       ) : null}
+
+      {/* ════════════════════════════════════════
+          OPPORTUNITIES + TIMELINE PROMO (home page only, below folders)
+          Pushed below the Study Materials grid so students see PDFs
+          first. Still here so they can browse competitions / scholarships
+          / extracurriculars without leaving the page.
+          ════════════════════════════════════════ */}
+      {currentPath === "" && filteredOpportunities.length > 0 && (
+        <section className="mt-12 mb-12">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-xl font-bold">Opportunities &amp; Projects</h2>
+            <span className="text-xs text-muted-foreground">{filteredOpportunities.length} available</span>
+          </div>
+          <p className="text-sm text-muted-foreground mb-5">
+            Real competitions, programmes, and extracurriculars you can join - add any to your timeline to track the deadline.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredOpportunities.map(opp => (
+              <OpportunityCard
+                key={opp.id}
+                opp={opp}
+                added={addedOpportunities.has(opp.id)}
+                onAdd={handleAddToTimeline}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {currentPath === "" && (
+        <div className="mb-10 rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 dark:border-amber-800/40 p-6 sm:p-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+            <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 shadow-lg shadow-amber-500/20 flex-shrink-0">
+              <Calendar className="h-7 w-7 text-white" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-lg font-bold text-foreground">Application Timeline</h3>
+                <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 text-[10px] uppercase tracking-wider font-semibold">Beta</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                A personalised, month-by-month roadmap keeping your applications on track. Add opportunities above and they appear automatically as deadlines.
+              </p>
+              <div className="flex flex-wrap items-center gap-4 mt-3">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span>Personalised deadlines</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>Smart reminders</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <GraduationCap className="h-3.5 w-3.5" />
+                  <span>UK &amp; US applications</span>
+                </div>
+                <button
+                  onClick={() => router.push("/dashboard/timeline")}
+                  className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-amber-700 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 transition-colors"
+                >
+                  Go to Timeline
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Empty state when on home with no files and no opps ── */}
       {!loading && currentPath === "" && filteredResources.length === 0 && filteredOpportunities.length === 0 && (

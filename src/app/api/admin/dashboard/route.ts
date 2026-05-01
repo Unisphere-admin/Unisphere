@@ -653,6 +653,219 @@ export async function GET(req: NextRequest) {
         });
       }
 
+      case "recent-signups": {
+        // Recent signups feed for the admin overview. Pulls students
+        // (non-tutors) ordered by created_at desc, joined to their
+        // student_profile so we can show name + school + target country
+        // in the row without a second roundtrip.
+        const limit = Math.min(
+          parseInt(req.nextUrl.searchParams.get("limit") || "20"),
+          100
+        );
+
+        const { data: users } = await supabase
+          .from("users")
+          .select("id, email, created_at, is_tutor, has_access")
+          .eq("is_tutor", false)
+          .order("created_at", { ascending: false })
+          .limit(limit);
+
+        if (!users || users.length === 0) {
+          return NextResponse.json({ signups: [] });
+        }
+
+        const userIds = users.map((u: any) => u.id);
+
+        const [profilesRes, surveyRes] = await Promise.all([
+          supabase
+            .from("student_profile")
+            .select(
+              "id, first_name, last_name, avatar_url, country, school, countries_to_apply, application_cycle, survey_completed"
+            )
+            .in("id", userIds),
+          supabase
+            .from("survey_responses")
+            .select("user_id, school, country, application_cycle, universities, course")
+            .in("user_id", userIds),
+        ]);
+
+        const profileMap: Record<string, any> = {};
+        for (const p of profilesRes.data || []) profileMap[p.id] = p;
+
+        const surveyMap: Record<string, any> = {};
+        for (const s of surveyRes.data || []) surveyMap[s.user_id] = s;
+
+        const signups = users.map((u: any) => {
+          const profile = profileMap[u.id] || {};
+          const survey = surveyMap[u.id];
+          return {
+            id: u.id,
+            email: u.email,
+            created_at: u.created_at,
+            has_access: u.has_access,
+            survey_completed: !!profile.survey_completed,
+            first_name: profile.first_name || null,
+            last_name: profile.last_name || null,
+            avatar_url: profile.avatar_url || null,
+            country: profile.country || survey?.country || null,
+            school: profile.school || survey?.school || null,
+            countries_to_apply:
+              profile.countries_to_apply || survey?.country || null,
+            application_cycle:
+              profile.application_cycle || survey?.application_cycle || null,
+            // First 3 target unis for the row preview (full list lives in detail)
+            target_unis_preview: Array.isArray(survey?.universities)
+              ? survey.universities.slice(0, 3)
+              : [],
+          };
+        });
+
+        return NextResponse.json({ signups });
+      }
+
+      case "student-detail": {
+        const studentId = req.nextUrl.searchParams.get("studentId");
+        if (!studentId) {
+          return NextResponse.json(
+            { error: "studentId required" },
+            { status: 400 }
+          );
+        }
+
+        // Pull everything we have about this user in parallel. We use
+        // maybeSingle() on every row-lookup so a missing record returns
+        // null rather than an error — this endpoint must work for any
+        // user the admin can click (student, tutor, or auth-only user
+        // with no public.users row yet).
+        const [
+          userRes,
+          profileRes,
+          tutorRes,
+          surveyRes,
+          paymentsRes,
+          studentSessionsRes,
+          tutorSessionsRes,
+        ] = await Promise.all([
+          supabase
+            .from("users")
+            .select("id, email, tokens, has_access, is_tutor, created_at, last_sign_in")
+            .eq("id", studentId)
+            .maybeSingle(),
+          supabase
+            .from("student_profile")
+            .select("*")
+            .eq("id", studentId)
+            .maybeSingle(),
+          supabase
+            .from("tutor_profile")
+            .select("*")
+            .eq("id", studentId)
+            .maybeSingle(),
+          supabase
+            .from("survey_responses")
+            .select("*")
+            .eq("user_id", studentId)
+            .maybeSingle(),
+          supabase
+            .from("processed_stripe_payments")
+            .select("id, amount_total, currency, credits_added, processed_at")
+            .eq("user_id", studentId)
+            .order("processed_at", { ascending: false })
+            .limit(20),
+          supabase
+            .from("tutoring_session")
+            .select("id, status, scheduled_for, name, created_at, tutor_id, student_id")
+            .eq("student_id", studentId)
+            .order("created_at", { ascending: false })
+            .limit(20),
+          supabase
+            .from("tutoring_session")
+            .select("id, status, scheduled_for, name, created_at, tutor_id, student_id")
+            .eq("tutor_id", studentId)
+            .order("created_at", { ascending: false })
+            .limit(20),
+        ]);
+
+        // Build the `user` field from whatever source we have. Some
+        // accounts exist only in auth.users (signed up but never wrote
+        // to public.users). Fall back to the auth admin API so we still
+        // surface their email, role, and signup time instead of crashing.
+        let user: any = userRes.data;
+        if (!user) {
+          try {
+            const { data: authUser } = await supabase.auth.admin.getUserById(studentId);
+            if (authUser?.user) {
+              user = {
+                id: authUser.user.id,
+                email: authUser.user.email || "",
+                tokens: 0,
+                has_access: false,
+                is_tutor: !!authUser.user.user_metadata?.is_tutor,
+                created_at: authUser.user.created_at || null,
+                last_sign_in: authUser.user.last_sign_in_at || null,
+              };
+            }
+          } catch (e) {
+            // Fall through to the not-found case below
+          }
+        }
+
+        if (!user) {
+          return NextResponse.json(
+            { error: "User not found" },
+            { status: 404 }
+          );
+        }
+
+        // Use whichever profile exists: student or tutor.
+        const profile = profileRes.data || tutorRes.data || null;
+
+        // For tutors, sessions are listed where THEY are the tutor.
+        // For students, sessions are listed where THEY are the student.
+        const rawSessions =
+          (user.is_tutor ? tutorSessionsRes.data : studentSessionsRes.data) || [];
+
+        // Hydrate counterpart names.
+        const counterpartIds = Array.from(
+          new Set(
+            rawSessions
+              .map((s: any) => (user.is_tutor ? s.student_id : s.tutor_id))
+              .filter(Boolean)
+          )
+        );
+        let counterpartMap: Record<string, string> = {};
+        if (counterpartIds.length > 0) {
+          const profileTable = user.is_tutor ? "student_profile" : "tutor_profile";
+          const { data: profiles } = await supabase
+            .from(profileTable)
+            .select("id, first_name, last_name")
+            .in("id", counterpartIds);
+          for (const p of profiles || []) {
+            counterpartMap[p.id] =
+              `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Unknown";
+          }
+        }
+
+        const sessions = rawSessions.map((s: any) => ({
+          id: s.id,
+          status: s.status,
+          scheduled_for: s.scheduled_for,
+          name: s.name,
+          created_at: s.created_at,
+          tutor_name: user.is_tutor
+            ? counterpartMap[s.student_id] || "Unknown student"
+            : counterpartMap[s.tutor_id] || "Unknown tutor",
+        }));
+
+        return NextResponse.json({
+          user,
+          profile,
+          survey: surveyRes.data || null,
+          payments: paymentsRes.data || [],
+          sessions,
+        });
+      }
+
       default:
         return NextResponse.json(
           { error: "Invalid section" },

@@ -20,6 +20,10 @@ interface AuthUser {
   tokens?: number;
   bio?: string;
   has_access?: boolean;
+  // Onboarding survey completion. Surfaced by /api/auth/session.
+  // ClientLayoutWrapper checks this and bounces logged-in students
+  // back to /survey if they try to navigate elsewhere before completing it.
+  survey_completed?: boolean;
 }
 
 interface AuthContextType {

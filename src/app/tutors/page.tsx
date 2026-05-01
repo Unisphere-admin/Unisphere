@@ -1918,36 +1918,35 @@ export default function TutorsPage() {
   // Return main content without ErrorBoundary since it's not available
   return (
     <div className="space-y-8 pb-12">
-      {/* Hero Section */}
-      <section className="relative py-20 md:py-28 overflow-hidden">
-        <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#c7e4e3]/30 via-background/95 to-[#c2d8d2]/20">
-          <div
-            className="absolute top-20 right-[20%] w-72 h-72 bg-[#84b4cc]/10 rounded-full blur-3xl opacity-70 animate-pulse"
-            style={{ animationDuration: "8s" }}
-          ></div>
-          <div
-            className="absolute bottom-10 left-[10%] w-80 h-80 bg-[#84b7bd]/10 rounded-full blur-3xl opacity-60 animate-pulse"
-            style={{ animationDuration: "12s" }}
-          ></div>
-        </div>
-        <div className="container relative z-10 mx-auto px-4 md:px-6 max-w-screen-xl">
+      {/* Hero Section.
+          Background: full-bleed illustration (public/backgrounds/tutors-bg.webp).
+          The hero has a fixed minimum height to show more of the artwork
+          below the search bar. Content is anchored to the top-third of the
+          section so the headline sits high and the artwork breathes
+          beneath the search. */}
+      <section
+        className="relative pt-20 pb-44 md:pt-28 md:pb-60 px-4 overflow-hidden bg-cover bg-center"
+        style={{ backgroundImage: "url('/backgrounds/tutors-bg.webp')" }}
+      >
+        {/* Soft vignette so the headline + search are legible regardless of
+            which part of the artwork sits behind them. */}
+        <div
+          aria-hidden
+          className="absolute inset-0 z-0 bg-gradient-to-b from-white/45 via-white/10 to-white/30"
+        />
+
+        <div className="container relative z-10 mx-auto md:px-6 max-w-screen-xl">
           <div className="max-w-3xl mx-auto text-center">
-            <h1 className="text-3xl font-bold tracking-tight mb-4 md:text-5xl text-center">
+            <h1 className="text-4xl font-bold tracking-tight mb-10 md:text-6xl text-center drop-shadow-sm">
               Find Your Perfect <span className="text-[#128ca0]">Tutor</span>
             </h1>
 
-            <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Browse our network of expert tutors and find the right match for
-              your learning needs.{" "}
-              {!hasPremiumAccess &&
-                "Upgrade to premium to message tutors and book sessions."}
-            </p>
-
-            {/* Search Bar with improved styling */}
+            {/* Search Bar — translucent white pill with a chunky drop shadow
+                so it really sits forward of the background. */}
             <div className="relative max-w-xl mx-auto">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground h-5 w-5 z-10" />
               <Input
-                className="pl-11 h-12 rounded-full bg-white border border-[#84b4cc]/40 shadow-sm focus-visible:border-[#128ca0]/50 focus-visible:ring-2 focus-visible:ring-[#128ca0]/15 transition-all placeholder:text-muted-foreground/60"
+                className="pl-12 h-14 rounded-full bg-white/95 backdrop-blur-md border border-white/60 shadow-[0_30px_70px_-15px_rgba(15,58,82,0.45),0_15px_35px_-10px_rgba(15,58,82,0.3)] focus-visible:border-[#128ca0]/50 focus-visible:ring-2 focus-visible:ring-[#128ca0]/25 transition-all placeholder:text-muted-foreground/60 text-base"
                 placeholder="Search tutors by name, subject, or university"
                 value={searchTerm}
                 onChange={handleSearchChange}
