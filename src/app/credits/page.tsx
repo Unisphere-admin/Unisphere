@@ -150,28 +150,45 @@ export default function CreditsPage() {
     }).format(amount);
   };
 
-  // Get the appropriate product for the user's country
+  // Get the appropriate product for the user's country.
+  //
+  // Resolution order:
+  //   1. The user's country-specific currency (GBP, MYR, HKD, SGD).
+  //   2. USD — explicit default for any country that isn't in the supported
+  //      list (e.g. India, UAE, Brazil…). This guarantees a stable, well-
+  //      understood currency rather than relying on whatever Stripe happens
+  //      to return first.
+  //   3. Any product with the matching packageId — last-resort safety net
+  //      in case USD isn't configured in Stripe for some reason.
   const getProductForUserCountry = (packageId: string) => {
-    
     // First try to find a product with the user's country currency
     const userCurrency = getCurrencyInfo(userCountry)?.code;
-    
+
     if (userCurrency) {
-      const countryProduct = products.find(product => 
+      const countryProduct = products.find(product =>
         product.packageId === packageId && product.currency === userCurrency
       );
       if (countryProduct) {
         return countryProduct;
       }
     }
-    
-    // If no country-specific product found, try to find any product with the package ID
-    // This ensures we always show something even if the user's currency isn't available
+
+    // Default fallback: USD. Anyone outside our supported-currency countries
+    // (India, UAE, etc.) pays in dollars rather than whichever currency Stripe
+    // happens to return first.
+    const usdProduct = products.find(product =>
+      product.packageId === packageId && product.currency === 'USD'
+    );
+    if (usdProduct) {
+      return usdProduct;
+    }
+
+    // Last-resort safety net if USD isn't configured in Stripe at all.
     const fallbackProduct = products.find(product => product.packageId === packageId);
     if (fallbackProduct) {
       return fallbackProduct;
     }
-    
+
     return null;
   };
 
