@@ -187,14 +187,22 @@ export default function CreditsPage() {
   }
 
   if (products.length === 0) {
+    // We never want a paying user to see a bare "no products for sale"
+    // screen — it reads as "Unisphere doesn't sell anything" rather than
+    // "we're having a temporary issue." Frame it as a transient outage,
+    // give them a retry, and offer a way out via support.
     return (
-      <div className="min-h-screen with-navbar flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-screen with-navbar flex items-center justify-center px-4">
+        <div className="text-center max-w-md">
           <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
-          <p className="text-muted-foreground">No pricing information available</p>
-          <Button 
-            onClick={() => window.location.reload()} 
-            className="mt-4"
+          <h2 className="text-xl font-semibold mb-2">We can't load pricing right now</h2>
+          <p className="text-muted-foreground mb-6">
+            This is a temporary issue on our end. Please try again in a moment, or
+            contact us at <a href="mailto:hello@unisphere.my" className="underline hover:text-foreground">hello@unisphere.my</a>{' '}
+            and we'll help you top up directly.
+          </p>
+          <Button
+            onClick={() => window.location.reload()}
             variant="outline"
           >
             Try Again

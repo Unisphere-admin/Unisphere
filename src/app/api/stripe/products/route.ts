@@ -97,11 +97,18 @@ function getPackageIdFromCredits(credits: number): string {
   return 'premium';
 }
 
-// Product IDs from your Stripe product catalog
+// Product IDs from your Stripe product catalog.
+// The fallback strings are the real live Stripe product IDs for unisphere.my,
+// not placeholders. We used to fall back to `prod_basic_credits` etc., which
+// were never registered in Stripe — so when the Vercel env vars went missing
+// the route silently swallowed three retrieve() failures and returned
+// `{ products: [] }`, surfacing as "No pricing information available" on the
+// credits page. Hardcoding the real IDs as defaults keeps the page working
+// even if env config drifts. Override via env if you ever rotate products.
 const STRIPE_PRODUCTS = {
-  basic: process.env.STRIPE_BASIC_PRODUCT_ID || 'prod_basic_credits',
-  standard: process.env.STRIPE_STANDARD_PRODUCT_ID || 'prod_standard_credits',
-  premium: process.env.STRIPE_PREMIUM_PRODUCT_ID || 'prod_premium_credits',
+  basic: process.env.STRIPE_BASIC_PRODUCT_ID || 'prod_Sri2gdZiDBKoaz',     // 500 credits
+  standard: process.env.STRIPE_STANDARD_PRODUCT_ID || 'prod_Sri213PV6ieQmU', // 1000 credits
+  premium: process.env.STRIPE_PREMIUM_PRODUCT_ID || 'prod_Sri2lQOmsvP5jG',   // 2000 credits
 };
 
 export async function GET(req: NextRequest) {
@@ -355,6 +362,20 @@ export async function GET(req: NextRequest) {
         console.error(`Error fetching product ${productId}:`, error);
         // Continue with other products even if one fails
       }
+    }
+
+    // If we somehow ended up with zero products after iterating all configured
+    // product IDs, that's a server-side configuration problem (bad product
+    // IDs, archived products, Stripe API outage). Return 500 so the client
+    // can show a real error state instead of "no products for sale", and so
+    // monitoring/Sentry alerts on the failure rather than silently shipping
+    // an empty page to paying users.
+    if (products.length === 0) {
+      console.error('Stripe products endpoint returned zero entries — check STRIPE_*_PRODUCT_ID env vars and that the products are active in Stripe.');
+      return NextResponse.json(
+        { error: 'Pricing temporarily unavailable. Please try again shortly.' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ products }, {

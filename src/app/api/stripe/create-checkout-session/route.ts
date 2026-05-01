@@ -9,11 +9,13 @@ const stripe = process.env.STRIPE_SECRET_KEY
     })
   : null;
 
-// Product IDs from your Stripe product catalog
+// Product IDs from your Stripe product catalog. See the long comment in
+// src/app/api/stripe/products/route.ts — defaults are the real live IDs so
+// checkout still works even if Vercel env config drifts.
 const STRIPE_PRODUCTS = {
-  basic: process.env.STRIPE_BASIC_PRODUCT_ID || 'prod_basic_credits',
-  standard: process.env.STRIPE_STANDARD_PRODUCT_ID || 'prod_standard_credits', 
-  premium: process.env.STRIPE_PREMIUM_PRODUCT_ID || 'prod_premium_credits',
+  basic: process.env.STRIPE_BASIC_PRODUCT_ID || 'prod_Sri2gdZiDBKoaz',     // 500 credits
+  standard: process.env.STRIPE_STANDARD_PRODUCT_ID || 'prod_Sri213PV6ieQmU', // 1000 credits
+  premium: process.env.STRIPE_PREMIUM_PRODUCT_ID || 'prod_Sri2lQOmsvP5jG',   // 2000 credits
 };
 
 export async function POST(req: NextRequest) {
