@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { MapPin, Loader2, AlertCircle, Check } from "lucide-react";
+import { MapPin, Loader2, AlertCircle, Check, Lock } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -336,7 +336,7 @@ export default function CreditsPage() {
           <p className="text-muted-foreground mb-6">
             This is a temporary issue on our end. Please try again in a moment, or
             contact us at <a href="mailto:admin@unisphere.my" className="underline hover:text-foreground">admin@unisphere.my</a>{' '}
-            and we'll help you top up directly.
+            and we'll help you sort out credits directly.
           </p>
           <Button
             onClick={() => window.location.reload()}
@@ -371,7 +371,25 @@ export default function CreditsPage() {
 
         <div className="container max-w-6xl mx-auto relative z-10">
           <div className="flex flex-col items-center justify-center text-center max-w-4xl mx-auto mb-12">
-            <h1 className="text-4xl md:text-5xl font-bold mb-6 text-center md:text-center">Credits</h1>
+            <h1 className="text-4xl md:text-5xl font-bold mb-4 text-center md:text-center">Credits</h1>
+            {/* Trust badge: signals payment security upfront. The Stripe
+                wordmark is rendered as styled text in their brand colour
+                (#635BFF) so we don't have to ship an extra image asset
+                and there's no flash on first paint. */}
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/70 px-3.5 py-1.5 text-sm text-slate-600 shadow-sm backdrop-blur-sm">
+              <Lock className="h-3.5 w-3.5 text-[#635BFF]" strokeWidth={2.5} />
+              <span>All payments are secured through</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 60 25"
+                aria-label="Stripe"
+                role="img"
+                className="h-[17px] w-auto text-[#635BFF]"
+                fill="currentColor"
+              >
+                <path d="M59.5 14.32c0-4.27-2.07-7.64-6.02-7.64-3.97 0-6.37 3.37-6.37 7.61 0 5.02 2.84 7.56 6.91 7.56 1.99 0 3.49-.45 4.62-1.09v-3.32c-1.13.57-2.43.92-4.07.92-1.61 0-3.04-.57-3.22-2.52h8.12c0-.22.03-1.09.03-1.52zm-8.2-1.59c0-1.87 1.14-2.65 2.18-2.65 1.01 0 2.08.78 2.08 2.65zM40.8 6.68c-1.64 0-2.69.77-3.28 1.31l-.22-1.04h-3.68v19.43l4.18-.89.01-4.71c.6.44 1.49 1.06 2.97 1.06 3 0 5.74-2.42 5.74-7.75-.01-4.88-2.78-7.41-5.72-7.41zm-1 11.4c-.99 0-1.58-.36-1.99-.79l-.02-6.24c.44-.49 1.04-.83 2.01-.83 1.54 0 2.6 1.73 2.6 3.92 0 2.24-1.04 3.94-2.6 3.94zM28.21 5.69l4.19-.9V1.4l-4.19.89zM28.21 6.96h4.19v14.61h-4.19zM23.72 8.2l-.27-1.24h-3.61v14.61h4.18v-9.9c.99-1.29 2.66-1.06 3.18-.87v-3.85c-.54-.2-2.5-.57-3.48 1.25zM15.34 3.34L11.26 4.2l-.02 13.39c0 2.47 1.86 4.29 4.34 4.29 1.37 0 2.38-.25 2.94-.55v-3.39c-.54.22-3.18 1-3.18-1.46v-5.92h3.18V6.96h-3.18zM4.24 11.16c0-.66.54-.92 1.43-.92 1.27 0 2.88.39 4.16 1.07V7.4c-1.39-.55-2.77-.77-4.16-.77C2.27 6.63 0 8.41 0 11.39c0 4.62 6.36 3.88 6.36 5.88 0 .77-.67 1.02-1.6 1.02-1.39 0-3.16-.57-4.58-1.34v3.97c1.57.68 3.16.96 4.58.96 3.5 0 5.91-1.74 5.91-4.74-.01-4.99-6.43-4.1-6.43-5.98z" />
+              </svg>
+            </div>
             <p className="text-lg text-muted-foreground max-w-2xl">
               Purchase credits to book tutoring sessions, access premium resources, and unlock all platform features.
             </p>
@@ -425,7 +443,7 @@ export default function CreditsPage() {
                   tier={TIER_COPY.basic}
                   priceLabel={product ? formatStripeCurrency(product.price, product.currency) : "—"}
                   creditsLabel={product ? `${product.credits} credits` : null}
-                  ctaLabel={user?.role === 'tutor' ? "Tutor Account" : "Top up"}
+                  ctaLabel={user?.role === 'tutor' ? "Tutor Account" : "Buy credits"}
                   ctaVariant="filled"
                   isPopular={false}
                   isProcessing={isProcessing === 'basic'}
@@ -443,7 +461,7 @@ export default function CreditsPage() {
                   tier={TIER_COPY.standard}
                   priceLabel={product ? formatStripeCurrency(product.price, product.currency) : "—"}
                   creditsLabel={product ? `${product.credits} credits` : null}
-                  ctaLabel={user?.role === 'tutor' ? "Tutor Account" : "Top up"}
+                  ctaLabel={user?.role === 'tutor' ? "Tutor Account" : "Buy credits"}
                   ctaVariant="filled"
                   isPopular
                   isProcessing={isProcessing === 'standard'}
@@ -461,7 +479,7 @@ export default function CreditsPage() {
                   tier={TIER_COPY.premium}
                   priceLabel={product ? formatStripeCurrency(product.price, product.currency) : "—"}
                   creditsLabel={product ? `${product.credits} credits` : null}
-                  ctaLabel={user?.role === 'tutor' ? "Tutor Account" : "Top up"}
+                  ctaLabel={user?.role === 'tutor' ? "Tutor Account" : "Buy credits"}
                   ctaVariant="filled"
                   isPopular={false}
                   isProcessing={isProcessing === 'premium'}
@@ -508,7 +526,7 @@ export default function CreditsPage() {
               },
               {
                 q: "What if I run out of credits mid-application?",
-                a: "You can top up at any time from this page. Your existing sessions and history are always preserved regardless of your credit balance.",
+                a: "You can buy more credits at any time from this page. Your existing sessions and history are always preserved regardless of your credit balance.",
               },
             ].map((faq, i) => (
               <AccordionItem

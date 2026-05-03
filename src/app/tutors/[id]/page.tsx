@@ -844,7 +844,7 @@ export default function TutorProfile(props: { params: Promise<{ id: string }> })
                       onClick={() => router.push('/credits')}
                     >
                       <Sparkles className="h-4 w-4 mr-2" />
-                      Top Up Credits to Message Tutor
+                      Buy Credits to Message Tutor
                     </Button>
                   )}
                 </div>

@@ -30,6 +30,25 @@ const LOGOS = [
   { name: "UChicago", src: "/Unilogos/UChicago Logo.png", x: 41.2, y: 29.6, size: 10 },
   { name: "UCLA", src: "/Unilogos/UCLA Logo.png", x: 29.3, y: 48.7, size: 7 },
   { name: "UC Berkeley", src: "/Unilogos/UCBerkeley Logo.png", x: 55.0, y: 28.3, size: 10 },
+  // Dartmouth — slotted above-and-right of UCLA. Critically, the centre
+  // Unisphere hub is a CIRCLE at (50, 50) with radius 14 (rendered via
+  // `width: 28%, left: 36%, rounded-full`), and any logo whose centre
+  // sits within 14 + r% of (50, 50) will overlap the hub.
+  //
+  // At (33, 38) size 6, all clearances stay above the 3.6 packing budget.
+  // Bumped up from size 5 so the logo reads more clearly. Position moved
+  // up by 1y unit (was 39) because with size 6 at y=39 the hub gap drops
+  // to 3.25 which is below threshold; y=38 restores ~3.8 of clearance.
+  // Size 7 isn't viable — it forces either the hub or Cornell gap below
+  // the 3.6 budget no matter where in this pocket the centre sits.
+  //
+  //   Centre hub (50, 50, r=14)      → centre-dist √433 ≈ 20.81, gap 3.81
+  //   UCLA       (29.3, 48.7, sz 7)  → centre-dist 11.32,        gap 4.82
+  //   UChicago   (41.2, 29.6, sz 10) → centre-dist 11.74,        gap 3.74
+  //   Cornell    (24.5, 29.0, sz 11) → centre-dist 12.38,        gap 3.88
+  //   UPenn      (18.4, 42.9, sz 12) → centre-dist 15.40,        gap 6.40
+  // Every other logo in the pack is > 21% away.
+  { name: "Dartmouth", src: "/Unilogos/Dartmouth Logo.png", x: 33.0, y: 38.0, size: 6 },
 ] as const;
 
 // Center of rotation

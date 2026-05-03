@@ -65,7 +65,10 @@ const Navbar = () => {
 
   // Show consultation button only for non-logged in users or non-premium students
   const showConsultationButton = !loading && (!user || (!hasAccess && !isTutor));
-  const showTopUpButton = !loading && user && !isTutor;
+  // Credits page is public (like About Us) — show the Credits button to
+  // everyone except tutors, who don't buy credits. Logged-out visitors can
+  // still browse pricing without an account.
+  const showCreditsButton = !isTutor;
 
   // Defer pathname-dependent classes to after mount to prevent hydration mismatch
   const [mounted, setMounted] = useState(false);
@@ -310,12 +313,12 @@ const Navbar = () => {
             </Button>
           ) : null}
 
-          {showTopUpButton && (
+          {showCreditsButton && (
             <>
           <Button variant="outline" size="sm" asChild className={`hidden md:flex items-center gap-1.5 shadow-sm ${isDarkNav || isTransparentNav ? "bg-transparent border-white/30 text-white/80 hover:bg-white/10 hover:text-white" : "border-primary/30 text-primary hover:bg-primary/5"}`}>
             <Link href="/credits">
               <CreditCard className="h-4 w-4 mr-1" strokeWidth={2} />
-              Top Up
+              Credits
             </Link>
           </Button>
           </>
@@ -391,6 +394,15 @@ const Navbar = () => {
                   <GraduationCap className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Summer Studio
                   <span className="ml-1 px-1 py-px text-[7px] font-bold uppercase tracking-wide rounded bg-[#128ca0] text-white leading-none">New</span>
                 </Link>
+                {!isTutor && (
+                  <Link
+                    href="/credits"
+                    className="flex items-center gap-3 p-3 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors touch-manipulation"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <CreditCard className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Credits
+                  </Link>
+                )}
                 {/* Only show consultation button for non-logged in users or non-premium students in mobile menu */}
                 {showConsultationButton && (
                   <Link 
