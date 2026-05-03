@@ -374,8 +374,13 @@ export default function SignupPage() {
         setError(data.error || "Failed to sign up");
         return;
       }
-      toast({ title: "Account created!", description: "Check your email to verify your account." });
-      router.push("/login?signup=success");
+      // Send the user to a full-screen success page that prominently
+      // tells them to go check their inbox. We pass the email along
+      // so the page can show it back ("we sent a link to ..."), which
+      // both reassures them and helps them notice typos. Replacing
+      // the previous flow that just dropped a small toast in the
+      // bottom-right corner — easy to miss.
+      router.push(`/signup/success?email=${encodeURIComponent(sanitizedEmail)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sign up");
     } finally {
