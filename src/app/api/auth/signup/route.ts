@@ -1,4 +1,5 @@
 import { createRouteHandlerClientWithCookies } from "@/lib/db/client";
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -123,9 +124,23 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Create student profile with all collected onboarding data
+        // Create student profile with all collected onboarding data.
+        //
+        // We MUST use the service role client here, not the cookie-based one.
+        // The cookie-based supabase client above is anonymous at this point
+        // (auth.signUp returns a user but no session when email confirmation
+        // is required), and student_profile has an RLS policy blocking
+        // anonymous INSERTs. Using the cookie client previously failed with
+        // 42501 "new row violates row-level security policy" for every single
+        // signup, silently — leaving 70+ orphan auth accounts with no
+        // profile, who then get stuck in the survey-redirect loop.
         try {
-            const { error: profileError } = await supabase
+            const adminSupabase = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.SUPABASE_SERVICE_ROLE_KEY!
+            );
+
+            const { error: profileError } = await adminSupabase
                 .from('student_profile')
                 .insert({
                     id: data.user.id,
@@ -142,13 +157,15 @@ export async function POST(req: NextRequest) {
                 });
 
             if (profileError) {
-                console.error('Error creating student profile:', profileError);
-                // Don't fail the signup if profile creation fails
-                // The profile can be created later when the user first signs in
+                // Profile insert still failed even with service role. This is
+                // a genuine bug (schema drift, constraint violation, etc) and
+                // we want to know loudly. The signup itself still succeeds so
+                // the user isn't blocked, but the user will land in the
+                // survey-redirect state and we should chase the cause.
+                console.error('CRITICAL: student_profile insert failed even with service role for user', data.user.id, profileError);
             }
         } catch (profileError) {
-            console.error('Error creating student profile:', profileError);
-            // Don't fail the signup if profile creation fails
+            console.error('CRITICAL: student_profile insert threw for user', data.user.id, profileError);
         }
 
         // Profile creation is now handled by session API on sign-in
