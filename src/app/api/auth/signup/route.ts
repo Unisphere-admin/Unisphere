@@ -126,20 +126,49 @@ export async function POST(req: NextRequest) {
 
         // Create student profile with all collected onboarding data.
         //
-        // We MUST use the service role client here, not the cookie-based one.
-        // The cookie-based supabase client above is anonymous at this point
-        // (auth.signUp returns a user but no session when email confirmation
-        // is required), and student_profile has an RLS policy blocking
-        // anonymous INSERTs. Using the cookie client previously failed with
-        // 42501 "new row violates row-level security policy" for every single
-        // signup, silently — leaving 70+ orphan auth accounts with no
-        // profile, who then get stuck in the survey-redirect loop.
+        // Two distinct things are necessary here, both via the service role:
+        //
+        //   1. Upsert public.users. There IS a Supabase trigger that mirrors
+        //      auth.users into public.users, but it fires asynchronously after
+        //      auth.signUp() returns. If we insert into student_profile right
+        //      away, the FK student_profile_id_fkey -> public.users(id) blows
+        //      up with 23503 "Key (id)=... is not present in table users".
+        //      That race condition is why ~70 prior signups ended up as
+        //      orphan auth accounts with no profile.
+        //
+        //   2. Insert student_profile. This used to use the cookie-based
+        //      client which is anonymous at signup time, getting blocked by
+        //      RLS (42501). Service role bypasses RLS so the row goes in.
+        //
+        // Order matters. public.users first, then student_profile.
         try {
             const adminSupabase = createClient(
                 process.env.NEXT_PUBLIC_SUPABASE_URL!,
                 process.env.SUPABASE_SERVICE_ROLE_KEY!
             );
 
+            // Step 1: ensure public.users row exists. Upsert so we don't
+            // collide if the trigger HAS already fired by the time we get
+            // here. We only set the columns we know about; tokens/has_access
+            // default to 0/false in the table definition.
+            const { error: pubError } = await adminSupabase
+                .from('users')
+                .upsert(
+                    {
+                        id: data.user.id,
+                        email: data.user.email,
+                        is_tutor: false,
+                    },
+                    { onConflict: 'id', ignoreDuplicates: false }
+                );
+
+            if (pubError) {
+                console.error('CRITICAL: public.users upsert failed for user', data.user.id, pubError);
+                // Don't bail — student_profile insert below might still
+                // succeed if the trigger has populated public.users by now.
+            }
+
+            // Step 2: insert student_profile.
             const { error: profileError } = await adminSupabase
                 .from('student_profile')
                 .insert({
@@ -157,15 +186,10 @@ export async function POST(req: NextRequest) {
                 });
 
             if (profileError) {
-                // Profile insert still failed even with service role. This is
-                // a genuine bug (schema drift, constraint violation, etc) and
-                // we want to know loudly. The signup itself still succeeds so
-                // the user isn't blocked, but the user will land in the
-                // survey-redirect state and we should chase the cause.
-                console.error('CRITICAL: student_profile insert failed even with service role for user', data.user.id, profileError);
+                console.error('CRITICAL: student_profile insert failed for user', data.user.id, profileError);
             }
         } catch (profileError) {
-            console.error('CRITICAL: student_profile insert threw for user', data.user.id, profileError);
+            console.error('CRITICAL: profile setup threw for user', data.user.id, profileError);
         }
 
         // Profile creation is now handled by session API on sign-in

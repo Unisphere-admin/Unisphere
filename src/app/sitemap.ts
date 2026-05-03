@@ -5,7 +5,7 @@ import type { MetadataRoute } from "next";
  *
  * Only public marketing routes are listed here. Auth-gated paths
  * (/dashboard, /admin, /signup, /login, /credits, /reset-password,
- * /paywall, /survey, /session, /meeting) are excluded by design and
+ * /paywall, /session, /meeting) are excluded by design and
  * additionally blocked in robots.ts.
  *
  * priority and changeFrequency are hints, not commitments — Google ignores

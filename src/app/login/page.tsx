@@ -208,15 +208,10 @@ function LoginPageContent() {
         } else {
         }
 
-        // Navigate based on user status. The onboarding survey is
-        // mandatory before students can use the rest of the app — if
-        // they haven't completed it, ALWAYS take them there first,
-        // regardless of any redirectPath. Tutors skip the survey
-        // (their account doesn't have a meaningful student survey).
-        const isTutor = userData?.role === "tutor";
-        if (!isTutor && !surveyCompleted) {
-          router.push("/survey");
-        } else if (redirectPath) {
+        // Navigate based on user status. The /survey route was removed —
+        // signup now collects everything that survey used to, and any user
+        // missing profile data can fill it in from /dashboard/settings.
+        if (redirectPath) {
           router.push(redirectPath);
         } else {
           router.push("/dashboard");

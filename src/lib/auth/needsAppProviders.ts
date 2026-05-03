@@ -19,7 +19,6 @@ export function needsAppProviders(pathname: string | null | undefined): boolean 
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/session") ||
     pathname.startsWith("/resources") ||
-    pathname.startsWith("/survey") ||
     pathname.startsWith("/onboarding")
   );
 }

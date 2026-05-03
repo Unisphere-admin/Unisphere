@@ -24,7 +24,6 @@ export default function robots(): MetadataRoute.Robots {
           "/credits/success",
           "/reset-password",
           "/paywall",
-          "/survey",
           "/session/",
           "/meeting/",
           "/marketplace",

@@ -64,49 +64,23 @@ export async function GET(req: NextRequest) {
         
         const hasPremiumAccess = isTutor || userData?.has_access === true;
         
-        // Check survey completion status from profile tables
-        let surveyCompleted = false;
+        // /survey was removed — onboarding data is now collected in the
+        // signup flow itself. The only remaining special case is tutors
+        // who haven't done /profile/create/tutor yet.
         if (isTutor) {
-            const { data: tutorProfile } = await supabase
-                .from('tutor_profile')
-                .select('survey_completed')
-                .eq('id', session.user.id)
-                .single();
-            surveyCompleted = tutorProfile?.survey_completed === true;
-        } else {
-            const { data: studentProfile } = await supabase
-                .from('student_profile')
-                .select('survey_completed')
-                .eq('id', session.user.id)
-                .single();
-            surveyCompleted = studentProfile?.survey_completed === true;
-        }
-        
-        // For new signups or regular logins
-        if (isTutor) {
-            // For tutors, check if they have completed onboarding
             const { data: tutorProfile } = await supabase
                 .from('tutor_profile')
                 .select('id')
                 .eq('id', session.user.id)
                 .single();
-                
+
             if (!tutorProfile) {
-                // Tutor needs to complete onboarding
-            return NextResponse.redirect(`${url.origin}/profile/create/tutor`);
+                return NextResponse.redirect(`${url.origin}/profile/create/tutor`);
             }
-            
-            // Check survey completion for tutors
-            if (!surveyCompleted) {
-                return NextResponse.redirect(`${url.origin}/survey`);
-            }
-            
-            // Tutor has profile and completed survey, redirect to dashboard
-            return NextResponse.redirect(`${url.origin}/dashboard`);
-        } else {
-            // All students go to dashboard after login
-            return NextResponse.redirect(`${url.origin}/dashboard`);
         }
+
+        // Everyone else lands on the dashboard.
+        return NextResponse.redirect(`${url.origin}/dashboard`);
     } catch (err) {
         return NextResponse.redirect(`${url.origin}/login?error=server-error`);
     }

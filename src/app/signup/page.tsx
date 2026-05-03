@@ -42,12 +42,13 @@ const US_UNIVERSITIES: University[] = [
   { name: "University of Pennsylvania", shortName: "UPenn", logoFile: "/Unilogos/UPenn Logo.png", color: "#011F5B" },
   { name: "Cornell University", shortName: "Cornell", logoFile: "/Unilogos/Cornell Logo.png", color: "#B31B1B" },
   { name: "Brown University", shortName: "Brown", logoFile: "/Unilogos/Brown Logo.png", color: "#4E3629" },
+  { name: "Dartmouth College", shortName: "Dartmouth", logoFile: "/Unilogos/Dartmouth Logo.png", color: "#00693E" },
   { name: "New York University", shortName: "NYU", logoFile: "/Unilogos/NYU Logo.png", color: "#57068C" },
   { name: "University of Chicago", shortName: "UChicago", logoFile: "/Unilogos/UChicago Logo.png", color: "#800000" },
   { name: "California Institute of Technology", shortName: "Caltech", logoFile: "/Unilogos/Caltech Logo.png", color: "#FF6C0C" },
+  { name: "Carnegie Mellon University", shortName: "CMU", logoFile: "/Unilogos/CMU Logo.png", color: "#C41230" },
   { name: "UC Berkeley", shortName: "UC Berkeley", logoFile: "/Unilogos/UCBerkeley Logo.png", color: "#003262" },
   { name: "UCLA", shortName: "UCLA", logoFile: "/Unilogos/UCLA Logo.png", color: "#2D68C4" },
-  { name: "UC Davis", shortName: "UC Davis", logoFile: "/Unilogos/UCDavis Logo.png", color: "#022851" },
 ];
 
 const TOTAL_STEPS = 6;
