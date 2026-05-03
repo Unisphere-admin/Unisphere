@@ -171,9 +171,14 @@ export async function GET(req: NextRequest) {
 
           const userIds = authUsers.map((u: any) => u.id);
           const [publicUsersRes, studentProfiles, tutorProfiles] = await Promise.all([
+            // public.users only has: id, email, conversation, email_confirmed_at,
+            // is_tutor, tokens, has_access. created_at and last_sign_in live on
+            // auth.users — selecting them here errors with code 42703 and
+            // silently nukes tokens/has_access/is_tutor for the entire response.
+            // That's why the admin used to show every user as "Student, 0 credits".
             supabase
               .from("users")
-              .select("id, email, tokens, has_access, is_tutor, created_at, last_sign_in")
+              .select("id, email, tokens, has_access, is_tutor")
               .in("id", userIds),
             supabase
               .from("student_profile")
@@ -198,9 +203,13 @@ export async function GET(req: NextRequest) {
               email: u.email || pub.email || "",
               tokens: pub.tokens ?? 0,
               has_access: pub.has_access ?? false,
+              // is_tutor authoritative source is public.users; fall back to
+              // user_metadata for any user with no public.users row yet.
               is_tutor: pub.is_tutor ?? (u.user_metadata?.is_tutor === true),
-              created_at: u.created_at || pub.created_at || null,
-              last_sign_in: u.last_sign_in_at || pub.last_sign_in || null,
+              // Timestamps come from auth.users only — public.users doesn't
+              // store them.
+              created_at: u.created_at || null,
+              last_sign_in: u.last_sign_in_at || null,
               profile: profMap[u.id] || null,
             };
           });
@@ -236,12 +245,22 @@ export async function GET(req: NextRequest) {
           purchasedUserIds = new Set((paymentData || []).map((p: any) => p.user_id));
         }
 
-        // Step 3: Build users query with all filters
+        // Step 3: Build users query with all filters.
+        //
+        // public.users only stores: id, email, conversation, email_confirmed_at,
+        // is_tutor, tokens, has_access. created_at and last_sign_in live on
+        // auth.users — referencing them in the postgrest SELECT or ORDER BY
+        // returns 42703 "column does not exist" and the whole query fails,
+        // which is the original reason filtering by Tutor (or any filter) was
+        // returning zero results.
+        //
+        // Strategy: do all filtering in postgres against the columns that DO
+        // exist, fetch the matching IDs, then enrich + sort by created_at in
+        // memory using auth.users data. Pagination still works correctly
+        // because we sort the full filtered set before slicing.
         let usersQuery = supabase
           .from("users")
-          .select("id, email, tokens, has_access, is_tutor, created_at, last_sign_in", {
-            count: "exact",
-          });
+          .select("id, email, tokens, has_access, is_tutor", { count: "exact" });
 
         if (search) usersQuery = usersQuery.ilike("email", `%${search}%`);
         if (roleFilter === "student") usersQuery = usersQuery.eq("is_tutor", false);
@@ -261,19 +280,30 @@ export async function GET(req: NextRequest) {
           usersQuery = usersQuery.not("id", "in", `(${Array.from(purchasedUserIds).join(",")})`);
         }
 
-        usersQuery = usersQuery
-          .order("created_at", { ascending: false })
-          .range(offset, offset + limit - 1);
+        // No range/order on the postgres query — we slice in memory after we
+        // have the auth.users timestamps to sort by. This is fine for the
+        // current scale (sub-1k users); revisit if the user count grows past
+        // ~10k by adding a real created_at column to public.users.
+        const { data: matchedUsers, count, error: matchedErr } = await usersQuery;
 
-        const { data: users, count } = await usersQuery;
+        if (matchedErr) {
+          console.error("admin users filter query failed:", matchedErr);
+          return NextResponse.json(
+            { error: "Failed to load filtered users" },
+            { status: 500 }
+          );
+        }
 
-        if (!users || users.length === 0) {
+        if (!matchedUsers || matchedUsers.length === 0) {
           return NextResponse.json({ users: [], total: count || 0, page, limit });
         }
 
-        const userIds = users.map((u: any) => u.id);
+        const userIds = matchedUsers.map((u: any) => u.id);
 
-        const [studentProfiles, tutorProfiles] = await Promise.all([
+        // Fetch profile rows + a single auth.users page big enough to enrich
+        // all the matches. listUsers caps at 1000 per page, so for filter
+        // results larger than that we'd need to paginate auth too.
+        const [studentProfiles, tutorProfiles, authPage] = await Promise.all([
           supabase
             .from("student_profile")
             .select("id, first_name, last_name, avatar_url, country, countries_to_apply, application_cycle")
@@ -282,19 +312,43 @@ export async function GET(req: NextRequest) {
             .from("tutor_profile")
             .select("id, first_name, last_name, avatar_url")
             .in("id", userIds),
+          supabase.auth.admin.listUsers({
+            page: 1,
+            perPage: Math.min(Math.max(matchedUsers.length, 50), 1000),
+          }),
         ]);
 
         const profileMap: Record<string, any> = {};
         for (const p of studentProfiles.data || []) profileMap[p.id] = p;
         for (const p of tutorProfiles.data || []) profileMap[p.id] = profileMap[p.id] || p;
 
-        const enrichedUsers = users.map((u: any) => ({
-          ...u,
-          profile: profileMap[u.id] || null,
-          hasPurchased: purchasedUserIds ? purchasedUserIds.has(u.id) : undefined,
-        }));
+        const authMap: Record<string, any> = {};
+        for (const a of (authPage as any)?.data?.users || []) authMap[a.id] = a;
 
-        return NextResponse.json({ users: enrichedUsers, total: count || 0, page, limit });
+        // Enrich each matched user with timestamps from auth.users, then sort
+        // by created_at desc and slice to the requested page.
+        const enrichedAll = matchedUsers.map((u: any) => {
+          const auth = authMap[u.id] || {};
+          return {
+            ...u,
+            created_at: auth.created_at || null,
+            last_sign_in: auth.last_sign_in_at || null,
+            profile: profileMap[u.id] || null,
+            hasPurchased: purchasedUserIds ? purchasedUserIds.has(u.id) : undefined,
+          };
+        });
+
+        enrichedAll.sort((a, b) => {
+          // Newest first; nulls go to the bottom so an enrichment miss
+          // doesn't push real users off the first page.
+          const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return tb - ta;
+        });
+
+        const paginated = enrichedAll.slice(offset, offset + limit);
+
+        return NextResponse.json({ users: paginated, total: count || 0, page, limit });
       }
 
       case "credits": {

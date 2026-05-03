@@ -18,7 +18,6 @@ import {
   Loader2,
   X,
   Mail,
-  School,
   DollarSign,
   Video,
   ClipboardList,
@@ -203,59 +202,109 @@ function StudentDetailBody({ detail }: { detail: StudentDetail }) {
         </div>
       </div>
 
-      {/* Survey */}
-      <Section
-        icon={ClipboardList}
-        title="Survey responses"
-        emptyText="Student hasn't completed the onboarding survey yet."
-        empty={!survey}
-      >
-        {survey && (
-          <DefList>
-            <DefItem label="School" value={survey.school} />
-            <DefItem label="Country" value={survey.country} />
-            <DefItem label="Region" value={survey.region} />
-            <DefItem label="Application cycle" value={survey.application_cycle} />
-            <DefItem label="Course" value={survey.course} />
-            <DefItem
-              label="Target universities"
-              value={
-                Array.isArray(survey.universities) && survey.universities.length > 0
-                  ? survey.universities.join(", ")
-                  : null
-              }
-            />
-            <DefItem
-              label="Services wanted"
-              value={
-                Array.isArray(survey.services) && survey.services.length > 0
-                  ? survey.services.join(", ")
-                  : null
-              }
-            />
-          </DefList>
-        )}
-      </Section>
+      {/* Onboarding answers — merged view of student_profile (current
+          signup flow) and survey_responses (legacy /survey route). For new
+          users the data lives entirely in student_profile; for older users
+          some fields only exist in survey_responses. We always prefer the
+          profile value if present, fall back to survey, and finally show "—"
+          if neither has it. This means the section is empty only when the
+          user hasn't done either flow at all. */}
+      {(() => {
+        const has = (...vals: any[]) =>
+          vals.some((v) => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0));
 
-      {/* Profile */}
-      <Section
-        icon={School}
-        title="Profile"
-        emptyText="No profile data yet."
-        empty={!profile}
-      >
-        {profile && (
-          <DefList>
-            <DefItem label="First name" value={profile.first_name} />
-            <DefItem label="Last name" value={profile.last_name} />
-            <DefItem label="School" value={profile.school} />
-            <DefItem label="Country" value={profile.country} />
-            <DefItem label="Targeting" value={profile.countries_to_apply} />
-            <DefItem label="Application cycle" value={profile.application_cycle} />
-            <DefItem label="Bio" value={profile.bio} />
-          </DefList>
-        )}
-      </Section>
+        // Helper: parse a value that might be a JSON-encoded array string
+        // OR an actual array OR null. Used because student_profile stores
+        // a few list fields as JSON-encoded strings (legacy of inserting
+        // JSON.stringify() at signup time) while survey_responses stores
+        // them as actual arrays.
+        const parseList = (val: any): string[] | null => {
+          if (!val) return null;
+          if (Array.isArray(val)) return val.length > 0 ? val : null;
+          if (typeof val === "string") {
+            try {
+              const p = JSON.parse(val);
+              if (Array.isArray(p) && p.length > 0) return p;
+            } catch { /* not JSON — treat as a single-item list */ }
+            return val.trim() ? [val] : null;
+          }
+          return null;
+        };
+
+        // student_profile has two parallel columns for several concepts
+        // (universities_to_apply vs universities, countries_to_apply vs
+        // destination, school_name vs school, country vs student_country).
+        // Different signup flows wrote to different columns over time, so
+        // we read the first one that has a value.
+        const universities =
+          parseList(profile?.universities_to_apply) ||
+          parseList(profile?.universities) ||
+          parseList(profile?.intended_universities) ||
+          parseList(survey?.universities);
+
+        const exams =
+          parseList(profile?.planned_admissions_tests) ||
+          parseList(profile?.exams);
+
+        const services = parseList(survey?.services);
+
+        const fields = {
+          firstName: profile?.first_name ?? null,
+          lastName: profile?.last_name ?? null,
+          school: profile?.school_name ?? profile?.school ?? survey?.school ?? null,
+          country:
+            profile?.country ??
+            profile?.student_country ??
+            survey?.country ??
+            null,
+          targeting:
+            profile?.countries_to_apply ??
+            profile?.destination ??
+            survey?.region ??
+            null,
+          cycle: profile?.application_cycle ?? survey?.application_cycle ?? null,
+          major: profile?.intended_major ?? survey?.course ?? null,
+          bio: profile?.bio ?? null,
+        };
+
+        const empty = !has(
+          fields.firstName, fields.lastName, fields.school, fields.country,
+          fields.targeting, fields.cycle, fields.major, universities,
+          exams, services, fields.bio
+        );
+
+        return (
+          <Section
+            icon={ClipboardList}
+            title="Onboarding answers"
+            emptyText="No onboarding info yet — user hasn't completed signup or the legacy survey."
+            empty={empty}
+          >
+            <DefList>
+              <DefItem label="First name" value={fields.firstName} />
+              <DefItem label="Last name" value={fields.lastName} />
+              <DefItem label="School" value={fields.school} />
+              <DefItem label="Country" value={fields.country} />
+              <DefItem label="Targeting" value={fields.targeting} />
+              <DefItem label="Application cycle" value={fields.cycle} />
+              <DefItem label="Intended major / course" value={fields.major} />
+              <DefItem
+                label="Target universities"
+                value={universities && universities.length > 0 ? universities.join(", ") : null}
+              />
+              <DefItem
+                label="Exams"
+                value={exams && exams.length > 0 ? exams.join(", ") : null}
+              />
+              <DefItem
+                label="Services wanted"
+                value={services && services.length > 0 ? services.join(", ") : null}
+              />
+              <DefItem label="Bio" value={fields.bio} />
+            </DefList>
+          </Section>
+        );
+      })()}
 
       {/* Payments */}
       <Section
