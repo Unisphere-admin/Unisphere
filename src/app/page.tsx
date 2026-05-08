@@ -59,14 +59,27 @@ export default function HomePage() {
         <MobileHeroLogoStack />
 
         <div className="container relative z-10 mx-auto px-6 md:px-10 max-w-screen-xl h-full">
-          <div className="flex flex-col md:flex-row gap-0 items-center h-full">
+          {/* `items-start md:items-center`: on mobile the H1's largest
+              unbreakable words ("International", "University") can be wider
+              than narrow Android viewports (~360px). With `items-center`
+              the resulting wider flex item gets centred, which extends it
+              past BOTH viewport edges symmetrically; short words like
+              "We Help" (text-left within the wider item) then visibly sit
+              past the left edge of the viewport. `items-start` left-aligns
+              the column on mobile so any overflow goes only past the right
+              edge, where the section's `overflow-x-hidden` clips it.
+              `min-w-0` on the text column stops it from forcing the parent
+              wider than its natural mobile width.
+              On md+ we keep `items-center` for the original orbit-vs-text
+              vertical alignment. */}
+          <div className="flex flex-col md:flex-row gap-0 items-start md:items-center h-full">
             {/* On mobile, reserve ~120px on the right of the text column so
                 the headline never collides with the absolutely-positioned
                 MobileHeroLogoStack orbit (which sits pinned to the right edge
                 near the "Dream" word). On md+ the orbit doesn't exist and we
                 use UniversityOrbit in a separate flex column instead — no
                 padding needed there. */}
-            <div className="flex-[3] space-y-6 text-left pr-[120px] md:pr-0">
+            <div className="flex-[3] min-w-0 w-full md:w-auto space-y-6 text-left pr-[120px] md:pr-0">
 
               <h1
                 className="font-bold tracking-tight text-[3.2rem] sm:text-[3.45rem] md:text-6xl text-left"
