@@ -583,6 +583,109 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ messages: enrichedMessages });
       }
 
+      // Flat feed of every recent message on the platform, regardless of
+      // which conversation it belongs to. Used by /admin/messages.
+      // Each row is enriched with the sender + the OTHER conversation
+      // participants (i.e. the recipients) so the admin can see who-said-
+      // what-to-whom at a glance without drilling into a conversation.
+      case "recent-messages": {
+        const page = parseInt(req.nextUrl.searchParams.get("page") || "1");
+        const limit = parseInt(req.nextUrl.searchParams.get("limit") || "100");
+        const offset = (page - 1) * limit;
+
+        const { data: messages, count } = await supabase
+          .from("message")
+          .select("id, conversation_id, content, created_at, sender_id", {
+            count: "exact",
+          })
+          .order("created_at", { ascending: false })
+          .range(offset, offset + limit - 1);
+
+        const convoIds = Array.from(
+          new Set((messages || []).map((m) => m.conversation_id).filter(Boolean))
+        );
+
+        // Pull all participants for the conversations these messages
+        // belong to, in one shot. We'll bucket them per-conversation
+        // below and subtract the sender to get the recipient list.
+        const { data: participants } = await supabase
+          .from("conversation_participant")
+          .select("conversation_id, user_id")
+          .in("conversation_id", convoIds);
+
+        // Collect every user id we need to look up: senders + every
+        // participant of every involved conversation.
+        const allUserIds = new Set<string>();
+        for (const m of messages || []) {
+          if (m.sender_id) allUserIds.add(m.sender_id);
+        }
+        for (const p of participants || []) {
+          allUserIds.add(p.user_id);
+        }
+
+        const { data: userLookup } = await supabase
+          .from("users")
+          .select("id, email, is_tutor")
+          .in("id", Array.from(allUserIds));
+
+        const [studentProfiles, tutorProfiles] = await Promise.all([
+          supabase
+            .from("student_profile")
+            .select("id, first_name, last_name")
+            .in("id", Array.from(allUserIds)),
+          supabase
+            .from("tutor_profile")
+            .select("id, first_name, last_name")
+            .in("id", Array.from(allUserIds)),
+        ]);
+
+        const userMap: Record<
+          string,
+          { email: string; is_tutor?: boolean; name?: string }
+        > = {};
+        for (const u of userLookup || []) {
+          userMap[u.id] = { email: u.email, is_tutor: u.is_tutor };
+        }
+        for (const p of studentProfiles.data || []) {
+          if (userMap[p.id])
+            userMap[p.id].name =
+              `${p.first_name || ""} ${p.last_name || ""}`.trim();
+        }
+        for (const p of tutorProfiles.data || []) {
+          if (userMap[p.id])
+            userMap[p.id].name =
+              `${p.first_name || ""} ${p.last_name || ""}`.trim();
+        }
+
+        // Bucket participant user-ids per conversation for fast
+        // recipient lookup below.
+        const participantsByConvo: Record<string, string[]> = {};
+        for (const p of participants || []) {
+          if (!participantsByConvo[p.conversation_id])
+            participantsByConvo[p.conversation_id] = [];
+          participantsByConvo[p.conversation_id].push(p.user_id);
+        }
+
+        const enrichedMessages = (messages || []).map((m) => {
+          const recipientIds = (participantsByConvo[m.conversation_id] || [])
+            .filter((uid) => uid !== m.sender_id);
+          return {
+            ...m,
+            sender: userMap[m.sender_id] || { email: "Unknown" },
+            recipients: recipientIds.map(
+              (uid) => userMap[uid] || { email: "Unknown" }
+            ),
+          };
+        });
+
+        return NextResponse.json({
+          messages: enrichedMessages,
+          total: count || 0,
+          page,
+          limit,
+        });
+      }
+
       case "sessions": {
         const page = parseInt(req.nextUrl.searchParams.get("page") || "1");
         const limit = parseInt(req.nextUrl.searchParams.get("limit") || "50");

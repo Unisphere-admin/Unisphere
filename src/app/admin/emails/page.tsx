@@ -580,9 +580,40 @@ export default function AdminEmailsPage() {
 
   const recipientCount = sendMode === "group" ? segmentCount : (selectedIndividual ? 1 : null);
 
+  // Send-confirm AlertDialog. Rendered in BOTH return branches below
+  // because the Send button lives in the template detail view but the
+  // outer return is the only branch that previously rendered the dialog.
+  // That mismatch was the bug: clicking Send set `showSendConfirm=true`,
+  // but the dialog component wasn't in the DOM at all in the detail view,
+  // so nothing visible happened. Defining it once here avoids JSX
+  // duplication.
+  const sendConfirmDialog = (
+    <AlertDialog open={showSendConfirm} onOpenChange={setShowSendConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Send &ldquo;{pendingTemplateTitle}&rdquo;</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will send the email to{" "}
+            <strong>{pendingRecipientLabel}</strong>. This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleConfirmedSend}
+            className="bg-[#128ca0] hover:bg-[#0e6b7a]"
+          >
+            Send Email
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   // Template detail view
   if (selectedTemplate) {
     return (
+      <>
       <div>
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
@@ -820,6 +851,8 @@ export default function AdminEmailsPage() {
           </CardContent>
         </Card>
       </div>
+      {sendConfirmDialog}
+      </>
     );
   }
 
@@ -874,26 +907,7 @@ export default function AdminEmailsPage() {
         </div>
       )}
 
-      <AlertDialog open={showSendConfirm} onOpenChange={setShowSendConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Send &ldquo;{pendingTemplateTitle}&rdquo;</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will send the email to{" "}
-              <strong>{pendingRecipientLabel}</strong>. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmedSend}
-              className="bg-[#128ca0] hover:bg-[#0e6b7a]"
-            >
-              Send Email
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {sendConfirmDialog}
     </div>
   );
 }
