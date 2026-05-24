@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { isAdminEmail } from "@/lib/auth/adminEmails";
 import {
   LayoutDashboard,
   Calendar,
@@ -26,6 +27,7 @@ import {
   UserCircle,
   Users,
   CalendarDays,
+  Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -44,6 +46,9 @@ const DashboardSidebar = () => {
   
   const isStudent = user?.role === "student";
   const isAdmin = user?.email && ["justin@unisphere.my", "admin@unisphere.my", "23torch03@gmail.com"].includes(user.email);
+  // Canonical platform admins (the /admin panel set). Separate from the
+  // legacy `isAdmin` above, which gates the older Email Marketing tool.
+  const isPlatformAdmin = isAdminEmail(user?.email);
 
   const navItems = [
     {
@@ -65,6 +70,14 @@ const DashboardSidebar = () => {
       active: pathname === "/dashboard/messages",
       badge: unreadCount > 0 ? unreadCount : undefined,
     },
+    ...(isPlatformAdmin ? [
+      {
+        title: "Message Students",
+        icon: <Send className="h-5 w-5" />,
+        href: "/dashboard/message-students",
+        active: pathname === "/dashboard/message-students",
+      },
+    ] : []),
     ...(!isStudent ? [
       {
         title: "My Students",
