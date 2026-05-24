@@ -20,6 +20,7 @@ import {
   CalendarDays,
   Trophy,
   FolderOpen,
+  Sun,
 } from "lucide-react";
 
 // Note: this layout is a client component, so it cannot export `metadata`.
@@ -39,6 +40,7 @@ const navItems = [
   { href: "/admin/deadlines", label: "Deadlines", icon: CalendarDays },
   { href: "/admin/opportunities", label: "Opportunities", icon: Trophy },
   { href: "/admin/resources", label: "Resources", icon: FolderOpen },
+  { href: "/admin/summer-studio", label: "Summer Studio", icon: Sun },
   { href: "/admin/emails", label: "Emails", icon: Mail },
 ];
 

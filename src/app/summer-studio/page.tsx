@@ -460,13 +460,35 @@ export default function SummerStudioPage() {
       return;
     }
     setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setSubmitted(true);
-    setSubmitting(false);
-    toast({
-      title: "We've got your details!",
-      description: "Our team will reach out to you shortly.",
-    });
+    try {
+      const res = await fetch("/api/summer-studio/signups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({
+          title: "Something went wrong",
+          description: data?.error || "Please try again in a moment.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setSubmitted(true);
+      toast({
+        title: "We've got your details!",
+        description: "Our team will reach out to you shortly.",
+      });
+    } catch {
+      toast({
+        title: "Something went wrong",
+        description: "Please check your connection and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const features = [
