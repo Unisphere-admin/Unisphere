@@ -47,6 +47,14 @@ const baseProfileSchema = z.object({
     .max(50, "Last name must be less than 50 characters"),
 });
 
+// Valid "Where are you applying?" options. Older accounts may hold an empty
+// value or legacy free-text (e.g. "New Zealand") from before this became a
+// fixed dropdown. normalizeDestination() maps anything that isn't one of
+// these to "" on load, so a stale value can never silently block a save.
+const DESTINATION_OPTIONS = ["UK", "US", "Both"];
+const normalizeDestination = (v: unknown): string =>
+  typeof v === "string" && DESTINATION_OPTIONS.includes(v) ? v : "";
+
 // Schema for student profiles with email update
 const studentProfileSchema = baseProfileSchema.extend({
   intended_universities: z.string().max(500, "Must be less than 500 characters").optional(),
@@ -67,7 +75,11 @@ const studentProfileSchema = baseProfileSchema.extend({
   
   // University planning fields
   application_cycle: z.string().max(50, "Must be less than 50 characters").optional(),
-  countries_to_apply: z.enum(["UK", "US", "Both"]).optional(),
+  // Validated as a plain string, not a strict enum: older accounts hold
+  // empty or legacy free-text values, and a strict enum here would fail
+  // whole-form validation and silently block every save. The dropdown UI
+  // still constrains new selections to UK / US / Both.
+  countries_to_apply: z.string().optional(),
   universities_to_apply: z.string().max(1000, "Must be less than 1000 characters").optional(),
   planned_admissions_tests: z.string().max(500, "Must be less than 500 characters").optional(),
   completed_admissions_tests: z.string().max(500, "Must be less than 500 characters").optional(),
@@ -1054,12 +1066,19 @@ export default function SettingsPage() {
         throw new Error("Unauthorized");
       }
       
-      if (!response.ok) {
+      // A 404 means this account has no profile row yet (older accounts
+      // created before the current profile system). That isn't a failure:
+      // show an empty form so the student can fill it in, and the first
+      // save will create the row.
+      let data: any;
+      if (response.status === 404) {
+        data = { profile: {} };
+      } else if (!response.ok) {
         throw new Error(`Failed to fetch profile: ${response.status}`);
+      } else {
+        data = await response.json();
       }
-      
-      const data = await response.json();
-      
+
       // Update profile data
       setProfileData(data.profile);
       
@@ -1161,7 +1180,7 @@ export default function SettingsPage() {
           
           // University planning fields
           application_cycle: data.profile.application_cycle || "",
-          countries_to_apply: data.profile.countries_to_apply || "",
+          countries_to_apply: normalizeDestination(data.profile.countries_to_apply),
           universities_to_apply: data.profile.universities_to_apply || "",
           planned_admissions_tests: data.profile.planned_admissions_tests || "",
           completed_admissions_tests: data.profile.completed_admissions_tests || "",
@@ -1327,7 +1346,7 @@ export default function SettingsPage() {
           
           // University planning fields
           application_cycle: profileData.application_cycle || "",
-          countries_to_apply: (profileData.countries_to_apply || undefined) as "US" | "UK" | "Both" | undefined,
+          countries_to_apply: normalizeDestination(profileData.countries_to_apply),
           universities_to_apply: profileData.universities_to_apply || "",
           planned_admissions_tests: profileData.planned_admissions_tests || "",
           completed_admissions_tests: profileData.completed_admissions_tests || "",

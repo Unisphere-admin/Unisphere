@@ -596,19 +596,46 @@ export async function updateUserProfile(
     
     // Log the final filtered data
     
-    // Update the profile
-    const { data, error } = await supabase
+    // Older accounts created before the current profile system may have no
+    // profile row at all. An UPDATE against a missing row matches nothing,
+    // and the .single() below then errors — which is why those students
+    // could never save. Detect that case and INSERT the row instead.
+    const { data: existingRow } = await supabase
       .from(profileTable)
-      .update(filteredUpdateData)
+      .select('id')
       .eq('id', userId)
-      .select('*')
-      .single();
-    
+      .maybeSingle();
+
+    let data: any = null;
+    let error: any = null;
+
+    if (!existingRow) {
+      const insertPayload: Record<string, any> = { id: userId, ...filteredUpdateData };
+      // first_name / last_name are NOT NULL on both profile tables, and
+      // tutor_profile.description is too — guarantee they are present.
+      if (insertPayload.first_name == null) insertPayload.first_name = '';
+      if (insertPayload.last_name == null) insertPayload.last_name = '';
+      if (isTutor && insertPayload.description == null) insertPayload.description = '';
+
+      ({ data, error } = await supabase
+        .from(profileTable)
+        .insert(insertPayload)
+        .select('*')
+        .single());
+    } else {
+      ({ data, error } = await supabase
+        .from(profileTable)
+        .update(filteredUpdateData)
+        .eq('id', userId)
+        .select('*')
+        .single());
+    }
+
     if (error) {
-      console.error('Database error when updating profile:', error);
+      console.error('Database error when saving profile:', error);
       return { profile: null, error: `Database error: ${error.message}` };
     }
-    
+
     return { profile: data, error: null };
   } catch (error) {
     console.error('Uncaught error in updateUserProfile:', error);
