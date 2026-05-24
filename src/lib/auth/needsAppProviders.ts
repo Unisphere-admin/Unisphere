@@ -19,6 +19,11 @@ export function needsAppProviders(pathname: string | null | undefined): boolean 
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/session") ||
     pathname.startsWith("/resources") ||
-    pathname.startsWith("/onboarding")
+    pathname.startsWith("/onboarding") ||
+    // Individual tutor profile pages (`/tutors/<id>`) render a "Message Tutor"
+    // button that reads MessageContext to start a conversation. The bare
+    // `/tutors` list page does NOT need the providers — hence the trailing
+    // slash, which matches detail pages only.
+    pathname.startsWith("/tutors/")
   );
 }
