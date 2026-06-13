@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { FlipWords } from "@/components/ui/flip-words";
 import { UniversityOrbit } from "@/components/landing/UniversityOrbit";
+import { FeatureCards } from "@/components/landing/FeatureCards";
 import { ArrowRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -20,16 +21,6 @@ const RevolvingCards = dynamic(
 
 const ChatGraphic = dynamic(
   () => import("@/components/landing/ChatGraphic").then(m => ({ default: m.ChatGraphic })),
-  { ssr: false }
-);
-
-const SummerStudioBanner = dynamic(
-  () => import("@/components/landing/SummerStudioBanner").then(m => ({ default: m.SummerStudioBanner })),
-  { ssr: false }
-);
-
-const TestimonialsBanner = dynamic(
-  () => import("@/components/landing/TestimonialsBanner").then(m => ({ default: m.TestimonialsBanner })),
   { ssr: false }
 );
 
@@ -128,11 +119,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Testimonials Banner ───────────────────────────────────────── */}
-      <TestimonialsBanner />
-
-      {/* ── Summer Studio Banner ──────────────────────────────────────── */}
-      <SummerStudioBanner />
+      {/* ── Feature cards ──────────────────────────────────────────────── */}
+      <FeatureCards />
 
       {/* How We Work - Apple-style scroll animation */}
       <section className="w-full bg-white border-t border-[#c2d8d2]/30">

@@ -169,18 +169,6 @@ const Navbar = () => {
                 </Link>
               );
             })}
-            <Link
-              href="/summer-studio"
-              aria-current={mounted && pathname === "/summer-studio" ? "page" : undefined}
-              className={`font-medium transition-colors duration-200 relative nav-link-hover ${
-                isDarkNav || isTransparentNav
-                  ? mounted && pathname === "/summer-studio" ? "text-white" : "text-white/70 hover:text-white"
-                  : mounted && pathname === "/summer-studio" ? "nav-link-active text-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Summer Studio
-              <span className="absolute -top-1.5 -right-5 px-1 py-px text-[7px] font-bold uppercase tracking-wide rounded bg-[#128ca0] text-white leading-none">New</span>
-            </Link>
 
           </nav>
         </div>
@@ -385,14 +373,6 @@ const Navbar = () => {
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <Users className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Browse Tutors
-                </Link>
-                <Link
-                  href="/summer-studio"
-                  className="flex items-center gap-3 p-3 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors touch-manipulation relative"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  <GraduationCap className="h-5 w-5 text-[#3e5461]" strokeWidth={1.5} /> Summer Studio
-                  <span className="ml-1 px-1 py-px text-[7px] font-bold uppercase tracking-wide rounded bg-[#128ca0] text-white leading-none">New</span>
                 </Link>
                 {!isTutor && (
                   <Link

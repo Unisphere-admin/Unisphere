@@ -8,7 +8,6 @@ import { ScrollStrips } from "@/components/landing/ScrollStrips";
 /* ═══════════════════════════════════════════════════════════════════
    LETTER SPLIT
    Per-letter staggered reveal with a blur-to-clear focus pull.
-   Echoes the summer-studio hero title so the two pages share language.
    ═══════════════════════════════════════════════════════════════════ */
 
 function LetterSplit({

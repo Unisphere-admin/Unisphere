@@ -16,7 +16,7 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
     id: "were-back",
     title: "We're Back",
     description:
-      "Announce the return of Unisphere with redesigned platform, Summer Studio, and new mentors.",
+      "Announce the return of Unisphere with a redesigned platform and new mentors.",
     fileName: "were-back.html",
     subject: "We're Back. And Better Than Ever.",
     createdAt: "2026-03-31",

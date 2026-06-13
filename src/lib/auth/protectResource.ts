@@ -109,7 +109,6 @@ export const PUBLIC_PATHS = [
   '/consultation',
   '/become-a-tutor',
   '/credits', // Allow access to credits page for purchasing
-  '/summer-studio', // Public marketing page
   '/testimonials', // Public page
 ];
 
